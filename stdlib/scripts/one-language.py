@@ -40,7 +40,7 @@ def run_unit(f, shard, todo):
         o = subprocess.run([RCE, 'check', d if uses(f) else main], capture_output=True, text=True); out = o.stdout + o.stderr
         errs = []
         for ln in out.split('\n'):
-            m = re.match(r'(?:REFUSED|FAIL) (\S+): (.*)', ln)
+            m = re.match(r'(?:requires change|FAIL) (\S+): (.*)', ln)
             if m and os.path.basename(m.group(1)) == os.path.basename(f):
                 errs += re.findall(r'line (\d+): (W-[A-Z]+-\d+) ([^;]*)', m.group(2))
         if not errs:

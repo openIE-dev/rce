@@ -153,7 +153,7 @@ runs the first step of a region whose event tag matches and whose guard
 holds, with the event's payload bound above the state fields, through the
 statement driver `execS`; `deltaS` runs every region on the pre-state and
 the first refusal (trap, declared error, exhaustion) refuses the event as
-a whole (`deltaS_refuse_atomic`). The adapter answers event runs with it
+a whole (`deltaS_kept_atomic`). The adapter answers event runs with it
 (states, payload events, guards, `fail E(..)`, `try x.checked_op(y) else
 E`); structs, kinds, lists, options and capabilities in a Form are still
 outside the subset.

@@ -37,7 +37,7 @@ fn time_round_trip() {
 }
 
 #[test]
-fn hook_and_instruction_files_are_refused() {
+fn hook_and_instruction_files_are_not_written() {
     for bad in [
         "notes/CLAUDE.md",
         "notes/AGENTS.md",
@@ -65,7 +65,7 @@ fn hook_and_instruction_files_are_refused() {
 
 #[cfg(unix)]
 #[test]
-fn symlinked_notes_dir_is_refused() {
+fn symlinked_notes_dir_is_not_used() {
     let d = tempfile::tempdir().unwrap();
     let out = tempfile::tempdir().unwrap();
     std::os::unix::fs::symlink(out.path(), d.path().join("notes")).unwrap();

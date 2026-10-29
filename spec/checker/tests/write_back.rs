@@ -68,7 +68,7 @@ fn run_target(f: &str, t: &str) -> Option<String> {
     let s = String::from_utf8(o.stdout).unwrap();
     Some(
         s.lines()
-            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Refused: ").map(|r| format!("refused: {r}")) })
+            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Stopped: ").map(|r| format!("stopped: {r}")) })
             .map(|l| format!("{l}\n"))
             .collect(),
     )
@@ -176,7 +176,7 @@ fn nested_write_back_budget_traps_at_the_same_point_on_every_target() {
 /// Conditional positions are not flattened (that would evaluate a
 /// branch eagerly); a write-back call there is still refused.
 #[test]
-fn a_write_back_call_in_a_conditional_position_is_refused() {
+fn a_write_back_call_in_a_conditional_position_requires_change() {
     let src = PROG.replace("let v = wrap(&mut n) catch -1", "let v = n > 0 and (wrap(&mut n) catch -1) > 0");
     let f = file("wbcond", &src);
     for t in ["rust", "python", "js"] {

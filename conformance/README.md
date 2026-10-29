@@ -91,8 +91,8 @@ Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and
 The reference, emit-python, emit-js and emit-rust results were rerun against public `rce` main `4a3dc1f`, with `rce-conform` and `rce` built from that commit (`$RCE_ENGINE` set to the same `rce`). Of these, only `reports/results-emit-rust.json` is still that run's file; it records statuses only and is not counted (Status above), and the whole-trace emit baseline replaced the other three. Before the tests were converted to the one-language rules the reference run had 1,575 pass and 404 fail; the converted suite has 1,965 pass and 14 fail.
 
 - **The 14 not re-run:** the 14 `handler-spec` tests (appendix D) need the engine's `rce`, which is not public; their committed results (pass, engine run) are kept, and they fail here because public `rce` has no `spec` declarations.
-- **Not re-run, results kept as committed (minus the removed `emit06-reject`):** emit-scala (needs a Scala toolchain run that was not made), wasm-playground (needs a playground build of the new checker) and lean-core (needs the Lean build). Their results predate the conversion of 371 programs and the rename of `emit06-reject` to `emit06-accept`, so for those tests they describe the earlier program text. `reports/tree-sitter.json` was not regenerated either; it still lists the earlier program text.
-- **Conversions:** programs were changed only as the one-language rules require (`_name` for unused names, `let _ =` for dropped results, `loop bound N`, `len_bytes`, renamed reserved words `ct` and `label`, externs taking `&World`). Expectations that encode the retired `&mut` write-back (T33) were re-derived under F.4.4 and checked by hand (`write-back-methods`, with its two generated fuel tests). `s4-std-modules` now expects W-UNUSED-1, because an unused `use` is refused. `emit06-reject` became `emit06-accept` because `par` is part of the language. The 12 version mutants were removed, and clauses W-VER-1 and the 2.7 version sentence are in the `retired` profile.
+- **Not re-run, results kept as committed (minus the removed `emit06-change`):** emit-scala (needs a Scala toolchain run that was not made), wasm-playground (needs a playground build of the new checker) and lean-core (needs the Lean build). Their results predate the conversion of 371 programs and the rename of `emit06-change` to `emit06-accept`, so for those tests they describe the earlier program text. `reports/tree-sitter.json` was not regenerated either; it still lists the earlier program text.
+- **Conversions:** programs were changed only as the one-language rules require (`_name` for unused names, `let _ =` for dropped results, `loop bound N`, `len_bytes`, renamed reserved words `ct` and `label`, externs taking `&World`). Expectations that encode the retired `&mut` write-back (T33) were re-derived under F.4.4 and checked by hand (`write-back-methods`, with its two generated fuel tests). `s4-std-modules` now expects W-UNUSED-1, because an unused `use` is refused. `emit06-change` became `emit06-accept` because `par` is part of the language. The 12 version mutants were removed, and clauses W-VER-1 and the 2.7 version sentence are in the `retired` profile.
 
 ## Partial runs against public `rce` (17 October 2026)
 
@@ -111,12 +111,12 @@ only material read while building it.
 - Test262 (`INTERPRETING.md` in tc39/test262): metadata lives in the test file,
   negative tests state the phase and the error type they expect, flags change
   how a file is run, and files named with `_FIXTURE` are support files rather
-  than tests. Here `expect: reject` plus a diagnostic code plays the role of
+  than tests. Here `expect: change` plus a diagnostic code plays the role of
   the negative phase and type, and `fixtures:` names support modules.
 - The WebAssembly spec testsuite (README of WebAssembly/testsuite and
   `test/core/README`): assertions about traps, invalid modules and
   exhaustion are first-class alongside assertions about results. Here a run
-  states `outcome: trap:<kind>`, `refused:<error>`, `done` or `deadlock`, and
+  states `outcome: trap:<kind>`, `kept:<error>`, `done` or `deadlock`, and
   fuel exhaustion is a trap kind.
 - ACATS (the ACATS overview page and the User's Guide, section 3.1): tests are
   organised by test objective tied to rules of the reference manual. Here

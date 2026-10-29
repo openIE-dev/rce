@@ -7,8 +7,8 @@
 # Rules:
 #   * NAME.rce outside a refused/ directory must pass `rce test`.
 #     A directory with a program.txt is one program: its files are tested together.
-#   * refused/NAME.rce must be refused by `rce check`, and the output must
-#     contain the text in refused/NAME.expect. refused/NAME.with lists extra
+#   * change/NAME.rce must be refused by `rce check`, and the output must
+#     contain the text in change/NAME.expect. change/NAME.with lists extra
 #     files (relative to refused/) that belong to the same program.
 #   * NAME.cmd holds the arguments of one `rce` command, run from its own
 #     directory. Its output (stdout, then the exit status) must equal NAME.out.
@@ -30,7 +30,7 @@ while IFS= read -r f; do
     d=$(dirname "$f")
     if [ -f "$d/program.txt" ]; then continue; fi
     if (cd "$d" && "$RCE" test "$(basename "$f")" >/dev/null); then ok; else bad "$f"; (cd "$d" && "$RCE" test "$(basename "$f")"); fi
-done < <(find . -name '*.rce' -not -path '*/refused/*' | sort)
+done < <(find . -name '*.rce' -not -path '*/change/*' | sort)
 
 while IFS= read -r p; do
     d=$(dirname "$p")
@@ -47,7 +47,7 @@ while IFS= read -r f; do
     out=$(cd "$(dirname "$f")" && "$RCE" check "${extra[@]}" "$(basename "$f")")
     status=$?
     if [ $status -eq 1 ] && printf '%s' "$out" | grep -qF -- "$expect"; then ok; else bad "$f (expected refusal containing: $expect)"; echo "$out"; fi
-done < <(find . -path '*/refused/*.rce' | sort)
+done < <(find . -path '*/change/*.rce' | sort)
 
 # 3. command transcripts
 while IFS= read -r c; do

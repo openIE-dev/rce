@@ -1,0 +1,13 @@
+extern "C" fn c_tick() -> u32
+
+fn main()
+    with device gpu
+        let t = c_tick()
+#--- rce-test
+# id: effects-capabilities/harvested/device-extern-change
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, HC-4, W-DEV-1]
+# expect: change
+# diagnostic: W-DEV-1
+# provenance: harvested examples/change/types/device_extern.rce
+#---

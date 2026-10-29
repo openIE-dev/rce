@@ -20,7 +20,7 @@ fn paren_zz() -> i64
 # id: lexing-parsing/generated/mut-paren-ok-mutual-accept
 # area: lexing-parsing
 # clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH08-M-286d2fd4, CH08-M-cbd85cbd, CH09-M-82e65964, CH11-M-7fed7576, T10, W-SYN-1]
-# expect: reject
+# expect: change
 # diagnostic: W-SYN-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `paren` of ok-mutual-accept

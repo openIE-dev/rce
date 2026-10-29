@@ -22,7 +22,7 @@ command opens it, admits at most one event and closes it. There is no
 daemon, no network listener and no query engine outside RCE.
 
 Write commands admit one event to D and print `ok seq N`, where N is the
-sequence number of the entry they appended, or `REFUSED E` with the
+sequence number of the entry they appended, or `KEPT E` with the
 error E the module raised; a refused write changes no state (T8).
 
 | Command | Effect |

@@ -60,7 +60,7 @@ fn ghost_code_not_named_by_a_clause_is_erased() {
 }
 
 #[test]
-fn emitters_refuse_a_contract() {
+fn emitters_do_not_yet_print_a_contract() {
     let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap();
     for t in ["python", "js", "rust"] {
         let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
@@ -111,7 +111,7 @@ fn if_let_else_may_change_what_the_scrutinee_read() {
 }
 
 #[test]
-fn an_irrefutable_if_let_is_refused() {
+fn an_irrefutable_if_let_requires_change() {
     let src = "# rce-version: 0.9\nfn main()\n    if let x = 3\n        emit x.tostr()\n";
     let e = rce_spec_check::check_one(src).unwrap_err();
     assert!(e.contains("W-MATCH-2"), "{e}");

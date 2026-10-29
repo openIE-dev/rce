@@ -31,8 +31,8 @@ pub const DENY_FILES: &[&str] = &[
 
 #[derive(Debug, thiserror::Error)]
 pub enum NoteError {
-    #[error("refused: {0}")]
-    Refused(String),
+    #[error("kept: {0}")]
+    NotPerformed(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
     #[error("frontmatter: {0}")]
@@ -177,24 +177,24 @@ pub fn check_write_path(rel: &str) -> Result<(), NoteError> {
     let p = Path::new(rel);
     for c in p.components() {
         let Component::Normal(n) = c else {
-            return Err(NoteError::Refused(format!(
+            return Err(NoteError::NotPerformed(format!(
                 "`{rel}`: only plain relative paths"
             )));
         };
         let n = n.to_string_lossy().to_lowercase();
         if n.starts_with('.') {
-            return Err(NoteError::Refused(format!(
+            return Err(NoteError::NotPerformed(format!(
                 "`{rel}`: dot paths (hooks, agent configs) are never written"
             )));
         }
         if DENY_FILES.contains(&n.as_str()) || n == "hooks" {
-            return Err(NoteError::Refused(format!(
+            return Err(NoteError::NotPerformed(format!(
                 "`{rel}`: agent instruction and hook files are never written"
             )));
         }
     }
     if p.extension().and_then(|e| e.to_str()) != Some("md") {
-        return Err(NoteError::Refused(format!(
+        return Err(NoteError::NotPerformed(format!(
             "`{rel}`: notes are .md files only"
         )));
     }
@@ -271,14 +271,14 @@ impl Notes {
     pub fn write(&self, rel: &str, text: &str) -> Result<(), NoteError> {
         check_write_path(rel)?;
         if !rel.starts_with(&format!("{}/", self.dir)) {
-            return Err(NoteError::Refused(format!(
+            return Err(NoteError::NotPerformed(format!(
                 "`{rel}`: outside the notes directory"
             )));
         }
         let path = self.root.join(rel);
         let parent = path
             .parent()
-            .ok_or_else(|| NoteError::Refused("no parent".into()))?;
+            .ok_or_else(|| NoteError::NotPerformed("no parent".into()))?;
         std::fs::create_dir_all(parent)?;
         let mut cur = self.root.clone();
         for c in Path::new(rel).components() {
@@ -286,12 +286,12 @@ impl Notes {
             if let Ok(m) = std::fs::symlink_metadata(&cur)
                 && m.file_type().is_symlink()
             {
-                return Err(NoteError::Refused(format!("`{rel}`: symlink in path")));
+                return Err(NoteError::NotPerformed(format!("`{rel}`: symlink in path")));
             }
         }
         let root = self.root.canonicalize()?;
         if !parent.canonicalize()?.starts_with(&root) {
-            return Err(NoteError::Refused(format!(
+            return Err(NoteError::NotPerformed(format!(
                 "`{rel}`: escapes the workspace"
             )));
         }

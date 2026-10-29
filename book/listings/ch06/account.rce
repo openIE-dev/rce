@@ -1,6 +1,6 @@
-intent "a bank account that refuses overdrafts"
+intent "a bank account that keeps its balance on an overdraft (Insufficient)"
     example Deposit(amount: 50), Withdraw(amount: 20) -> 30
-    example Withdraw(amount: 1) -> refused: Insufficient
+    example Withdraw(amount: 1) -> kept: Insufficient
 
 state Account
     balance: i64 = 0

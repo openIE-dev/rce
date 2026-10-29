@@ -2,8 +2,8 @@
 # till serves one per Serve event, and the queue has a fixed capacity.
 intent "a bounded queue with arrivals and service"
     example Arrive, Arrive, Serve -> waiting == 1 and served == 1
-    example Serve -> refused: Empty
-    example Arrive, Arrive, Arrive, Arrive -> refused: Full
+    example Serve -> kept: Empty
+    example Arrive, Arrive, Arrive, Arrive -> kept: Full
 
 const CAPACITY: u32 = 3
 

@@ -3,7 +3,7 @@ module netecho
 intent "TCP, random bytes and blobs as effects: each request has one logged result; received bytes arrive exactly, a refusal and a restart are inputs"
     example Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x") -> errors == 1
     example NetRecvDone(req: 1, status: "delivered", data: some([104, 255]), err: ""), NetRecvDone(req: 2, status: "delivered", data: some([226]), err: "") -> got.len() == 3 and got[1] == 255
-    example StepKept(seq: 9, cause: "trap"), Restarted(below: 12) -> refusals == 1 and restarts == 1 and last == 0
+    example StepKept(seq: 9, cause: "trap"), Restarted(below: 12) -> kept_outcomes == 1 and restarts == 1 and last == 0
 
 struct NetListen
     req: u64
@@ -68,7 +68,7 @@ state Net
     next: u64 = 0
     last: u64 = 0
     got: List[i64] = []
-    refusals: u64 = 0
+    kept_outcomes: u64 = 0
     restarts: u64 = 0
     rand: text = ""
     digest: text = ""
@@ -153,7 +153,7 @@ step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
         errors += 1
 
 step Net on StepKept(seq: _q, cause: _c)
-    refusals += 1
+    kept_outcomes += 1
 
 step Net on Restarted(below: _b)
     restarts += 1
@@ -168,7 +168,7 @@ fn dup_zz() -> i64
 # id: types-checking/generated/mut-duplicate-net-accept
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-NAME-2]
-# expect: reject
+# expect: change
 # diagnostic: W-NAME-2
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `duplicate` of net-accept

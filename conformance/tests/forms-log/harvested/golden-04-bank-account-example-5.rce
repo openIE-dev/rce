@@ -1,8 +1,8 @@
 module bank
 
-intent "a bank account that refuses overdrafts"
+intent "a bank account that keeps its balance on an overdraft (Insufficient)"
     example Deposit(amount: 50), Withdraw(amount: 20) -> 30
-    example Withdraw(amount: 1) -> refused: Insufficient
+    example Withdraw(amount: 1) -> kept: Insufficient
 
 state Account
     balance: i64 = 0
@@ -32,7 +32,7 @@ step Account on Withdraw(amount: a)
 # trace_lines:
 #   - 0 (initial) Account { balance = 0 }
 #   - d kept 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b {"event":{"payload":[1],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387"}
-#   - 1 Withdraw(amount: 1) refused: Insufficient
+#   - 1 Withdraw(amount: 1) kept: Insufficient
 #   - trace 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b
 #   - fuel 11
 # provenance: golden spec/traces/04_bank_account.json

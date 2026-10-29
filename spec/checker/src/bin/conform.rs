@@ -56,32 +56,32 @@ fn check(files: &[(String, String)]) -> Value {
     if all.is_empty() {
         json!({"verdict": "accept", "diagnostics": []})
     } else {
-        json!({"verdict": "reject", "diagnostics": diags(all)})
+        json!({"verdict": "change", "diagnostics": diags(all)})
     }
 }
 
-fn outcome_of(lines: &[String], refused: bool) -> String {
-    if !refused {
+fn outcome_of(lines: &[String], kept: bool) -> String {
+    if !kept {
         return "done".into();
     }
     let last = lines.last().cloned().unwrap_or_default();
     if last == "deadlock" {
         return "deadlock".into();
     }
-    let r = last.split("refused: ").nth(1).unwrap_or(&last).trim().to_string();
-    trap_or_refused(&r)
+    let r = last.split_once(" kept: ").or_else(|| last.strip_prefix("stopped: ").map(|x| ("", x))).map(|x| x.1).unwrap_or(&last).trim().to_string();
+    trap_or_kept(&r)
 }
 
 /// One spelling for an outcome: `trap:KIND` for a trap however the evaluator
-/// words it (`trap: K` from fn main, `trap(K)` from δ), else `refused:E`.
-fn trap_or_refused(r: &str) -> String {
+/// words it (`trap: K` from fn main, `trap(K)` from δ), else `kept:E`.
+fn trap_or_kept(r: &str) -> String {
     if let Some(t) = r.strip_prefix("trap: ") {
         return format!("trap:{t}");
     }
     if let Some(t) = r.strip_prefix("trap(").and_then(|t| t.strip_suffix(')')) {
         return format!("trap:{t}");
     }
-    format!("refused:{r}")
+    format!("kept:{r}")
 }
 
 fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) -> Value {
@@ -90,12 +90,12 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": diags(d.into_iter().map(|x| x.1).collect())});
+        return json!({"verdict": "change", "diagnostics": diags(d.into_iter().map(|x| x.1).collect())});
     }
     if events.is_none() {
         let m = match parse::parse(src) {
             Ok(m) => m,
-            Err(e) => return json!({"verdict":"reject","diagnostics":diags(vec![e])}),
+            Err(e) => return json!({"verdict":"change","diagnostics":diags(vec![e])}),
         };
         let mut cfg = conc::RunCfg::default();
         if let Some(s) = seed {
@@ -110,7 +110,7 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
                 let outcome = match r.outcome {
                     conc::Outcome::Done => "done".to_string(),
                     conc::Outcome::Deadlock => "deadlock".to_string(),
-                    conc::Outcome::Refused(e) => trap_or_refused(&e),
+                    conc::Outcome::Stopped(e) => trap_or_kept(&e),
                 };
                 json!({"verdict": "accept", "outputs": outputs, "outcome": outcome})
             }
@@ -122,9 +122,9 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
     }
     match cli::run(src, events) {
         Ok(r) => {
-            let outcome = outcome_of(&r.lines, r.refused);
+            let outcome = outcome_of(&r.lines, r.kept);
             let mut lines = r.lines.clone();
-            if r.refused {
+            if r.kept {
                 lines.pop();
             }
             json!({"verdict": "accept", "outputs": lines, "outcome": outcome})
@@ -189,11 +189,11 @@ fn host(src: &str, steps: &Value, tear: Option<u64>) -> Value {
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": diags(d.into_iter().map(|x| x.1).collect())});
+        return json!({"verdict": "change", "diagnostics": diags(d.into_iter().map(|x| x.1).collect())});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(e) => return json!({"verdict":"reject","diagnostics":diags(vec![e])}),
+        Err(e) => return json!({"verdict":"change","diagnostics":diags(vec![e])}),
     };
     let dir = std::env::temp_dir().join(format!("rce-conform-host-{}-{}", std::process::id(), rand_suffix()));
     let _ = std::fs::create_dir_all(&dir);
@@ -210,7 +210,7 @@ fn host(src: &str, steps: &Value, tear: Option<u64>) -> Value {
                         a.event,
                         match &a.outcome {
                             Ok(o) => json!({"ok": o}),
-                            Err(e) => json!({"refused": e}),
+                            Err(e) => json!({"kept": e}),
                         }
                     ]));
                 }
@@ -242,7 +242,7 @@ fn host(src: &str, steps: &Value, tear: Option<u64>) -> Value {
                             a.event,
                             match &a.outcome {
                                 Ok(o) => json!({"ok": o}),
-                                Err(e) => json!({"refused": e}),
+                                Err(e) => json!({"kept": e}),
                             }
                         ]));
                     }
@@ -256,7 +256,7 @@ fn host(src: &str, steps: &Value, tear: Option<u64>) -> Value {
                         a.event,
                         match &a.outcome {
                             Ok(o) => json!({"ok": o}),
-                            Err(e) => json!({"refused": e}),
+                            Err(e) => json!({"kept": e}),
                         }
                     ]));
                 }

@@ -22,7 +22,7 @@ const BAD_U = "\u{110000}"
 # id: lexing-parsing/generated/mut-bad-escape-ticked-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-3]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-3
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bad-escape` of ticked-accept

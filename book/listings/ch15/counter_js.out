@@ -5,5 +5,5 @@ example 2
 3 Dec Counter { n = 1 }
 example 3
 0 (initial) Counter { n = 0 }
-1 Dec refused: Underflow
+1 Dec kept: Underflow
 exit status: 0

@@ -190,11 +190,11 @@ pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
     let checked = check_all(&mods);
     let mut entries = vec![];
     let mut vectors = Map::new();
-    let mut refused_files = parse_errs;
+    let mut pending_files = parse_errs;
     for (i, (file, m)) in mods.iter().enumerate() {
         let ok = checked[i].errs.is_empty();
         if !ok {
-            refused_files.insert(
+            pending_files.insert(
                 file.clone(),
                 json!(
                     checked[i]
@@ -266,15 +266,15 @@ pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
             let body: String = text.lines().filter(|l| !l.starts_with("# rce-version:")).collect::<Vec<_>>().join("\n");
             let hash = sha(&format!("{module}\n{body}\n"));
             let lowering = if !ok {
-                json!({"refused": "its file is refused by the checker"})
+                json!({"pending": "its file requires change"})
             } else {
                 match lw.lower_fn(&d.sig.name) {
                     // a reader of JSON nests at most 128 deep (serde_json)
                     Ok(t) if depth(&t) > MAX_DEPTH => {
-                        json!({"refused": format!("its program nests {} deep, over {MAX_DEPTH}", depth(&t))})
+                        json!({"pending": format!("its program nests {} deep, over {MAX_DEPTH}", depth(&t))})
                     }
                     Ok(t) => json!({"term": t}),
-                    Err(e) => json!({"refused": e}),
+                    Err(e) => json!({"pending": e}),
                 }
             };
             if ok && o.vectors > 0 && lowering.get("term").is_some() {
@@ -313,7 +313,7 @@ pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
         "hash": sha(&canon(&ents)),
         "count": ents.as_array().unwrap().len(),
         "lowered": lowered,
-        "refused_files": Value::Object(refused_files),
+        "pending_files": Value::Object(pending_files),
         "entries": ents,
     });
     if o.vectors > 0 {

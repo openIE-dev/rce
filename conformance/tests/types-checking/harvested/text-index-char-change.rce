@@ -1,0 +1,10 @@
+fn f(s: &text) -> bool
+    return s[0] == "a"
+#--- rce-test
+# id: types-checking/harvested/text-index-char-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: change
+# diagnostic: W-TY-1
+# provenance: harvested examples/change/types/text_index_char.rce
+#---

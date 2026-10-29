@@ -300,7 +300,7 @@ fn climbs_to_g4_only_on_reject_or_not_done() {
     // Exactly one checker refusal (G3) on the way up.
     assert_eq!(
         rs.iter()
-            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::Refused { .. }))
+            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::RequiresChange { .. }))
             .count(),
         1
     );
@@ -373,7 +373,7 @@ fn chart_guards() {
     assert!(
         b.send("start")
             && b.send("proposed")
-            && b.send("set_reject")
+            && b.send("set_change")
             && b.send("budget_spent")
             && b.send("decide")
     );
@@ -384,7 +384,7 @@ fn chart_guards() {
     for g in 0..4 {
         assert!(
             c.send("proposed")
-                && c.send("set_reject")
+                && c.send("set_change")
                 && c.send("decide")
                 && c.is_active("escalate")
         );

@@ -67,7 +67,7 @@ independent of it and of each other, which gives five core properties.
 - Rules. `type Pct = u32 where 0 <= self and self <= 100`. Predicates come from a decidable
   fragment: linear integer (Presburger) comparisons, `len()` bounds, character-class membership,
   and conjunction/disjunction. Event payload fields with refinement types are checked when the event
-  is admitted, and a failure is `Refused(Invalid(field, pred), payload)` with the state unchanged
+  is admitted, and a failure is `Kept(Invalid(field, pred), payload)` with the state unchanged
   (T8 shape), i.e. **DEFINED**. Inside the program, assigning to a refined type needs a fact the
   checker derives from guards and arithmetic in the fragment (interval plus difference-bound
   reasoning, with no SMT in the trusted base). Otherwise it needs the explicit `refine(e)` form,

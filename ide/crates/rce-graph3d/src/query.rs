@@ -52,7 +52,7 @@ pub fn run(g: &Graph, q: &str) -> Result<Vec<usize>, String> {
             p.reverse();
             Ok(p)
         }
-        ["refused"] => Ok((0..g.nodes.len()).filter(|&i| g.nodes[i].refused).collect()),
+        ["change"] => Ok((0..g.nodes.len()).filter(|&i| g.nodes[i].requires_change).collect()),
         ["uses-hw", n] => {
             let s = by_label(g, n)?;
             Ok(set(g.edges.iter().filter(|e| e.a == s && e.kind == EdgeKind::Ran).map(|e| e.b).collect()))
@@ -85,7 +85,7 @@ mod tests {
     use crate::graph::{Kind, Node};
     fn n(l: &str) -> Node {
         Node { id: format!("code:a:{l}"), label: l.into(), kind: Kind::Fn, file: Some("a.rce".into()), line: Some(1),
-            refused: l == "bad", rank: 0.0, energy: Default::default(), live: None, detail: String::new() }
+            requires_change: l == "bad", rank: 0.0, energy: Default::default(), live: None, detail: String::new() }
     }
     #[test]
     fn queries() {
@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(run(&g, "reach a").unwrap(), vec![b, c]);
         assert_eq!(run(&g, "path a c").unwrap(), vec![a, b, c]);
         assert_eq!(run(&g, "path c a").unwrap(), Vec::<usize>::new());
-        assert_eq!(run(&g, "refused").unwrap(), vec![d]);
+        assert_eq!(run(&g, "change").unwrap(), vec![d]);
         assert_eq!(run(&g, "kind fn joules > 1").unwrap(), vec![c]);
         assert!(run(&g, "frob").is_err());
     }

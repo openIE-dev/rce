@@ -58,7 +58,7 @@ book says. Chapter 15 also runs the emitted Python and JavaScript, so
 |---|---|
 | `src/` | the chapters, in mdBook format; `SUMMARY.md` is the table of contents |
 | `listings/chNN/` | the programs of chapter NN |
-| `listings/chNN/refused/` | programs the checker must refuse; `NAME.expect` holds the text the refusal must contain |
+| `listings/chNN/kept/` | programs the checker must refuse; `NAME.expect` holds the text the refusal must contain |
 | `listings/**/NAME.cmd` and `NAME.out` | a command shown in the book and the exact output it must produce |
 | `scripts/check-listings.sh` | runs all of the above against a real `rce` |
 

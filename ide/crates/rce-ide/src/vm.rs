@@ -180,7 +180,7 @@ impl Ide {
                     if let Some(e) = sc["error"].as_str() {
                         diagnostics.push(e.into());
                     }
-                    ProposalStatus::Refused {
+                    ProposalStatus::RequiresChange {
                         diagnostics,
                         receipt,
                     }

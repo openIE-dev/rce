@@ -203,8 +203,8 @@ def handleEvents (j : Json) : Except String Json := do
     | .ok s o =>
       regs := (s.zip regs).map fun (fs, r) => (fs, r.2)
       out := out.push (Json.mkObj [("state", showR regs), ("emits", Json.arr (o.map Json.str).toArray)])
-    | .refuse t => out := out.push (Json.mkObj [("refused", trapJ t)]); break
-    | .oof => out := out.push (Json.mkObj [("refused", Json.mkObj [("trap", "comptime fuel exhausted")])]); break
+    | .kept t => out := out.push (Json.mkObj [("kept", trapJ t)]); break
+    | .oof => out := out.push (Json.mkObj [("kept", Json.mkObj [("trap", "comptime fuel exhausted")])]); break
     | .stuck => throw "stuck (soundness says unreachable)"
   pure (Json.mkObj [("init", init), ("steps", Json.arr out)])
 

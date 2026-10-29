@@ -172,7 +172,7 @@ fn leaving_stops_the_child() {
 }
 
 #[test]
-fn refused_child_event_changes_nothing() {
+fn kept_child_event_changes_nothing() {
     let chart = toggle();
     let mut actor = ChartActor::start(&chart);
     assert!(actor.send_to_child("go"));

@@ -30,7 +30,7 @@ fn accept_programs_check() {
 }
 
 #[test]
-fn ill_typed_programs_refused_by_rule() {
+fn ill_typed_programs_require_change_by_rule() {
     let fs = files(&dir("ill_typed"));
     assert!(fs.len() >= 21);
     let mut rules = std::collections::BTreeSet::new();
@@ -52,8 +52,8 @@ fn ill_typed_programs_refused_by_rule() {
 }
 
 #[test]
-fn syntax_rejects_refused_by_parser() {
-    for (n, s) in files(&dir("reject")) {
+fn syntax_fixtures_require_change_by_parser() {
+    for (n, s) in files(&dir("change")) {
         assert!(rce_spec_check::parse::parse(&s).is_err(), "{n} parsed");
     }
 }

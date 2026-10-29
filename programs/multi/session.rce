@@ -2,9 +2,9 @@
 # that a tick relaxes; a successful login clears it.
 intent "a login that is throttled after repeated failures and relaxed by time"
     example Login(ok: true) -> logged == true
-    example Login(ok: false), Login(ok: false), Login(ok: false) -> refused: Throttled
+    example Login(ok: false), Login(ok: false), Login(ok: false) -> kept: Throttled
     example Login(ok: false), Login(ok: false), Tick, Login(ok: true) -> logged == true
-    example Logout -> refused: NotLoggedIn
+    example Logout -> kept: NotLoggedIn
 
 state Auth
     logged: bool = false

@@ -123,7 +123,7 @@ step S on Group
         r(0x55), r(0x66), r(0x77), r(0x88), r(0x99)
     );
     for x in h.admit(&src, &evs).unwrap() {
-        assert!(x.outcome.is_ok(), "{} refused: {:?}", x.event, x.outcome);
+        assert!(x.outcome.is_ok(), "{} kept: {:?}", x.event, x.outcome);
     }
     let s = format!("{:?}", h.state());
     let hx = |t: &str| t.bytes().map(|b| format!("{b:02x}")).collect::<String>();

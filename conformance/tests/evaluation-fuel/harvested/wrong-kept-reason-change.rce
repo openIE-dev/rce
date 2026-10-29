@@ -1,0 +1,20 @@
+intent "counter"
+    example Dec -> kept: Other
+
+state Counter
+    n: u64 = 0
+
+event Dec
+
+error Underflow
+error Other
+
+step Counter on Dec -> try n.checked_sub(1) else Underflow
+#--- rce-test
+# id: evaluation-fuel/harvested/wrong-kept-reason-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: change
+# diagnostic: W-INT-1
+# provenance: harvested examples/change/admission/wrong_kept_reason.rce
+#---

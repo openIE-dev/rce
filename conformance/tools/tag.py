@@ -18,7 +18,7 @@ CONSTRUCT = [  # (regex on source, expectation kinds, clauses)
     (r"\bspawn\b", ("run",), ["T19b", "T24"]),
     (r"&mut\b", ("run",), ["T33"]),
     (r"\bfor \w+ in \w+\.(iter|gen|chars|words)|\byield\b", ("run", "accept"), ["T15"]),
-    (r"\bextern\b|\bforeign\b", ("accept", "host", "reject"), ["HC-4"]),
+    (r"\bextern\b|\bforeign\b", ("accept", "host", "change"), ["HC-4"]),
     (r"\bpar\b", ("run",), ["T19a"]),
     (r"\blvar\b|\.put\(|\bfreeze\b", ("run", "accept"), ["T29", "W-CRDT-1"]),
     (r"\bsupervisor\b", ("run", "accept"), ["W-SUP-1"]),
@@ -36,8 +36,8 @@ CONSTRUCT = [  # (regex on source, expectation kinds, clauses)
     (r"\bGuarded\[", ("accept",), ["CH06-M-7c164794"]),
     (r"\bchan\[", ("accept", "run"), ["CH06-M-5912c594"]),
     (r"^step .* if ", ("accept", "run", "trace"), ["CH05-M-d8ee78b3"]),
-    (r"^\s*example .*-> refused:", ("accept",), ["CH08-M-51f39d7d"]),
-    (r"^\s*example .*-> (?!refused)", ("accept",), ["CH08-M-9a15157f"]),
+    (r"^\s*example .*-> kept:", ("accept",), ["CH08-M-51f39d7d"]),
+    (r"^\s*example .*-> (?!kept)", ("accept",), ["CH08-M-9a15157f"]),
     (r"^# rce-version:", ("accept",), ["CH02-M-a696f3a3"]),
     (r"^use ", ("accept",), ["CH04-M-c3c51cd1"]),
     (r"\.chars\(\)|\.len\(\)|\\u\{", ("run",), ["N7", "CH05-M-84afe529"]),
@@ -51,18 +51,18 @@ def tags(src, m):
         cl |= {"T1", "T5", "CH00-M-61b6ac06", "CH07-M-0a0bd71f"}
     if exp == "run":
         cl |= {"T9", "T4"}
-        if str(m.get("outcome", "")).startswith("refused"): cl |= {"T8"}
+        if str(m.get("outcome", "")).startswith("kept"): cl |= {"T8"}
         if str(m.get("outcome", "")) == "deadlock": cl |= {"T4"}
         if m.get("schedule_seeds"): cl |= {"T16", "T17", "CH14-M-90d1ad7f"}
         if m.get("fuel"): cl |= {"T2", "CH14-M-fb31f51f"}
     if exp == "trace":
         cl |= {"T3", "CH07-M-265230fb", "CH16-M-bf12d963" if False else "T3"}
-        cl |= {"T8"} if "refused" in src or "fail " in src or "else " in src else set()
-    if exp == "reject":
+        cl |= {"T8"} if "kept" in src or "fail " in src or "else " in src else set()
+    if exp == "change":
         cl |= {"CH09-M-82e65964"}
     if exp == "accept":
         cl |= {"T10"}
-    if exp in ("accept",) or (exp == "reject" and m.get("diagnostic") == "W-SYN-1"):
+    if exp in ("accept",) or (exp == "change" and m.get("diagnostic") == "W-SYN-1"):
         cl |= {"CH03-M-28cdd241"}   # checked by tools/ts_crosscheck.py against tree-sitter-rce
     if m.get("area") == "lexing-parsing":
         cl |= {"T10", "CH02-M-69371f07"} if (exp == "accept" or m.get("diagnostic") in ("W-LEX-2", "W-SYN-1")) else set()

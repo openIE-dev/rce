@@ -2,7 +2,7 @@ module http_echo
 
 intent "the HTTP event host from the program's side: echo a body as bytes, refuse a step on purpose and answer the refusal, answer again after a response the host refused, and answer twice to see the second fail"
     example HttpRequest(id: 3, method: "POST", target: "/echo", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: [255, 0]) -> seen == 1 and last == 200
-    example HttpRequest(id: 3, method: "GET", target: "/trap", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> refused: trap("division by zero")
+    example HttpRequest(id: 3, method: "GET", target: "/trap", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> kept: trap("division by zero")
     example StepKept(seq: 3, cause: "trap") -> last == 500
     example StepKept(seq: 3, cause: "fuel") -> last == 503
     example HttpRequest(id: 3, method: "GET", target: "/twice", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []), HttpRespondDone(req: 3, status: "failed", data: none, err: "status 99 is outside 200 to 599") -> last == 200 and failures == 1

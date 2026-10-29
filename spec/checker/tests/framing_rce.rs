@@ -37,7 +37,7 @@ step S on Msg(h: h)
     seq += 1
     let f = mls_decode(copy(h))
     if f.len() == 0
-        out = ["O:" + seq.tostr() + "#refused"]
+        out = ["O:" + seq.tostr() + "#kept"]
     else
         let ok = mls_encode(copy(f)) == h
         let ctext = if f.len() == 10 then copy(f[5]) else copy(f[3])
@@ -96,7 +96,7 @@ fn official_messages_vectors() {
     // malformed: one byte short, one byte extra, unknown wire format
     let pa = v[0]["public_message_application"].as_str().unwrap();
     for bad in [&pa[..pa.len() - 2], &format!("{pa}00"), &format!("0001000f{}", &pa[8..])] {
-        assert_eq!(step(format!(r#"Msg(h: "{bad}")"#)), "refused");
+        assert_eq!(step(format!(r#"Msg(h: "{bad}")"#)), "kept");
     }
     let c = v[0]["commit"].as_str().unwrap();
     assert_eq!(step(format!(r#"Walk(what: "commit", h: "{}")"#, &c[..c.len() - 2])), "false");

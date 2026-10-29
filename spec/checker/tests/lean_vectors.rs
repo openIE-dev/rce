@@ -147,7 +147,7 @@ fn generate() -> String {
         // i64 overflow traps in the evaluator; ParSem has unbounded
         // integers, so such programs become trap vectors for the bounded
         // evaluator model `evalB` (ParRefine.lean) instead
-        if let Outcome::Refused(e) = &res.outcome && e.contains("overflow") {
+        if let Outcome::Stopped(e) = &res.outcome && e.contains("overflow") {
             if skipped >= NTRAP {
                 continue;
             }

@@ -103,7 +103,7 @@ pub enum EdgeKind {
     /// A step can raise an error (step -> error).
     Raises,
     /// The checker refused the file this item lives in (error node -> item).
-    Refuses,
+    RequiresChange,
     /// Hardware containment (package -> core, core -> cache).
     Contains,
     /// Hardware link (memory bus, PCIe, network), labelled with bandwidth when probed.
@@ -172,7 +172,7 @@ pub struct Node {
     pub line: Option<usize>,
     /// The checker refused this node's file.
     #[serde(default)]
-    pub refused: bool,
+    pub requires_change: bool,
     /// Rank (PageRank for code), drives the node radius.
     #[serde(default)]
     pub rank: f64,
@@ -305,7 +305,7 @@ pub fn from_defs(
         ..Default::default()
     };
     for d in defs {
-        let refused = matches!(verdicts.get(d.file), Some(Some(_)));
+        let requires_change = matches!(verdicts.get(d.file), Some(Some(_)));
         let label = match d.name.strip_prefix("step ") {
             Some(s) => format!("step {}", s.split('@').next().unwrap_or(s)),
             None => d.name.to_string(),
@@ -316,7 +316,7 @@ pub fn from_defs(
             kind: Kind::of_def(d.kind),
             file: Some(d.file.into()),
             line: Some(d.line),
-            refused,
+            requires_change,
             rank: d.rank,
             energy: Energy::default(),
             live: None,
@@ -340,18 +340,18 @@ pub fn from_defs(
             let first = msg.lines().next().unwrap_or(msg);
             let e = g.add(Node {
                 id: format!("check:{file}"),
-                label: format!("refused: {}", trunc(first, 48)),
+                label: format!("requires change: {}", trunc(first, 48)),
                 kind: Kind::Error,
                 file: Some(file.clone()),
                 line: parse_line(msg),
-                refused: true,
+                requires_change: true,
                 rank: 0.0,
                 energy: Energy::default(),
                 live: None,
                 detail: msg.clone(),
             });
             for m in members {
-                g.link(e, m, EdgeKind::Refuses, 1.0, "");
+                g.link(e, m, EdgeKind::RequiresChange, 1.0, "");
             }
         }
     }

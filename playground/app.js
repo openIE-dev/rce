@@ -11,7 +11,7 @@ function render(r) {
   else { v.className = "verdict bad"; v.textContent = `refused at the ${r.stage} stage`; }
   $("errors").innerHTML = r.errors.map((e) => `<div class="err"><b>${esc(e.rule || "")}</b> ${esc(e.msg)}</div>`).join("");
   $("examples").innerHTML = r.examples.map((ex) => {
-    const rows = ex.steps.map((s) => `<tr><td>${esc(s.event)}</td><td${s.refused ? ' class="refused"' : ""}>${esc(s.refused ? "refused: " + s.refused : show(s.state))}</td></tr>`).join("");
+    const rows = ex.steps.map((s) => `<tr><td>${esc(s.event)}</td><td${s.kept ? ' class="kept"' : ""}>${esc(s.kept ? "kept: " + s.kept : show(s.state))}</td></tr>`).join("");
     return `<h3>example on line ${ex.line}</h3><table><tr><th>event</th><th>state after</th></tr>${rows}</table>`;
   }).join("");
   $("form").textContent = r.form ? JSON.stringify(r.form, null, 2) : "";

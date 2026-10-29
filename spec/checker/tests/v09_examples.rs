@@ -1,5 +1,5 @@
 //! Version 0.9 (Appendix F) examples: `../examples-0.9/ok/*.rce` must be
-//! accepted by the reference checker; every `../examples-0.9/refused/*.rce`
+//! accepted by the reference checker; every `../examples-0.9/change/*.rce`
 //! must be refused with the rule named on its second line
 //! (`# expect: W-...`). A refused example that is refused for a different
 //! rule fails, so each file tests one rule.
@@ -28,8 +28,8 @@ fn ok_examples_are_accepted() {
 }
 
 #[test]
-fn refused_examples_are_refused_for_the_named_rule() {
-    let fs = files("refused");
+fn failing_examples_require_change_for_the_named_rule() {
+    let fs = files("change");
     assert!(!fs.is_empty());
     for p in fs {
         let src = std::fs::read_to_string(&p).unwrap();

@@ -19,7 +19,7 @@ fn main() {
             Ok(m) => parsed.push((p.clone(), m)),
             Err(e) => {
                 bad += 1;
-                println!("REFUSED {p}: {e}")
+                println!("requires change {p}: {e}")
             }
         }
     }
@@ -41,7 +41,7 @@ fn main() {
             println!("ok {p}");
         } else {
             bad += 1;
-            println!("REFUSED {p}: {}", c.errs.join("; "));
+            println!("requires change {p}: {}", c.errs.join("; "));
         }
     }
     std::process::exit(if bad > 0 { 1 } else { 0 });

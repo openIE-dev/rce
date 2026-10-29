@@ -1,6 +1,6 @@
 module refined
 
-intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+intent "input validation is a declared predicate: an event whose payload is outside its refined type has the kept outcome, state unchanged"
     example SetVolume(pct: 40) -> level == 40
     example Rename(name: "ok") -> name == "ok"
     example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
@@ -32,7 +32,7 @@ const BAD_U = "\u{110000}"
 # id: lexing-parsing/generated/mut-bad-escape-51-refined-input-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-3]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-3
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bad-escape` of 51-refined-input-accept

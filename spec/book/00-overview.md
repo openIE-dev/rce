@@ -108,12 +108,12 @@ The normative grammar is section 3, and it is also the machine-readable one:
 `rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
-`spec/examples/` and requires every program in `spec/examples/reject/` to be
+`spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
 refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
-programs in `spec/examples/ill_typed/` and the 16 in
-`spec/examples/inadmissible/` must be refused). Current result (draft 0.9,
+programs in `spec/examples/change/types/` and the 16 in
+`spec/examples/change/admission/` must be refused). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
@@ -140,4 +140,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 977a15f4f5ee73d56a01ed0a1c70aaa8a9eb17abfbd5fcb22b6983b1e14df324 -->
+<!-- body-sha256: 9b5d00a9125a58ae37ba6cd42fc74a8c18a657c45e6968df672118433c277fe3 -->

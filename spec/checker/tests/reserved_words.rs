@@ -38,7 +38,7 @@ fn an_unknown_label_is_tolerated() {
 const SPAWN: &str = "fn worker(c: chan i64)\n    c <- 1\n\nfn boss(c: chan i64)\n    spawn worker(c)\n\nfn main()\n    let c = chan[i64](1)\n    spawn boss(c)\n";
 
 #[test]
-fn spawn_outside_a_scope_is_refused_in_every_module() {
+fn spawn_outside_a_scope_requires_change_in_every_module() {
     let r = rce_spec_check::check_one(&format!("# rce-version: 0.5\n{SPAWN}"));
     assert!(r.unwrap_err().contains("W-SCOPE-1"));
 }

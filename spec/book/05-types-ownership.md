@@ -99,7 +99,7 @@ make acceptance itself unbounded. Example: `type Pct = u8 where self <=
 `refinement: value is outside Pct`, and a step computing `level + 60` on
 `level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
 (`holds_total`, `fit_sound`, `refine_preserved`,
-`refine_refused_unchanged`, `admit_sound`; T35).
+`refine_kept_unchanged`, `admit_sound`; T35).
 
 **Error sets.** In `τ ! ε`, ε is a finite set of declared `error` names,
 written as one error name or as the name of a `kind` whose variants are all
@@ -311,4 +311,4 @@ sound and is excluded (F.2).
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: 02ac9d12d4e0e96656f200f8328965028a511328a7affa24d233988588eef3b4 -->
+<!-- body-sha256: 60fbd30d15e72a6d3919864f7259ba7ccb7f16f4b309d6367c2cb479e7498d07 -->

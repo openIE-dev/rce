@@ -1,0 +1,12 @@
+fn sub(a: u64, b: u64) -> u64
+    return a - b
+
+check sub(0, 1) == 0
+#--- rce-test
+# id: evaluation-fuel/harvested/u64-underflow-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: change
+# diagnostic: W-INT-1
+# provenance: harvested examples/change/admission/u64_underflow.rce
+#---

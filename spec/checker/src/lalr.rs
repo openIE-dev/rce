@@ -395,8 +395,9 @@ pub enum Act {
 }
 
 /// Contextual words: terminals of section 3 that are not reserved (2.4);
-/// `where` follows a type in a refined type declaration (5.1).
-pub const CONTEXTUAL: &[&str] = &["where", "by"];
+/// `where` follows a type in a refined type declaration (5.1); `kept`
+/// begins the outcome of an `example` when a `:` follows (COMP-2).
+pub const CONTEXTUAL: &[&str] = &["where", "by", "kept"];
 
 pub struct Lalr {
     pub g: Grammar,
@@ -711,10 +712,12 @@ impl Lalr {
         let toks = lex(src).ok()?;
         let mut out = Vec::new();
         let mut after_dot = false;
-        for (t, _) in toks {
-            let name: String = match &t {
+        for (i, (t, _)) in toks.iter().enumerate() {
+            let colon_next = matches!(toks.get(i + 1), Some((Tok::P(":"), _)));
+            let name: String = match t {
                 Tok::Id(s) if s == "_" => "_".into(),
                 Tok::Id(s) if kw(s.as_str()) && !after_dot => s.clone(),
+                Tok::Id(s) if s == "kept" && !colon_next => "NAME".into(),
                 Tok::Id(s) if CONTEXTUAL.contains(&s.as_str()) && !after_dot && self.term(s).is_some() => s.clone(),
                 Tok::Id(_) => "NAME".into(),
                 Tok::Int(_) => "INT".into(),
@@ -727,7 +730,7 @@ impl Lalr {
                 Tok::Dedent => "DEDENT".into(),
                 Tok::Eof => break,
             };
-            after_dot = matches!(&t, Tok::P("."));
+            after_dot = matches!(t, Tok::P("."));
             out.push(self.term(&name)?);
         }
         Some(out)

@@ -262,7 +262,7 @@ fn dep_files() -> Vec<(String, String)> {
 #[test]
 fn library_dependencies_resolve_by_use() {
     let c = brick::index(&dep_files());
-    assert_eq!(c["refused_files"], json!({}));
+    assert_eq!(c["pending_files"], json!({}));
     assert!(
         c["entries"]
             .as_array()
@@ -276,7 +276,7 @@ fn library_dependencies_resolve_by_use() {
         std::fs::read_to_string(dir("dep/duser.rce")).unwrap(),
     )]);
     assert!(
-        alone["refused_files"][dir("dep/duser.rce")]
+        alone["pending_files"][dir("dep/duser.rce")]
             .as_str()
             .unwrap()
             .contains("unknown module `dlib`")
@@ -292,10 +292,10 @@ fn a_lib_line_is_a_comment_to_the_index() {
     files.push((dir("dep/dold.rce"), src.to_string()));
     let c = brick::index(&files);
     assert!(
-        c["refused_files"][dir("dep/dold.rce")]
+        c["pending_files"][dir("dep/dold.rce")]
             .as_str()
             .unwrap()
             .contains("`triple`")
     );
-    assert_eq!(c["refused_files"].as_object().unwrap().len(), 1);
+    assert_eq!(c["pending_files"].as_object().unwrap().len(), 1);
 }

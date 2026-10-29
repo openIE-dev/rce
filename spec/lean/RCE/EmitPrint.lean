@@ -5,8 +5,8 @@ namespace RCE.Emit
 def prelude : String := "#![allow(unused_mut, unused_variables, unreachable_code, unused_braces, unused_assignments, dead_code)]
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Val { Int(i128), Bool(bool) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Trap { Overflow, DivZero, BadIndex, LoopBound }
-#[derive(Clone, PartialEq, Debug)] pub enum Refusal { User(&'static str), Trap(Trap) }
-impl From<Trap> for Refusal { fn from(t: Trap) -> Self { Refusal::Trap(t) } }
+#[derive(Clone, PartialEq, Debug)] pub enum Reason { User(&'static str), Trap(Trap) }
+impl From<Trap> for Reason { fn from(t: Trap) -> Self { Reason::Trap(t) } }
 pub enum Op { Add, Sub, Mul, Div, Rem, Lt, Eq }
 fn get(v: &[Val], i: usize) -> Result<Val, Trap> { v.get(i).copied().ok_or(Trap::BadIndex) }
 fn set(v: &mut Vec<Val>, i: usize, x: Val) -> Result<(), Trap> { if i < v.len() { v[i] = x; Ok(()) } else { Err(Trap::BadIndex) } }
@@ -55,8 +55,8 @@ def RS.toRust : RS → String
   | .ifelse c a b => s!"if truthy({c.toRust}?)? \{\n{a.toRust}\n} else \{\n{b.toRust}\n}"
   | .loop b => s!"loop \{\n{b.toRust}\n}"
   | .brk => "break;"
-  | .fail x => s!"return Err(Refusal::User({repr x}));"
-  | .trap m => s!"return Err(Refusal::Trap({pTrap m}));"
+  | .fail x => s!"return Err(Reason::User({repr x}));"
+  | .trap m => s!"return Err(Reason::Trap({pTrap m}));"
   | .letK d n => s!"let mut k_{d}: u64 = {n};"
   | .decK d => s!"k_{d} -= 1;"
   | .ifKZero d s => s!"if k_{d} == 0 \{\n{s.toRust}\n}"
@@ -65,6 +65,6 @@ def RS.toRust : RS → String
 
 /-- The emitted step body as a Rust function. -/
 def emitFn (name : String) (s : Stmt) : String :=
-  s!"pub fn {name}(fs: &mut Vec<Val>, os: &mut Vec<Val>, args: &[Val]) -> Result<(), Refusal> \{\n{(compile 0 s).toRust}\nOk(())\n}\n"
+  s!"pub fn {name}(fs: &mut Vec<Val>, os: &mut Vec<Val>, args: &[Val]) -> Result<(), Reason> \{\n{(compile 0 s).toRust}\nOk(())\n}\n"
 
 end RCE.Emit

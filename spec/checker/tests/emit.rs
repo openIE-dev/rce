@@ -165,10 +165,10 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
             .collect();
         hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
     });
-    let (mut ok, mut refused, mut bad) = (0, vec![], vec![]);
+    let (mut ok, mut kept, mut bad) = (0, vec![], vec![]);
     for (stem, want, r) in results {
         match r {
-            Err(why) => refused.push(format!("{stem}: {why}")),
+            Err(why) => kept.push(format!("{stem}: {why}")),
             Ok(Err(why)) => bad.push(format!(
                 "{stem}: did not run: {}",
                 &why[..why.len().min(3000)]
@@ -199,10 +199,10 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
         .collect();
     eprintln!("{lang:?}: {lines} observation lines, {traced} whole-trace lines; programs with none: {empty:?}");
     eprintln!(
-        "{lang:?}: {ok} of {CORPUS} agree with the reference; {} refused: {refused:?}",
-        refused.len()
+        "{lang:?}: {ok} of {CORPUS} agree with the reference; {} kept: {kept:?}",
+        kept.len()
     );
-    (ok, refused)
+    (ok, kept)
 }
 
 #[test]
@@ -210,8 +210,8 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
 fn rust_emitter_agrees_with_reference() {
     let v = oracle_version(Lang::Rust);
     eprintln!("rust oracle: {v}");
-    let (ok, refused) = check_all(Lang::Rust);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Rust);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 #[test]
@@ -219,8 +219,8 @@ fn rust_emitter_agrees_with_reference() {
 fn python_emitter_agrees_with_reference() {
     let v = oracle_version(Lang::Python);
     eprintln!("python oracle: {v}");
-    let (ok, refused) = check_all(Lang::Python);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Python);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 #[test]
@@ -228,8 +228,8 @@ fn python_emitter_agrees_with_reference() {
 fn js_emitter_agrees_with_reference() {
     let v = oracle_version(Lang::Js);
     eprintln!("node oracle: {v}");
-    let (ok, refused) = check_all(Lang::Js);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Js);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 #[test]
@@ -237,8 +237,8 @@ fn js_emitter_agrees_with_reference() {
 fn scala_emitter_agrees_with_reference() {
     let v = oracle_version(Lang::Scala);
     eprintln!("scala oracle: {v}");
-    let (ok, refused) = check_all(Lang::Scala);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Scala);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 /// Edge cases beyond the corpus: integer range traps, loop bounds, `&mut`

@@ -27,7 +27,7 @@ pub const BUILDERS: &[(&str, Builder)] = &[
     ("dec", dec), ("dec_exact add", |f| dec_exact(f, "add")), ("dec_exact sub", |f| dec_exact(f, "sub")),
     ("dec_exact mul", |f| dec_exact(f, "mul")), ("dec_exact neg", |f| dec_exact(f, "neg")),
     ("dec_exact abs", |f| dec_exact(f, "abs")), ("dec_exact quo", |f| dec_exact(f, "quo")), ("sha_hex", sha_hex),
-    ("jstr", jstr), ("debug", debug), ("why", why), ("refusal", refusal), ("utf8_count", utf8_count),
+    ("jstr", jstr), ("debug", debug), ("why", why), ("kept_reason", kept_reason), ("utf8_count", utf8_count),
 ];
 
 pub fn u32t() -> Ty {
@@ -1161,8 +1161,8 @@ pub fn why(f: &mut Fns) -> R<usize> {
 
 /// The refusal text of a step that halted (interp `region_step`): the
 /// error's name for a declared error, `trap(m)` for a trap.
-pub fn refusal(f: &mut Fns) -> R<usize> {
-    f.get("rt.refusal", vec![Ty::halt()], Ty::Bytes, |_, mut b| {
+pub fn kept_reason(f: &mut Fns) -> R<usize> {
+    f.get("rt.kept_reason", vec![Ty::halt()], Ty::Bytes, |_, mut b| {
         let h = b.arg(0);
         let t = b.p("sum.tag", vec![Ty::halt()], vec![h.clone()])?;
         let is0 = b.int_cmp("int.eq", t, lit(0))?;

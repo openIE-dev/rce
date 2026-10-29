@@ -40,10 +40,10 @@ def counts():
     ex = spec / "examples"
     c["examples_files"] = len(list(ex.glob("*.rce")))
     c["examples_package_files"] = sum(len(list(d.rglob("*.rce"))) for d in ex.iterdir()
-                                      if d.is_dir() and d.name not in ("reject", "ill_typed", "inadmissible"))
+                                      if d.is_dir() and d.name != "change")
     c["examples_total"] = c["examples_files"] + c["examples_package_files"]
-    for d in ("reject", "ill_typed", "inadmissible"):
-        c["examples_" + d] = len(list((ex / d).glob("*.rce")))
+    for d, sub in (("reject", "syntax"), ("ill_typed", "types"), ("inadmissible", "admission")):
+        c["examples_" + d] = len(list((ex / "change" / sub).glob("*.rce")))
     cli = read("spec/checker/src/cli.rs")
     m = re.search(r'"rust" \| "python" \| "js" \| "scala" =>', cli)
     c["emit_targets"] = re.findall(r'"(\w+)"', m.group(0)) if m else None

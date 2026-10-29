@@ -17,12 +17,12 @@ Values are JSON when they parse as JSON, otherwise comma lists, otherwise text.
 |---|---|
 | id, area | stable test id and area directory |
 | clauses | clause ids from `clauses.json` the test exercises |
-| expect | `accept`, `reject`, `run`, `trace`, `host`, `replicate` |
-| diagnostic | for `reject`: the rule code the checker must report |
+| expect | `accept`, `change`, `run`, `trace`, `host`, `replicate` |
+| diagnostic | for `change`: the rule code the checker must report |
 | events | event list applied before or instead of `fn main` |
 | fuel | fuel bound for `fn main` runs |
 | schedule_seeds | par schedules that must all give the same result (T16) |
-| outcome | `done`, `deadlock`, `trap:<kind>`, `refused:<error>` |
+| outcome | `done`, `deadlock`, `trap:<kind>`, `kept:<error>` |
 | outputs | expected emitted lines |
 | trace_head | for `trace`: the hash of the last entry of D (6.1) |
 | trace_lines | for `trace`: the whole trace as the reference prints it, one item per line: the state after each event, each entry of D as `d applied HASH BODY` or `d kept HASH BODY` (BODY the canonical JSON that HASH is the SHA-256 of), the outputs, the reason an event was kept, `trace HEAD` and the example's `fuel N` |

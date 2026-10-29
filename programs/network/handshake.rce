@@ -2,8 +2,8 @@
 # protocol state machine.
 intent "a three-way handshake, then data, then close"
     example Syn, SynAck, Ack, Data(n: 10), Data(n: 5) -> phase == Established and bytes == 15
-    example Data(n: 1) -> refused: NotConnected
-    example Syn, Ack -> refused: OutOfOrder
+    example Data(n: 1) -> kept: NotConnected
+    example Syn, Ack -> kept: OutOfOrder
 
 kind Phase
     Closed

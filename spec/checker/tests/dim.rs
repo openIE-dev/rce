@@ -97,7 +97,7 @@ fn tmp(name: &str, text: &str) -> String {
     p.to_string_lossy().into_owned()
 }
 
-const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> refused: Underflow\n\nstate Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
+const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> kept: Underflow\n\nstate Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
 
 #[test]
 fn equiv_is_name_free() {
@@ -116,7 +116,7 @@ fn equiv_finds_the_shortest_distinguishing_sequence() {
     let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
     assert_eq!(status, 1, "{out}");
     assert!(out.contains("after               Inc(), Dec()"), "{out}");
-    assert!(out.contains("A                 silent") && out.contains("B                 refused: Underflow"), "{out}");
+    assert!(out.contains("A                 silent") && out.contains("B                 kept: Underflow"), "{out}");
     let (_, json) = rce(&["equiv", "--json", "--fuel", "500", &a, &b]);
     let v: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
     assert_eq!(v["format"], "rce-equiv/1");

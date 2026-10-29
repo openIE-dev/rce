@@ -11,7 +11,7 @@ fn demo() -> usize
 # id: lexing-parsing/generated/mut-bom-12-borrow-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of 12-borrow-accept

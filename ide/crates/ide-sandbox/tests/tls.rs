@@ -213,7 +213,7 @@ fn connect_tunnels_only_to_declared_hosts_with_matching_sni() {
 }
 
 #[test]
-fn credentialed_endpoints_refuse_tunnels_and_inject_on_absolute_https() {
+fn credentialed_endpoints_open_no_tunnels_and_inject_on_absolute_https() {
     let port = mock_tls();
     let p = Arc::new(Mutex::new(proxy(port, true, true)));
     let l = listen(p.clone(), "127.0.0.1:0").unwrap();

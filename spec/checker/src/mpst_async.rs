@@ -132,7 +132,7 @@ pub fn is_final(k: &Cfg) -> bool {
 }
 
 /// a receiver whose queue head it does not offer
-pub fn refuses(k: &Cfg) -> bool {
+pub fn is_stuck(k: &Cfg) -> bool {
     k.c.iter().enumerate().any(|(r, l)| match l {
         L::Rcv(p, ha, hb, ..) => k.q[*p][r].front().is_some_and(|&d| !pick(d, *ha, *hb)),
         _ => false,
@@ -149,7 +149,7 @@ pub fn explore(start: Cfg, limit: usize) -> Result<usize, Cfg> {
             continue;
         }
         let next = steps(&k);
-        if (next.is_empty() && !is_final(&k)) || refuses(&k) {
+        if (next.is_empty() && !is_final(&k)) || is_stuck(&k) {
             return Err(k);
         }
         if seen.len() >= limit {

@@ -32,11 +32,11 @@ fn extraction_kinds_and_dataflow() {
     let inc = g.nodes.iter().position(|n| n.label == "Inc").unwrap();
     assert_eq!(g.nodes[inc].line, Some(4));
     assert_eq!(g.node_at("counter.rce", 4), Some(inc));
-    assert!(!g.nodes.iter().any(|n| n.refused));
+    assert!(!g.nodes.iter().any(|n| n.requires_change));
 }
 
 #[test]
-fn refused_file_gets_error_node() {
+fn file_requiring_change_gets_error_node() {
     let g = native::code_graph_of(&prog("state S\n    n: u64 = 0\nstep S on Nope -> n + 1\n"));
     let e = g
         .nodes
@@ -48,9 +48,9 @@ fn refused_file_gets_error_node() {
         g.nodes
             .iter()
             .filter(|n| n.id.starts_with("code:"))
-            .all(|n| n.refused)
+            .all(|n| n.requires_change)
     );
-    assert!(g.edges.iter().any(|x| x.kind == EdgeKind::Refuses));
+    assert!(g.edges.iter().any(|x| x.kind == EdgeKind::RequiresChange));
 }
 
 fn lay(g: &rce_graph3d::Graph, warm: &Positions) -> Positions {
@@ -124,7 +124,7 @@ fn barnes_hut_scales() {
             kind: Kind::Fn,
             file: None,
             line: None,
-            refused: false,
+            requires_change: false,
             rank: 0.0,
             energy: Default::default(),
             live: None,
@@ -200,7 +200,7 @@ fn time_scrubbing_versions_facts_receipts() {
         kind: Kind::Package,
         file: None,
         line: None,
-        refused: false,
+        requires_change: false,
         rank: 0.0,
         energy: Default::default(),
         live: None,

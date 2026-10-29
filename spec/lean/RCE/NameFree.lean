@@ -34,8 +34,8 @@ inductive CK where
 
 def outKey (ds : List String) : Out → CK
   | .emit v => .emit v
-  | .refused (.user x) => .user (idx ds x)
-  | .refused (.trap m) => .trap m
+  | .kept (.user x) => .user (idx ds x)
+  | .kept (.trap m) => .trap m
 
 def entryKey (ds : List String) (en : Event × List Out) : List CK :=
   .ev (idx ds en.1.1) en.1.2 :: en.2.map (outKey ds)
@@ -69,8 +69,8 @@ theorem outKey_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a
     outKey (ds.map ρ) (o.rename ρ) = outKey ds o := by
   cases o with
   | emit v => rfl
-  | refused r => cases r with
-    | user x => simp [Out.rename, Refusal.rename, outKey, idx_rename ρ hρ]
+  | kept r => cases r with
+    | user x => simp [Out.rename, Reason.rename, outKey, idx_rename ρ hρ]
     | trap m => rfl
 
 /-- **T7 for log hashes**: renaming every event and error name (any

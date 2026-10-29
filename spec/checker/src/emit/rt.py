@@ -1006,12 +1006,12 @@ def dbg_flow(e):
     if isinstance(e, Stop): return "Stop"
     if isinstance(e, Cancel): return "Cancel(%d)" % e.f
     return "?"
-def refusal(e):
+def reason_of(e):
     """machine step refusal (interp.rs)"""
     if isinstance(e, Fail): return v_name(e.v)
     if isinstance(e, Trap): return "trap(" + e.m + ")"
     return "trap(" + dbg_flow(e) + ")"
-def actor_refusal(e):
+def actor_reason(e):
     """actor handler refusal (conc.rs)"""
     if isinstance(e, Fail) and type(e.v) is Rec: return e.v.n
     if isinstance(e, Trap): return "trap(" + e.m + ")"
@@ -1056,9 +1056,9 @@ def run_events(s, events, d):
         if ev is None:
             print("%d %s not an event" % (k, name)); return
         try: s2, outs = delta(s, ev)
-        except Refuse as r:
+        except Kept as r:
             if TRACE: d.add(name, ev, s, True)
-            print("%d %s refused: %s" % (k, show(ev), r.r)); return
+            print("%d %s kept: %s" % (k, show(ev), r.r)); return
         s = s2
         if TRACE: d.add(name, ev, s, False)
         print("%d %s %s" % (k, show(ev), show_state(s)))
@@ -1191,7 +1191,7 @@ class DLog:
         print("d " + ("kept" if kept else "applied") + " " + h + " " + body)
         s.prev = h; s.seq += 1
 
-class Refuse(Exception):
+class Kept(Exception):
     def __init__(s, r): s.r = r
 
 def delta(s, ev):
@@ -1201,7 +1201,7 @@ def delta(s, ev):
         for st in STEPS.get(name, []):
             TLS.out.clear()
             try: r = st(fs, ev)
-            except (Trap, Fail, Stop, Ret) as e: raise Refuse(refusal(e))
+            except (Trap, Fail, Stop, Ret) as e: raise Kept(reason_of(e))
             if r is not None:
                 got = (r, list(TLS.out)); break
         if got is None: nxt.append((name, fs))
@@ -1757,7 +1757,7 @@ class Sched:
             try: r = h(st.fields, msg)
             except (Trap, Fail, Stop, Ret, Cancel) as e:
                 TLS.hsends = None; TLS.out = []
-                return ("err", actor_refusal(e))
+                return ("err", actor_reason(e))
             sends = TLS.hsends; TLS.hsends = None
             if r is None: continue
             outs = TLS.out; TLS.out = []
@@ -1765,7 +1765,7 @@ class Sched:
         return ("ok", None)
     def on_crash(s, aid, reason):
         # restart as input (C.11.11)
-        s.alog.append("Refused(%s)" % reason)
+        s.alog.append("Kept(%s)" % reason)
         ty = s.actors[aid].ty
         sv = SUPERVISORS.get(ty)
         if sv is None: return
@@ -1773,9 +1773,9 @@ class Sched:
         tick = s.tick
         if s.rrep is not None:
             if s.rrep and (s.rrep[0][1] + "/" + s.rrep[0][2]) not in SUP_TREE:
-                s.stop = ("refused", "trap: upgrade removed supervisor position %s/%s" % (s.rrep[0][1], s.rrep[0][2])); return
+                s.stop = ("stopped", "trap: upgrade removed supervisor position %s/%s" % (s.rrep[0][1], s.rrep[0][2])); return
             if not s.rrep or s.rrep[0][3] != aid or s.rrep[0][1] != sup:
-                s.stop = ("refused", "replay diverged"); return
+                s.stop = ("stopped", "replay diverged"); return
             dec = s.rrep.pop(0)
         else:
             h = [t for t in s.restarts.get((sup, child), []) if RESTART_WINDOW == 0 or tick - t < RESTART_WINDOW]
@@ -1794,7 +1794,7 @@ class Sched:
         c = sum(1 for r in s.rlog if r[1] == sup and r[2] == child and (RESTART_WINDOW == 0 or tick - r[0] < RESTART_WINDOW))
         if dec[4]:
             s.alog.append("Stopped(supervisor %s)" % sup)
-            s.stop = ("refused", "supervisor %s stopped: child %s restarted more than %d times" % (sup, child, bound)); return
+            s.stop = ("stopped", "supervisor %s stopped: child %s restarted more than %d times" % (sup, child, bound)); return
         s.alog.append("Restart(%s, %s, %s, tick %d, %d)" % (child, aid, reason, tick, c))
         for a2 in dec[5]:
             if a2 in s.actors: s.actors[a2].fields = actor_init(s.actors[a2].ty)
@@ -1809,17 +1809,17 @@ class Sched:
         progress = False; busy = set()
         txns, s.txns = s.txns, []
         for txn in txns:
-            progress = True; results = []; refused = None
+            progress = True; results = []; kept = None
             for aid, ty, m in txn:
                 s.ensure_actor(aid, ty); busy.add(aid)
                 r = s.handler(aid, m)
-                if r[0] == "err": refused = r[1]; break
+                if r[0] == "err": kept = r[1]; break
                 results.append((aid, r[1]))
-            if refused is not None:
+            if kept is not None:
                 failed = len(results)
                 for k, (aid, _, _) in enumerate(txn):
-                    if k == failed: s.on_crash(aid, refused)
-                    else: s.alog.append("Refused(%s)" % refused)
+                    if k == failed: s.on_crash(aid, kept)
+                    else: s.alog.append("Kept(%s)" % kept)
                 if s.stop is not None: break
                 continue
             for aid, r in results: s.commit_handler(aid, r)
@@ -1905,7 +1905,7 @@ class Sched:
                 if sl.released: sl.released = False; sl.holding = None; return ("val", UNIT)
                 return None
             if s.chans[c].closed:
-                s.stop = ("refused", "trap: send on a closed channel"); return ("cancel", CANCEL_TASK)
+                s.stop = ("stopped", "trap: send on a closed channel"); return ("cancel", CANCEL_TASK)
             if s.space(c): s.staged.append((c, v)); return ("val", UNIT)
             s.chans[c].held.append((v, i)); sl.holding = c
             return None
@@ -1976,7 +1976,7 @@ class Sched:
         failed = r[0] == "err" and type(r[1]) is not Cancel
         sl = s.slots[i]; sl.result = res
         if i == 0:
-            if res[0] == "err": return ("refused", res[1])
+            if res[0] == "err": return ("stopped", res[1])
         elif failed:
             for k2, t in enumerate(s.slots):
                 if k2 != i and t.parent == sl.parent and t.scope == sl.scope: t.cancel = True
@@ -1987,7 +1987,7 @@ class Sched:
         if s.stop is not None: return s.stop
         while True:
             s.tick += 1
-            if s.tick > s.max_ticks: return ("refused", "trap: tick limit")
+            if s.tick > s.max_ticks: return ("stopped", "trap: tick limit")
             progress = s.links_phase()
             progress = s.events_phase() or progress
             order = s.order()
@@ -2017,7 +2017,7 @@ class Sched:
                 progress = True
                 if req[0][0] == "spawn" and rep[0] == "spawned":
                     _, f, args, prio, site, idx, scope = req[0]
-                    if f not in FNS: return ("refused", "trap: no task function " + f)
+                    if f not in FNS: return ("stopped", "trap: no task function " + f)
                     s.spawn_task(f, args, rep[1], prio, i, scope)
                 sl.st = ("ready", rep)
             for c, m in s.staged: s.chans[c].buf.append(m)
@@ -2047,7 +2047,7 @@ def run_tasks(main):
     rec = restart_tree_arg()
     if s.rrep is not None and rec is not None:
         e = tree_migrates(rec, SUP_TREE)
-        if e is not None: s.stop = ("refused", e)
+        if e is not None: s.stop = ("stopped", e)
     s.spawn_task(main, [], hid("main"), 0, None, 0)
     o = s.run()
     for sl in s.slots:
@@ -2064,7 +2064,7 @@ def run_tasks(main):
         for r in s.rlog: print("restartin %d|%s|%s|%s|%d|%s" % (r[0], r[1], r[2], r[3], 1 if r[4] else 0, ",".join(r[5])))
     if o[0] == "done": print("outcome Done")
     elif o[0] == "deadlock": print("outcome Deadlock")
-    else: print("outcome Refused: " + o[1])
+    else: print("outcome Stopped: " + o[1])
 
 
 def restart_inputs():

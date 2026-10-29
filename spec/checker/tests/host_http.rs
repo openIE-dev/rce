@@ -309,8 +309,8 @@ fn invalid_body_bytes_are_exact_and_get_400() {
 /// HC-21 with HC-24: the id of a request is the seq of its entry, so the
 /// program answers a refused request from `StepKept(seq, cause)`.
 #[test]
-fn refused_request_gets_the_programs_status() {
-    let d = dir("refused");
+fn kept_request_gets_the_programs_status() {
+    let d = dir("kept");
     let s = serve(ECHO, &d);
     let r = get(&s.addr, "/trap");
     assert!(r.starts_with("HTTP/1.1 500 Internal Server Error"), "{r}");

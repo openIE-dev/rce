@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 import rcetest
 clauses = {c["id"]: c for c in (json.load(open(ROOT / "clauses.json"))["clauses"] + json.load(open(ROOT / "clauses-pending.json"))["clauses"])}
-EXPECT = {"accept", "reject", "run", "trace", "host", "replicate", "cli"}
+EXPECT = {"accept", "change", "run", "trace", "host", "replicate", "cli"}
 errs, ids, hit = [], set(), set()
 tests = [p for p in sorted((ROOT / "tests").rglob("*.rce")) if "_FIXTURE" not in p.name]
 for p in tests:
@@ -21,7 +21,7 @@ for p in tests:
     ids.add(m.get("id"))
     if m.get("area") != rel.split("/")[0]: errs.append(f"{p}: area {m.get('area')}")
     if m.get("expect") not in EXPECT: errs.append(f"{p}: expect {m.get('expect')}")
-    if m.get("expect") == "reject" and not m.get("diagnostic"): errs.append(f"{p}: reject without diagnostic")
+    if m.get("expect") == "change" and not m.get("diagnostic"): errs.append(f"{p}: reject without diagnostic")
     if m.get("expect") == "cli" and not isinstance(m.get("argv"), list): errs.append(f"{p}: cli without argv")
     if m.get("expect") == "trace" and not (isinstance(m.get("trace_lines"), list) and m["trace_lines"]):
         errs.append(f"{p}: trace without trace_lines (the whole trace)")

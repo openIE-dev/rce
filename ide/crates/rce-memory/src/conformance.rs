@@ -33,7 +33,7 @@ pub const CHECKS: &[&str] = &[
     "multi_valued_no_contradiction",
     "forget_retracts_but_keeps_history",
     "forget_with_world_end",
-    "forget_twice_refused",
+    "forget_twice_changes_nothing",
     "commit_is_atomic",
     "ids_unique_monotonic",
     "provenance_and_receipt_round_trip",
@@ -204,7 +204,7 @@ fn check<E: MemoryEngine>(name: &str, e: &mut E) {
             };
             assert_eq!((at(24), at(25)), (1, 0), "{}", ctx("half-open end"));
         }
-        "forget_twice_refused" => {
+        "forget_twice_changes_nothing" => {
             let id = e.store(&nf("x", "is", "y", 0), 10).unwrap().new_id.unwrap();
             e.forget(id, None, 20).unwrap();
             assert!(e.forget(id, None, 30).is_err(), "{}", ctx("second forget"));

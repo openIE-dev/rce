@@ -42,10 +42,10 @@ fn main() {
                     for l in o.lines {
                         println!("{l}");
                     }
-                    if o.refused { 1 } else { 0 }
+                    if o.kept { 1 } else { 0 }
                 }
                 Err(e) => {
-                    println!("refused: {e}");
+                    println!("kept: {e}");
                     1
                 }
             },

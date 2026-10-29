@@ -86,13 +86,13 @@ with tempfile.TemporaryDirectory() as d:
             if not ok and want == 0 and not any(r in out for r in RULES):
                 bad += 1; print('MISMATCH %s/%s: refused by another rule: %s' % (ctx, eff, out[:300])); continue
             if ok != bool(want):
-                bad += 1; print('MISMATCH %s/%s: spec %s, checker %s: %s' % (ctx, eff, 'allows' if want else 'refuses', 'admitted' if ok else 'refused', out[:300]))
+                bad += 1; print('MISMATCH %s/%s: spec %s, checker %s: %s' % (ctx, eff, 'allows' if want else 'refuses', 'admitted' if ok else 'kept', out[:300]))
             else:
                 print('ok %s/%s %s' % (ctx, eff, 'admitted' if ok else out.split(': ', 2)[-1][:90]))
     for (ctx, callee), want in CALLS.items():
         ok, out = check(prog(ctx, BODY['call_' + callee]), d, 'call_%s_%s' % (ctx, callee)); n += 1
         if ok != bool(want):
-            bad += 1; print('MISMATCH call %s->%s: spec %s, checker %s: %s' % (ctx, callee, 'allows' if want else 'refuses', 'admitted' if ok else 'refused', out[:300]))
+            bad += 1; print('MISMATCH call %s->%s: spec %s, checker %s: %s' % (ctx, callee, 'allows' if want else 'refuses', 'admitted' if ok else 'kept', out[:300]))
         else:
             print('ok call %s->%s %s' % (ctx, callee, 'admitted' if ok else out.split(': ', 2)[-1][:90]))
     corpus = os.path.join(root, 'vectors/effect/rce-examples')

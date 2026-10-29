@@ -290,12 +290,12 @@ impl Cause {
 /// A refusal of δ (T8): its cause and the text the tools print (the
 /// declared error's name, or `trap(..)`).
 #[derive(Clone, Debug, PartialEq)]
-pub struct Refusal {
+pub struct KeptReason {
     pub cause: Cause,
     pub text: String,
 }
 
-impl std::fmt::Display for Refusal {
+impl std::fmt::Display for KeptReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.text)
     }
@@ -2504,7 +2504,7 @@ impl<'a> Interp<'a> {
         &mut self,
         r: &Region,
         ev: &V,
-    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, Refusal> {
+    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, KeptReason> {
         let m = self.m;
         for it in &m.items {
             let Item::Step {
@@ -2525,25 +2525,25 @@ impl<'a> Interp<'a> {
                 HashMap::new(),
             ];
             self.outputs.clear();
-            let refuse = |f: Flow| {
+            let reason_of = |f: Flow| {
                 let cause = Cause::of(&f);
                 let text = match f {
                     Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
                     Flow::Trap(t) => format!("trap({t})"),
                     other => format!("trap({other:?})"),
                 };
-                Refusal { cause, text }
+                KeptReason { cause, text }
             };
             match self.pmatch(pat, ev) {
                 Ok(true) => {}
                 Ok(false) => continue,
-                Err(f) => return Err(refuse(f)),
+                Err(f) => return Err(reason_of(f)),
             }
             if let Some(g) = guard {
                 match self.eval(g).and_then(|v| self.truthy(v)) {
                     Ok(true) => {}
                     Ok(false) => continue,
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 } // S1
             }
             let res = match body {
@@ -2554,14 +2554,14 @@ impl<'a> Interp<'a> {
                 Body::Block(b) => self.exec_block(b),
             };
             if let Err(f) = res {
-                return Err(refuse(f));
+                return Err(reason_of(f));
             }
             let mut out = vec![];
             for (n, _, t) in &r.1 {
                 let v = self.scopes[0][n].clone();
                 match self.fit(v, t) {
                     Ok(v) => out.push((n.clone(), v, t.clone())),
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 }
             }
             return Ok(Some((out, std::mem::take(&mut self.outputs))));
@@ -2575,7 +2575,7 @@ impl<'a> Interp<'a> {
     }
 
     /// δ with the refusal's cause (HC-21).
-    pub fn delta_r(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), Refusal> {
+    pub fn delta_r(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), KeptReason> {
         let mut next = vec![];
         let mut outs = vec![];
         for r in s {
@@ -2717,18 +2717,18 @@ pub fn admit(m: &Module) -> Vec<String> {
                 };
                 match it.delta(&s, &ev) {
                     Ok((s2, _)) => {
-                        if k + 1 == n && x.refused.is_some() {
+                        if k + 1 == n && x.kept.is_some() {
                             bad = Some(format!(
-                                "expected refused: {}, but {evn} was applied",
-                                x.refused.clone().unwrap()
+                                "expected kept: {}, but {evn} was applied",
+                                x.kept.clone().unwrap()
                             ));
                         }
                         s = s2;
                     }
                     Err(r) => {
-                        if k + 1 == n && x.refused.as_deref() == Some(r.as_str()) {
+                        if k + 1 == n && x.kept.as_deref() == Some(r.as_str()) {
                         } else {
-                            bad = Some(format!("event {} ({evn}) refused: {r}", k + 1));
+                            bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
                         }
                         break;
                     }
@@ -3361,7 +3361,7 @@ pub fn form_json(m: &Module) -> String {
                 };
                 let evj = event_json(evn, &ev, m);
                 let evp = event_pos_json(evn, &ev, m);
-                let (outcome, out, refused) = match it.delta(&s, &ev) {
+                let (outcome, out, kept) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
                         let o = outs
@@ -3373,9 +3373,9 @@ pub fn form_json(m: &Module) -> String {
                     }
                     // T8: a refused event leaves the state unchanged.
                     Err(r) => (
-                        format!("{{\"refused\":{}}}", jstr(&r)),
+                        format!("{{\"kept\":{}}}", jstr(&r)),
                         format!(
-                            "{{\"Refused\":{{\"error\":{},\"payload\":{}}}}}",
+                            "{{\"Kept\":{{\"error\":{},\"payload\":{}}}}}",
                             jstr(&r),
                             form_value(&ev, m).json()
                         ),
@@ -3396,7 +3396,7 @@ pub fn form_json(m: &Module) -> String {
                     "{{\"event\":{evj},\"hash\":\"{h}\",\"hashed\":{{\"event\":{evp},\"state\":{stp}}},\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
                 ));
                 prev = h;
-                if refused {
+                if kept {
                     break;
                 }
             }

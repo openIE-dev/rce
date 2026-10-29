@@ -1,0 +1,15 @@
+fn worker(c: chan i64, xs: &List[i64])
+    c <- 1
+
+fn main()
+    let c = chan[i64](1)
+    let xs: List[i64] = [1]
+    spawn worker(c, &xs)
+#--- rce-test
+# id: concurrency/harvested/spawn-borrow-change
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-SPAWN-1]
+# expect: change
+# diagnostic: W-SPAWN-1
+# provenance: harvested examples/change/types/spawn_borrow.rce
+#---

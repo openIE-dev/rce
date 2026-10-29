@@ -49,7 +49,7 @@ step S on Open(msg: msg, es: es, sds: sds, n: n, gc: gc, pk: pk)
     seq += 1
     let o = priv_open(copy(msg), es, sds, n)
     if o.len() == 0
-        out = ["O:" + seq.tostr() + "#refused"]
+        out = ["O:" + seq.tostr() + "#kept"]
     else
         let ok = priv_signature_ok(msg, copy(o), gc, pk)
         out = ["O:" + seq.tostr() + "#" + copy(o[0]) + "/" + copy(o[1]) + "/" + copy(o[3]) + "/" + ok.tostr()]
@@ -122,7 +122,7 @@ fn official_secret_tree_and_message_protection_vectors() {
     let last = bad.len() - 2;
     let flipped = format!("{:02x}", u8::from_str_radix(&bad[last..], 16).unwrap() ^ 1);
     bad.replace_range(last.., &flipped);
-    assert_eq!(step(format!(r#"Open(msg: "{bad}", es: "{}", sds: "{}", n: 2, gc: "{gc}", pk: "{}")"#, s("encryption_secret"), s("sender_data_secret"), s("signature_pub"))), "refused");
+    assert_eq!(step(format!(r#"Open(msg: "{bad}", es: "{}", sds: "{}", n: 2, gc: "{gc}", pk: "{}")"#, s("encryption_secret"), s("sender_data_secret"), s("signature_pub"))), "kept");
     assert_eq!(step(format!(r#"Pub(msg: "{}", gc: "{gc}", pk: "{}", mk: "{}")"#, s("commit_pub"), s("signature_pub"), "00".repeat(32))), "false");
     let live = h.state_hash().to_string();
     drop(h);

@@ -21,7 +21,7 @@ fn seen(s: lvar Set[i64]) -> bool
 # id: lexing-parsing/generated/mut-tab-05-supervisor-lvar-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 05-supervisor-lvar-accept

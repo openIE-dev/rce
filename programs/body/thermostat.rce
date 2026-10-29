@@ -4,7 +4,7 @@ intent "a heater that does not flicker around the set point"
     example Reading(t: 190) -> true
     example Reading(t: 190), Reading(t: 200) -> true
     example Reading(t: 190), Reading(t: 215) -> false
-    example Reading(t: 900) -> refused: SensorFault
+    example Reading(t: 900) -> kept: SensorFault
 
 state Heater
     heating: bool = false

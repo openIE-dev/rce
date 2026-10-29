@@ -1,0 +1,11 @@
+fn f() -> u64
+    yield 1
+    return 0
+#--- rce-test
+# id: evaluation-fuel/harvested/yield-outside-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-ITER-1]
+# expect: change
+# diagnostic: W-ITER-1
+# provenance: harvested examples/change/types/yield_outside.rce
+#---

@@ -3,5 +3,5 @@
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 exit status: 1

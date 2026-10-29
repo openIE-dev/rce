@@ -41,8 +41,8 @@ declaration order. Outputs are concatenated in declaration order.
 ### 6.5 Errors, traps and refusals
 
 A `fail X(…)` or a trap inside a step refuses the event: the state is
-unchanged, the log records the event with outcome `refused(X)` and λ outputs
-`Refused`. Nothing is thrown past a step; no event is dropped silently. In a
+unchanged, the log records the event with outcome `kept(X)` and λ outputs
+`Kept`. Nothing is thrown past a step; no event is dropped silently. In a
 pure function called from comptime, refusal is a compile error. In `main`, a
 trap or unhandled failure ends the command with the refusal as its output.
 
@@ -229,8 +229,8 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> refused: X` the last event is
-refused with the error X, for `-> refused: trap("K")` the last event is
+a final step whose outcome is o, where for `-> kept: X` the last event is
+refused with the error X, for `-> kept: trap("K")` the last event is
 refused by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
@@ -322,4 +322,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 075fa38adc30b3add818021a4bb6df49e95aa6a25addafc0223ea201eeccb208 -->
+<!-- body-sha256: 9a7958f8ccdeb615373dbb7f21a8d51f89c9fcb9e3fdd7363ad3b47ab6dbb05e -->

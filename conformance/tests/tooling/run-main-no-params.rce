@@ -8,6 +8,6 @@ fn main(x: i64)
 # argv: ["run", "main.rce"]
 # status: 1
 # output_has:
-#   - REFUSED
+#   - requires change
 # provenance: targeted (round 3): 10.3, fn main() takes no parameters
 #---

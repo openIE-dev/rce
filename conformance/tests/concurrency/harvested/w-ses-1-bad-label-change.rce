@@ -1,0 +1,17 @@
+# rce-version: 0.6
+# expect: W-SES-1
+protocol P
+    choose
+        Yes
+        No
+
+fn client(c: session P)
+    c.choose(Maybe)
+#--- rce-test
+# id: concurrency/harvested/w-ses-1-bad-label-change
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-SES-1]
+# expect: change
+# diagnostic: W-SES-1
+# provenance: harvested conc06b/ill_typed/W-SES-1_bad_label.rce
+#---

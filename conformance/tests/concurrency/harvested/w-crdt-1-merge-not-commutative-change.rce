@@ -1,0 +1,21 @@
+# rce-version: 0.6
+# expect: W-CRDT-1
+struct Last
+    v: i64
+
+impl Merge for Last
+    fn merge(self, other: Last) -> Last
+        other
+    fn bottom() -> Last
+        Last(v: 0)
+
+const A: Last = Last(v: 1)
+const B: Last = Last(v: 2)
+#--- rce-test
+# id: concurrency/harvested/w-crdt-1-merge-not-commutative-change
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-CRDT-1]
+# expect: change
+# diagnostic: W-CRDT-1
+# provenance: harvested conc06b/ill_typed/W-CRDT-1_merge_not_commutative.rce
+#---

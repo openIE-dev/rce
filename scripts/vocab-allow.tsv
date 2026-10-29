@@ -1,0 +1,26 @@
+# scripts/vocab-allow.tsv: the words of a third party or a published record, kept as written (compliance 6.9, COMP-19).
+# path glob<TAB>line pattern (Python regex; empty: the whole file)<TAB>reason
+spec/proposals/compliance.md		the proposal quotes the terms it replaces (6.9)
+spec/proposals/compliance-repin.tsv		maps earlier hashes, quoting earlier names (COMP-20)
+spec/LANGUAGE-REVIEW.md		a dated review (6.9)
+spec/proposals/LEDGER.md	^\| 20\d\d-\d\d-\d\d 	dated ledger rows quote the terms of their day (6.9)
+stdlib/vectors/**		third-party test corpora (SCXML, CloudEvents, IDNA, RFC, UTF-8-test.txt) (6.9)
+stdlib/**	SAFE_ATO_REFUSE_	systemd flag names SAFE_ATO_REFUSE_* (6.9)
+stdlib/**	(?i:implicit rejection|rejection sampling|reject_checks)	FIPS 203 "implicit rejection" and "rejection sampling" (6.9)
+**	doesNotReject	JavaScript assert.doesNotReject (6.9)
+**	reject_once|reject_always	ACP option kinds (6.9)
+**	ECONNREFUSED	operating-system error name quoted from a third-party log
+stdlib/tests/energy/energy_checks.rce	kid: "refused"|kid == "refused"	domain data of the test, as its author wrote it (section 10)
+**	fold_rejects_wrong_state	engine test name cited as data (6.9)
+CONTRIBUTING.md	declined 40\.9%	Go figure quoted from the cited study (6.9)
+spec/book/16-host-contract.md	it rejects the request	Raft quotation [Ongaro and Ousterhout 2014] (6.9)
+spec/proposals/soundness.md	(?i:dyld)	dyld quotation (6.9)
+stdlib/scripts/ref/i2c_ref.c	(?i:refus|reject)	comment quoted from Linux i2c (6.9)
+stdlib/**	(?i:edk2.*(refus|reject)|(refus|reject).*edk2)	comment quoted from edk2 (6.9)
+lang/corpus/**		published corpus rows (rce-corpus/1) (6.9)
+**/forms.jsonl		published corpus rows (rce-corpus/1) (6.9)
+**/negatives.jsonl		published corpus rows (rce-corpus/1) (6.9)
+**/dim-r1.jsonl		registered rce dim run (rce-dim/1) (6.9)
+spec/fuzz/results/*.json		recorded fuzz runs, kept as recorded (history); the next run writes the new words
+ide/crates/ide-receipt/src/lib.rs	serde\(rename = "refused"\)	signed receipts: the stored tag stays, so every chain verifies (COMP-20 (c))
+scripts/vocab-allow.tsv		this list

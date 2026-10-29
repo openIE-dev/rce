@@ -69,8 +69,8 @@ specification) has no construct for them:
 
 ## How the checks work
 
-`scripts/check.sh` applies four rules: a program outside a `refused/`
-folder must pass `rce test`; a program in `refused/` must be refused with
+`scripts/check.sh` applies four rules: a program outside a `kept/`
+folder must pass `rce test`; a program in `kept/` must be refused with
 the text in its `.expect` file; a `.cmd` file holds a command whose
 output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.

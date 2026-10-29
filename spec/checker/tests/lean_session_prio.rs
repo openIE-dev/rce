@@ -58,7 +58,7 @@ fn lean_prio_vectors_are_current() {
 #[test]
 fn checker_priorities_equal_lean() {
     let text = std::fs::read_to_string(file()).unwrap();
-    let (mut ok, mut cyclic_ok, mut refused) = (0, 0, 0);
+    let (mut ok, mut cyclic_ok, mut changes) = (0, 0, 0);
     let mut bad = vec![];
     for (n, line) in text.lines().enumerate() {
         let v: Value = serde_json::from_str(line).unwrap();
@@ -77,9 +77,9 @@ fn checker_priorities_equal_lean() {
             (Err(e), w) if !e.contains(w) || e.lines().any(|l| l.contains("W-") && !l.contains(w)) => {
                 bad.push(format!("vector {n}: Lean refuses with {w}, checker: {e}\n{src}"))
             }
-            (Err(_), _) => refused += 1,
+            (Err(_), _) => changes += 1,
         }
     }
     assert!(bad.is_empty(), "{} of {} vectors differ:\n{}", bad.len(), text.lines().count(), bad.join("\n\n"));
-    assert!(ok > 0 && refused > 0 && cyclic_ok > 0, "ok {ok}, cyclic ok {cyclic_ok}, refused {refused}");
+    assert!(ok > 0 && changes > 0 && cyclic_ok > 0, "ok {ok}, cyclic ok {cyclic_ok}, refused {changes}");
 }

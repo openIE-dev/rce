@@ -310,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn refused_event_leaves_state() {
+    fn kept_event_leaves_state() {
         let machine = sample();
         let mut actor = Actor::start(&machine);
         assert_eq!(actor.state(), "idle");

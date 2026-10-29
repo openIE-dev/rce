@@ -16,7 +16,7 @@ fn main()
 # id: lexing-parsing/generated/mut-bom-13-spawn-chan-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of 13-spawn-chan-accept

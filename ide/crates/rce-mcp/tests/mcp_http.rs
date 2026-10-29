@@ -275,7 +275,7 @@ fn an_idle_connection_does_not_block_other_clients() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn http_mode_jails_itself_and_refuses_undeclared_hosts() {
+fn http_mode_jails_itself_and_does_not_reach_undeclared_hosts() {
     let t = tempfile::tempdir().unwrap();
     let root = t.path().join("ws");
     std::fs::create_dir_all(&root).unwrap();

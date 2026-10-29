@@ -65,7 +65,7 @@ fn alias_and_transitive_imports() {
 }
 
 #[test]
-fn private_unqualified_unknown_and_clashing_names_are_refused() {
+fn private_unqualified_unknown_and_clashing_names_require_change() {
     let cases = [
         ("module a\nuse shop.pricing\n\nfn f() -> i64 = pricing.clamp(3)\n", "W-VIS-1"),
         ("module a\nuse shop.pricing\n\nfn f() -> i64 = discount(10, 1)\n", "W-NAME-1"),

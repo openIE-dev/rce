@@ -17,12 +17,12 @@ Recursion that does not shrink its input is refused, even when it would in
 fact stop:
 
 ```rce
-{{#include ../listings/ch13/refused/countdown.rce}}
+{{#include ../listings/ch13/change/countdown.rce}}
 ```
 
 ```text
 $ rce check countdown.rce
-{{#include ../listings/ch13/refused/countdown.out}}
+{{#include ../listings/ch13/change/countdown.out}}
 ```
 
 Write `countdown` as a loop instead. Two functions that call each other are

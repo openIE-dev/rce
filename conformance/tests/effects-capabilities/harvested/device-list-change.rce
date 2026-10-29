@@ -1,0 +1,12 @@
+fn f(n: u64) -> u64
+    with device gpu
+        let xs: List[u64] = [n, n]
+        return xs.len() as u64
+#--- rce-test
+# id: effects-capabilities/harvested/device-list-change
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, W-DEV-1]
+# expect: change
+# diagnostic: W-DEV-1
+# provenance: harvested examples/change/types/device_list.rce
+#---

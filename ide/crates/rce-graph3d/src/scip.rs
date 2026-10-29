@@ -88,7 +88,7 @@ mod tests {
     fn encodes_documents_and_symbols() {
         let mut g = Graph::default();
         let mk = |l: &str, line| Node { id: l.into(), label: l.into(), kind: Kind::Fn, file: Some("src/a.rce".into()),
-            line: Some(line), refused: false, rank: 0.0, energy: Default::default(), live: None, detail: String::new() };
+            line: Some(line), requires_change: false, rank: 0.0, energy: Default::default(), live: None, detail: String::new() };
         let a = g.add(mk("main", 3));
         let b = g.add(mk("leaf", 9));
         g.link(a, b, EdgeKind::Call, 1.0, "");

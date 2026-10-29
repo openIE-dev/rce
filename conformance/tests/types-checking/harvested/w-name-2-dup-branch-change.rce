@@ -1,0 +1,16 @@
+# rce-version: 0.6
+# expect: W-NAME-2
+fn f()
+    par
+        branch x
+            pass
+        branch x
+            pass
+#--- rce-test
+# id: types-checking/harvested/w-name-2-dup-branch-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: change
+# diagnostic: W-NAME-2
+# provenance: harvested conc06/ill_typed/W-NAME-2_dup_branch.rce
+#---

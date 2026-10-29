@@ -3,7 +3,7 @@ module rcedb
 intent "a keyed store written in RCE over the host's durable append (Appendix E.8): puts are state writes, a bound Synced event moves the durable mark, scans are in canonical key order"
     example Put(key: "b", val: "2"), Put(key: "a", val: "1"), Synced(upto: 1) -> durable == 1
     example Put(key: "k", val: "zq_v_renamed"), Delete(key: "k") -> rows.len() == 0
-    example Delete(key: "x") -> refused: Missing
+    example Delete(key: "x") -> kept: Missing
 
 state Db
     rows: Map[text, text] = {}
@@ -49,7 +49,7 @@ step Db on Scan(start: f)
 # trace_lines:
 #   - 0 (initial) Db { rows = {}, writes = 0, durable = 0 }
 #   - d kept a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59 {"event":{"payload":["x"],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"344c3c2bb7e8d5bff7840606154bf905a61d56420ffceafa35b715a5889f4ffc"}
-#   - 1 Delete(key: "x") refused: Missing
+#   - 1 Delete(key: "x") kept: Missing
 #   - trace a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59
 #   - fuel 12
 # flags: [generated]

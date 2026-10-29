@@ -3,8 +3,8 @@
 # Overflow and a dry draw are refused.
 intent "a reservoir that neither overflows nor runs dry unnoticed"
     example Rain, Rain, Draw -> level == 3
-    example Rain, Rain, Rain -> refused: Overflow
-    example Draw, Draw, Draw -> refused: Dry
+    example Rain, Rain, Rain -> kept: Overflow
+    example Draw, Draw, Draw -> kept: Dry
     example Toggle, Rain, Tick -> level == 2
 
 state Tank

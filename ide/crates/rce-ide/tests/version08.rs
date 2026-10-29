@@ -14,7 +14,7 @@ fn clean(src: &str) {
     let d = diags(src);
     assert!(d.is_empty(), "{d:?}");
 }
-fn refused(src: &str, code: &str, line: usize) {
+fn requires_change(src: &str, code: &str, line: usize) {
     let d = diags(src);
     assert!(d.iter().any(|x| x.starts_with(&format!("{line}: ")) && x.contains(code)), "want {code} on line {line}: {d:?}");
 }
@@ -29,8 +29,8 @@ fn refined_types_check() {
 fn indexed_values_of_version_08() {
     clean("# rce-version: 0.8\nfn f(s: text) -> text = (Html.lit(\"<b>\") + Html.encode(s) + Html.lit(\"</b>\")).raw()\n");
     clean("# rce-version: 0.8\nstruct Root\nstate P\n    limit: Guarded[u32, Root] = 100\nevent Set(admin: Cap[Root], limit: u32)\nstep P on Set(admin: _, limit: n) -> n\n");
-    refused("# rce-version: 0.8\nfn f(s: text) -> Text[Html] = Html.lit(\"<b>\") + Url.encode(s)\n", "W-CTX-1", 2);
-    refused("# rce-version: 0.8\nstate V\n    s: Secret[text]? = none\nevent E(p: Secret[text])\nstep V on E(p: p)\n    emit p\n", "W-SEC-1", 6);
+    requires_change("# rce-version: 0.8\nfn f(s: text) -> Text[Html] = Html.lit(\"<b>\") + Url.encode(s)\n", "W-CTX-1", 2);
+    requires_change("# rce-version: 0.8\nstate V\n    s: Secret[text]? = none\nevent E(p: Secret[text])\nstep V on E(p: p)\n    emit p\n", "W-SEC-1", 6);
 }
 
 #[test]
@@ -41,6 +41,6 @@ fn version_label_is_not_a_gate() {
 
 #[test]
 fn mutual_recursion_and_bounds() {
-    refused("fn a(n: u32) -> u32\n    return b(n)\nfn b(n: u32) -> u32\n    return a(n)\n", "W-REC-1", 2);
+    requires_change("fn a(n: u32) -> u32\n    return b(n)\nfn b(n: u32) -> u32\n    return a(n)\n", "W-REC-1", 2);
     clean("fn a(n: u32) -> u32 bound 3\n    return b(n)\nfn b(n: u32) -> u32\n    return a(n)\n");
 }

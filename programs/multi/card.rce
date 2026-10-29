@@ -2,9 +2,9 @@
 # account region in whole units. A withdrawal needs an unlocked card.
 intent "a card that locks after three wrong PINs and never overdraws"
     example Enter(ok: true), Withdraw -> balance == 2
-    example Enter(ok: false), Enter(ok: false), Enter(ok: false), Enter(ok: true) -> refused: Locked
-    example Withdraw, Withdraw, Withdraw, Withdraw -> refused: Insufficient
-    example Deposit, Deposit, Deposit -> refused: Limit
+    example Enter(ok: false), Enter(ok: false), Enter(ok: false), Enter(ok: true) -> kept: Locked
+    example Withdraw, Withdraw, Withdraw, Withdraw -> kept: Insufficient
+    example Deposit, Deposit, Deposit -> kept: Limit
 
 state Pin
     tries: u8 = 0

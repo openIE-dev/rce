@@ -865,7 +865,7 @@ pub fn dbg_flow(f: &Flow) -> String {
     }
 }
 /// machine step refusal (interp.rs): a failure names its record, else "?"
-fn refusal(f: &Flow) -> String {
+fn reason_of(f: &Flow) -> String {
     match f {
         Flow::Fail(V::Rec(n, _)) => n.clone(),
         Flow::Fail(_) => "?".into(),
@@ -874,7 +874,7 @@ fn refusal(f: &Flow) -> String {
     }
 }
 /// actor handler refusal (conc.rs): a non-record failure is shown in full
-fn actor_refusal(f: &Flow) -> String {
+fn actor_reason(f: &Flow) -> String {
     match f {
         Flow::Fail(V::Rec(n, _)) => n.clone(),
         Flow::Trap(t) => format!("trap({t})"),
@@ -965,7 +965,7 @@ pub fn delta(s: &State, ev: &V) -> Result<(State, Vec<V>), String> {
             match st(fs, ev) {
                 Ok(Some(r)) => { got = Some((r, take_out())); break; }
                 Ok(None) => {}
-                Err(f) => return Err(refusal(&f)),
+                Err(f) => return Err(reason_of(&f)),
             }
         }
         match got { Some((r, o)) => { next.push((*name, r)); outs.extend(o); } None => next.push((*name, fs.clone())) }
@@ -994,7 +994,7 @@ fn run_example1(line: usize, events: Vec<Ev>) {
                 println!("{k} {} {}", show(&ev), show_state(&s));
                 for o in outs { println!("  emit {}", show(&o)); }
             }
-            Err(r) => { if tr { d.add(name, &ev, &s, true); } println!("{k} {} refused: {r}", show(&ev)); break; }
+            Err(r) => { if tr { d.add(name, &ev, &s, true); } println!("{k} {} kept: {r}", show(&ev)); break; }
         }
     }
     if tr { println!("trace {}", d.prev); }
@@ -1649,7 +1649,7 @@ pub fn await_scope(sid: u64) -> R<()> { if !in_task() { return Ok(()); } comm(Op
 struct ChanSt { cap: i128, buf: VecDeque<V>, held: VecDeque<(V, Option<usize>)>, closed: bool }
 enum St { Ready(Rep), Pending(Req), Done }
 struct Slot { id: String, prio: u8, rx: mpsc::Receiver<Req>, tx: mpsc::Sender<(u64, Rep)>, st: St, parent: Option<usize>, scope: u64, result: Option<Result<V, String>>, joined: bool, cancel: bool, holding: Option<String>, released: bool, since: u64 }
-pub enum Outcome { Done, Refused(String), Deadlock }
+pub enum Outcome { Done, Stopped(String), Deadlock }
 struct ActorSt { ty: String, fields: Vec<(&'static str, V)>, mailbox: VecDeque<V>, node: usize }
 type HandlerOut = Option<(Vec<(&'static str, V)>, Vec<V>, Vec<(V, V)>)>;
 struct Sched {
@@ -1735,7 +1735,7 @@ impl Sched {
             match r {
                 Ok(None) => continue,
                 Ok(Some(fs)) => return Ok(Some((fs, take_out(), sends))),
-                Err(f) => { take_out(); return Err(actor_refusal(&f)); }
+                Err(f) => { take_out(); return Err(actor_reason(&f)); }
             }
         }
         Ok(None)
@@ -1743,15 +1743,15 @@ impl Sched {
     fn on_crash(&mut self, id: &str, reason: &str) {
         // restart as input (C.11.11): record the decision, or on replay
         // take it from the logged inputs (--restart=...) without the policy
-        self.alog.push(format!("Refused({reason})"));
+        self.alog.push(format!("Kept({reason})"));
         let ty = self.actors[id].ty.clone();
         let Some((sup, strat, tys, child, bound)) = supervisor_of(&ty) else { return };
         let (tick, w) = (self.tick, restart_window());
         let dec = if let Some(q) = self.rrep.as_mut() {
             match q.pop_front() {
-                Some(r) if !sup_tree().contains(&format!("{}/{}", r.1, r.2).as_str()) => { self.stop = Some(Outcome::Refused(format!("trap: upgrade removed supervisor position {}/{}", r.1, r.2))); return; }
+                Some(r) if !sup_tree().contains(&format!("{}/{}", r.1, r.2).as_str()) => { self.stop = Some(Outcome::Stopped(format!("trap: upgrade removed supervisor position {}/{}", r.1, r.2))); return; }
                 Some(r) if r.3 == id && r.1 == sup => r,
-                _ => { self.stop = Some(Outcome::Refused("replay diverged".into())); return; }
+                _ => { self.stop = Some(Outcome::Stopped("replay diverged".into())); return; }
             }
         } else {
             let h = self.restarts.entry((sup.to_string(), child.to_string())).or_default();
@@ -1770,7 +1770,7 @@ impl Sched {
         let count = self.rlog.iter().filter(|r| r.1 == sup && r.2 == child && (w == 0 || tick.saturating_sub(r.0) < w)).count();
         if dec.4 {
             self.alog.push(format!("Stopped(supervisor {sup})"));
-            self.stop = Some(Outcome::Refused(format!("supervisor {sup} stopped: child {child} restarted more than {bound} times")));
+            self.stop = Some(Outcome::Stopped(format!("supervisor {sup} stopped: child {child} restarted more than {bound} times")));
             return;
         }
         self.alog.push(format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
@@ -1789,15 +1789,15 @@ impl Sched {
         for txn in std::mem::take(&mut self.txns) {
             progress = true;
             let mut results = vec![];
-            let mut refused = None;
+            let mut kept = None;
             for (id, ty, m) in &txn {
                 self.ensure_actor(id, ty);
                 busy.insert(id.clone());
-                match self.handler(id, m) { Ok(r) => results.push((id.clone(), r)), Err(e) => { refused = Some(e); break; } }
+                match self.handler(id, m) { Ok(r) => results.push((id.clone(), r)), Err(e) => { kept = Some(e); break; } }
             }
-            if let Some(e) = refused {
+            if let Some(e) = kept {
                 let failed = results.len();
-                for (k, (id, _, _)) in txn.iter().enumerate() { if k == failed { self.on_crash(id, &e); } else { self.alog.push(format!("Refused({e})")); } }
+                for (k, (id, _, _)) in txn.iter().enumerate() { if k == failed { self.on_crash(id, &e); } else { self.alog.push(format!("Kept({e})")); } }
                 if self.stop.is_some() { break; }
                 continue;
             }
@@ -1879,7 +1879,7 @@ impl Sched {
                     if self.slots[i].released { self.slots[i].released = false; self.slots[i].holding = None; return Some(Rep::Val(V::Unit)); }
                     return None;
                 }
-                if self.chans[&c].closed { self.stop = Some(Outcome::Refused("trap: send on a closed channel".into())); return Some(Rep::Cancel(CANCEL_TASK)); }
+                if self.chans[&c].closed { self.stop = Some(Outcome::Stopped("trap: send on a closed channel".into())); return Some(Rep::Cancel(CANCEL_TASK)); }
                 if self.space(&c) { self.staged.push((c, v.clone())); Some(Rep::Val(V::Unit)) } else {
                     self.chans.get_mut(&c).unwrap().held.push_back((v.clone(), Some(i)));
                     self.slots[i].holding = Some(c);
@@ -1948,7 +1948,7 @@ impl Sched {
         let res = match r { Ok(v) => Ok(v.clone()), Err(Flow::Cancel(_)) => Err("cancelled".to_string()), Err(f) => Err(why(f)) };
         let failed = matches!(r, Err(f) if !matches!(f, Flow::Cancel(_)));
         self.slots[i].result = Some(res.clone());
-        if i == 0 { if let Err(e) = res { return Some(Outcome::Refused(e)); } } else if failed {
+        if i == 0 { if let Err(e) = res { return Some(Outcome::Stopped(e)); } } else if failed {
             let (p, sc) = (self.slots[i].parent, self.slots[i].scope);
             for k in 0..self.slots.len() { if k != i && self.slots[k].parent == p && self.slots[k].scope == sc { self.slots[k].cancel = true; } }
         }
@@ -1959,7 +1959,7 @@ impl Sched {
         if let Some(o) = self.stop.take() { return o; }
         loop {
             self.tick += 1;
-            if self.tick > self.max_ticks { return Outcome::Refused("trap: tick limit".into()); }
+            if self.tick > self.max_ticks { return Outcome::Stopped("trap: tick limit".into()); }
             let mut progress = self.links_phase();
             progress |= self.events_phase();
             let order = self.order();
@@ -1985,7 +1985,7 @@ impl Sched {
                 let Some(rep) = rep else { self.slots[i].st = St::Pending(req); continue };
                 progress = true;
                 if let (Op::Spawn { f, args, prio, scope, .. }, Rep::Spawned(id)) = (&req.op, &rep) {
-                    if !has_user_fn(f) { return Outcome::Refused(format!("trap: no task function {f}")); }
+                    if !has_user_fn(f) { return Outcome::Stopped(format!("trap: no task function {f}")); }
                     self.spawn_task(f.clone(), args.clone(), id.clone(), *prio, Some(i), *scope);
                 }
                 self.slots[i].st = St::Ready(rep);
@@ -2081,7 +2081,7 @@ pub fn run_tasks(main: &str) {
     }).collect();
     let mut s = Sched { slots: vec![], chans: BTreeMap::new(), staged: vec![], outputs: vec![], rng: 0x5eed | 1, tick: 0, stop: None, max_ticks: 100_000,
         actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![], rlog: vec![], rrep: restart_inputs(), events: event_inputs() };
-    if s.rrep.is_some() { if let Some(rec) = restart_tree_arg() { if let Err(e) = tree_migrates(&rec, &sup_tree()) { s.stop = Some(Outcome::Refused(e)); } } }
+    if s.rrep.is_some() { if let Some(rec) = restart_tree_arg() { if let Err(e) = tree_migrates(&rec, &sup_tree()) { s.stop = Some(Outcome::Stopped(e)); } } }
     s.spawn_task(main.to_string(), vec![], hid("main"), 0, None, 0);
     let o = s.run();
     let tick = s.tick;
@@ -2095,7 +2095,7 @@ pub fn run_tasks(main: &str) {
     for v in &s.outputs { println!("emit {}", show(v)); }
     if std::env::args().any(|a| a == "--actor-log") { for e in &s.alog { println!("actorlog {e}"); } }
     if std::env::args().any(|a| a == "--restart-log") { println!("restartlog v1 tree={}", sup_tree().join(",")); for r in &s.rlog { println!("restartin {}|{}|{}|{}|{}|{}", r.0, r.1, r.2, r.3, u8::from(r.4), r.5.join(",")); } }
-    match o { Outcome::Done => println!("outcome Done"), Outcome::Deadlock => println!("outcome Deadlock"), Outcome::Refused(e) => println!("outcome Refused: {e}") }
+    match o { Outcome::Done => println!("outcome Done"), Outcome::Deadlock => println!("outcome Deadlock"), Outcome::Stopped(e) => println!("outcome Stopped: {e}") }
 }
 
 /// Decimal text of an integral finite f64, exact.

@@ -71,11 +71,11 @@ for code, f, tag in MUTS:
         m = f(src)
         if m is None or m == src: continue
         r = ref.check(m)
-        got = [d.get("code") for d in r.get("diagnostics", [])] if r.get("verdict") == "reject" else ["accepted"]
+        got = [d.get("code") for d in r.get("diagnostics", [])] if r.get("verdict") == "change" else ["accepted"]
         if code not in got:
             findings.append({"kind": "lex-mutation", "intended": code, "reference": got[:3], "mutation": tag, "base": stem})
         area = "lexing-parsing" if code.startswith(("W-LEX", "W-SYN", "W-VER")) else "types-checking"
-        put(area, "generated", f"mut-{tag}-{stem}", m, {"clauses": [code], "expect": "reject", "diagnostic": code,
+        put(area, "generated", f"mut-{tag}-{stem}", m, {"clauses": [code], "expect": "change", "diagnostic": code,
             "provenance": f"gen_props.py seed {seed}: mutation `{tag}` of {stem}"})
 
 # ---- T7 name independence on traces. Only names that do not reach D are
@@ -132,7 +132,7 @@ for k in range(40):
     codes = [d.get("code") for d in rb.get("diagnostics", [])]
     if "W-PAR-1" not in codes:
         findings.append({"kind": "W-PAR-1", "src": bad, "reference": codes or rb.get("verdict")})
-    put("concurrency", "generated", f"par-overlap-{seed}-{k:03d}", bad, {"clauses": ["W-PAR-1"], "expect": "reject",
+    put("concurrency", "generated", f"par-overlap-{seed}-{k:03d}", bad, {"clauses": ["W-PAR-1"], "expect": "change",
         "diagnostic": "W-PAR-1", "provenance": "gen_props.py: two branches write one variable (write/write overlap)"})
 
 # ---- HC-15 / HC-16 admission order independent of arrival

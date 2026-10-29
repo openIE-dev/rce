@@ -129,7 +129,7 @@ fn durable_vote_is_not_given_twice_in_a_term() {
 }
 
 #[test]
-fn log_matching_refuses_a_gap_and_truncates_a_conflict() {
+fn log_matching_appends_no_gap_and_truncates_a_conflict() {
     let mut n = Node::new(0, 3, Box::new(MemDurable::default())).unwrap();
     let e = |t: u64, s: &str| (t, s.to_string());
     n.handle(1, Msg::Append { term: 1, leader: 1, prev_idx: 0, prev_term: 0, entries: vec![e(1, "a"), e(1, "b"), e(1, "c")], commit: 1 });

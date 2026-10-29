@@ -54,7 +54,7 @@ fn uncalibrated_key_predicts_nothing() {
 }
 
 #[test]
-fn bad_samples_refused() {
+fn bad_samples_are_not_recorded() {
     let mut s = LinearSim::default();
     assert!(s.calibrate(&[(f("g", 1, 1, 0, 0), f64::NAN)]).is_err());
     assert!(s.calibrate(&[(f("g", 1, 1, 0, 0), -1.0)]).is_err());
