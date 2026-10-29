@@ -44,8 +44,9 @@ Types
 - W-PLACE Left side of an assignment or `op=` is not a mutable place.
 
 Ownership and borrowing
-- W-OWN-1 Use after move (O1). W-OWN-2 Violating [No-Alias-Write] or
-  [No-Mut-Read]. W-OWN-3 Storing, returning (except R-RET) or capturing a
+- W-OWN-1 Use after move (O1). W-OWN-2 Violating [Borrow-Shr], [Borrow-Mut],
+  [No-Alias-Write] or [No-Mut-Read], among the arguments of one call or while
+  a `let` borrow is live (5.6). W-OWN-3 Storing, returning (except R-RET) or capturing a
   borrow. W-REG-1 A region-typed value escaping its `with arena` block.
 - W-SPAWN-1 Spawning with a borrow or region-typed argument.
 
@@ -123,4 +124,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: d3f925d7b7230629754f2574572ec5c4c10b0d7d655060f420d6d0b5ee9f5182 -->
+<!-- body-sha256: 1fdb66d8a400c013799f133c502a9bafbec5b4ec7a8f024003d6b4c01ef99fbb -->

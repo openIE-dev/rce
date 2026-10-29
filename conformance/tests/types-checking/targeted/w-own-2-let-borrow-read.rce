@@ -1,0 +1,17 @@
+# 5.6: reading a place while a live `let` `&mut` borrow overlaps it.
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn main()
+    var xs: List[i64] = [1, 2, 3]
+    let a = &mut xs[0]
+    emit xs.len()
+    bump(a)
+#--- rce-test
+# id: types-checking/targeted/w-own-2-let-borrow-read
+# area: types-checking
+# clauses: [CH09-M-82e65964, T6, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: borrow-fix: read of xs while a let borrow of xs[_] is live (5.6 [No-Mut-Read])
+#---

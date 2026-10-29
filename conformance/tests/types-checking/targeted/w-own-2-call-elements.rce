@@ -1,0 +1,17 @@
+# 5.6: x[i] and x[j] always overlap (indexes are not compared statically).
+fn two(x: &mut i64, y: &mut i64)
+    x = x + 1
+    y = y + 1
+
+fn main()
+    var xs: List[i64] = [1, 2]
+    two(&mut xs[0], &mut xs[1])
+    emit xs
+#--- rce-test
+# id: types-checking/targeted/w-own-2-call-elements
+# area: types-checking
+# clauses: [CH09-M-82e65964, T6, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: borrow-fix: two element borrows of one list in one call (5.6)
+#---

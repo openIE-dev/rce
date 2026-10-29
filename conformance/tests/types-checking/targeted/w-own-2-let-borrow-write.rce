@@ -1,0 +1,19 @@
+# 5.6: a `let` borrow lives until its last use; writing the borrowed root
+# before that use requires change (otherwise the write through `a` is lost).
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn main()
+    var n: i64 = 0
+    let a = &mut n
+    n = 5
+    bump(a)
+    emit n
+#--- rce-test
+# id: types-checking/targeted/w-own-2-let-borrow-write
+# area: types-checking
+# clauses: [CH09-M-82e65964, T6, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: borrow-fix: let borrow written while live (5.6 [No-Alias-Write])
+#---

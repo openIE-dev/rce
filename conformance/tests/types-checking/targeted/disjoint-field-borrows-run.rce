@@ -1,0 +1,26 @@
+# 5.6: f.a and f.b do not overlap, so both can be borrowed mutably in one call.
+struct Foo
+    a: i64
+    b: i64
+
+fn two(x: &mut i64, y: &mut i64)
+    x = x + 1
+    y = y + 10
+
+fn main()
+    var f: Foo = Foo(a: 0, b: 0)
+    two(&mut f.a, &mut f.b)
+    two(&mut f.b, &mut f.a)
+    emit f.a
+    emit f.b
+#--- rce-test
+# id: types-checking/targeted/disjoint-field-borrows-run
+# area: types-checking
+# clauses: [T6, W-OWN-2]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 11
+#   - emit 11
+# provenance: borrow-fix: disjoint field paths in one call (5.6, Lean disjoint_fields_ok)
+#---

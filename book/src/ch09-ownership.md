@@ -50,13 +50,24 @@ $ rce check mut_alias.rce
 {{#include ../listings/ch09/change/mut_alias.out}}
 ```
 
+Different fields are different places, so `two(&mut f.a, &mut f.b)` lends
+two separate things and is fine; `two(&mut f.a, &mut f)` lends `f.a` twice
+and requires change. Two elements of one list, `xs[0]` and `xs[1]`, count
+as the same place, because the checker does not compare indexes.
+
+A `let` can hold a borrow too. `let a = &mut n` lasts until the last
+statement of its block that uses `a`, and until then nothing else may use
+`n`; a change made through `a` is a change to `n`.
+
 ## Why RCE borrows need no lifetimes
 
-In RCE a borrow lives only as long as the call or statement that made it.
+In RCE a borrow lives only as long as the call or statement that made it,
+or, for a borrow held by `let`, until the last statement of its block that
+uses it.
 A borrow cannot be stored in a field, a list, an event or a state, and in
 general cannot be returned. (A function may return a borrow of one of its
 own parameters, such as a slice of a list it was given.) Because borrows
-never outlive the statement that created them, the checker does not need
+never outlive the block that created them, the checker does not need
 lifetime annotations, and the check is a local pass through each function.
 
 The specification calls these *second-class* borrows, a design also used
