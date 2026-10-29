@@ -25,5 +25,12 @@ step Page on Comment(body: b)
 # expect: trace
 # events: Comment(body: "<script>x</script>")
 # trace_head: 723f97ea3d57f89160be6d52dc5ad09020993537651b99ece6431de54ea45eb9
+# trace_lines:
+#   - 0 (initial) Page { html = "<p></p>", query = "", link = "/" }
+#   - d applied 723f97ea3d57f89160be6d52dc5ad09020993537651b99ece6431de54ea45eb9 {"event":{"payload":["<script>x</script>"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"887848d521c1a9a2740697116bf9a85b2f3585d32f99d3fde996402cc749c411"}
+#   - 1 Comment(body: "<script>x</script>") Page { html = "<p>&lt;script&gt;x&lt;/script&gt;</p>", query = "SELECT id FROM users WHERE name = '<script>x</script>'", link = "/search?q=%3Cscript%3Ex%3C%2Fscript%3E" }
+#   - "  emit \"<p>&lt;script&gt;x&lt;/script&gt;</p>\""
+#   - trace 723f97ea3d57f89160be6d52dc5ad09020993537651b99ece6431de54ea45eb9
+#   - fuel 33
 # provenance: golden spec/traces/52_context_text.json
 #---

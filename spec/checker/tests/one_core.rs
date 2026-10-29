@@ -25,7 +25,11 @@ fn module(src: &str) -> rce_spec_check::ast::Module {
 }
 
 /// ONE-5: the reference trace is what today's emitted Python prints under
-/// `--trace --fuel-trace`, byte for byte.
+/// `--trace --fuel-trace`, byte for byte, without the entries of D. The
+/// emitted program prints the entry of each event (`d applied HASH BODY`
+/// or `d kept HASH BODY`) before its line, and its whole output is the
+/// reference's whole trace (`emit::observe_trace`); the core's trace does
+/// not carry the entries yet.
 #[test]
 fn reference_trace_is_the_emitted_trace() {
     if std::process::Command::new("python3").arg("--version").output().is_err() {
@@ -41,7 +45,14 @@ fn reference_trace_is_the_emitted_trace() {
         let f = dir.join(format!("{stem}.py"));
         std::fs::write(&f, code).unwrap();
         let o = std::process::Command::new("python3").arg(&f).arg("--trace").arg("--fuel-trace").output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&o.stdout), one::trace::reference(&m), "{stem}");
+        let got = String::from_utf8_lossy(&o.stdout);
+        let mut whole = rce_spec_check::emit::observe_trace(&m).join("\n");
+        if !whole.is_empty() {
+            whole.push('\n');
+        }
+        assert_eq!(got, whole, "{stem}: the whole trace");
+        let without_d: String = got.lines().filter(|l| !l.starts_with("d applied ") && !l.starts_with("d kept ")).map(|l| format!("{l}\n")).collect();
+        assert_eq!(without_d, one::trace::reference(&m), "{stem}");
         n += 1;
     }
     let _ = std::fs::remove_dir_all(&dir);

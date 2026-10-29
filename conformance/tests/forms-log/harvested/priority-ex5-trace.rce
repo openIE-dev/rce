@@ -22,5 +22,13 @@ step S on Alarm(n: _n)
 # expect: trace
 # events: Key(c: "a"), Alarm(n: 1)
 # trace_head: dedb35139c9eb6db56d2e0caf5ebddaf5f30866a24739ee66279ee668b53509e
+# trace_lines:
+#   - 0 (initial) S { seen = "" }
+#   - d applied 36f61f5c4deb50f1fcf0b968b4d89625174c05025ef038839d04eabe6779c9d1 {"event":{"payload":["a"],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"c627d6b8b978093b210110371dfce229bf398934563f633e4bd1aa88426a9872"}
+#   - 1 Key(c: "a") S { seen = "a" }
+#   - d applied dedb35139c9eb6db56d2e0caf5ebddaf5f30866a24739ee66279ee668b53509e {"event":{"payload":[1],"type":0},"prev_hash":"36f61f5c4deb50f1fcf0b968b4d89625174c05025ef038839d04eabe6779c9d1","seq":1,"state_hash":"ebce5a669034f51339a79aa64b0b12171a46ab3ba3eab7ba2693cb8e1b008095"}
+#   - 2 Alarm(n: 1) S { seen = "a!" }
+#   - trace dedb35139c9eb6db56d2e0caf5ebddaf5f30866a24739ee66279ee668b53509e
+#   - fuel 13
 # provenance: harvested checker/tests/host/priority.rce example@5
 #---

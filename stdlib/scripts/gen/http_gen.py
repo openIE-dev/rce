@@ -77,6 +77,10 @@ def model(b, req, head, eof):
         if f == i: i += 2; break
         fs.append(field(asc(b[i:f]))); i = f + 2
     m['fields'] = fs; m['trailers'] = []
+    # RFC 9112 3.2 (h11 enforces it too): at most one Host field, exactly one from HTTP/1.1 on
+    if req:
+        hosts = sum(1 for a, _ in fs if a.lower() == 'host')
+        if hosts > 1 or (hosts == 0 and m['ver'][0] == '1' and m['ver'][2] >= '1'): raise Bad('Host')
     te, cl = hdr(fs, 'transfer-encoding'), hdr(fs, 'content-length')
     st = m['status']
     if not req and (head or 100 <= st < 200 or st in (204, 304)):
@@ -190,6 +194,13 @@ CASES = [
     ('POST /p HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\nb\r\nhello world\r\n0\r\n\r\n', True, False, False),
     ('GET  HTTP/1.1\r\n\r\n', True, False, False),
     ('HTTP/1.1 2000 OK\r\n\r\n', False, False, False),
+    ('GET / HTTP/1.1\r\n\r\n', True, False, False),
+    ('GET / HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n', True, False, False),
+    ('GET / HTTP/1.0\r\nHost: a\r\nhost: b\r\n\r\n', True, False, False),
+    ('GET / HTTP/1.0\r\nHost: a\r\n\r\n', True, False, False),
+    ('GET / HTTP/1.1\r\nhOsT: a\r\n\r\n', True, False, False),
+    ('\r\n' * 16 + 'GET / HTTP/1.1\r\nHost: x\r\n\r\n', True, False, False),
+    ('\r\n' * 17 + 'GET / HTTP/1.1\r\nHost: x\r\n\r\n', True, False, False),
 ]
 def rand_case():
     req = R.random() < 0.6

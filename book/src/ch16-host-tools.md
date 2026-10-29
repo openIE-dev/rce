@@ -1,14 +1,15 @@
-# Host tools: RCEdb, media, redacted replay and chat
+# Host tools: RCEdb, HTTP, media, redacted replay and chat
 
-This chapter covers four tools of the RCE host runtime, the program
+This chapter covers five tools of the RCE host runtime, the program
 that runs an RCE program against the outside world and keeps its log D
 of admitted events. Codes such as HC-3 (host contract rule 3), HS-9 (host
 storage rule 9) and T8 (theorem 8), and section numbers such as 6.7 or
 E.8, name rules of [the RCE specification](https://github.com/openIE-dev/rce/blob/main/spec/RCE-SPEC.md).
 
-These commands ship in the `rce` binary of the host runtime. They are not
-yet in the public reference checker that the listings of this book are
-checked with, so this chapter has no checked listings.
+These commands ship in the `rce` binary. The program of this chapter,
+`hello_http.rce`, is checked with `rce test` like the listings of the
+other chapters; serving it needs a network, so the exchange shown with it
+is an example, not checked output.
 
 ## `rce db D CMD [ARGS]`: RCEdb from the command line
 
@@ -48,6 +49,107 @@ types is refused with `BadRow`. Read commands append nothing (HS-8):
 
 An emitted store is a projection of D and never feeds back into it: the
 foreign engine's durability and ordering do not reach δ. A runnable example is `run.sh rcedb` in the examples of the host runtime.
+
+## Serving HTTP: `rce host serve FILE --log D --http HOST:PORT`
+
+`rce host serve` is the host loop. It admits each input into D as it
+arrives, performs the effects the step emits, and admits each effect's
+result as another input. A line on standard input is an input written in
+event syntax, a declared `Tick(n)` arrives every frame, and `Display(data)`
+is written to standard output. When the loop ends, D is replayed with
+every adapter disconnected, and the run counts only if replay gives the
+state hash the live run had.
+
+With `--http HOST:PORT` the host listens on that address itself and turns
+each request of the Hypertext Transfer Protocol (HTTP/1.1) into one
+input. The listing declares the request, the malformed request, the
+response and its result with the host's own shapes, so each is delivered
+exactly. A program may declare them with other fields, or not at all:
+the host then delivers each value as the declaration takes it, matching
+fields by name, and records in D what it did not deliver and why
+(Appendix E, E.4c, HD-2).
+
+```rce
+{{#include ../listings/ch16/hello_http.rce}}
+```
+
+Each request arrives as `HttpRequest(id, method, target, version, names,
+values, body)`. The `id` is the sequence number of the request's own entry
+in D, and the step answers by emitting `HttpRespond` with the same `req`. Run
+`rce host serve hello_http.rce --log D --http 127.0.0.1:8080` and, in
+another terminal, `curl -i http://127.0.0.1:8080/hello` prints:
+
+```text
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 6
+
+hello
+```
+
+The host wrote the status line and `Content-Length`; every other byte
+came from the program. Whether the host also writes `Connection: close`
+and closes the connection depends on the request's version and its
+Connection field, which D records, so every response is a function of D
+(HC-26). A
+response the host cannot write correctly, for example one with a status
+outside 200 to 599 or a `Content-Length` written by the program, fails
+the effect, with the reason in `HttpRespondDone`, and leaves the request
+open, so the step that receives that result can answer again. A `delivered` result means the host
+handed the response to the connection; a client that has gone by the
+time it is written is not reported.
+
+The host reads requests from many connections at once, so a client that
+sends nothing holds up no other. It applies its limits before a byte
+enters D: a request line over 8,192 bytes, a head over 64 KiB or 100
+fields, a body over 1,000,000 bytes, a head not complete within 10
+seconds of its first byte, and any error of syntax arrive as
+`HttpMalformed(id, status, why)`, with 414, 431, 413, 408 or 400 as the
+status, and the program answers them like any other request (HC-25). A
+connection that closes before its request is complete adds nothing. An
+idle host appends nothing to D. The termination signal (SIGTERM) stops
+the loop: the host stops accepting connections, gives the open requests
+up to 5 seconds, makes D durable and validates it.
+
+`programs/network/notes_http.rce` is a complete JSON notes service
+written this way. Its examples test every answer without a network.
+
+## Bytes, refusals and restarts
+
+Three inputs reach a program on the host that it never asks for.
+
+- **Bytes.** Bytes from outside arrive exactly as they were received, as
+  a `List[i64]` of values from 0 to 255: the body of `HttpRequest`, and
+  the data of `NetRecvDone` below (HC-10a). A body that is not valid UTF-8
+  is therefore a value, not a trap; `utf8.utf8_valid(&b)` from `use
+  text.utf8` tells the step whether it may call `b.utf8()`.
+- **Refusals.** When a step is refused, by a declared error, a trap or a
+  limit such as fuel, D records the refused input with the state
+  unchanged (chapter 6), then `host.StepKept`, and then, if the program
+  declares `event StepKept(seq: u64, cause: text)`, the input `StepKept`
+  with the refused entry's seq and a cause: `fail`, `trap`, `fuel`,
+  `size`, `value` or `depth` (HC-21). On the HTTP event host the seq is
+  the id of the request, so the `StepKept` step of `hello_http.rce` answers
+  that request with 500 instead of leaving its client waiting.
+- **Restarts.** Sockets and terminals belong to one host process. A host
+  started on an existing D appends `host.Restarted` with its own seq, and
+  admits `Restarted(below: u64)` if the program declares it, before it
+  reports every request the earlier process left unanswered as `failed`
+  with `interrupted` (HC-22). New ids start at `below`, so an id the
+  program kept from before the restart names no new socket.
+
+## The net adapter: `--net HOST:PORT`
+
+`--net HOST:PORT` grants connections of the Transmission Control
+Protocol (TCP) as effects, at that exact address:
+`NetConnect`, `NetListen`, `NetAccept`, `NetSend`, `NetRecv` and
+`NetClose`, each with one result event (HC-23). `NetRecv` returns the
+bytes that have arrived so far, possibly none, and never waits; `NetSend`
+hands its bytes to a writer of the connection and returns at once. A
+program on this adapter frames its own protocol and asks for more bytes
+on each `Tick`, so it serves one connection per frame. For HTTP the
+event host above does the framing, serves connections concurrently and
+needs no `Tick`.
 
 ## Media capture and playback: `--media DIR`
 

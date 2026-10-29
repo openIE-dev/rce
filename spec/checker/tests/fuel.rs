@@ -21,6 +21,8 @@ use std::sync::atomic::Ordering;
 
 #[path = "common/scala_java.rs"]
 mod scala_java;
+#[path = "common/targets.rs"]
+mod targets;
 use scala_java::scala_java;
 
 fn tool(l: Lang) -> &'static str {
@@ -184,23 +186,17 @@ fn first_diff(a: &[String], b: &[String]) -> Option<String> {
     None
 }
 
-/// RCE_FUEL_LANGS (for example `py`) and RCE_FUEL_ONLY (a program stem)
-/// narrow a local run; neither is set in the full suite.
+/// The covered targets (tests/emit_targets.txt); a covered Scala needs a
+/// Java 19 or later to run its jars. RCE_FUEL_ONLY (a program stem) narrows
+/// a local run's programs; it is not set in the full suite.
 fn langs() -> Vec<Lang> {
-    let only = std::env::var("RCE_FUEL_LANGS").unwrap_or_default();
-    [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala]
-        .into_iter()
-
-        .filter(|l| only.is_empty() || only.split(',').any(|x| x == l.ext()))
-        .filter(|l| Command::new(tool(*l)).arg("--version").output().is_ok_and(|o| o.status.success()))
-        .filter(|l| {
-            let ok = *l != Lang::Scala || scala_java().is_some();
-            if !ok {
-                eprintln!("SKIPPED Scala: no Java 19 or later found (not a pass)");
-            }
-            ok
-        })
-        .collect()
+    let ls = targets::covered(&targets::ALL, |l| tool(l).to_string());
+    assert!(
+        !ls.contains(&Lang::Scala) || scala_java().is_some(),
+        "scala: no Java 19 or later found; {} names scala, so its jars must run",
+        targets::FILE
+    );
+    ls
 }
 
 fn corpus() -> Vec<(String, String)> {

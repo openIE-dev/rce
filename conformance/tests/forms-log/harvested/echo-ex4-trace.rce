@@ -31,5 +31,14 @@ step S on EchoDone(req: _r, status: st, data: d, err: _e)
 # expect: trace
 # events: Say(msg: "hi"), EchoDone(req: 1, status: "failed", data: none, err: "x")
 # trace_head: d7f6d25ed49b5683aca62ebf2f4ad2dcd251acbcde03df6d9c8096437ab880b5
+# trace_lines:
+#   - 0 (initial) S { next = 0, got = [], failed = 0 }
+#   - d applied 5f2ce7ee00ab6501670c35f9907538d1cf9f2fa9eb1620d73a160d4a67b21b98 {"event":{"payload":["hi"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"bfbdb9c340464e76619581611cb1b2cf2d6898eab4d90730b3847d79b1e3a42f"}
+#   - 1 Say(msg: "hi") S { next = 1, got = [], failed = 0 }
+#   - "  emit Echo(req: 1, msg: \"hi\")"
+#   - d applied d7f6d25ed49b5683aca62ebf2f4ad2dcd251acbcde03df6d9c8096437ab880b5 {"event":{"payload":[1,"failed",null,"x"],"type":1},"prev_hash":"5f2ce7ee00ab6501670c35f9907538d1cf9f2fa9eb1620d73a160d4a67b21b98","seq":1,"state_hash":"309e701befc82cf8675aea14e10fe92737f8a03eafe8dfaf6d33e595ed03b12f"}
+#   - 2 EchoDone(req: 1, status: "failed", data: none, err: "x") S { next = 1, got = [], failed = 1 }
+#   - trace d7f6d25ed49b5683aca62ebf2f4ad2dcd251acbcde03df6d9c8096437ab880b5
+#   - fuel 24
 # provenance: harvested checker/tests/host/echo.rce example@4
 #---

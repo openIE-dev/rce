@@ -26,5 +26,13 @@ step Ledger on Spend(amount: a) -> spent + a
 # expect: trace
 # events: SetLimit(admin: (), limit: 50), Spend(amount: 20)
 # trace_head: 4ddeff37d21a5528531fc4fa9143d8899f644c0dde902f9771a7949d470790a2
+# trace_lines:
+#   - 0 (initial) Policy { limit = 100 }; Ledger { spent = 0 }
+#   - d applied 115ff54fcbfcc9a32a4d007b79e2faa0555408a4d22357d327eea30a557b5b9d {"event":{"payload":[null,50],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"5bd342f0a7b18dfdd66bb668c9d2ac5309bc6f7030d8155d7e2db0253e0d52fb"}
+#   - 1 SetLimit(admin: (), limit: 50) Policy { limit = 50 }; Ledger { spent = 0 }
+#   - d applied 4ddeff37d21a5528531fc4fa9143d8899f644c0dde902f9771a7949d470790a2 {"event":{"payload":[20],"type":1},"prev_hash":"115ff54fcbfcc9a32a4d007b79e2faa0555408a4d22357d327eea30a557b5b9d","seq":1,"state_hash":"4db81280e43799d2049f48dade7cffafba19479ad1c3f8b2f54e97cc2d579caa"}
+#   - 2 Spend(amount: 20) Policy { limit = 50 }; Ledger { spent = 20 }
+#   - trace 4ddeff37d21a5528531fc4fa9143d8899f644c0dde902f9771a7949d470790a2
+#   - fuel 9
 # provenance: golden spec/traces/53_capability.json
 #---

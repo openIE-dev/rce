@@ -5,6 +5,9 @@
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 const PROG: &str = "type Pct = u8 where self <= 100
 type Pin = text where self.isdigit() and self.len() == 4
 type Tag = List[i64] where self.len() >= 1 and not (self.len() > 3)
@@ -59,7 +62,7 @@ fn every_emitted_runtime_agrees() {
     let f = d.join("e.rce");
     std::fs::write(&f, PROG).unwrap();
     for (target, ext, tool) in [("rust", "rs", "rustc"), ("python", "py", "python3"), ("js", "mjs", "node")] {
-        if Command::new(tool).arg("--version").output().is_err() {
+        if !targets::covers(target, tool) {
             continue;
         }
         let (c, out, err) = run(&["emit", target, f.to_str().unwrap()]);

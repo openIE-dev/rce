@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, TRAP, SENTINEL };
 
 #define MAXD 120
 typedef struct {
@@ -193,6 +193,14 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       // `par` after the iterable of a `for` (valid only there): its own token, so a `par` glued after
       // any other expression is an error and not a missing line end
       if (valid[PARFOR] && strcmp(w, "par") == 0) { lx->mark_end(lx); lx->result_symbol = PARFOR; return true; }
+      // `refused: trap("...")` (section 3 Outcome): after `refused:`, `trap` followed by `(` is the
+      // trap outcome; any other word there, and `trap` anywhere else, is a NAME
+      if (valid[TRAP] && !valid[SENTINEL] && strcmp(w, "trap") == 0) {
+        lx->mark_end(lx);
+        while (lx->lookahead == ' ') lx->advance(lx, true);
+        s->started = 1; s->seen = 1;
+        lx->result_symbol = lx->lookahead == '(' ? TRAP : NAME; return true;
+      }
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;

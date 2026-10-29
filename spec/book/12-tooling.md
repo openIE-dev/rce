@@ -220,10 +220,17 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). On the larger conformance suite (`conformance/`), run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, the Scala emitter passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter (admission, the host contract, replication and the chapter 12 commands), the same counts as the Rust, Python and JavaScript emitters; `conformance/reports/results-emit-scala.json` holds the run.
-When `rustc`, `python3` or `node` is missing,
-its test prints `SKIPPED` and the reason; a skipped target is never
-counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger conformance suite (`conformance/`), a run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, which compared each trace by its head only, passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter; the Scala emitter has not yet been run with the whole-trace comparison of the emit baseline (`conformance/README.md`).
+The targets a test run covers are named as data,
+one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
+`python`, `js`, `scala`), never by an environment variable or a flag. Every
+test that runs emitted programs runs them on each covered target it uses
+and fails when a covered target's toolchain does not start; a target the
+file does not name is reported as not covered by the run, never counted as
+a pass, and a test of that target alone is reported as ignored. The file
+names `rust`, `python` and `js`, the toolchains of the continuous
+integration runs; Scala is covered by adding its word. The
+oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
@@ -244,6 +251,21 @@ starts a new evaluator for each, and running out traps with the message
 used. These two arguments exist for the test below; the default program
 takes no argument.
 
+**The log D.** With the argument `--trace`, an emitted program also prints
+the log D (6.1) of each example. Before the line of each event that δ
+applied or kept comes its entry, `d applied HASH BODY` or `d kept HASH
+BODY`, where BODY is the canonical JSON of `{event, prev_hash, seq,
+state_hash}` over the positional forms and HASH is its SHA-256; after the
+example's last event comes `trace HEAD`, the hash of the last entry (64
+zeros when there is none). `emit::observe_trace` computes the same lines
+with the reference evaluator, the fuel lines of `--fuel-trace` included.
+The head commits to the events and the state hashes only. The state shown
+after each event, the outputs, the reason an event was kept and the fuel
+are not hashed, so a trace is compared whole: every line of an example's
+block, the entries of D included. The emit adapters of `conformance/`
+answer a trace with that block, and the harness compares it line for line
+with the block `rce-conform` prints for the same program and events.
+
 `spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
 the 50 programs of the emitter tests (with probes) against
 `emit::observe_fuel` of the reference evaluator, in all three targets. It
@@ -256,7 +278,7 @@ arguments before entering a call; the trap observation and the total are
 what the test fixes. The Scala target is in the same test (the emitted
 file is packaged once into a jar and run with `java -jar`); on 2026-10-14
 it agreed on all 54 programs of that corpus and at all 1,366 swept limits
-(`RCE_FUEL_LANGS=scala`).
+(a run that covered Scala alone).
 
 
 **Running `fn main`.** Run with the argument `--run`, an emitted program
@@ -659,4 +681,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: d9226472023960b887300a4f9ca7f6ceab6a75437725a62ce9a6fce1ec456650 -->
+<!-- body-sha256: 98a12e98bc39264136545abe705136cc8318c45be949a2defea22f02e7c4bdcb -->

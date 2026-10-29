@@ -14,6 +14,9 @@ use rce_spec_check::parse::parse;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 const APPS: [&str; 3] = ["apps/terminal.rce", "apps/chat.rce", "rcedb/rcedb.rce"];
 
 fn rce() -> PathBuf {
@@ -41,17 +44,6 @@ fn app_traces_match_their_goldens() {
         let want = std::fs::read_to_string(&g).unwrap_or_else(|e| panic!("{}: {e} (bless with RCE_BLESS_TRACES=1)", g.display()));
         assert!(t == want, "{a}: trace differs from {} (byte for byte)", g.display());
     }
-}
-
-fn tool(lang: Lang) -> Option<String> {
-    let (var, def, arg) = match lang {
-        Lang::Rust => ("RCE_RUSTC", "rustc", "--version"),
-        Lang::Python => ("RCE_PYTHON", "python3", "--version"),
-        Lang::Js => ("RCE_NODE", "node", "--version"),
-        Lang::Scala => ("RCE_SCALA", "scala-cli", "version"),
-    };
-    let t = std::env::var(var).ok().filter(|v| !v.is_empty()).unwrap_or(def.into());
-    Command::new(&t).arg(arg).output().ok().filter(|o| o.status.success()).map(|_| t)
 }
 
 fn run(lang: Lang, t: &str, dir: &Path, stem: &str, code: &str) -> Result<String, String> {
@@ -86,11 +78,8 @@ fn every_target_prints_the_reference_observations_for_the_apps() {
     let mut checked = 0;
     std::thread::scope(|s| {
         let mut hs = vec![];
-        for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
-            let Some(t) = tool(lang) else {
-                eprintln!("SKIPPED {lang:?}: no oracle on PATH (not a pass)");
-                continue;
-            };
+        for lang in targets::covered(&targets::ALL, targets::oracle) {
+            let t = targets::oracle(lang);
             for a in APPS {
                 let (dir, t) = (&dir, t.clone());
                 hs.push(s.spawn(move || {

@@ -97,7 +97,7 @@ for p in sorted(out.rglob("*-trace.rce")):
         findings.append({"kind": "T7", "base": str(p), "renamed_head": got, "original_head": meta["trace_head"],
                          "error": r.get("error")})
     put("forms-log", "generated", f"t7-{p.stem}", s2, {"clauses": ["T7", "T3"], "expect": "trace", "events": meta["events"],
-        "trace_head": meta["trace_head"], "provenance": f"gen_props.py: functions and locals of {p.name} renamed; head must not change (T7)"})
+        "trace_head": meta["trace_head"], "trace_lines": (r.get("trace") or {}).get("lines"), "provenance": f"gen_props.py: functions and locals of {p.name} renamed; head must not change (T7)"})
 
 # Event and error renaming, recorded once as evidence for finding T7-SCOPE.
 for p in sorted(out.rglob("01-counter-ex2-trace.rce")):

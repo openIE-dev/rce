@@ -46,5 +46,13 @@ step Db on Scan(start: f)
 # expect: trace
 # events: Put(key: "k", val: "v"), Delete(key: "k")
 # trace_head: 8d42b8409cd5f8b643457b1aa4b774ad84897078bf3e8f84c04f4f5cb8932af4
+# trace_lines:
+#   - 0 (initial) Db { rows = {}, writes = 0, durable = 0 }
+#   - d applied 63fccc64e0102c4828ccd339ccf73b5c1d0fddf26200959d6ab13d619f0a4aea {"event":{"payload":["k","v"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"949904caeeb04724a9720a6b7bf70177c0f7d2ddaf8ecf9d8f0c0928b6de075b"}
+#   - 1 Put(key: "k", val: "v") Db { rows = {"k": "v"}, writes = 1, durable = 0 }
+#   - d applied 8d42b8409cd5f8b643457b1aa4b774ad84897078bf3e8f84c04f4f5cb8932af4 {"event":{"payload":["k"],"type":1},"prev_hash":"63fccc64e0102c4828ccd339ccf73b5c1d0fddf26200959d6ab13d619f0a4aea","seq":1,"state_hash":"07bf0c0610c6d5638776848a714e394c09bdc15ff888eeeea06fd8b35e740860"}
+#   - 2 Delete(key: "k") Db { rows = {}, writes = 2, durable = 0 }
+#   - trace 8d42b8409cd5f8b643457b1aa4b774ad84897078bf3e8f84c04f4f5cb8932af4
+#   - fuel 30
 # provenance: golden spec/traces/55_rcedb.json
 #---

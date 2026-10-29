@@ -238,6 +238,68 @@ pub fn size_ok(v: V) -> R<V> {
     }
 }
 pub const FUEL: u64 = 50_000_000;
+/// The trap text of fuel exhaustion (6.7, E1).
+pub const TRAP_FUEL: &str = "comptime fuel exhausted";
+
+/// Why δ refused an input (T8), as the host reports it (HC-21): a function
+/// of the state and the input that names no declaration, so it is the same
+/// under the renamings of 10.6 (T7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cause {
+    /// a declared error left the step (`fail`, `try`)
+    Fail,
+    /// any other trap of 6.3 or 6.7
+    Trap,
+    /// fuel ran out (6.7, E1)
+    Fuel,
+    /// N9 SIZE_LIMIT
+    Size,
+    /// N9 VALUE_LIMIT
+    Value,
+    /// the evaluation depth of 6.7
+    Depth,
+}
+
+impl Cause {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Cause::Fail => "fail",
+            Cause::Trap => "trap",
+            Cause::Fuel => "fuel",
+            Cause::Size => "size",
+            Cause::Value => "value",
+            Cause::Depth => "depth",
+        }
+    }
+    pub fn parse(s: &str) -> Option<Cause> {
+        [Cause::Fail, Cause::Trap, Cause::Fuel, Cause::Size, Cause::Value, Cause::Depth].into_iter().find(|c| c.as_str() == s)
+    }
+    /// The cause of a step left by `f`.
+    pub fn of(f: &Flow) -> Cause {
+        match f {
+            Flow::Fail(_) => Cause::Fail,
+            Flow::Trap(t) if t == TRAP_FUEL => Cause::Fuel,
+            Flow::Trap(t) if t == "size limit" => Cause::Size,
+            Flow::Trap(t) if t == "value limit" => Cause::Value,
+            Flow::Trap(t) if t == "evaluation depth" => Cause::Depth,
+            _ => Cause::Trap,
+        }
+    }
+}
+
+/// A refusal of δ (T8): its cause and the text the tools print (the
+/// declared error's name, or `trap(..)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Refusal {
+    pub cause: Cause,
+    pub text: String,
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
 /// The fuel each new evaluator starts with (6.7). It is FUEL; the tests of
 /// tests/fuel.rs set it to find the trap step of small programs, and an
 /// emitted program takes the same number from its `--fuel=N` argument (10.5).
@@ -435,7 +497,7 @@ impl<'a> Interp<'a> {
     }
     pub(crate) fn tick(&mut self) -> R<()> {
         if self.fuel == 0 {
-            return trap("comptime fuel exhausted");
+            return trap(TRAP_FUEL);
         }
         self.fuel -= 1;
         Ok(())
@@ -2442,7 +2504,7 @@ impl<'a> Interp<'a> {
         &mut self,
         r: &Region,
         ev: &V,
-    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, String> {
+    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, Refusal> {
         let m = self.m;
         for it in &m.items {
             let Item::Step {
@@ -2463,10 +2525,14 @@ impl<'a> Interp<'a> {
                 HashMap::new(),
             ];
             self.outputs.clear();
-            let refuse = |f: Flow| match f {
-                Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
-                Flow::Trap(t) => format!("trap({t})"),
-                other => format!("trap({other:?})"),
+            let refuse = |f: Flow| {
+                let cause = Cause::of(&f);
+                let text = match f {
+                    Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
+                    Flow::Trap(t) => format!("trap({t})"),
+                    other => format!("trap({other:?})"),
+                };
+                Refusal { cause, text }
             };
             match self.pmatch(pat, ev) {
                 Ok(true) => {}
@@ -2505,6 +2571,11 @@ impl<'a> Interp<'a> {
 
     /// δ (6.4): every region on the pre-state; first refusal in declaration order refuses the event atomically.
     pub fn delta(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), String> {
+        self.delta_r(s, ev).map_err(|r| r.text)
+    }
+
+    /// δ with the refusal's cause (HC-21).
+    pub fn delta_r(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), Refusal> {
         let mut next = vec![];
         let mut outs = vec![];
         for r in s {

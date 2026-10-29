@@ -1,5 +1,6 @@
 //! W1h / HC-5: `rce host run` enters the sandbox's OS enforcement target after opening D;
 //! the granted file root and the log still work, and the run's D replays.
+use rce_spec_check::sandbox::{GrantKind, NetGrant, Rule, landlock_description, needs_ip_sockets, profile, seatbelt_description, seatbelt_rules};
 use std::path::Path;
 use std::process::Command;
 
@@ -30,12 +31,223 @@ fn host_run_enters_sandbox_and_granted_authority_still_works() {
 
 #[test]
 fn profile_denies_network_and_exec_without_pty() {
-    let p = rce_spec_check::sandbox::profile(Path::new("/tmp"), &[], false, false);
+    let p = rce_spec_check::sandbox::profile(Path::new("/tmp"), &[], false, &[]);
     assert!(p.contains("(deny network*)") && p.contains("(deny process-exec*)"));
-    let q = rce_spec_check::sandbox::profile(Path::new("/tmp"), &[Path::new("/tmp")], true, true);
-    assert!(!q.contains("process-exec") && !q.contains("network"));
+    assert!(!p.contains("(allow network"), "{p}");
+    let q = rce_spec_check::sandbox::profile(Path::new("/tmp"), &[Path::new("/tmp")], true, &[]);
+    assert!(!q.contains("process-exec") && q.contains("(deny network*)"));
 }
 
+fn grant(a: &str, k: GrantKind) -> NetGrant {
+    NetGrant::parse(a, k).unwrap()
+}
+
+/// HC-5a: with network grants the Seatbelt profile still denies all network
+/// use, then allows exactly the granted ports, at localhost for a loopback
+/// grant and at any address otherwise (Seatbelt names no other host).
+/// Before, `--net` removed the network rule altogether.
+#[test]
+fn profile_restricts_network_to_granted_ports() {
+    let gs = [grant("127.0.0.1:8080", GrantKind::Prebound), grant("10.0.0.5:9000", GrantKind::Connect)];
+    let p = profile(Path::new("/tmp"), &[], false, &gs);
+    assert!(p.contains("(deny network*)\n"), "{p}");
+    assert!(p.contains("(allow network-bind network-inbound (local ip \"localhost:8080\"))"), "{p}");
+    assert!(p.contains("(allow network-outbound (remote ip \"*:9000\"))"), "{p}");
+    assert_eq!(p.matches("(allow network").count(), 2, "nothing else is allowed: {p}");
+    assert!(p.find("(deny network*)").unwrap() < p.find("(allow network").unwrap(), "the allows follow the deny");
+    // a grant that names a host by name also needs the system resolver
+    let named = profile(Path::new("/tmp"), &[], false, &[grant("example.org:443", GrantKind::Connect)]);
+    assert!(named.contains("mDNSResponder") && named.contains("\"*:443\""), "{named}");
+}
+
+/// HC-5a: the printed line is made from the rule list that is installed,
+/// so it cannot name more than the target enforces.
+#[test]
+fn description_is_generated_from_rules() {
+    let gs = [grant("127.0.0.1:8080", GrantKind::Listen), grant("127.0.0.1:8080", GrantKind::Connect), grant("10.0.0.5:9000", GrantKind::Connect)];
+    let rules = seatbelt_rules(&gs);
+    let d = seatbelt_description(&rules);
+    assert_eq!(d, "network only listening on ports [8080] at localhost and connecting to ports [8080] at localhost and connecting to ports [9000] at any address (TCP and UDP; Seatbelt cannot name other addresses; the net adapter checks the exact address)");
+    // every port the line names is a rule of the profile, and the reverse
+    let p = profile(Path::new("/tmp"), &[], false, &gs);
+    for r in &rules {
+        let port = match r {
+            Rule::Inbound { port, .. } | Rule::Outbound { port, .. } => *port,
+            Rule::Resolver => continue,
+        };
+        assert!(p.contains(&format!(":{port}\"")) && d.contains(&format!("{port}")), "{r:?}");
+    }
+    assert_eq!(seatbelt_description(&[]), "no network");
+    // the Linux line, from what Landlock added
+    let l = landlock_description(7, &[(8080, true, true)], &[grant("127.0.0.1:8080", GrantKind::Listen), grant("127.0.0.1:8080", GrantKind::Connect)], true, false, false);
+    assert_eq!(l, "Landlock ABI 7: TCP bind and connect only on ports [8080] (by port: any address on those ports; the net adapter allows only 127.0.0.1:8080), UDP not restricted, writes only under the log directory, no exec");
+    let h = landlock_description(7, &[], &[grant("127.0.0.1:8080", GrantKind::Prebound)], false, false, true);
+    assert_eq!(h, "Landlock ABI 7: no TCP bind or connect (the listener 127.0.0.1:8080 was opened before entering), writes only under the log directory");
+    let old = landlock_description(3, &[], &[grant("127.0.0.1:1", GrantKind::Connect)], true, true, true);
+    assert!(old.starts_with("Landlock ABI 3: network not restricted by Landlock (ABI 3), UDP not restricted"), "{old}");
+    assert!(!needs_ip_sockets(&[grant("127.0.0.1:8080", GrantKind::Prebound)]));
+    assert!(needs_ip_sockets(&[grant("127.0.0.1:8080", GrantKind::Listen)]));
+}
+
+/// HC-5a on Linux: Landlock restricts TCP by port, not by address, and not
+/// UDP; the line the host prints says so.
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_description_says_by_port_and_udp() {
+    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/net.rce");
+    let dir = std::env::temp_dir().join(format!("rce-sbx-net-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&app).arg("--log").arg(dir.join("d.log")).arg("--net").arg(format!("127.0.0.1:{port}")).arg("Roll(n: 2)").output().unwrap();
+    let err = String::from_utf8_lossy(&o.stderr);
+    if err.contains("Landlock unavailable") {
+        eprintln!("Landlock unavailable on this kernel: {err}");
+        return;
+    }
+    if err.contains("Landlock ABI 1:") || err.contains("Landlock ABI 2:") || err.contains("Landlock ABI 3:") {
+        assert!(err.contains("network not restricted by Landlock") && err.contains("UDP not restricted"), "{err}");
+    } else {
+        assert!(err.contains(&format!("TCP bind and connect only on ports [{port}] (by port: any address on those ports; the net adapter allows only 127.0.0.1:{port}), UDP not restricted")), "{err}");
+    }
+    assert!(!err.contains("no new IP sockets"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// What a shell under `--pty` prints when it tries to open a UDP socket,
+/// with these extra grants.
+#[cfg(target_os = "linux")]
+fn shell_udp(extra: &[String]) -> Option<String> {
+    use std::io::{Read, Write};
+    use std::process::Stdio;
+    if Command::new("python3").args(["-c", "pass"]).output().map(|o| !o.status.success()).unwrap_or(true) {
+        eprintln!("no python3 here: skipped");
+        return None;
+    }
+    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/pty_http.rce");
+    let dir = std::env::temp_dir().join(format!("rce-sbx-udp-{}-{}", std::process::id(), extra.len()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let mut c = Command::new(env!("CARGO_BIN_EXE_rce"))
+        .args(["host", "serve"])
+        .arg(&app)
+        .arg("--log")
+        .arg(dir.join("d.log"))
+        .arg("--pty")
+        .arg("--http")
+        .arg(format!("127.0.0.1:{port}"))
+        .args(extra)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut i = c.stdin.take().unwrap();
+    writeln!(i, "python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_DGRAM); print(\"UDP-\" + \"OPEN\")' 2>/dev/null || echo UDP-$((1 + 1))").unwrap();
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let (s2, mut out) = (seen.clone(), c.stdout.take().unwrap());
+    std::thread::spawn(move || {
+        let mut b = [0u8; 4096];
+        while let Ok(n) = out.read(&mut b) {
+            if n == 0 {
+                break;
+            }
+            s2.lock().unwrap().push_str(&String::from_utf8_lossy(&b[..n]));
+        }
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let got = loop {
+        let s = seen.lock().unwrap().clone();
+        if s.contains("UDP-OPEN") || s.contains("UDP-2") {
+            break s;
+        }
+        assert!(std::time::Instant::now() < deadline, "no answer from the shell: {s}");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    // SAFETY: a signal to our own child process.
+    unsafe { libc::kill(c.id() as i32, libc::SIGTERM) };
+    drop(i);
+    let o = c.wait_with_output().unwrap();
+    let err = String::from_utf8_lossy(&o.stderr).into_owned();
+    let _ = std::fs::remove_dir_all(&dir);
+    Some(format!("{got}\n{err}"))
+}
+
+/// HC-5a: with `--http` alone the listener was bound before entering, so
+/// seccomp refuses every new IP socket: the shell cannot open UDP. With a
+/// `--net` grant it can, and the line says UDP is not restricted.
+#[cfg(target_os = "linux")]
+#[test]
+fn http_only_has_no_new_ip_sockets() {
+    let Some(only) = shell_udp(&[]) else { return };
+    if only.contains("seccomp not entered") {
+        eprintln!("seccomp not entered here: {only}");
+        return;
+    }
+    assert!(only.contains("UDP-2") && !only.contains("UDP-OPEN"), "{only}");
+    assert!(only.contains("no new IP sockets") && only.contains("was opened before entering"), "{only}");
+    assert!(only.contains("validated"), "{only}");
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let Some(net) = shell_udp(&["--net".into(), format!("127.0.0.1:{port}")]) else { return };
+    assert!(net.contains("UDP-OPEN"), "{net}");
+    assert!(net.contains("UDP not restricted") && !net.contains("no new IP sockets"), "{net}");
+}
+
+/// macOS runner: Seatbelt refuses a port that was not granted.
+#[cfg(target_os = "macos")]
+#[test]
+fn seatbelt_refuses_an_ungranted_port() {
+    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/net.rce");
+    let dir = std::env::temp_dir().join(format!("rce-sbx-mac-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let granted = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let other = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let oport = other.local_addr().unwrap().port();
+    let o = Command::new(env!("CARGO_BIN_EXE_rce"))
+        .args(["host", "run"])
+        .arg(&app)
+        .arg("--log")
+        .arg(dir.join("d.log"))
+        .arg("--net")
+        .arg(format!("127.0.0.1:{granted}"))
+        .arg("--net")
+        .arg(format!("127.0.0.1:{oport}"))
+        .arg(format!("Listen(addr: \"127.0.0.1:{granted}\")"))
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("sandbox, macOS target (Seatbelt): network only"), "{err}");
+    assert!(err.contains(&format!("{granted}")), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// macOS runner: a request is answered under Seatbelt.
+#[cfg(target_os = "macos")]
+#[test]
+fn serve_under_seatbelt_answers_a_request() {
+    use std::io::{Read, Write};
+    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../programs/network/notes_http.rce");
+    let dir = std::env::temp_dir().join(format!("rce-sbx-mac-serve-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve"]).arg(&app).arg("--log").arg(dir.join("d.log")).arg("--http").arg(format!("127.0.0.1:{port}")).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let answer = loop {
+        if let Ok(mut s) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+            s.write_all(b"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").unwrap();
+            let mut out = String::new();
+            let _ = s.read_to_string(&mut out);
+            break out;
+        }
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    // SAFETY: a signal to our own child process.
+    unsafe { libc::kill(c.id() as i32, libc::SIGTERM) };
+    let _ = c.wait();
+    assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
 /// Linux: the shell under `--pty` inherits Landlock: it can write under the
 /// log directory but not elsewhere, and no TCP connection is allowed.
 #[cfg(target_os = "linux")]

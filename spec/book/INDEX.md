@@ -17,13 +17,13 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `cd5569c71a7b7d3190501d6db96b1e06364798b8bae4d5c89ba86389e0a94e18` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `fb7ee5625e3f9dff21379fba6af986ab2cbeb65cf5d577637c07ba477c4a45dd` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `d9226472023960b887300a4f9ca7f6ceab6a75437725a62ce9a6fce1ec456650` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `98a12e98bc39264136545abe705136cc8318c45be949a2defea22f02e7c4bdcb` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `731558e20966c95c1c100bd469f1587cd5ee034ff64d8ee8836d68f217782aba` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `375c3aa0d3316d41bda6c6f4b3b948717cd752f06a5a96302f4e15d45b00038f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `63f298c4a2a6a2ae68fe4952a7291ca6967060775df100848b8ff0d487170c5e` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `16-host-contract.md` | `37661580543cb97d650c617a8b40c9d28d0dbb4dccce89315a7315a50808ace2` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 | `17-draft09.md` | `8bd5fe456449680c69da527d048b20482d76c77fd57e38dbb85ced12065223c5` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 569dd8d826bd786a31cfdc6795bcdc5973b2a766b394acad96216e4823fd20fd -->
+<!-- body-sha256: 470e56e2c93be3ef4d86f2fab4c3cf835e87db5b24e2a108c1f896ae131ca174 -->

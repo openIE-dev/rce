@@ -509,6 +509,7 @@ for x in T:
         if not h or h == hp:
             findings.append({"test": m["id"], "law": "state with -0.0 hashes differently from +0.0", "reference": [h, hp, r.get("error")]})
         m["trace_head"] = h
+        m["trace_lines"] = (r.get("trace") or {}).get("lines")
         m["note"] = "law F6: the head differs from the same program with x * 1.0 (" + str(hp) + ")"
     elif x["expect"] == "host":
         r = ref.call(op="host", source=src, steps=x["steps"], tear=x.get("tear"))

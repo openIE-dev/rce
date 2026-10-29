@@ -54,5 +54,14 @@ step C on ChanRecvDone(req: _r, status: _s, data: d, err: _e)
 # expect: trace
 # events: Send(peer: "p", body: "x"), ChanSendDone(req: 1, status: "unreachable", data: none, err: "x")
 # trace_head: 9971a8fbadf49164a4d2d4d45ffd827e667f65335273e978b017577ac58cb3c2
+# trace_lines:
+#   - 0 (initial) C { next = 0, sent = 0, lost = 0, inbox = [] }
+#   - d applied ae9e3fc1788d8bbf76f0774a0d28d98a4592da6799140216767eed27b8c1368d {"event":{"payload":["p","x"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"0184beef196a3da02a662020af3ba6def07b9e46a97b4920477f96395321ccf6"}
+#   - 1 Send(peer: "p", body: "x") C { next = 1, sent = 0, lost = 0, inbox = [] }
+#   - "  emit ChanSend(req: 1, peer: \"p\", id: 1, body: \"x\", reliable: true)"
+#   - d applied 9971a8fbadf49164a4d2d4d45ffd827e667f65335273e978b017577ac58cb3c2 {"event":{"payload":[1,"unreachable",null,"x"],"type":3},"prev_hash":"ae9e3fc1788d8bbf76f0774a0d28d98a4592da6799140216767eed27b8c1368d","seq":1,"state_hash":"197953812956240e55ab6e9268bd2abb9ca91a7e128a886ea6fd35f2208df486"}
+#   - 2 ChanSendDone(req: 1, status: "unreachable", data: none, err: "x") C { next = 1, sent = 0, lost = 1, inbox = [] }
+#   - trace 9971a8fbadf49164a4d2d4d45ffd827e667f65335273e978b017577ac58cb3c2
+#   - fuel 29
 # provenance: harvested checker/tests/host/chan.rce example@4
 #---
