@@ -29,10 +29,10 @@ fn main()
 """, "run", outputs=["emit 2", "emit 3"], outcome="done")
 t("r2-try-in-if-expr", "lexing-parsing", ["R2"], """
 fn f(x: i64?) -> i64 = if true then try x else 0 else 1
-""", "reject", diagnostic="W-SYN-1")
+""", "change", diagnostic="W-SYN-1")
 t("r3-chained-comparison", "lexing-parsing", ["R3"], """
 fn f(a: i64) -> bool = 0 < a < 10
-""", "reject", diagnostic="W-SYN-1")
+""", "change", diagnostic="W-SYN-1")
 t("r3-in-range", "lexing-parsing", ["R3"], """
 fn main()
     let a: i64 = 5
@@ -42,7 +42,7 @@ t("r4-assignment-in-expression", "lexing-parsing", ["R4"], """
 fn main()
     var x: i64 = 0
     emit (x = 1)
-""", "reject", diagnostic="W-SYN-1")
+""", "change", diagnostic="W-SYN-1")
 t("r5-generic-call", "lexing-parsing", ["R5"], """
 fn id[T](x: T) -> T = x
 fn main()
@@ -53,7 +53,7 @@ struct Box[T]
     v: T
 impl [T] Box[T]
     fn get(self) -> T = self.v
-""", "reject", diagnostic="W-SYN-1")
+""", "change", diagnostic="W-SYN-1")
 t("r7-map-literal-key", "lexing-parsing", ["R7"], """
 fn main()
     let a: text = "k"
@@ -80,17 +80,17 @@ fn main()
     b <- 4
     a <- <- b
     emit 0
-""", "reject", diagnostic="W-TY-1", note="R9: `a <- <- b` parses as send(a, receive(b)); a receive gives i64? so sending it on chan i64 is a type error, which shows the parse")
+""", "change", diagnostic="W-TY-1", note="R9: `a <- <- b` parses as send(a, receive(b)); a receive gives i64? so sending it on chan i64 is a type error, which shows the parse")
 t("s3-keyword-reserved", "lexing-parsing", ["S3"], """
 fn f(from: i64) -> i64 = from
-""", "reject", diagnostic="W-SYN-1")
+""", "change", diagnostic="W-SYN-1")
 t("s3-keyword-as-member", "lexing-parsing", ["S3"], """
 struct E
     from: i64
 fn main()
     let e = E(from: 3)
     emit e.from
-""", "reject", diagnostic="W-SYN-1", note="S3: a keyword is a member name only after `.`, so a field cannot be declared with it")
+""", "change", diagnostic="W-SYN-1", note="S3: a keyword is a member name only after `.`, so a field cannot be declared with it")
 t("s4-std-modules", "types-checking", ["S4", "CH04-M-c3c51cd1"], """
 module m
 use std.text
@@ -106,7 +106,7 @@ fn f(a: i64) -> i64
 fn main()
     emit f(20)
 """, "run", outputs=["emit 41"], outcome="done")
-t("s1-guard-trap-refuses", "forms-log", ["S1", "T8"], """
+t("s1-guard-trap-keeps", "forms-log", ["S1", "T8"], """
 state S
     n: i64 = 1
 event Div(d: i64)
@@ -126,7 +126,7 @@ fn main()
 # --- numbers
 t("n6-int-float-equality", "numbers", ["N6", "W-TY-3"], """
 fn f() -> bool = 1 == 1.0
-""", "reject", diagnostic="W-TY-3")
+""", "change", diagnostic="W-TY-3")
 t("n6-signed-zero-equal", "numbers", ["N6", "F6"], """
 fn main()
     let z: f64 = 0.0
@@ -135,12 +135,12 @@ fn main()
 """, "run", outputs=["emit true"], outcome="done")
 t("w-ty-3-mixing", "numbers", ["W-TY-3", "CH05-M-2405dfe8", "N4"], """
 fn f(a: i64, b: f64) -> f64 = a + b
-""", "reject", diagnostic="W-TY-3")
+""", "change", diagnostic="W-TY-3")
 t("w-ty-3-narrowing", "numbers", ["W-TY-3"], """
 fn f(a: i64) -> i32
     let b: i32 = a
     return b
-""", "reject", diagnostic="W-TY-3")
+""", "change", diagnostic="W-TY-3")
 t("f5-nan-traps", "numbers", ["F5", "F4"], """
 fn main()
     let z: f64 = 0.0
@@ -229,8 +229,8 @@ fn main()
 """, "run", outputs=["emit true", "emit true"], outcome="done")
 
 # --- types and checking
-t("w-ty-2-nested-option", "types-checking", ["W-TY-2"], "fn f(x: i64??) -> i64 = 0\n", "reject", diagnostic="any", note="see finding W-TY-2-UNREACHABLE: the grammar has no `τ??`, so W-TY-2 cannot be the rule that refuses it")
-t("w-ty-2-borrow-of-borrow", "types-checking", ["W-TY-2"], "fn f(x: &&i64) -> i64 = 0\n", "reject", diagnostic="W-TY-2")
+t("w-ty-2-nested-option", "types-checking", ["W-TY-2"], "fn f(x: i64??) -> i64 = 0\n", "change", diagnostic="any", note="see finding W-TY-2-UNREACHABLE: the grammar has no `τ??`, so W-TY-2 cannot be the rule that refuses it")
+t("w-ty-2-borrow-of-borrow", "types-checking", ["W-TY-2"], "fn f(x: &&i64) -> i64 = 0\n", "change", diagnostic="W-TY-2")
 t("w-pat-1-binding-is-variant", "types-checking", ["W-PAT-1"], """
 kind Light
     Red
@@ -240,33 +240,33 @@ fn f(l: Light) -> i64
         Light.Red -> return 1
         x -> return 2
 fn g(Red: i64) -> i64 = Red
-""", "reject", diagnostic="W-PAT-1")
+""", "change", diagnostic="W-PAT-1")
 t("w-match-2-unreachable", "types-checking", ["W-MATCH-2"], """
 fn f(x: i64) -> i64
     match x
         _ -> return 1
         0 -> return 2
-""", "reject", diagnostic="W-MATCH-2")
-t("w-state-1-no-fields", "types-checking", ["W-STATE-1"], "state S\nevent E\n", "reject", diagnostic="any", note="see finding W-STATE-1-UNREACHABLE")
-t("w-state-3-borrow-field", "types-checking", ["W-STATE-3"], "state S\n    r: &i64 = 0\n", "reject", diagnostic="W-STATE-3")
+""", "change", diagnostic="W-MATCH-2")
+t("w-state-1-no-fields", "types-checking", ["W-STATE-1"], "state S\nevent E\n", "change", diagnostic="any", note="see finding W-STATE-1-UNREACHABLE")
+t("w-state-3-borrow-field", "types-checking", ["W-STATE-3"], "state S\n    r: &i64 = 0\n", "change", diagnostic="W-STATE-3")
 t("w-step-1-undeclared-region", "types-checking", ["W-STEP-1"], """
 state S
     n: i64 = 0
 event E
 step T on E -> 1
 step S on E -> n + 1
-""", "reject", diagnostic="W-STEP-1")
+""", "change", diagnostic="W-STEP-1")
 t("w-step-3-arrow-multi-field", "types-checking", ["W-STEP-3"], """
 state S
     a: i64 = 0
     b: i64 = 0
 event E
 step S on E -> a + 1
-""", "reject", diagnostic="W-STEP-3")
+""", "change", diagnostic="W-STEP-3")
 t("w-ref-1-float-refined", "types-checking", ["W-REF-1", "T35"], """
 type P = f64 where self <= 1.0
-""", "reject", diagnostic="W-REF-1")
-t("t35-refined-input-refused", "types-checking", ["T35", "T8", "HC-3"], """
+""", "change", diagnostic="W-REF-1")
+t("t35-refined-input-kept", "types-checking", ["T35", "T8", "HC-3"], """
 type Pct = u8 where self <= 100
 state V
     level: Pct = 0
@@ -280,14 +280,14 @@ struct P
     x: i64
 impl D for P
     fn d(&self) -> i64 = self.x
-""", "reject", diagnostic="W-TRAIT-1")
+""", "change", diagnostic="W-TRAIT-1")
 t("w-trait-3-eq-without-trait", "types-checking", ["W-TRAIT-3"], """
 fn f(a: fn(i64) -> i64, b: fn(i64) -> i64) -> bool = a == b
-""", "reject", diagnostic="W-TRAIT-3")
+""", "change", diagnostic="W-TRAIT-3")
 t("borrow-cannot-be-returned", "types-checking", ["CH05-M-c643f9c7", "T6"], """
 struct H
     r: &i64
-""", "reject", diagnostic="W-TY-2")
+""", "change", diagnostic="W-TY-2")
 
 # --- modules (multi-file)
 t("w-mod-1-private", "types-checking", ["W-MOD-1", "W-VIS-1"], """
@@ -295,17 +295,17 @@ module app
 use lib.a
 fn main()
     emit a.hidden()
-""", "reject", diagnostic="W-VIS-1", fixtures={"lib-a_FIXTURE.rce": "module lib.a\nfn hidden() -> i64 = 1\n"})
+""", "change", diagnostic="W-VIS-1", fixtures={"lib-a_FIXTURE.rce": "module lib.a\nfn hidden() -> i64 = 1\n"})
 t("w-mod-2-cycle", "types-checking", ["W-MOD-2"], """
 module p.a
 use p.b
 pub fn fa() -> i64 = 1
-""", "reject", diagnostic="W-MOD-2", fixtures={"p-b_FIXTURE.rce": "module p.b\nuse p.a\npub fn fb() -> i64 = 2\n"})
+""", "change", diagnostic="W-MOD-2", fixtures={"p-b_FIXTURE.rce": "module p.b\nuse p.a\npub fn fb() -> i64 = 2\n"})
 t("w-mod-3-clash", "types-checking", ["W-MOD-3"], """
 module app
 use lib.c
 fn helper() -> i64 = 2
-""", "reject", diagnostic="W-MOD-3", fixtures={"lib-c_FIXTURE.rce": "module lib.c\npub fn helper() -> i64 = 1\n"})
+""", "change", diagnostic="W-MOD-3", fixtures={"lib-c_FIXTURE.rce": "module lib.c\npub fn helper() -> i64 = 1\n"})
 
 # --- effects and capabilities (0.8)
 t("w-cap-1-cap-in-state", "effects-capabilities", ["W-CAP-1", "HC-5"], """
@@ -313,7 +313,7 @@ t("w-cap-1-cap-in-state", "effects-capabilities", ["W-CAP-1", "HC-5"], """
 struct Root
 state S
     c: Cap[Root] = ()
-""", "reject", diagnostic="W-CAP-1")
+""", "change", diagnostic="W-CAP-1")
 t("w-cap-2-write-without-cap", "effects-capabilities", ["W-CAP-2", "HC-5", "T36"], """
 # rce-version: 0.8
 struct Root
@@ -321,7 +321,7 @@ state Policy
     limit: Guarded[u32, Root] = 100
 event Set(limit: u32)
 step Policy on Set(limit: n) -> n
-""", "reject", diagnostic="W-CAP-2")
+""", "change", diagnostic="W-CAP-2")
 t("t36-guarded-unchanged-without-cap", "effects-capabilities", ["T36", "HC-5"], """
 # rce-version: 0.8
 struct Root
@@ -341,7 +341,7 @@ state V
 event Login(pw: Secret[text])
 step V on Login(pw: p)
     emit p
-""", "reject", diagnostic="W-SEC-1")
+""", "change", diagnostic="W-SEC-1")
 t("w-sec-1-secret-method", "effects-capabilities", ["W-SEC-1"], """
 # rce-version: 0.8
 state V
@@ -349,7 +349,7 @@ state V
 event Login(pw: Secret[text])
 step V on Login(pw: p)
     n = p.len()
-""", "reject", diagnostic="W-SEC-1")
+""", "change", diagnostic="W-SEC-1")
 t("w-ctx-1-plain-join", "effects-capabilities", ["W-CTX-1", "T36"], """
 # rce-version: 0.8
 state P
@@ -357,7 +357,7 @@ state P
 event C(body: text)
 step P on C(body: b)
     html = Html.lit("<p>") + b
-""", "reject", diagnostic="W-CTX-1")
+""", "change", diagnostic="W-CTX-1")
 
 # --- concurrency
 t("w-bud-1-emit-in-budget-else", "concurrency", ["W-BUD-1"], """
@@ -367,14 +367,14 @@ fn main()
         emit 1
     else
         emit 2
-""", "reject", diagnostic="W-BUD-1")
+""", "change", diagnostic="W-BUD-1")
 t("w-intr-1-priority-range", "concurrency", ["W-INTR-1", "HC-9"], """
 # rce-version: 0.6
 interrupt event A priority 300
 state S
     n: i64 = 0
 step S on A -> n + 1
-""", "reject", diagnostic="W-INTR-1")
+""", "change", diagnostic="W-INTR-1")
 t("t18-tree-reduce-equals-fold", "concurrency", ["T18", "CH16-M-a84fabb6"], """
 # rce-version: 0.6
 fn main()
@@ -431,7 +431,7 @@ fn main()
     atomic
         a <- Add(k: 1)
         b <- Add(k: 2)
-""", "reject", diagnostic="W-ATOM-2")
+""", "change", diagnostic="W-ATOM-2")
 t("hc-12-float-reduction-schedule", "concurrency", ["HC-12", "CH16-M-a84fabb6", "T18", "T20"], """
 # rce-version: 0.6
 fn main()
@@ -472,7 +472,7 @@ impl Merge for V
     fn bottom() -> V
         V(k: 0, n: 0)
 """, "accept")
-t("lex-merge-bitwise-refused", "concurrency", ["CH14-M-9202f003", "W-CRDT-1"], """
+t("lex-merge-bitwise-change", "concurrency", ["CH14-M-9202f003", "W-CRDT-1"], """
 # rce-version: 0.6
 struct V
     k: i64
@@ -481,7 +481,7 @@ impl Merge for V
         V(k: self.k + o.k)
     fn bottom() -> V
         V(k: 0)
-""", "reject", diagnostic="W-CRDT-1", note="addition is not idempotent, so it is not a join")
+""", "change", diagnostic="W-CRDT-1", note="addition is not idempotent, so it is not a join")
 
 for x in T:
     m = {"id": f"{x['area']}/targeted/{x['name']}", "area": x["area"], "clauses": x["clauses"], "expect": x["expect"],
@@ -491,7 +491,7 @@ for x in T:
     fx = x.get("fixtures") or {}
     if fx: m["fixtures"] = list(fx)
     src = x["src"]
-    if x["expect"] in ("accept", "reject"):
+    if x["expect"] in ("accept", "change"):
         r = ref.check(src, {"main.rce": src, **fx})
         got = (r.get("verdict"), [d.get("code") for d in r.get("diagnostics", [])])
         ok = got[0] == x["expect"] and (x["expect"] == "accept" or x.get("diagnostic") in got[1] + ["any"])
@@ -515,8 +515,8 @@ for x in T:
         r = ref.call(op="host", source=src, steps=x["steps"], tear=x.get("tear"))
         h = r.get("host") or {}
         if x["host_expect_law"] == "all-applied":
-            refused = [a for a in h.get("admitted", []) if "refused" in a[2]]
-            if refused or r.get("error"): findings.append({"test": m["id"], "law": "every input applied (fresh fuel per input)", "reference": refused or r.get("error")})
+            kept = [a for a in h.get("admitted", []) if "kept" in a[2]]
+            if kept or r.get("error"): findings.append({"test": m["id"], "law": "every input applied (fresh fuel per input)", "reference": kept or r.get("error")})
             m["host_expect"] = {"admitted": [a for a in h.get("admitted", []) if "ok" in a[2]]}
         elif x["host_expect_law"] == "fabric":
             m["host_expect"] = {"fabric_caps_first": True}

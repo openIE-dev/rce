@@ -118,7 +118,7 @@ def judge(t, a, ops):
     is compared, or None when the adapter gave no answer to compare."""
     m, src = t["meta"], t["src"]
     exp = m.get("expect")
-    need = {"accept": "check", "reject": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate", "cli": "cli"}.get(exp)
+    need = {"accept": "check", "change": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate", "cli": "cli"}.get(exp)
     if need is None:
         return "error", f"unknown expect `{exp}`", None
     if need not in ops:
@@ -126,13 +126,13 @@ def judge(t, a, ops):
         if na:   # the op belongs to another component, by the law the adapter cites
             return "n/a", na, None
         return "unsupported", f"adapter does not claim `{need}`", None
-    if exp in ("accept", "reject"):
+    if exp in ("accept", "change"):
         files = {"main.rce": src, **t.get("fixtures", {})}
         r = a.call({"op": "check", "files": files, "source": src})
         obs = {"verdict": r["verdict"], "codes": [d.get("code") for d in r.get("diagnostics", []) or []]} if "verdict" in r else None
         if r.get("verdict") != exp:
             return "fail", f"expected {exp}, got {r.get('verdict')}: {json.dumps(r.get('diagnostics'))[:300]}", obs
-        if exp == "reject" and m.get("diagnostic") not in (None, "any"):
+        if exp == "change" and m.get("diagnostic") not in (None, "any"):
             codes = [d.get("code") for d in r.get("diagnostics", [])]
             if m["diagnostic"] not in codes:
                 return "fail", f"expected diagnostic {m['diagnostic']}, got {codes}", obs
@@ -149,7 +149,7 @@ def judge(t, a, ops):
                 return "unsupported", r["unsupported"], obs
             if "error" in r:
                 return "fail", f"run error: {r['error'][:300]}", obs
-            if r.get("verdict") == "reject":
+            if r.get("verdict") == "change":
                 return "fail", f"refused at entry: {json.dumps(r.get('diagnostics'))[:300]}", obs
             got = (r.get("outputs", []), r.get("outcome"))
             if first is None: first = got

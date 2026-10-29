@@ -1,0 +1,16 @@
+fn main()
+    emit 1 +
+#--- rce-test
+# id: tooling/run-change-one-line
+# area: tooling
+# clauses: [CH12-M-b922b8eb]
+# expect: cli
+# argv: ["run", "main.rce"]
+# status: 1
+# lines: 1
+# output_has:
+#   - requires change
+# output_lacks:
+#   - emit
+# provenance: targeted (round 3): 10.3, a file that fails `rce check` prints one REFUSED line and exits 1
+#---

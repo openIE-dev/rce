@@ -8,8 +8,8 @@ and every byte before the block:
     # id: lex/tab-indent
     # clauses: [W-LEX-1]
     # area: lexing
-    # expect: reject            accept | reject | run | trace
-    # diagnostic: W-LEX-1       reject: the rule code of the first diagnostic
+    # expect: change            accept | change | run | trace
+    # diagnostic: W-LEX-1       change: the rule code of the first diagnostic
     # events: Inc, Dec          run/trace: the inputs (else fn main runs)
     # fuel: 40                  run: the fuel limit
     # schedule_seeds: [1, 2]    run: also run under these par schedules; all must agree

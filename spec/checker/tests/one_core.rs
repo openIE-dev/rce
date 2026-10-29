@@ -192,7 +192,7 @@ fn w4_facts_about_globals_end_at_a_call() {
     let set_to = |v: i128| Fn { params: vec![], ret: Ty::Bool, body: vec![Stmt::Set(Place::G(0), lit(v)), Stmt::Ret(Atom::bool(true))] };
     let add = |a: Atom| Stmt::Prim("int.add".into(), vec![g9.clone()], vec![a, lit(1)]);
     let test = Stmt::Prim("int.bad.add".into(), vec![g9.clone()], vec![Atom::G(0), lit(1)]);
-    let refused = |m: &Module, why: &str| {
+    let kept = |m: &Module, why: &str| {
         let e = wf_err(m);
         assert!(e.contains("W4: int.add is not dominated by its test int.bad.add"), "{why}: {e}");
         let run = one::eval::run(m);
@@ -209,7 +209,7 @@ fn w4_facts_about_globals_end_at_a_call() {
         vec![test.clone(), Stmt::If(Atom::V(0), halt_at(1), vec![]), Stmt::Loop(l)]
     };
     let m = module_of(vec![entry(in_loop(true)), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
-    refused(&m, "a call in a loop");
+    kept(&m, "a call in a loop");
     let m = module_of(vec![entry(in_loop(false)), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
     assert_eq!(one::wf::check(&m), Ok(()), "a loop that changes no global keeps the fact");
 
@@ -223,7 +223,7 @@ fn w4_facts_about_globals_end_at_a_call() {
     ];
     b.extend(unit_ret(4));
     let m = module_of(vec![entry(b), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
-    refused(&m, "a block with a call");
+    kept(&m, "a block with a call");
 
     // a local bound to a global's value before a call keeps the old value,
     // so a test of the global after the call says nothing about it
@@ -236,7 +236,7 @@ fn w4_facts_about_globals_end_at_a_call() {
     ];
     b.extend(unit_ret(5));
     let m = module_of(vec![entry(b), set_to(0)], vec![(g9.clone(), Some(Lit::Int(9)))]);
-    refused(&m, "a local bound before a call");
+    kept(&m, "a local bound before a call");
 
     // a local that read the global before a call keeps the facts tested on
     // the value it holds
@@ -264,7 +264,7 @@ fn w4_facts_about_globals_end_at_a_call() {
         add(Atom::V(3)),
     ];
     b.extend(unit_ret(5));
-    refused(&module_of(vec![entry(b)], vec![]), "a read of memory after a mem.set");
+    kept(&module_of(vec![entry(b)], vec![]), "a read of memory after a mem.set");
 }
 
 /// The evaluator: output bytes, a halt, and the primitives at the edges of
@@ -523,7 +523,7 @@ fn recursive_groups_in_canonical_order() {
 /// that repeats a member, would give one group a second key, so wf refuses
 /// it (as `rce emit core FILE` and `rce run-core FILE` do on such input).
 #[test]
-fn wf_refuses_a_group_out_of_canonical_order() {
+fn wf_requires_change_for_a_group_out_of_canonical_order() {
     fn swap_rec(b: &mut [Stmt]) {
         for s in b {
             match s {

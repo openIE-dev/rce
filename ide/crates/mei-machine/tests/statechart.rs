@@ -80,7 +80,7 @@ fn event_handled_by_parent_when_child_has_none() {
 }
 
 #[test]
-fn illegal_event_refused_configuration_unchanged() {
+fn illegal_event_kept_configuration_unchanged() {
     let chart = nested();
     let mut actor = ChartActor::start(&chart);
     let snapshot = actor.configuration();
@@ -223,7 +223,7 @@ fn ancestor_handles_when_no_region_does() {
 }
 
 #[test]
-fn conflicting_region_steps_are_refused() {
+fn conflicting_region_steps_are_kept() {
     let chart = Statechart::try_new(
         "app",
         StateNode::compound(

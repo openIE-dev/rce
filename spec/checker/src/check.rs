@@ -103,7 +103,7 @@ pub struct Checker {
     pub imported_types: HashSet<String>,
 }
 
-const SAFE_REFUSED: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
+const SAFE_FORMS: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
 const BUILTIN_TRAITS: &[&str] = &["Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge"];
 const STD_MODULES: &[&str] = &["std.text", "std.collections", "std.math"];
 
@@ -227,7 +227,7 @@ impl Checker {
         let mut seen: HashMap<String, usize> = HashMap::new();
         for it in &m.items {
             let mut decl = |c: &mut Checker, n: &str, line: usize| {
-                if SAFE_REFUSED.contains(&n) {
+                if SAFE_FORMS.contains(&n) {
                     c.e(d(
                         line,
                         "W-SAFE-1",
@@ -814,7 +814,7 @@ impl Checker {
                         self.e(d(line, "W-NAME-1", "`Self` outside an impl or trait"));
                         T::Never
                     }),
-                    _ if SAFE_REFUSED.contains(&n) => {
+                    _ if SAFE_FORMS.contains(&n) => {
                         self.e(d(
                             line,
                             "W-SAFE-1",
@@ -1096,7 +1096,7 @@ impl Checker {
         }
     }
     pub(crate) fn declare(&mut self, n: &str, ty: T, mutable: bool, line: usize, param: bool) {
-        if SAFE_REFUSED.contains(&n) {
+        if SAFE_FORMS.contains(&n) {
             self.e(d(line, "W-SAFE-1", format!("`{n}` is refused")));
         }
         if self.variants.contains_key(n)
@@ -1603,7 +1603,7 @@ impl Checker {
                 )),
             }
         }
-        if let Some(r) = &x.refused
+        if let Some(r) = &x.kept
             && !r.starts_with("trap(")
             && !matches!(self.types.get(r), Some(TyDef::Error { .. }))
         {

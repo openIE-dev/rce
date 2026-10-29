@@ -44,9 +44,9 @@ def genVals (g : G) (n : Nat) : List Val × G :=
     (acc ++ [v], g)) ([], g)
 
 def pList (vs : List Val) : String := "vec![" ++ ", ".intercalate (vs.map pVal) ++ "]"
-def pRef : Refusal → String
-  | .user x => s!"Refusal::User({repr x})"
-  | .trap m => s!"Refusal::Trap({pTrap m})"
+def pReason : Reason → String
+  | .user x => s!"Reason::User({repr x})"
+  | .trap m => s!"Reason::Trap({pTrap m})"
 def pRes : SRes → String
   | .ok fs os => s!"Ok(({pList fs}, {pList os}))"
   | .ref r => s!"Err({pRef r})"

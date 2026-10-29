@@ -1,0 +1,11 @@
+fn f(x: i64) -> i64
+    emit x
+    return x
+#--- rce-test
+# id: effects-capabilities/harvested/pure-send-change
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, W-EFF-1]
+# expect: change
+# diagnostic: W-EFF-1
+# provenance: harvested examples/change/types/pure_send.rce
+#---

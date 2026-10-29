@@ -61,7 +61,7 @@ fn rfc8032_vectors_and_rejections_as_host_steps() {
     want.extend(["false", "false", "false", "false"].map(String::from));
     for e in &evs {
         for x in h.admit(&src, e).unwrap() {
-            assert!(x.outcome.is_ok(), "{} refused: {:?}", x.event, x.outcome);
+            assert!(x.outcome.is_ok(), "{} kept: {:?}", x.event, x.outcome);
         }
     }
     let s = format!("{:?}", h.state());

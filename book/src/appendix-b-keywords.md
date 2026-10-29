@@ -10,10 +10,10 @@ elif      else      emit      error     event     example   extern
 fail      false     fn        for       forall    from      if
 impl      in        intent    iter      kind      let       linear
 loop      match     module    mut       none      not       on
-or        pass      pub       recv      refused   return    select
-self      send      spawn     state     step      struct    then
-to        trait     true      try       type      use       var
-while     with      yield
+or        pass      pub       recv      return    select    self
+send      spawn     state     step      struct    then      to
+trait     true      try       type      use       var       while
+with      yield
 ```
 
 Some of them belong to parts of the language this book does not cover yet:

@@ -4,7 +4,7 @@ event E
 # id: types-checking/targeted/w-state-1-no-fields
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-STATE-1]
-# expect: reject
+# expect: change
 # diagnostic: any
 # provenance: targeted.py: expected result read off the clause
 # note: see finding W-STATE-1-UNREACHABLE

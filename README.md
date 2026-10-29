@@ -110,7 +110,7 @@ Save this as `counter.rce`:
 ```
 intent "a counter that never goes below zero"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0
@@ -135,7 +135,7 @@ $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 ```
 
 The `example` lines are part of the program: if one did not hold, the

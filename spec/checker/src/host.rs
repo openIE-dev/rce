@@ -331,7 +331,7 @@ enum Next {
     /// `host.StepKept` {cause, seq} after the refused entry at seq; `bind`:
     /// the module declares `StepKept` and the refused step does not descend
     /// from a delivered `StepKept`, so the delivery of `StepKept` follows
-    HostRefused { seq: u64, cause: Cause, bind: bool },
+    HostKept { seq: u64, cause: Cause, bind: bool },
     /// `host.Kept` with exactly this event JSON (E.4c)
     Kept(String),
     /// the program event `name` the host delivers, with these arguments
@@ -363,11 +363,11 @@ fn answered(how: &How, name: &str, ev: &V) -> Option<(String, u64)> {
     }
 }
 
-fn refused_payload(cause: Cause, seq: u64) -> String {
+fn kept_payload(cause: Cause, seq: u64) -> String {
     format!("{{\"cause\":\"{}\",\"seq\":{seq}}}", cause.as_str())
 }
 
-fn refused_map(cause: Cause, seq: u64) -> serde_json::Map<String, Value> {
+fn kept_map(cause: Cause, seq: u64) -> serde_json::Map<String, Value> {
     let mut p = serde_json::Map::new();
     p.insert("cause".into(), Value::String(cause.as_str().into()));
     p.insert("seq".into(), Value::from(seq));
@@ -430,7 +430,7 @@ pub struct Replayed {
     pub state_hash: String,
     pub state: Vec<Region>,
     /// Every refused entry: (seq, cause, the refusal text re-derived by replay).
-    pub refusals: Vec<(u64, &'static str, String)>,
+    pub kept_outcomes: Vec<(u64, &'static str, String)>,
 }
 
 /// The fabric record of E.7 (HC-11) as canonical JSON (keys sorted): the CPU
@@ -951,7 +951,7 @@ pub struct Host<'a> {
     /// host delivers, saying what the host will deliver and record.
     notes: Vec<String>,
     /// HC-21: the refusals replay re-derived: (seq, cause, text).
-    refusals: Vec<(u64, &'static str, String)>,
+    kept_outcomes: Vec<(u64, &'static str, String)>,
     /// HC-22: the n of the last `Tick(n)` in D, so the host loop continues it.
     last_tick: u64,
     /// When set, replay records each program entry's outputs (Form JSON).
@@ -1448,7 +1448,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, refusals: vec![], last_tick: 0, synced: None, outputs: None })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -1693,8 +1693,8 @@ impl<'a> Host<'a> {
                     Err(r) => {
                         // HC-21: replay re-derives the refusal and its cause
                         let bind = under.is_none() && declares_event(self.m, "StepKept");
-                        self.owe.push_back(Next::HostRefused { seq: e.seq, cause: r.cause, bind });
-                        self.refusals.push((e.seq, r.cause.as_str(), r.text));
+                        self.owe.push_back(Next::HostKept { seq: e.seq, cause: r.cause, bind });
+                        self.kept_outcomes.push((e.seq, r.cause.as_str(), r.text));
                     }
                 }
             }
@@ -2104,12 +2104,12 @@ impl<'a> Host<'a> {
                 }
             }
         }
-        let refused = outcome.as_ref().err().map(|r| r.cause);
+        let kept = outcome.as_ref().err().map(|r| r.cause);
         let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
-        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: refused.map(Cause::as_str) }];
-        if let Some(cause) = refused {
+        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: kept.map(Cause::as_str) }];
+        if let Some(cause) = kept {
             let bind = under.is_none() && declares_event(self.m, "StepKept");
-            out.extend(self.refused(e.seq, cause, bind)?);
+            out.extend(self.kept(e.seq, cause, bind)?);
         }
         Ok(out)
     }
@@ -2119,12 +2119,12 @@ impl<'a> Host<'a> {
     /// (HD-4). Delivery is bounded: the refusal of a step that descends from a
     /// delivered `StepKept` ([`Host::descent`]) is recorded as `host.StepKept`
     /// only and not redelivered, so no `StepKept` leads to another.
-    fn refused(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
-        self.append(host_event("StepKept", &refused_payload(cause, seq)))?;
+    fn kept(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
+        self.append(host_event("StepKept", &kept_payload(cause, seq)))?;
         if !bind {
             return Ok(vec![]);
         }
-        let p = refused_map(cause, seq);
+        let p = kept_map(cause, seq);
         let plan = self.plan("StepKept", &p, true);
         self.deliver_plan("StepKept", &p, plan, How::Root)
     }
@@ -2151,15 +2151,15 @@ impl<'a> Host<'a> {
             return Ok(None);
         };
         let (want, how) = match o {
-            Next::HostRefused { seq, cause, bind } => {
+            Next::HostKept { seq, cause, bind } => {
                 if bind {
-                    let p = refused_map(cause, seq);
+                    let p = kept_map(cause, seq);
                     let plan = self.plan("StepKept", &p, true);
                     for n in self.nexts("StepKept", &p, plan, How::Root).into_iter().rev() {
                         self.owe.push_front(n);
                     }
                 }
-                (host_event("StepKept", &refused_payload(cause, seq)), None)
+                (host_event("StepKept", &kept_payload(cause, seq)), None)
             }
             Next::Kept(want) => (want, Some(How::Owed)),
             Next::Deliver { name, args, how } => (self.bound_json(&name, &args)?, Some(how)),
@@ -2183,7 +2183,7 @@ impl<'a> Host<'a> {
         let mut out = vec![];
         while let Some(n) = self.owe.pop_front() {
             match n {
-                Next::HostRefused { seq, cause, bind } => out.extend(self.refused(seq, cause, bind)?),
+                Next::HostKept { seq, cause, bind } => out.extend(self.kept(seq, cause, bind)?),
                 Next::Kept(event) => {
                     self.append(event)?;
                 }
@@ -2436,7 +2436,7 @@ impl<'a> Host<'a> {
     fn outcome_text(o: &crate::conc::Outcome) -> String {
         match o {
             crate::conc::Outcome::Done => "done".into(),
-            crate::conc::Outcome::Refused(r) => format!("refused: {r}"),
+            crate::conc::Outcome::Stopped(r) => format!("stopped: {r}"),
             crate::conc::Outcome::Deadlock => "deadlock".into(),
         }
     }
@@ -3069,7 +3069,7 @@ pub fn replay_report(m: &Module, text: &str) -> Result<Replayed, String> {
     let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
     let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
     h.refold(&entries)?;
-    Ok(Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), refusals: std::mem::take(&mut h.refusals) })
+    Ok(Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), kept_outcomes: std::mem::take(&mut h.kept_outcomes) })
 }
 
 /// The outputs δ gives on replay, for each program entry it applies: (seq,

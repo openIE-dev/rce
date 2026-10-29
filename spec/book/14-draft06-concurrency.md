@@ -185,7 +185,7 @@ not on a proof.
   block writes at entry (struct fields and state fields are locals of
   the emitted step) and restore them on the trap. Checked by
   `spec/checker/tests/conc06_run.rs` (`budget_else_catches`,
-  `budget_else_refuses_undoable_effects`), `emit_run.rs`
+  `budget_else_with_undoable_effects_requires_change`), `emit_run.rs`
   (`budget_else_*`, reference against the Rust, Python and JavaScript
   runtimes) and `emit06b.rs` (`budget_else_is_atomic_on_every_target`,
   the limit swept across the block's cost on all four targets).
@@ -591,7 +591,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   supervisor; it supervises every actor whose type is one of its
   children, so the set an actor belongs to is fixed by the program, not
   by spawn order. When a handler of such an actor refuses its message
-  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  (a trap or a `fail`), the run log records `Kept(reason)`, then
   `Restart(child, instance, reason, tick t, k)`, where `instance` is the
   actor's id (6.6) and k counts this child's restarts in the window
   below. The strategy then resets the region of the failed actor
@@ -602,7 +602,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
   count, otherwise every restart of the run counts; more than the
   child's `restart bound` stops the supervisor with `Stopped(supervisor
-  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  S)` and the run ends `Stopped`. Mailbox policy: a restarted actor keeps
   its mailbox, since Form law 3 drops no message; only the message that
   failed is consumed, and it is logged as refused. A handler that fails
   inside `atomic` (C.11.10) leaves every handler of the batch
@@ -624,7 +624,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   `restart_is_an_input_replay_consumes`: replay reproduces the log,
   logged decisions govern under a changed bound, an edited decision is
   applied as logged, a mismatched one diverges) and `emit_run.rs`
-  `actor_refusals_match` (the Rust, Python and JavaScript runtimes take
+  `actor_kept_outcomes_match` (the Rust, Python and JavaScript runtimes take
   the same decisions as the reference, with and without a window) and
   `restart_inputs_replay_on_every_target` (each runtime prints its
   decisions with `--restart-log`, replays a logged list given as
@@ -822,4 +822,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 731558e20966c95c1c100bd469f1587cd5ee034ff64d8ee8836d68f217782aba -->
+<!-- body-sha256: 811e62db5099b0132ece333c593c223dc53146aab32822a6738a679921988358 -->

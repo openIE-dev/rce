@@ -366,7 +366,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
                     n.names.push((ev.clone(), false));
                     n.args(a);
                 }
-                if let Some(r) = &e.refused {
+                if let Some(r) = &e.kept {
                     n.names.push((r.clone(), false));
                 }
             }

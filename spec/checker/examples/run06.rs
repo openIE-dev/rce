@@ -4,6 +4,6 @@ fn main() {
     let src = std::fs::read_to_string(&a[0]).expect("read");
     match rce_spec_check::cli::run(&src, a.get(1).map(String::as_str)) {
         Ok(r) => r.lines.iter().for_each(|l| println!("{l}")),
-        Err(e) => println!("REFUSED {e}"),
+        Err(e) => println!("requires change {e}"),
     }
 }

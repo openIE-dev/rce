@@ -3,8 +3,8 @@
 intent "a controller that heats when cold, cools when hot and otherwise idles"
     example Reading(hot: false) -> heating == true
     example Reading(hot: true) -> cooling == true
-    example Warmer, Warmer, Warmer -> refused: Highest
-    example Cooler, Cooler -> refused: Lowest
+    example Warmer, Warmer, Warmer -> kept: Highest
+    example Cooler, Cooler -> kept: Lowest
 
 state Mode
     heating: bool = false

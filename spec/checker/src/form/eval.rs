@@ -570,7 +570,7 @@ pub fn admission(m: &Module, bytes: &[u8], vectors: &[u8]) -> Result<(), (String
                     outputs.extend(out);
                 }
                 Err(x) => {
-                    outcome = format!("refused:{x}");
+                    outcome = format!("kept:{x}");
                     break;
                 }
             }

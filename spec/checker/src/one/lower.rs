@@ -6886,7 +6886,7 @@ impl<'m> Lw<'m> {
             let (ft, _) = self.region_t(fields)?;
             rfs.push((self.region_fn(name, fields)?, ft));
         }
-        let refusal = rt::refusal(&mut self.f)?;
+        let kept_reason = rt::kept_reason(&mut self.f)?;
         let id = self.f.declare("delta", vec![st.clone(), self.ev_t.clone()], res_t.clone());
         let mut fx = self.fx(vec![st.clone(), self.ev_t.clone()], res_t.clone(), Ret::None, FailCx::Halt, false);
         let (s, ev) = (fx.b.arg(0), fx.b.arg(1));
@@ -6903,12 +6903,12 @@ impl<'m> Lw<'m> {
             let rres = self.f.ret(*rf);
             let c = fx.b.catch(sym(*rf), rres.clone(), vec![rc, ec]);
             let ct = fx.b.ty(&c);
-            let refused = fx.b.p("sum.tag", vec![ct.clone()], vec![c.clone()])?;
-            let is1 = fx.b.int_cmp("int.eq", refused, lit(1))?;
+            let kept = fx.b.p("sum.tag", vec![ct.clone()], vec![c.clone()])?;
+            let is1 = fx.b.int_cmp("int.eq", kept, lit(1))?;
             fx.b.open();
             {
                 let h = fx.b.p("sum.get", vec![ct.clone()], vec![c.clone(), lit(1)])?;
-                let txt = self.call_rt(&mut fx, refusal, vec![h]);
+                let txt = self.call_rt(&mut fx, kept_reason, vec![h]);
                 for v in &vars {
                     let x = fx.b.let_(Atom::V(*v));
                     fx.b.drop(x)?;
@@ -7335,7 +7335,7 @@ impl<'m> Lw<'m> {
                             } else {
                                 lw.dlog(fx, ev_json, sha, prev, seq, &ev, s)?;
                                 let es = lw.call_rt(fx, ev_show, vec![ev.clone()]);
-                                let l = fx.b.cats(vec![Atom::bytes(format!("{k} ").as_bytes()), es, Atom::bytes(b" refused: "), q, Atom::bytes(b"\n")])?;
+                                let l = fx.b.cats(vec![Atom::bytes(format!("{k} ").as_bytes()), es, Atom::bytes(b" kept: "), q, Atom::bytes(b"\n")])?;
                                 fx.b.out(l);
                                 fx.b.brk(fx.depth - 1 - eb);
                                 Ok(())

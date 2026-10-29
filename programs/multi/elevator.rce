@@ -2,8 +2,8 @@
 # the door opens only while the car is still. Two regions, one for each.
 intent "a car that never moves with its door open"
     example Up, Up, Down -> floor == 1
-    example OpenDoor, Up -> refused: DoorOpen
-    example Up, Up, Up, Up -> refused: TopFloor
+    example OpenDoor, Up -> kept: DoorOpen
+    example Up, Up, Up, Up -> kept: TopFloor
 
 state Car
     floor: u8 = 0

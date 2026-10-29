@@ -29,7 +29,7 @@ const BIG_LIT = 99999999999999999999999
 # id: lexing-parsing/generated/mut-bigint-ok-int-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-3]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-3
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bigint` of ok-int-accept

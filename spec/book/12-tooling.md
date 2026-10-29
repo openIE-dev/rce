@@ -62,7 +62,7 @@ the order given, one line is printed:
 
 ```
 ok FILE
-REFUSED FILE: line N: RULE message[; line M: RULE message ...]
+requires change FILE: line N: RULE message[; line M: RULE message ...]
 ```
 
 Every refusal names its rule from section 7. Exit status 1 if any file is
@@ -70,7 +70,7 @@ refused, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
-The file must pass `rce check` alone; otherwise one `REFUSED` line is
+The file must pass `rce check` alone; otherwise one `requires change` line is
 printed and the status is 1.
 
 **With EVENTS.** EVENTS is written exactly as the event list of an
@@ -87,9 +87,9 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If δ refuses eₖ, the line
-is `k EVENT refused: ERROR`, no later event is applied, and the status is
+is `k EVENT kept: ERROR`, no later event is applied, and the status is
 1. Otherwise the status is 0. An event name that is not declared is a usage
-of a wrong event list: one `REFUSED` line, status 1.
+of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
@@ -100,13 +100,13 @@ $ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
 parameters. The command evaluates its body by the rules of section 6 and
 prints `emit VALUE` for each value emitted, in order. If the body traps or
-fails, the last line is `refused: REASON` and the status is 1. Calls to
+fails, the last line is `kept: REASON` and the status is 1. Calls to
 foreign functions (5.11) are not executed by the reference evaluator and
 trap. If there is no `fn main()`, the command says so and the status is 1.
 
@@ -287,7 +287,7 @@ instead evaluates `fn main` with tasks, channels, `select`, actors and
 JavaScript), and one scheduler admits their moves tick by tick in the
 order of `conc::run_main`, the reference of `rce run` without EVENTS. It
 prints `emit VALUE` per output and the line `outcome Done`,
-`outcome Deadlock` or `outcome Refused: REASON`. A module without
+`outcome Deadlock` or `outcome Stopped: REASON`. A module without
 `fn main()` prints the reference's message ("nothing to run") on standard
 error and exits with status 1, as `rce run` does. Fuel follows the reference's
 pools: each task has its own, starting full (its first ticks are the call
@@ -366,7 +366,7 @@ numbers dropped. The formatter is a function fmt on texts with:
 
 1. **Meaning preserved.** tok(fmt(t)) = tok(t). The formatter checks this
    equality on every file before writing it; if it would fail, the file is
-   left unchanged, a `REFUSED` line is printed and the status is 1.
+   left unchanged, a `requires change` line is printed and the status is 1.
 2. **Canonical layout.** In fmt(t): a block that is k levels deep starts its
    lines with exactly 4k spaces; no line has trailing spaces; there are no
    blank lines before the first line, no two blank lines in a row, and the
@@ -526,7 +526,7 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
 | `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} with the positional form of the event |
-| `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+| `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
 A refused event is the last step of its trace, with the unchanged state's
@@ -562,9 +562,9 @@ An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
 module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
-`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`refused_files` maps each refused file to its diagnostics. With
+`pending_files` maps each refused file to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -625,7 +625,7 @@ is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
 emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `refuses` reported separately, since a refusal is the rejection
+`emits` and `keeps` reported separately, since a refusal is the rejection
 of an input and an emitted value is the program's answer), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
@@ -634,7 +634,7 @@ readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
+sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
@@ -681,4 +681,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 98a12e98bc39264136545abe705136cc8318c45be949a2defea22f02e7c4bdcb -->
+<!-- body-sha256: 8f77ea09fc5d4d7468ed3d850c24759790db6d3f7216c2fd07586c09ec0c248c -->

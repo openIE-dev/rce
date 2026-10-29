@@ -5,7 +5,7 @@ pub fn fa() -> i64 = 1
 # id: types-checking/targeted/w-mod-2-cycle
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-MOD-2]
-# expect: reject
+# expect: change
 # diagnostic: W-MOD-2
 # provenance: targeted.py: expected result read off the clause
 # fixtures: [p-b_FIXTURE.rce]

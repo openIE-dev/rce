@@ -10,7 +10,7 @@ pub const KEYWORDS: &[&str] = &[
     "const", "continue", "default", "device", "elif", "else", "emit", "error", "event", "example",
     "extern", "fail", "false", "fn", "for", "forall", "from", "if", "impl", "in", "intent", "iter",
     "kind", "let", "linear", "loop", "match", "module", "mut", "none", "not", "on", "or", "pass",
-    "pub", "recv", "refused", "return", "select", "self", "send", "spawn", "state", "step",
+    "pub", "recv", "return", "select", "self", "send", "spawn", "state", "step",
     "struct", "then", "to", "trait", "true", "try", "type", "use", "var", "while", "with", "yield",
 ];
 
@@ -1058,21 +1058,24 @@ impl Parser {
             }
         }
         self.want_p("->")?;
-        let (mut refused, mut value) = (None, None);
-        if self.eat_kw("refused") {
+        let (mut kept, mut value) = (None, None);
+        // `kept` is contextual (COMP-2): the outcome keyword only where it
+        // is followed by `:`, so it reserves no name
+        if self.is_kw("kept") && matches!(self.peek2(), Tok::P(":")) {
+            self.bump();
             self.want_p(":")?;
             let n = self.name()?;
             // a step ends in a value, a named error or a trap (T2), so an
-            // example can state each: `refused: trap("division by zero")`
+            // example can state each: `kept: trap("division by zero")`
             if n == "trap" && self.eat_p("(") {
                 let k = match self.bump() {
                     Tok::Str(s) => s,
-                    _ => return self.err("`refused: trap(…)` needs the trap text"),
+                    _ => return self.err("`kept: trap(…)` needs the trap text"),
                 };
                 self.want_p(")")?;
-                refused = Some(format!("trap({k})"));
+                kept = Some(format!("trap({k})"));
             } else {
-                refused = Some(n);
+                kept = Some(n);
             }
         } else {
             value = Some(self.expr()?);
@@ -1080,7 +1083,7 @@ impl Parser {
         self.nl()?;
         Ok(Example {
             events,
-            refused,
+            kept,
             value,
             line,
         })

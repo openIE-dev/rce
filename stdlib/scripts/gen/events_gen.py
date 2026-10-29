@@ -333,7 +333,7 @@ bad = [
     {'specversion': '1.0', 'id': 'i', 'source': 's', 'type': 't', 'datacontenttype': ''},
     {'specversion': '1.0', 'id': 'i', 'source': 's', 'type': 't', 'time': 'yesterday'},
 ]
-sdk_refusals = []
+sdk_kept_outcomes = []
 for b in bad:
     try:
         FMT.read(None, json.dumps(b)); ok = True
@@ -341,7 +341,7 @@ for b in bad:
         ok = False
     # the SDK defaults a missing id (UUID4) and specversion; the spec
     # makes them REQUIRED, so those cases follow spec.md 3.1
-    sdk_refusals.append(not ok)
+    sdk_kept_outcomes.append(not ok)
     chk('derived', 'check rj(%s) == "ERR"' % lit(json.dumps(b)))
 json.dump({'sdk': 'cloudevents (Python) 2.2.0', 'seed': 6060, 'cases': saved}, open(os.path.join(ROOT, 'vectors/data/cloudevents_sdk_py.json'), 'w'), ensure_ascii=False, indent=0)
 

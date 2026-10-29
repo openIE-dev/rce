@@ -136,7 +136,7 @@ fn mcp_over_stdio() {
         {"op": "insert_item", "after": "event Dec", "text": "event Reset"},
         {"op": "insert_item", "text": "step Counter on Reset -> 0"},
         {"op": "replace_item", "name": "intent \"a counter that never goes negative\"", "text":
-            "intent \"a counter that never goes negative\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> refused: Underflow\n    example Inc, Inc, Reset -> 0"}]}));
+            "intent \"a counter that never goes negative\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> kept: Underflow\n    example Inc, Inc, Reset -> 0"}]}));
     assert_eq!(r["isError"], false, "{r}");
     assert_eq!(r["structuredContent"]["applied"], true);
     let now = std::fs::read_to_string(root.join("counter.rce")).unwrap();
@@ -190,9 +190,9 @@ fn mcp_over_stdio() {
     verify_chain(&rs, &SigningKey::from_bytes(&kb).verifying_key(), GENESIS).unwrap();
     // No simulator calibration was given: E_sim is absent, not invented.
     assert!(rs.iter().all(|r| r.body.draft.e_sim_j.is_none()));
-    let refused = rs
+    let kept = rs
         .iter()
-        .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::Refused { .. }))
+        .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::RequiresChange { .. }))
         .count();
-    assert_eq!(refused, 1);
+    assert_eq!(kept, 1);
 }

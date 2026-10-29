@@ -71,7 +71,7 @@ fn the_loop_boundary_is_found_and_is_the_same_in_every_runtime() {
 }
 
 #[test]
-fn while_true_is_refused() {
+fn while_true_requires_change() {
     let src = "fn main()\n    var i = 0\n    while true bound 8\n        i += 1\n        if i == 5\n            break\n    emit i\n";
     assert!(rce_spec_check::check_one(src).unwrap_err().contains("W-UNUSED-2"));
 }

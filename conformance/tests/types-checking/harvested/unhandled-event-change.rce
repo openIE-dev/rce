@@ -1,0 +1,15 @@
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+step Counter on Inc -> n + 1
+#--- rce-test
+# id: types-checking/harvested/unhandled-event-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-STEP-2]
+# expect: change
+# diagnostic: W-STEP-2
+# provenance: harvested examples/change/types/unhandled_event.rce
+#---

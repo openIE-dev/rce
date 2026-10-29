@@ -1,0 +1,9 @@
+const LOOP_LIMIT: i64 = 10
+#--- rce-test
+# id: evaluation-fuel/harvested/loop-limit-type-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-LOOP-1]
+# expect: change
+# diagnostic: W-LOOP-1
+# provenance: harvested examples/change/types/loop_limit_type.rce
+#---

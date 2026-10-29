@@ -78,7 +78,7 @@ pub fn fold_files_except(g: &Graph, pos: &Positions, expanded: &std::collections
             None => out.add(n.clone()),
             Some(f) => *byfile.entry(f.clone()).or_insert_with(|| out.add(Node {
                 id: format!("file:{f}"), label: f.clone(), kind: Kind::Other, file: Some(f), line: Some(1),
-                refused: false, rank: 0.0, energy: Default::default(), live: None, detail: "folded".into(),
+                requires_change: false, rank: 0.0, energy: Default::default(), live: None, detail: "folded".into(),
             })),
         };
         map[i] = j;
@@ -90,7 +90,7 @@ pub fn fold_files_except(g: &Graph, pos: &Positions, expanded: &std::collections
         if out.nodes[j].detail == "folded" {
             let (d, e) = (&mut out.nodes[j], &n.energy);
             d.rank += n.rank;
-            d.refused |= n.refused;
+            d.requires_change |= n.requires_change;
             d.energy.measured_j += e.measured_j;
             d.energy.simulated_j += e.simulated_j;
             d.energy.pair_meas_j += e.pair_meas_j;
@@ -144,7 +144,7 @@ mod tests {
     use crate::graph::EdgeKind;
     fn n(id: &str, file: &str, j: f64) -> Node {
         Node { id: id.into(), label: id.into(), kind: Kind::Fn, file: Some(file.into()), line: Some(1),
-            refused: false, rank: 1.0, energy: crate::graph::Energy { joules: Some(j), ..Default::default() },
+            requires_change: false, rank: 1.0, energy: crate::graph::Energy { joules: Some(j), ..Default::default() },
             live: None, detail: String::new() }
     }
     fn g() -> (Graph, Positions) {

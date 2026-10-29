@@ -31,7 +31,7 @@ IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT 
 IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
-Outcome     = Expr | "refused" ":" ( NAME | "trap" "(" STRING ")" ) .
+Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
 ```
 
@@ -283,7 +283,7 @@ declaration and no conflict to resolve at parse time.
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/reject/` (tab indent, chained
+3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
@@ -314,4 +314,4 @@ SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2 -->
+<!-- body-sha256: dec736c456a93745d0fa9fce74425689c6ed362e39b78bd4ebb8d7bb6ce1d72f -->

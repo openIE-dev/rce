@@ -55,11 +55,11 @@ fn run_events(lean: &mut Option<Lean>, src: &str, evs: &str) -> Value {
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
+        return json!({"verdict": "change", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(e) => return json!({"verdict": "reject", "diagnostics": [{"message": e}]}),
+        Err(e) => return json!({"verdict": "change", "diagnostics": [{"message": e}]}),
     };
     let (core, names, evn, errs) = match core_elab::elaborate_events(&m, src, evs, interp::FUEL) {
         Ok(c) => c,
@@ -95,13 +95,13 @@ fn run_events(lean: &mut Option<Lean>, src: &str, evs: &str) -> Value {
     let mut lines = vec![format!("0 (initial) {}", show(&r["init"]))];
     for (k, st) in r["steps"].as_array().into_iter().flatten().enumerate() {
         let en = &evn[k];
-        if let Some(rf) = st.get("refused") {
+        if let Some(rf) = st.get("kept") {
             let why = match (rf.get("user").and_then(|c| c.as_u64()), rf.get("trap").and_then(|t| t.as_str())) {
                 (Some(c), _) => errs.get(c as usize - 1).cloned().unwrap_or_default(),
                 (_, Some(t)) => format!("trap: {t}"),
                 _ => "?".into(),
             };
-            let outcome = if let Some(t) = why.strip_prefix("trap: ") { format!("trap:{t}") } else { format!("refused:{why}") };
+            let outcome = if let Some(t) = why.strip_prefix("trap: ") { format!("trap:{t}") } else { format!("kept:{why}") };
             return json!({"verdict": "accept", "outputs": lines, "outcome": outcome});
         }
         lines.push(format!("{} {} {}", k + 1, en, show(&st["state"])));
@@ -122,11 +122,11 @@ fn run(lean: &mut Option<Lean>, src: &str, events: Option<&str>, fuel: Option<u6
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
+        return json!({"verdict": "change", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(e) => return json!({"verdict": "reject", "diagnostics": [{"message": e}]}),
+        Err(e) => return json!({"verdict": "change", "diagnostics": [{"message": e}]}),
     };
     let core = match core_elab::elaborate(&m, fuel.unwrap_or(interp::FUEL)) {
         Ok(c) => c,

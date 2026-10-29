@@ -29,10 +29,12 @@ read that first. Where the two differ, CONTRIBUTING.md wins.
   the specification, the tools and every program together, in one change.
   Content addressing keeps every earlier Form's keys and logs replayable,
   so evolving the Form never changes what an applied program meant.
-- **Words for RCE.** The gate's outcomes are "applied" or "kept" (state
-  unchanged, reason recorded), and a program "complies with the Form". Do
-  not describe RCE with the words token, guess, fit, learn or train, or as
-  AI inference.
+- **Words for RCE.** A program text that is not in Form is never admitted:
+  it "requires change", and the report names the rule and the line. A step
+  of an admitted program whose event does not apply is "kept": the state
+  is unchanged and D records why, so "kept" describes a state, never code.
+  A program in Form "complies with the Form". Do not describe RCE with the
+  words token, guess, fit, learn or train, or as AI inference.
 - **No flags, macros or directives of RCE's own.** Commands take positional
   arguments only. A comment line never changes what a program means.
 - **Nothing private.** This repository is public. Do not copy code, text,

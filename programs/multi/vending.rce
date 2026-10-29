@@ -2,9 +2,9 @@
 # A purchase needs both a coin and a can; the machine reports what it did.
 intent "a vending machine that sells only what it has and only when paid"
     example Coin, Buy -> credit == 0 and cans == 2
-    example Buy -> refused: NoCredit
-    example Coin, Buy, Coin, Buy, Coin, Buy, Coin, Buy -> refused: SoldOut
-    example Coin, Coin, Coin, Coin -> refused: Overpay
+    example Buy -> kept: NoCredit
+    example Coin, Buy, Coin, Buy, Coin, Buy, Coin, Buy -> kept: SoldOut
+    example Coin, Coin, Coin, Coin -> kept: Overpay
 
 state Credit
     credit: u8 = 0

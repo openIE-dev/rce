@@ -83,7 +83,8 @@ pub enum Verdict {
     /// `rce check` admitted the result.
     Pass,
     /// `rce check` refused; the change was not applied.
-    Refused { diagnostics: Vec<String> },
+    #[serde(rename = "refused")]
+    RequiresChange { diagnostics: Vec<String> },
     /// The action was rejected before the checker ran (bad path, policy).
     Rejected { reason: String },
     /// No checker involved (a read, a model call).

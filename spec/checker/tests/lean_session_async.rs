@@ -88,7 +88,7 @@ fn checker_full_merge_equals_lean_and_runs_never_stick() {
 }
 
 #[test]
-fn async_explorer_finds_a_refusal() {
+fn async_explorer_finds_a_stuck_configuration() {
     // role 1 offers only label 1 from 0, but 0 sends label 0: refused at the head
     let c = vec![
         ma::L::Snd(1, false, true, Box::new(ma::L::Done), Box::new(ma::L::Done)),

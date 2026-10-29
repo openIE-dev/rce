@@ -265,7 +265,7 @@ fn obs_example1<'a>(m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &m
                 if trace {
                     d.add(m, evn, &ev, &s, true, out);
                 }
-                out.push(format!("{k} {} refused: {r}", ev.show()));
+                out.push(format!("{k} {} kept: {r}", ev.show()));
                 break;
             }
         }

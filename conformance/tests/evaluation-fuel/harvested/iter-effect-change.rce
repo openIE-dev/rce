@@ -1,0 +1,10 @@
+fn ticks(c: chan u64) -> iter u64
+    yield 1
+#--- rce-test
+# id: evaluation-fuel/harvested/iter-effect-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-ITER-1]
+# expect: change
+# diagnostic: W-ITER-1
+# provenance: harvested examples/change/types/iter_effect.rce
+#---

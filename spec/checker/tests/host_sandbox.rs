@@ -196,7 +196,7 @@ fn http_only_has_no_new_ip_sockets() {
 /// macOS runner: Seatbelt refuses a port that was not granted.
 #[cfg(target_os = "macos")]
 #[test]
-fn seatbelt_refuses_an_ungranted_port() {
+fn seatbelt_blocks_an_ungranted_port() {
     let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/net.rce");
     let dir = std::env::temp_dir().join(format!("rce-sbx-mac-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();

@@ -73,7 +73,7 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
         assert_eq!(oa.len(), ob.len(), "{file}: step count");
         for (x, y) in oa.iter().zip(&ob) {
             // an outcome names the error on refusal; compare up to the renamed error
-            assert_eq!(x.starts_with("\"outcome\":\"refused"), y.starts_with("\"outcome\":\"refused"), "{file}: {x} vs {y}");
+            assert_eq!(x.starts_with("\"outcome\":\"kept"), y.starts_with("\"outcome\":\"kept"), "{file}: {x} vs {y}");
         }
         checked += 1;
     }
@@ -114,7 +114,7 @@ fn state_hashes_are_name_free() {
 /// cause, not the error's name, is in D), so a renamed program run on the
 /// host gives a D with the same hashes, refusals included.
 #[test]
-fn refusal_entries_are_name_free() {
+fn kept_entries_are_name_free() {
     use rce_spec_check::ast::Item;
     use rce_spec_check::host::{Host, MemStore};
     let src = "state Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";

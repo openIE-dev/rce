@@ -71,7 +71,7 @@ fn pattern_source_is_deterministic_and_bad_requests_fail() {
 }
 
 #[test]
-fn playback_refuses_a_frame_that_does_not_match_its_digest() {
+fn playback_stops_at_a_frame_that_does_not_match_its_digest() {
     let (src, root) = setup("bad");
     let (_, _, s) = run(&src, &root, r#"Open(source: "pattern:1"), Tick(n: 1)"#);
     let d = s.split("/1/").nth(1).unwrap()[..64].to_string();

@@ -31,7 +31,7 @@ fn conformance_run_and_trace_tests_lower_to_the_reference_trace() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/tests");
     let mut files = vec![];
     walk(&root, &mut files);
-    let (mut tests, mut same, mut refused) = (0, 0, 0);
+    let (mut tests, mut same, mut kept) = (0, 0, 0);
     let mut diffs = vec![];
     for f in files {
         let raw = std::fs::read_to_string(&f).unwrap();
@@ -61,12 +61,12 @@ fn conformance_run_and_trace_tests_lower_to_the_reference_trace() {
             Ok(_) => diffs.push(f.display().to_string()),
             Err(e) => {
                 assert!(e.starts_with("not covered by the lowering: "), "{}: {e}", f.display());
-                refused += 1;
+                kept += 1;
             }
         }
         rce_spec_check::interp::FUEL_LIMIT.store(rce_spec_check::interp::FUEL, std::sync::atomic::Ordering::Relaxed);
     }
-    eprintln!("conformance run and trace tests: {tests}; identical traces: {same}; not yet covered: {refused}");
+    eprintln!("conformance run and trace tests: {tests}; identical traces: {same}; not yet covered: {kept}");
     assert!(diffs.is_empty(), "traces that differ: {diffs:?}");
     assert_eq!(tests, 1459);
     assert!(same >= COVERED_AT_LEAST, "{same} covered, {COVERED_AT_LEAST} expected");

@@ -56,7 +56,7 @@ fn active(actor: &ChartActor) -> Vec<String> {
 }
 
 #[test]
-fn guard_false_refuses_and_logs_nothing() {
+fn guard_false_keeps_the_state_and_logs_nothing() {
     let machine = chart(vec![Transition::new("draft", "stop", "polished")
         .with_guard("stop_guard")
         .with_action("take_stop")]);

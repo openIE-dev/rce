@@ -66,8 +66,8 @@ and keyed by the intent's shape hash, one entry per candidate:
 - `stage`: G0 lookup, G1 rule, G2 synthesis, G3 to G5 model (4.2 of the
   paper); the gear that proposed the candidate.
 - `candidate`: the content hash of the proposed term.
-- `verdict`: `admitted`, `refused:<obligation>`, `refused:<example>`,
-  `refused:spectest`.
+- `verdict`: `admitted`, `kept:<obligation>`, `kept:<example>`,
+  `kept:spectest`.
 - `evidence`: the counterexample (an event sequence and the obligation it
   broke) or the certificate hash of the gate.
 - `bits`: log₂(candidates alive before) − log₂(candidates alive after),

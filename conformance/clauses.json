@@ -1,7 +1,7 @@
 {
  "format": "rce-clauses/1",
  "book": "spec/book",
- "id_set_sha256": "310e56176dd84e5107bbe38392f1277fa46036acfec6746154903296aa8a90da",
+ "id_set_sha256": "2cbcd34da4fd4eb61776b47120bc2dfef1d275ca0f364eb9a979be7934a6e2ca",
  "clauses": [
   {
    "id": "CH00-M-61b6ac06",
@@ -37,13 +37,13 @@
    "profile": "tooling"
   },
   {
-   "id": "CH00-M-d5ed1b66",
+   "id": "CH00-M-b66cff6f",
    "kind": "modal",
    "normative": false,
    "chapter": "00-overview.md",
-   "line": 95,
+   "line": 107,
    "section": "RCE Language Specification, draft 0.7: Overview",
-   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/reject/` to be refused, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/ill_typed/` and the 16 in `spec/examples/inadmissible/` must be ref",
+   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be refused, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/change/types/` and the 16 in `spec/examples/change/admission",
    "restated": [],
    "profile": "language"
   },
@@ -192,13 +192,13 @@
    "profile": "language"
   },
   {
-   "id": "CH03-M-8435434a",
+   "id": "CH03-M-e8610ace",
    "kind": "modal",
    "normative": false,
    "chapter": "03-syntax.md",
-   "line": 283,
+   "line": 286,
    "section": "3.12 Machine check",
-   "text": "3. parses the 12 programs in `examples/reject/` (tab indent, chained comparison, `if` expression without `else`, `try` in a `then` branch, inconsistent dedent, `class`, assignment inside an expression, empty `kind`, state with no fields, `step` without `on`, example without `->`, unterminated string); all must be refused.",
+   "text": "3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained comparison, `if` expression without `else`, `try` in a `then` branch, inconsistent dedent, `class`, assignment inside an expression, empty `kind`, state with no fields, `step` without `on`, example without `->`, unterminated string); all must be refused.",
    "restated": [],
    "profile": "language"
   },
@@ -1451,13 +1451,13 @@
    "profile": "language"
   },
   {
-   "id": "CH12-M-6e12b079",
+   "id": "CH12-M-b922b8eb",
    "kind": "modal",
    "normative": true,
    "chapter": "12-tooling.md",
-   "line": 67,
+   "line": 73,
    "section": "10.3 `rce run FILE [EVENTS]`",
-   "text": "The file must pass `rce check` alone; otherwise one `REFUSED` line is printed and the status is 1.",
+   "text": "The file must pass `rce check` alone; otherwise one `requires change` line is printed and the status is 1.",
    "restated": [],
    "profile": "tooling"
   },

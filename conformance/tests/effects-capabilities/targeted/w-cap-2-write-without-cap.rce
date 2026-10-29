@@ -8,7 +8,7 @@ step Policy on Set(limit: n) -> n
 # id: effects-capabilities/targeted/w-cap-2-write-without-cap
 # area: effects-capabilities
 # clauses: [CH09-M-82e65964, HC-5, T36, W-CAP-2]
-# expect: reject
+# expect: change
 # diagnostic: W-CAP-2
 # provenance: targeted.py: expected result read off the clause
 #---

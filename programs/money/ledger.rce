@@ -2,7 +2,7 @@
 # accounts, so the sum of all balances stays zero.
 intent "a transfer changes two balances by opposite amounts"
     example Transfer(src: "cash", dst: "rent", cents: 500) -> balances["cash"] == -500 and balances["rent"] == 500
-    example Transfer(src: "cash", dst: "cash", cents: 5) -> refused: SameAccount
+    example Transfer(src: "cash", dst: "cash", cents: 5) -> kept: SameAccount
 
 state Ledger
     balances: Map[text, i64] = {}

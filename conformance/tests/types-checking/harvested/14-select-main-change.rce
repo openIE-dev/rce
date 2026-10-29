@@ -1,0 +1,29 @@
+
+fn put(c: chan text, tag: text, n: i64)
+    for i in 0..n
+        c <- tag + i.tostr()
+    c.close()
+
+fn drain(out: chan text)
+    loop bound 100
+        match <- out
+            some(v) -> emit v
+            none -> break
+
+fn main()
+    let a = chan[text](1)
+    let b = chan[text](1)
+    let out = chan[text](16)
+    spawn put(a, "a", 3)
+    spawn put(b, "b", 2)
+    merge(a, b, out)
+    out.close()
+    drain(out)
+#--- rce-test
+# id: types-checking/harvested/14-select-main-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: change
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/drivers/14_select.main.rce
+#---

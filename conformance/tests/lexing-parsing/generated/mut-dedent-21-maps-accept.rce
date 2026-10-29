@@ -9,7 +9,7 @@ fn table() -> Map[text, i64] = {"a": 1, "b": 2,}
 # id: lexing-parsing/generated/mut-dedent-21-maps-accept
 # area: lexing-parsing
 # clauses: [CH02-M-69371f07, CH09-M-82e65964, T10, W-LEX-2]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-2
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `dedent` of 21-maps-accept

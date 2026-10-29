@@ -1,0 +1,23 @@
+# Refused: f shrinks x in one call and y in the other, resetting the other
+# to a fixed value, so f(Leaf, Node(Leaf)) calls itself forever.
+kind T
+    Leaf
+    Node(k: Box[T])
+
+fn f(x: &T, y: &T) -> i64
+    let c = Node(k: Box(Node(k: Box(Leaf))))
+    match x
+        Node(k: a) -> return f(a, &c)
+        Leaf
+            match y
+                Node(k: b) -> return f(&c, b)
+                Leaf -> return 0
+
+#--- rce-test
+# id: evaluation-fuel/harvested/bad-vary-change
+# area: evaluation-fuel
+# clauses: [CH08-M-286d2fd4, CH08-M-cbd85cbd, CH09-M-82e65964, CH11-M-7fed7576, W-REC-1]
+# expect: change
+# diagnostic: W-REC-1
+# provenance: harvested checker/tests/mutual/bad_vary.rce
+#---

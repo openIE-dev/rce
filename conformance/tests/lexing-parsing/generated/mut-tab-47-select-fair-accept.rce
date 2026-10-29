@@ -9,7 +9,7 @@ fn fan_in(a: chan u64, b: chan u64, out: chan u64)
 # id: lexing-parsing/generated/mut-tab-47-select-fair-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 47-select-fair-accept

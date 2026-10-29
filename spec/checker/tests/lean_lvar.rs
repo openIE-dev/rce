@@ -219,7 +219,7 @@ fn threaded_scheduler_agrees_with_lean() {
                 let got: Vec<String> = r.outputs.iter().map(|x| x.show()).collect();
                 assert_eq!(got, w, "vector {k}:\n{src}");
             }
-            Err(e) => assert!(matches!(&r.outcome, Outcome::Refused(m) if m.contains(&e)), "vector {k}: want {e}, got {:?}\n{src}", r.outcome),
+            Err(e) => assert!(matches!(&r.outcome, Outcome::Stopped(m) if m.contains(&e)), "vector {k}: want {e}, got {:?}\n{src}", r.outcome),
         }
         n += 1;
     }
@@ -271,8 +271,8 @@ fn run_schedule(news: &[String], th: &[Vec<Op>], order: &[usize]) -> Option<Resu
     let r = run_main(&parse(&src).unwrap(), &RunCfg::default()).unwrap();
     match r.outcome {
         Outcome::Done => Some(Ok(tags.into_iter().zip(r.outputs.iter().map(|x| x.show())).collect())),
-        Outcome::Refused(m) if m.contains("lvar wait cannot be satisfied") => None,
-        Outcome::Refused(m) => Some(Err(m)),
+        Outcome::Stopped(m) if m.contains("lvar wait cannot be satisfied") => None,
+        Outcome::Stopped(m) => Some(Err(m)),
         o => panic!("{o:?}\n{src}"),
     }
 }

@@ -96,7 +96,7 @@ follows; each is a choice the proposal's text should settle.
   how several inputs' outputs combine. An input is `{"type": i | "Tick" |
   "Start", "payload": [VALUE…]}`, the positional event of 6.1; each input
   starts with a fresh ω (§5, on a host); the outputs are the λ of the applied
-  inputs in order; a kept input ends the case with outcome `refused:X`, X its
+  inputs in order; a kept input ends the case with outcome `kept:X`, X its
   trap text or its error's name, and otherwise the outcome is `done`; `state`
   is the SHA-256 of the positional state. `observations` must be empty, since
   the reference trace's names come from the concept record, which the gate

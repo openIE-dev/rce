@@ -1,0 +1,14 @@
+fn both(a: &mut List[i64], b: &List[i64])
+    pass
+
+fn bad()
+    var xs: List[i64] = [1]
+    both(&mut xs, &xs)
+#--- rce-test
+# id: types-checking/harvested/mut-alias-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: harvested examples/change/types/mut_alias.rce
+#---

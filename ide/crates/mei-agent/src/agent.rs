@@ -114,7 +114,7 @@ pub struct Agent {
 enum Concl {
     Done,
     NotDone(String),
-    Reject(Vec<String>),
+    RequiresChange(Vec<String>),
 }
 
 const SYSTEM_PROMPT: &str = "You edit one RCE source file. Reply with JSON only: {\"edits\": [...]}. \
@@ -301,7 +301,7 @@ impl Agent {
                 .flatten()
                 .filter_map(|f| f["diagnostic"].as_str().map(str::to_string))
                 .collect();
-            return Ok(Concl::Reject(d));
+            return Ok(Concl::RequiresChange(d));
         }
         Ok(Concl::Done)
     }
@@ -333,7 +333,7 @@ impl Agent {
         Self::child(a, "run_tests")?;
         self.tool("rce_test", json!({"paths": [task.path]}))?;
         match c {
-            Concl::Reject(d) => Ok(Concl::Reject(d)),
+            Concl::RequiresChange(d) => Ok(Concl::RequiresChange(d)),
             _ => match self.accepted(task) {
                 Some(true) => Ok(Concl::Done),
                 Some(false) => Ok(Concl::NotDone("acceptance not met".into())),
@@ -365,15 +365,15 @@ impl Agent {
         Self::child(a, "lookup_hit")?;
         let edits = self.cfg.rules[i].edits.clone();
         match self.apply(task, &edits)? {
-            Some(diags) => Ok(Concl::Reject(diags)),
+            Some(diags) => Ok(Concl::RequiresChange(diags)),
             None => self.done(task, 1),
         }
     }
 
     fn gear2(&mut self, a: &mut ChartActor<'_>, task: &Task) -> Result<Concl, String> {
-        if let Concl::Reject(d) = self.check_workspace(&task.path)? {
+        if let Concl::RequiresChange(d) = self.check_workspace(&task.path)? {
             Self::child(a, "failed")?;
-            return Ok(Concl::Reject(d));
+            return Ok(Concl::RequiresChange(d));
         }
         if let Some(ok) = self.accepted(task) {
             Self::child(a, "failed")?;
@@ -550,10 +550,10 @@ impl Agent {
         self.receipt(d)?;
         let edits = match edits {
             Ok(e) => e,
-            Err(e) => return Ok(Concl::Reject(vec![e])),
+            Err(e) => return Ok(Concl::RequiresChange(vec![e])),
         };
         match self.apply(task, &edits)? {
-            Some(diags) => Ok(Concl::Reject(diags)),
+            Some(diags) => Ok(Concl::RequiresChange(diags)),
             None => self.done(task, gear),
         }
     }
@@ -597,7 +597,7 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
                     "features": Features { gear: "g4".into(), model: d.model.clone(), ..Default::default() }});
                 self.receipt(d)?;
                 match self.check_workspace(&task.path)? {
-                    Concl::Reject(diags) => Ok(Concl::Reject(diags)),
+                    Concl::RequiresChange(diags) => Ok(Concl::RequiresChange(diags)),
                     _ => self.done(task, 4),
                 }
             }
@@ -632,16 +632,16 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
             let why = match &c {
                 Concl::Done => "done".to_string(),
                 Concl::NotDone(w) => w.clone(),
-                Concl::Reject(d) => format!("checker reject: {}", d.join("; ")),
+                Concl::RequiresChange(d) => format!("checker requires change: {}", d.join("; ")),
             };
             Self::send(
                 &mut a,
                 match c {
                     Concl::Done => "set_done",
                     Concl::NotDone(_) => "set_not_done",
-                    Concl::Reject(ref d) => {
+                    Concl::RequiresChange(ref d) => {
                         last = d.clone();
-                        "set_reject"
+                        "set_change"
                     }
                 },
             )?;

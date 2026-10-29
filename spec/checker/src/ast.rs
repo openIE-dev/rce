@@ -210,7 +210,7 @@ pub struct Field {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Example {
     pub events: Vec<(String, Vec<Arg>)>,
-    pub refused: Option<String>,
+    pub kept: Option<String>,
     pub value: Option<Expr>,
     pub line: usize,
 }

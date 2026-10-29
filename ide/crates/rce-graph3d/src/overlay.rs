@@ -188,7 +188,7 @@ mod diverge_tests {
     fn paired_actions_give_divergence() {
         let mut g = Graph::default();
         g.add(Node { id: "code:a:f".into(), label: "f".into(), kind: Kind::of_def("fn"), file: None, line: None,
-            refused: false, rank: 0.0, energy: Default::default(), live: None, detail: String::new() });
+            requires_change: false, rank: 0.0, energy: Default::default(), live: None, detail: String::new() });
         let a = Action { e_sim_j: Some(1.0), e_meas_j: Some(2.0), names: vec!["f".into()], ..Default::default() };
         apply(&mut g, &[a], 3.0);
         let d = g.nodes[0].energy.divergence().unwrap();

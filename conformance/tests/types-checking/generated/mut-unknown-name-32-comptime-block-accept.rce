@@ -12,7 +12,7 @@ fn probe_unknown() -> i64
 # id: types-checking/generated/mut-unknown-name-32-comptime-block-accept
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-NAME-1]
-# expect: reject
+# expect: change
 # diagnostic: W-NAME-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `unknown-name` of 32-comptime-block-accept

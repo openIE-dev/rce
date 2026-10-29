@@ -3,7 +3,7 @@ fn f(x: &&i64) -> i64 = 0
 # id: types-checking/targeted/w-ty-2-borrow-of-borrow
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-TY-2]
-# expect: reject
+# expect: change
 # diagnostic: W-TY-2
 # provenance: targeted.py: expected result read off the clause
 #---

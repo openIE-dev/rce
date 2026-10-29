@@ -776,7 +776,7 @@ fn main() {
                 if checks(&m).is_ok() {
                     fail(&mut fails, format!("mutant {kind} accepted"), m);
                 } else {
-                    stats.inc(&format!("  refused: {kind}"));
+                    stats.inc(&format!("  kept: {kind}"));
                 }
             }
         }

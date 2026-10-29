@@ -1,0 +1,9 @@
+fn f() -> u8 = 300
+#--- rce-test
+# id: lexing-parsing/harvested/literal-out-of-range-change
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: change
+# diagnostic: W-LEX-3
+# provenance: harvested examples/change/admission/literal_out_of_range.rce
+#---

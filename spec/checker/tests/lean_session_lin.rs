@@ -58,7 +58,7 @@ fn lean_lin_vectors_are_current() {
 #[test]
 fn checker_linearity_equals_lean() {
     let text = std::fs::read_to_string(file()).unwrap();
-    let (mut ok, mut refused) = (0, std::collections::BTreeMap::<String, usize>::new());
+    let (mut ok, mut changes) = (0, std::collections::BTreeMap::<String, usize>::new());
     let mut bad = vec![];
     for (n, line) in text.lines().enumerate() {
         let v: Value = serde_json::from_str(line).unwrap();
@@ -70,12 +70,12 @@ fn checker_linearity_equals_lean() {
             (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker refuses: {e}\n{src}")),
             (Ok(()), w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker accepts\n{src}")),
             (Err(e), w) if !e.contains(w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker: {e}\n{src}")),
-            (Err(_), w) => *refused.entry(w.to_string()).or_default() += 1,
+            (Err(_), w) => *changes.entry(w.to_string()).or_default() += 1,
         }
     }
     assert!(bad.is_empty(), "{} of {} vectors differ:\n{}", bad.len(), text.lines().count(), bad.join("\n\n"));
     assert!(ok > 0, "no accepted vector");
     for w in ["W-SES-1", "W-SES-2", "W-SES-4"] {
-        assert!(refused.contains_key(w), "no vector refused with {w}");
+        assert!(changes.contains_key(w), "no vector refused with {w}");
     }
 }

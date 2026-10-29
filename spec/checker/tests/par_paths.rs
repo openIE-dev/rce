@@ -35,7 +35,7 @@ const ACCEPT: &[(&str, &str, i64)] = &[
 ];
 
 /// overlapping paths: still races
-const REFUSE: &[(&str, &str)] = &[
+const KEPT_PATHS: &[(&str, &str)] = &[
     ("p.x = 1", "p.x = 2"),
     ("p.x = 1", "let z = &p\narr[0] = z.y"),
     ("p = P(x: 0, y: 0, q: In(a: 0, b: 0), v: [])", "arr[0] = p.y"),
@@ -51,7 +51,7 @@ const REFUSE: &[(&str, &str)] = &[
 fn disjoint_paths_are_admitted_and_deterministic() {
     for (one, two, want) in ACCEPT {
         let src = prog(one, two);
-        diags(&src).unwrap_or_else(|e| panic!("refused: {e}\n{src}"));
+        diags(&src).unwrap_or_else(|e| panic!("kept: {e}\n{src}"));
         let m = parse(&src).unwrap();
         for pm in [ParMode::Seq, ParMode::Permute(3), ParMode::Permute(11), ParMode::Threads] {
             let r = run_main(&m, &RunCfg { par_mode: pm, ..RunCfg::default() }).unwrap();
@@ -63,8 +63,8 @@ fn disjoint_paths_are_admitted_and_deterministic() {
 }
 
 #[test]
-fn overlapping_paths_are_refused() {
-    for (one, two) in REFUSE {
+fn overlapping_paths_require_change() {
+    for (one, two) in KEPT_PATHS {
         let src = prog(one, two);
         let e = diags(&src).expect_err(&format!("admitted a race:\n{src}"));
         assert!(e.contains("W-PAR-1"), "{one} | {two}: {e}");

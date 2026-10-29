@@ -1,7 +1,7 @@
 intent "a door that can be locked only when it is closed"
     "the door starts closed and unlocked"
     example Open, Close, Lock -> locked
-    example Open, Lock -> refused: DoorOpen
+    example Open, Lock -> kept: DoorOpen
 
 state Door
     open: bool = false

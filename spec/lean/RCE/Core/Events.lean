@@ -15,7 +15,7 @@ abbrev StepD := Nat × Option Expr × List Stmt
 inductive StepR where
   | skip
   | ok (fs : List Val) (outs : List String)
-  | refuse (t : Trap)
+  | kept (t : Trap)
   | oof
   | stuck
 
@@ -29,7 +29,7 @@ def regionStep (P : Prog) (fuel : Nat) (fs : List Val) (ev : Nat) (pv : List Val
       let r := execS P (2 * fuel + 2) fuel (pv ++ fs) body
       match r.2.1 with
       | .norm | .brk | .cont => .ok (leave fs.length r.2.2.1) r.1
-      | .trap t => .refuse t
+      | .trap t => .kept t
       | .oof => .oof
       | .stuck => .stuck
     match g with
@@ -38,14 +38,14 @@ def regionStep (P : Prog) (fuel : Nat) (fs : List Val) (ev : Nat) (pv : List Val
       | .ok (.bool true) => fire
       | .ok (.bool false) => regionStep P fuel fs ev pv rest
       | .ok _ => .stuck
-      | .err t => .refuse t
+      | .err t => .kept t
       | .oof => .oof
       | .stuck => .stuck
 
 /-- How δ ended on one event. -/
 inductive DeltaR where
   | ok (s : List (List Val)) (outs : List String)
-  | refuse (t : Trap)
+  | kept (t : Trap)
   | oof
   | stuck
 
@@ -55,7 +55,7 @@ def deltaS (P : Prog) (fuel : Nat) (ev : Nat) (pv : List Val) :
   | [] => .ok [] []
   | (fs, steps) :: rs =>
     match regionStep P fuel fs ev pv steps with
-    | .refuse t => .refuse t
+    | .kept t => .kept t
     | .oof => .oof
     | .stuck => .stuck
     | r =>
@@ -66,8 +66,8 @@ def deltaS (P : Prog) (fuel : Nat) (ev : Nat) (pv : List Val) :
 
 /-- **T8 for δ over regions**: a refused event is refused as a whole; no
     region's new state is returned. -/
-theorem deltaS_refuse_atomic (P : Prog) (fuel ev : Nat) (pv : List Val) (rs : List (List Val × List StepD))
-    (t : Trap) (h : deltaS P fuel ev pv rs = .refuse t) : ∀ s o, deltaS P fuel ev pv rs ≠ .ok s o := by
+theorem deltaS_kept_atomic (P : Prog) (fuel ev : Nat) (pv : List Val) (rs : List (List Val × List StepD))
+    (t : Trap) (h : deltaS P fuel ev pv rs = .kept t) : ∀ s o, deltaS P fuel ev pv rs ≠ .ok s o := by
   intro s o h2; rw [h] at h2; cases h2
 
 end RCE.Core

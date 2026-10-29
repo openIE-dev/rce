@@ -7,7 +7,7 @@ front end's job and is certified through the reference adapter.
 
   run, no events   emit TARGET, run the program with `--run [--fuel=N]`
                    (fn main on the emitted tick runtime)
-  run, events      add the line `example EVENTS -> true` (or `-> refused: E`
+  run, events      add the line `example EVENTS -> true` (or `-> kept: E`
                    when the last event is refused) so the module has an
                    observation for exactly these events, emit, run, and read
                    that example's block. The example's expected value is used
@@ -151,7 +151,7 @@ def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
     if r.startswith("trap: "): return "trap:" + r[6:]
     if r.startswith("trap(") and r.endswith(")"): return "trap:" + r[5:-1]
-    return "refused:" + r
+    return "kept:" + r
 
 def run_main(src, fuel):
     cmd, err = emit(src)
@@ -165,7 +165,7 @@ def run_main(src, fuel):
         o = lines.pop()[8:]
         if o == "Done": outcome = "done"
         elif o == "Deadlock": outcome = "deadlock"
-        elif o.startswith("Refused: "):
+        elif o.startswith("Stopped: "):
             outcome = outcome_of(o[9:])
     elif rc != 0:
         return {"error": f"exit {rc}: {e[-500:]}"}
@@ -177,17 +177,17 @@ def run_events(src, events, extra=()):
     cand = [base + f"example {events} -> true\n"]
     cmd, err = emit(cand[0])
     if cmd is None:
-        m = re.search(r"refused[:(]\s*([A-Za-z_][\w]*)", err or "")
-        trap = re.search(r"refused: trap\(([^)]*)\)", err or "")
+        m = re.search(r"kept[:(]\s*([A-Za-z_][\w]*)", err or "")
+        trap = re.search(r"kept: trap\(([^)]*)\)", err or "")
         if m and not trap:
-            cmd, err2 = emit(base + f"example {events} -> refused: {m.group(1)}\n")
+            cmd, err2 = emit(base + f"example {events} -> kept: {m.group(1)}\n")
             if cmd is None:
                 return {"error": f"emit: {err2}"}
         elif trap:
-            # `refused: trap("K")` (book 3.2/6.9): the checker's verdict only
+            # `kept: trap("K")` (book 3.2/6.9): the checker's verdict only
             # makes the example well formed; the outcome compared is the one
             # the emitted program prints for it
-            cmd, err2 = emit(base + f"example {events} -> refused: trap({json.dumps(trap.group(1))})\n")
+            cmd, err2 = emit(base + f"example {events} -> kept: trap({json.dumps(trap.group(1))})\n")
             if cmd is None:
                 return {"error": f"emit: {err2}"}
         else:
@@ -200,8 +200,8 @@ def run_events(src, events, extra=()):
     if extra:
         return {"block": lines}
     outcome = "done"
-    if lines and " refused: " in lines[-1]:
-        outcome = outcome_of(lines.pop().split(" refused: ", 1)[1])
+    if lines and " kept: " in lines[-1]:
+        outcome = outcome_of(lines.pop().split(" kept: ", 1)[1])
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
 TRACE_ARGS = ("--trace", "--fuel-trace")

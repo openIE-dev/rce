@@ -31,14 +31,14 @@ const valid = files("examples");
 // the multi-module package of example 26 parses file by file; it checks as a program (rce check DIR)
 for (const f of files("examples/26_use_module/shop")) expect("ts accept", f, parses(read(f)), true);
 for (const f of valid) { expect("ts accept", f, parses(read(f)), true); expect("check accept", f, checks(read(f)), true); }
-for (const f of files("examples/reject")) { expect("ts refuse", f, parses(read(f)), false); expect("check refuse", f, checks(read(f)), false); }
-for (const d of ["examples/ill_typed", "examples/inadmissible"])
+for (const f of files("examples/change/syntax")) { expect("ts refuse", f, parses(read(f)), false); expect("check refuse", f, checks(read(f)), false); }
+for (const d of ["examples/change/types", "examples/change/admission"])
   for (const f of files(d)) { expect("ts accept", f, parses(read(f)), true); expect("check refuse", f, checks(read(f)), false); }
 
 // The concurrency corpora (Appendix C): one language, so they are checked as written (spec 2.7).
 for (const d of ["conc06", "conc06b"]) {
   for (const f of files(`${d}/accept`)) { expect("ts accept", f, parses(read(f)), true); expect("check accept", f, checks(read(f)), true); }
-  for (const f of files(`${d}/reject`)) expect("check refuse", f, stage(read(f)) !== "ok", true);
+  for (const f of files(`${d}/change`)) expect("check refuse", f, stage(read(f)) !== "ok", true);
   for (const f of files(`${d}/ill_typed`)) expect("check refuse", f, checks(read(f)), false);
 }
 

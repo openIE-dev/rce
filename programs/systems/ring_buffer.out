@@ -5,5 +5,5 @@
   emit Popped(v: 7)
 4 Pop Ring { slots = [7, 8, 0, 0], head = 2, count = 0 }
   emit Popped(v: 8)
-5 Pop refused: Empty
+5 Pop kept: Empty
 exit status: 1

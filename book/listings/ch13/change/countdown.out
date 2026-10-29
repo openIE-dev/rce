@@ -1,0 +1,2 @@
+requires change countdown.rce: line 4: W-REC-1 recursion through countdown has no decreasing measure (6.7): no layers of summed measures, each kept by every call not yet done and shrunk by at least one, leave the remaining calls without a cycle, and a cycle of its calls passes through no function declared with `bound`
+exit status: 1

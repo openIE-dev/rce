@@ -3965,8 +3965,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/extern-spawn-reject.rce",
-   "id": "concurrency/harvested/extern-spawn-reject",
+   "path": "tests/concurrency/harvested/extern-spawn-change.rce",
+   "id": "concurrency/harvested/extern-spawn-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3979,8 +3979,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/spawn-borrow-reject.rce",
-   "id": "concurrency/harvested/spawn-borrow-reject",
+   "path": "tests/concurrency/harvested/spawn-borrow-change.rce",
+   "id": "concurrency/harvested/spawn-borrow-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3992,8 +3992,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-reject.rce",
-   "id": "concurrency/harvested/w-atom-1-recv-in-atomic-reject",
+   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-change.rce",
+   "id": "concurrency/harvested/w-atom-1-recv-in-atomic-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4005,8 +4005,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-reject.rce",
-   "id": "concurrency/harvested/w-crdt-1-lvar-text-reject",
+   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-change.rce",
+   "id": "concurrency/harvested/w-crdt-1-lvar-text-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4018,8 +4018,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-reject.rce",
-   "id": "concurrency/harvested/w-crdt-1-merge-not-commutative-reject",
+   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-change.rce",
+   "id": "concurrency/harvested/w-crdt-1-merge-not-commutative-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4031,8 +4031,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-dl-1-pure-reject.rce",
-   "id": "concurrency/harvested/w-dl-1-pure-reject",
+   "path": "tests/concurrency/harvested/w-dl-1-pure-change.rce",
+   "id": "concurrency/harvested/w-dl-1-pure-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4044,8 +4044,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-reject.rce",
-   "id": "concurrency/harvested/w-grp-1-group-outside-device-reject",
+   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-change.rce",
+   "id": "concurrency/harvested/w-grp-1-group-outside-device-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4057,8 +4057,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-reject.rce",
-   "id": "concurrency/harvested/w-grp-2-barrier-in-if-reject",
+   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-change.rce",
+   "id": "concurrency/harvested/w-grp-2-barrier-in-if-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4070,8 +4070,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-reject.rce",
-   "id": "concurrency/harvested/w-grp-3-cross-lane-read-reject",
+   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-change.rce",
+   "id": "concurrency/harvested/w-grp-3-cross-lane-read-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4083,8 +4083,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-reject.rce",
-   "id": "concurrency/harvested/w-grp-3-shared-scalar-reject",
+   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-change.rce",
+   "id": "concurrency/harvested/w-grp-3-shared-scalar-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4096,8 +4096,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-reject.rce",
-   "id": "concurrency/harvested/w-lvar-1-freeze-in-par-reject",
+   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-change.rce",
+   "id": "concurrency/harvested/w-lvar-1-freeze-in-par-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4109,8 +4109,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-reject.rce",
-   "id": "concurrency/harvested/w-lvar-2-two-thresholds-reject",
+   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-change.rce",
+   "id": "concurrency/harvested/w-lvar-2-two-thresholds-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4122,8 +4122,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-nd-1-step-reject.rce",
-   "id": "concurrency/harvested/w-nd-1-step-reject",
+   "path": "tests/concurrency/harvested/w-nd-1-step-change.rce",
+   "id": "concurrency/harvested/w-nd-1-step-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4135,8 +4135,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-node-1-two-nodes-reject.rce",
-   "id": "concurrency/harvested/w-node-1-two-nodes-reject",
+   "path": "tests/concurrency/harvested/w-node-1-two-nodes-change.rce",
+   "id": "concurrency/harvested/w-node-1-two-nodes-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4148,8 +4148,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-mut-method-reject.rce",
-   "id": "concurrency/harvested/w-par-1-mut-method-reject",
+   "path": "tests/concurrency/harvested/w-par-1-mut-method-change.rce",
+   "id": "concurrency/harvested/w-par-1-mut-method-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4161,8 +4161,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-read-reject.rce",
-   "id": "concurrency/harvested/w-par-1-write-read-reject",
+   "path": "tests/concurrency/harvested/w-par-1-write-read-change.rce",
+   "id": "concurrency/harvested/w-par-1-write-read-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4174,8 +4174,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-write-reject.rce",
-   "id": "concurrency/harvested/w-par-1-write-write-reject",
+   "path": "tests/concurrency/harvested/w-par-1-write-write-change.rce",
+   "id": "concurrency/harvested/w-par-1-write-write-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4187,8 +4187,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-emit-reject.rce",
-   "id": "concurrency/harvested/w-par-2-emit-reject",
+   "path": "tests/concurrency/harvested/w-par-2-emit-change.rce",
+   "id": "concurrency/harvested/w-par-2-emit-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4200,8 +4200,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-return-reject.rce",
-   "id": "concurrency/harvested/w-par-2-return-reject",
+   "path": "tests/concurrency/harvested/w-par-2-return-change.rce",
+   "id": "concurrency/harvested/w-par-2-return-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4213,8 +4213,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-assign-reject.rce",
-   "id": "concurrency/harvested/w-par-3-assign-reject",
+   "path": "tests/concurrency/harvested/w-par-3-assign-change.rce",
+   "id": "concurrency/harvested/w-par-3-assign-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4226,8 +4226,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-minus-reject.rce",
-   "id": "concurrency/harvested/w-par-3-minus-reject",
+   "path": "tests/concurrency/harvested/w-par-3-minus-change.rce",
+   "id": "concurrency/harvested/w-par-3-minus-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4239,8 +4239,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-read-acc-reject.rce",
-   "id": "concurrency/harvested/w-par-3-read-acc-reject",
+   "path": "tests/concurrency/harvested/w-par-3-read-acc-change.rce",
+   "id": "concurrency/harvested/w-par-3-read-acc-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4252,8 +4252,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-break-reject.rce",
-   "id": "concurrency/harvested/w-par-4-break-reject",
+   "path": "tests/concurrency/harvested/w-par-4-break-change.rce",
+   "id": "concurrency/harvested/w-par-4-break-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4265,8 +4265,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-emit-reject.rce",
-   "id": "concurrency/harvested/w-par-4-emit-reject",
+   "path": "tests/concurrency/harvested/w-par-4-emit-change.rce",
+   "id": "concurrency/harvested/w-par-4-emit-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4278,8 +4278,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-reject.rce",
-   "id": "concurrency/harvested/w-rt-1-deadline-zero-reject",
+   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-change.rce",
+   "id": "concurrency/harvested/w-rt-1-deadline-zero-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4291,8 +4291,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-reject.rce",
-   "id": "concurrency/harvested/w-scope-1-spawn-outside-scope-reject",
+   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-change.rce",
+   "id": "concurrency/harvested/w-scope-1-spawn-outside-scope-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4304,8 +4304,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-bad-label-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-bad-label-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-bad-label-change.rce",
+   "id": "concurrency/harvested/w-ses-1-bad-label-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4317,8 +4317,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-branches-differ-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-change.rce",
+   "id": "concurrency/harvested/w-ses-1-branches-differ-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4330,8 +4330,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-offer-missing-label-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-change.rce",
+   "id": "concurrency/harvested/w-ses-1-offer-missing-label-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4343,8 +4343,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-wrong-order-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-change.rce",
+   "id": "concurrency/harvested/w-ses-1-wrong-order-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4356,8 +4356,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-2-unfinished-reject.rce",
-   "id": "concurrency/harvested/w-ses-2-unfinished-reject",
+   "path": "tests/concurrency/harvested/w-ses-2-unfinished-change.rce",
+   "id": "concurrency/harvested/w-ses-2-unfinished-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4369,8 +4369,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-reject.rce",
-   "id": "concurrency/harvested/w-ses-3-break-outside-loop-reject",
+   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-change.rce",
+   "id": "concurrency/harvested/w-ses-3-break-outside-loop-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4382,8 +4382,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-in-loop-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-in-loop-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-in-loop-change.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-in-loop-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4394,8 +4394,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-on-one-path-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-on-one-path-change.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4406,8 +4406,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-twice-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-twice-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-twice-change.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-twice-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4418,8 +4418,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-send-after-close-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-send-after-close-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-send-after-close-change.rce",
+   "id": "concurrency/harvested/w-ses-4-send-after-close-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4430,8 +4430,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-use-after-move-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-use-after-move-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-move-change.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-move-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4442,8 +4442,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-use-after-send-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-use-after-send-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-send-change.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-send-change",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -4454,8 +4454,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-reject.rce",
-   "id": "concurrency/harvested/w-sup-1-bad-strategy-reject",
+   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-change.rce",
+   "id": "concurrency/harvested/w-sup-1-bad-strategy-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4467,8 +4467,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-reject.rce",
-   "id": "concurrency/harvested/w-sup-2-child-not-actor-reject",
+   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-change.rce",
+   "id": "concurrency/harvested/w-sup-2-child-not-actor-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4603,8 +4603,8 @@
    "ms": 135
   },
   {
-   "path": "tests/concurrency/targeted/lex-merge-bitwise-refused.rce",
-   "id": "concurrency/targeted/lex-merge-bitwise-refused",
+   "path": "tests/concurrency/targeted/lex-merge-bitwise-change.rce",
+   "id": "concurrency/targeted/lex-merge-bitwise-change",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -4772,7 +4772,7 @@
      "emit 5",
      "emit 0"
     ],
-    "outcome": "refused:supervisor Root stopped: child w restarted more than 2 times"
+    "outcome": "kept:supervisor Root stopped: child w restarted more than 2 times"
    },
    "ms": 83
   },
@@ -4867,8 +4867,8 @@
    "ms": 122
   },
   {
-   "path": "tests/effects-capabilities/harvested/comptime-check-reject.rce",
-   "id": "effects-capabilities/harvested/comptime-check-reject",
+   "path": "tests/effects-capabilities/harvested/comptime-check-change.rce",
+   "id": "effects-capabilities/harvested/comptime-check-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4880,8 +4880,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/const-overflow-reject.rce",
-   "id": "effects-capabilities/harvested/const-overflow-reject",
+   "path": "tests/effects-capabilities/harvested/const-overflow-change.rce",
+   "id": "effects-capabilities/harvested/const-overflow-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4893,8 +4893,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-emit-reject.rce",
-   "id": "effects-capabilities/harvested/device-emit-reject",
+   "path": "tests/effects-capabilities/harvested/device-emit-change.rce",
+   "id": "effects-capabilities/harvested/device-emit-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4906,8 +4906,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-extern-reject.rce",
-   "id": "effects-capabilities/harvested/device-extern-reject",
+   "path": "tests/effects-capabilities/harvested/device-extern-change.rce",
+   "id": "effects-capabilities/harvested/device-extern-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4920,8 +4920,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-list-reject.rce",
-   "id": "effects-capabilities/harvested/device-list-reject",
+   "path": "tests/effects-capabilities/harvested/device-list-change.rce",
+   "id": "effects-capabilities/harvested/device-list-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4933,8 +4933,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-abi-reject.rce",
-   "id": "effects-capabilities/harvested/extern-abi-reject",
+   "path": "tests/effects-capabilities/harvested/extern-abi-change.rce",
+   "id": "effects-capabilities/harvested/extern-abi-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4947,8 +4947,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-in-pure-reject.rce",
-   "id": "effects-capabilities/harvested/extern-in-pure-reject",
+   "path": "tests/effects-capabilities/harvested/extern-in-pure-change.rce",
+   "id": "effects-capabilities/harvested/extern-in-pure-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4961,8 +4961,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-owned-param-reject.rce",
-   "id": "effects-capabilities/harvested/extern-owned-param-reject",
+   "path": "tests/effects-capabilities/harvested/extern-owned-param-change.rce",
+   "id": "effects-capabilities/harvested/extern-owned-param-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4975,8 +4975,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-text-result-reject.rce",
-   "id": "effects-capabilities/harvested/extern-text-result-reject",
+   "path": "tests/effects-capabilities/harvested/extern-text-result-change.rce",
+   "id": "effects-capabilities/harvested/extern-text-result-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4989,8 +4989,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/pure-send-reject.rce",
-   "id": "effects-capabilities/harvested/pure-send-reject",
+   "path": "tests/effects-capabilities/harvested/pure-send-change.rce",
+   "id": "effects-capabilities/harvested/pure-send-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -5002,8 +5002,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-len-reject.rce",
-   "id": "effects-capabilities/harvested/simd-len-reject",
+   "path": "tests/effects-capabilities/harvested/simd-len-change.rce",
+   "id": "effects-capabilities/harvested/simd-len-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -5015,8 +5015,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-text-reject.rce",
-   "id": "effects-capabilities/harvested/simd-text-reject",
+   "path": "tests/effects-capabilities/harvested/simd-text-change.rce",
+   "id": "effects-capabilities/harvested/simd-text-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -5028,8 +5028,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/state-init-overflow-reject.rce",
-   "id": "effects-capabilities/harvested/state-init-overflow-reject",
+   "path": "tests/effects-capabilities/harvested/state-init-overflow-change.rce",
+   "id": "effects-capabilities/harvested/state-init-overflow-change",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -5756,8 +5756,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/arena-size-limit-reject.rce",
-   "id": "evaluation-fuel/harvested/arena-size-limit-reject",
+   "path": "tests/evaluation-fuel/harvested/arena-size-limit-change.rce",
+   "id": "evaluation-fuel/harvested/arena-size-limit-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5769,8 +5769,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/assign-let-reject.rce",
-   "id": "evaluation-fuel/harvested/assign-let-reject",
+   "path": "tests/evaluation-fuel/harvested/assign-let-change.rce",
+   "id": "evaluation-fuel/harvested/assign-let-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964"
@@ -5781,8 +5781,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-grow-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-grow-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-grow-change.rce",
+   "id": "evaluation-fuel/harvested/bad-grow-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -5797,8 +5797,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-iter-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-iter-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-iter-change.rce",
+   "id": "evaluation-fuel/harvested/bad-iter-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5810,8 +5810,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-loop-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-loop-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-loop-change.rce",
+   "id": "evaluation-fuel/harvested/bad-loop-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -5826,8 +5826,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-par-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-par-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-par-change.rce",
+   "id": "evaluation-fuel/harvested/bad-par-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5839,8 +5839,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-unbounded-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-unbounded-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-unbounded-change.rce",
+   "id": "evaluation-fuel/harvested/bad-unbounded-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5852,8 +5852,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-vary-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-vary-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-vary-change.rce",
+   "id": "evaluation-fuel/harvested/bad-vary-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -5868,8 +5868,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bslice-boundary-reject.rce",
-   "id": "evaluation-fuel/harvested/bslice-boundary-reject",
+   "path": "tests/evaluation-fuel/harvested/bslice-boundary-change.rce",
+   "id": "evaluation-fuel/harvested/bslice-boundary-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5881,8 +5881,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/f32-overflow-reject.rce",
-   "id": "evaluation-fuel/harvested/f32-overflow-reject",
+   "path": "tests/evaluation-fuel/harvested/f32-overflow-change.rce",
+   "id": "evaluation-fuel/harvested/f32-overflow-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5894,8 +5894,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/false-check-reject.rce",
-   "id": "evaluation-fuel/harvested/false-check-reject",
+   "path": "tests/evaluation-fuel/harvested/false-check-change.rce",
+   "id": "evaluation-fuel/harvested/false-check-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5907,8 +5907,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/guard-trap-reject.rce",
-   "id": "evaluation-fuel/harvested/guard-trap-reject",
+   "path": "tests/evaluation-fuel/harvested/guard-trap-change.rce",
+   "id": "evaluation-fuel/harvested/guard-trap-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5920,8 +5920,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-effect-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-effect-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-effect-change.rce",
+   "id": "evaluation-fuel/harvested/iter-effect-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5933,8 +5933,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-stored-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-stored-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-stored-change.rce",
+   "id": "evaluation-fuel/harvested/iter-stored-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5946,8 +5946,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-unbounded-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-unbounded-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-unbounded-change.rce",
+   "id": "evaluation-fuel/harvested/iter-unbounded-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5959,8 +5959,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-bound-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-bound-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-bound-change.rce",
+   "id": "evaluation-fuel/harvested/loop-bound-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5972,8 +5972,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-low-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-limit-low-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-low-change.rce",
+   "id": "evaluation-fuel/harvested/loop-limit-low-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -5985,8 +5985,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-type-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-limit-type-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-type-change.rce",
+   "id": "evaluation-fuel/harvested/loop-limit-type-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6092,8 +6092,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-not-structural-reject.rce",
-   "id": "evaluation-fuel/harvested/rec-not-structural-reject",
+   "path": "tests/evaluation-fuel/harvested/rec-not-structural-change.rce",
+   "id": "evaluation-fuel/harvested/rec-not-structural-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6105,8 +6105,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-same-arg-reject.rce",
-   "id": "evaluation-fuel/harvested/rec-same-arg-reject",
+   "path": "tests/evaluation-fuel/harvested/rec-same-arg-change.rce",
+   "id": "evaluation-fuel/harvested/rec-same-arg-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6118,8 +6118,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/recursion-reject.rce",
-   "id": "evaluation-fuel/harvested/recursion-reject",
+   "path": "tests/evaluation-fuel/harvested/recursion-change.rce",
+   "id": "evaluation-fuel/harvested/recursion-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6131,8 +6131,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/trap-10000-reject.rce",
-   "id": "evaluation-fuel/harvested/trap-10000-reject",
+   "path": "tests/evaluation-fuel/harvested/trap-10000-change.rce",
+   "id": "evaluation-fuel/harvested/trap-10000-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6144,8 +6144,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/u64-underflow-reject.rce",
-   "id": "evaluation-fuel/harvested/u64-underflow-reject",
+   "path": "tests/evaluation-fuel/harvested/u64-underflow-change.rce",
+   "id": "evaluation-fuel/harvested/u64-underflow-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6157,8 +6157,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/unexpected-refusal-reject.rce",
-   "id": "evaluation-fuel/harvested/unexpected-refusal-reject",
+   "path": "tests/evaluation-fuel/harvested/unexpected-kept-change.rce",
+   "id": "evaluation-fuel/harvested/unexpected-kept-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6219,8 +6219,8 @@
    "ms": 88
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-example-value-reject.rce",
-   "id": "evaluation-fuel/harvested/wrong-example-value-reject",
+   "path": "tests/evaluation-fuel/harvested/wrong-example-value-change.rce",
+   "id": "evaluation-fuel/harvested/wrong-example-value-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6232,8 +6232,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-refusal-reject.rce",
-   "id": "evaluation-fuel/harvested/wrong-refusal-reject",
+   "path": "tests/evaluation-fuel/harvested/wrong-kept-reason-change.rce",
+   "id": "evaluation-fuel/harvested/wrong-kept-reason-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6245,8 +6245,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/yield-outside-reject.rce",
-   "id": "evaluation-fuel/harvested/yield-outside-reject",
+   "path": "tests/evaluation-fuel/harvested/yield-outside-change.rce",
+   "id": "evaluation-fuel/harvested/yield-outside-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -6554,7 +6554,7 @@
     "lines": [
      "0 (initial) Db { rows = {}, writes = 0, durable = 0 }",
      "d kept a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59 {\"event\":{\"payload\":[\"x\"],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"344c3c2bb7e8d5bff7840606154bf905a61d56420ffceafa35b715a5889f4ffc\"}",
-     "1 Delete(key: \"x\") refused: Missing",
+     "1 Delete(key: \"x\") kept: Missing",
      "trace a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59",
      "fuel 12"
     ]
@@ -6728,7 +6728,7 @@
     "lines": [
      "0 (initial) Counter { n = 0 }",
      "d kept 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c {\"event\":{\"payload\":[],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
-     "1 Dec refused: Underflow",
+     "1 Dec kept: Underflow",
      "trace 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c",
      "fuel 6"
     ]
@@ -6831,7 +6831,7 @@
     "lines": [
      "0 (initial) Account { balance = 0 }",
      "d kept 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b {\"event\":{\"payload\":[1],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
-     "1 Withdraw(amount: 1) refused: Insufficient",
+     "1 Withdraw(amount: 1) kept: Insufficient",
      "trace 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b",
      "fuel 11"
     ]
@@ -6858,7 +6858,7 @@
     "outputs": [
      "0 (initial) Account { balance = 0 }"
     ],
-    "outcome": "refused:Insufficient"
+    "outcome": "kept:Insufficient"
    },
    "ms": 38
   },
@@ -7030,7 +7030,7 @@
      "d applied 0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8 {\"event\":{\"payload\":[],\"type\":0},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e\"}",
      "1 Open Door { open = true, locked = false }",
      "d kept 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32 {\"event\":{\"payload\":[],\"type\":2},\"prev_hash\":\"0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8\",\"seq\":1,\"state_hash\":\"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e\"}",
-     "2 Lock refused: DoorOpen",
+     "2 Lock kept: DoorOpen",
      "trace 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32",
      "fuel 9"
     ]
@@ -7058,7 +7058,7 @@
      "0 (initial) Door { open = false, locked = false }",
      "1 Open Door { open = true, locked = false }"
     ],
-    "outcome": "refused:DoorOpen"
+    "outcome": "kept:DoorOpen"
    },
    "ms": 45
   },
@@ -7749,7 +7749,7 @@
     "lines": [
      "0 (initial) Db { rows = {}, writes = 0, durable = 0 }",
      "d kept a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59 {\"event\":{\"payload\":[\"x\"],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"344c3c2bb7e8d5bff7840606154bf905a61d56420ffceafa35b715a5889f4ffc\"}",
-     "1 Delete(key: \"x\") refused: Missing",
+     "1 Delete(key: \"x\") kept: Missing",
      "trace a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59",
      "fuel 12"
     ]
@@ -8424,7 +8424,7 @@
      "d applied fdd1e7da98f95a6888bde448e1c229ec11893b594d0050d22d6110fb0c211657 {\"event\":{\"payload\":[],\"type\":1},\"prev_hash\":\"725364a7044ac42090cc7da96955d6528fac04c3b46fc3207b61b501a087f8aa\",\"seq\":5,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
      "6 Dec Counter { n = 0 }",
      "d kept c9157836c4adfb444f52c6725af76e5bbd3ac83386df51b069f5727f57b03d9d {\"event\":{\"payload\":[],\"type\":1},\"prev_hash\":\"fdd1e7da98f95a6888bde448e1c229ec11893b594d0050d22d6110fb0c211657\",\"seq\":6,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
-     "7 Dec refused: Underflow",
+     "7 Dec kept: Underflow",
      "trace c9157836c4adfb444f52c6725af76e5bbd3ac83386df51b069f5727f57b03d9d",
      "fuel 27"
     ]
@@ -8482,7 +8482,7 @@
     "lines": [
      "0 (initial) Counter { n = 0 }",
      "d kept 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c {\"event\":{\"payload\":[],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
-     "1 Dec refused: Underflow",
+     "1 Dec kept: Underflow",
      "trace 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c",
      "fuel 6"
     ]
@@ -8541,7 +8541,7 @@
     "lines": [
      "0 (initial) Account { balance = 0 }",
      "d kept 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b {\"event\":{\"payload\":[1],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387\"}",
-     "1 Withdraw(amount: 1) refused: Insufficient",
+     "1 Withdraw(amount: 1) kept: Insufficient",
      "trace 8530c5f37e9fa2411a17979d1bea54e715b2dad5c65fd5817f8ffb5a066e379b",
      "fuel 11"
     ]
@@ -8667,7 +8667,7 @@
      "d applied 0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8 {\"event\":{\"payload\":[],\"type\":0},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e\"}",
      "1 Open Door { open = true, locked = false }",
      "d kept 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32 {\"event\":{\"payload\":[],\"type\":2},\"prev_hash\":\"0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8\",\"seq\":1,\"state_hash\":\"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e\"}",
-     "2 Lock refused: DoorOpen",
+     "2 Lock kept: DoorOpen",
      "trace 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32",
      "fuel 9"
     ]
@@ -9083,7 +9083,7 @@
     "lines": [
      "0 (initial) Db { rows = {}, writes = 0, durable = 0 }",
      "d kept a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59 {\"event\":{\"payload\":[\"x\"],\"type\":1},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"344c3c2bb7e8d5bff7840606154bf905a61d56420ffceafa35b715a5889f4ffc\"}",
-     "1 Delete(key: \"x\") refused: Missing",
+     "1 Delete(key: \"x\") kept: Missing",
      "trace a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59",
      "fuel 12"
     ]
@@ -9635,12 +9635,12 @@
    "observed": {
     "head": "cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de",
     "lines": [
-     "0 (initial) Net { next = 0, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
+     "0 (initial) Net { next = 0, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
      "d applied be51df253cf2e8a3cd14d23bb88fb4960ed6f62ee6b8db812ec82931891b1554 {\"event\":{\"payload\":[\"127.0.0.1:1\"],\"type\":0},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"e11d1b7894034fe16b30deb88967ff2cd9e84806236d0ec4e02b8cb53bb675d9\"}",
-     "1 Listen(addr: \"127.0.0.1:1\") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
+     "1 Listen(addr: \"127.0.0.1:1\") Net { next = 1, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
      "  emit NetListen(req: 1, addr: \"127.0.0.1:1\")",
      "d applied cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de {\"event\":{\"payload\":[1,\"failed\",null,\"x\"],\"type\":9},\"prev_hash\":\"be51df253cf2e8a3cd14d23bb88fb4960ed6f62ee6b8db812ec82931891b1554\",\"seq\":1,\"state_hash\":\"3419e82a852935ae35324fa4e4595cd45aa1e83f2f653f5f4ac9ea249385ef5d\"}",
-     "2 NetListenDone(req: 1, status: \"failed\", data: none, err: \"x\") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 1 }",
+     "2 NetListenDone(req: 1, status: \"failed\", data: none, err: \"x\") Net { next = 1, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 1 }",
      "trace cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de",
      "fuel 30"
     ]
@@ -9787,8 +9787,8 @@
    "ms": 77
   },
   {
-   "path": "tests/forms-log/targeted/s1-guard-trap-refuses.rce",
-   "id": "forms-log/targeted/s1-guard-trap-refuses",
+   "path": "tests/forms-log/targeted/s1-guard-trap-keeps.rce",
+   "id": "forms-log/targeted/s1-guard-trap-keeps",
    "area": "forms-log",
    "clauses": [
     "CH00-M-61b6ac06",
@@ -9859,8 +9859,8 @@
    "ms": 0
   },
   {
-   "path": "tests/handler-spec/cur-2-stale-strict-refused.rce",
-   "id": "handler-spec/cur-2-stale-strict-refused",
+   "path": "tests/handler-spec/cur-2-stale-strict-change.rce",
+   "id": "handler-spec/cur-2-stale-strict-change",
    "area": "handler-spec",
    "clauses": [
     "W-HS-CUR-2"
@@ -11324,10 +11324,10 @@
    "detail": "",
    "observed": {
     "outputs": [
-     "0 (initial) Net { next = 0, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
-     "1 Listen(addr: \"127.0.0.1:1\") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
+     "0 (initial) Net { next = 0, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
+     "1 Listen(addr: \"127.0.0.1:1\") Net { next = 1, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 0 }",
      "  emit NetListen(req: 1, addr: \"127.0.0.1:1\")",
-     "2 NetListenDone(req: 1, status: \"failed\", data: none, err: \"x\") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 1 }"
+     "2 NetListenDone(req: 1, status: \"failed\", data: none, err: \"x\") Net { next = 1, last = 0, got = [], kept_outcomes = 0, restarts = 0, rand = \"\", digest = \"\", blob = \"\", errors = 1 }"
     ],
     "outcome": "done"
    },
@@ -12627,8 +12627,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-barrier-arg-reject.rce",
-   "id": "lexing-parsing/harvested/01-barrier-arg-reject",
+   "path": "tests/lexing-parsing/harvested/01-barrier-arg-change.rce",
+   "id": "lexing-parsing/harvested/01-barrier-arg-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12643,8 +12643,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-par-no-branch-reject.rce",
-   "id": "lexing-parsing/harvested/01-par-no-branch-reject",
+   "path": "tests/lexing-parsing/harvested/01-par-no-branch-change.rce",
+   "id": "lexing-parsing/harvested/01-par-no-branch-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12659,8 +12659,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-reject.rce",
-   "id": "lexing-parsing/harvested/02-branch-outside-par-reject",
+   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-change.rce",
+   "id": "lexing-parsing/harvested/02-branch-outside-par-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12675,8 +12675,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-empty-protocol-reject.rce",
-   "id": "lexing-parsing/harvested/02-empty-protocol-reject",
+   "path": "tests/lexing-parsing/harvested/02-empty-protocol-change.rce",
+   "id": "lexing-parsing/harvested/02-empty-protocol-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12691,8 +12691,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-double-par-reject.rce",
-   "id": "lexing-parsing/harvested/03-double-par-reject",
+   "path": "tests/lexing-parsing/harvested/03-double-par-change.rce",
+   "id": "lexing-parsing/harvested/03-double-par-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12707,8 +12707,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-send-no-type-reject.rce",
-   "id": "lexing-parsing/harvested/03-send-no-type-reject",
+   "path": "tests/lexing-parsing/harvested/03-send-no-type-change.rce",
+   "id": "lexing-parsing/harvested/03-send-no-type-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12723,8 +12723,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-double-nondet-reject.rce",
-   "id": "lexing-parsing/harvested/04-double-nondet-reject",
+   "path": "tests/lexing-parsing/harvested/04-double-nondet-change.rce",
+   "id": "lexing-parsing/harvested/04-double-nondet-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12739,8 +12739,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-reject.rce",
-   "id": "lexing-parsing/harvested/04-spawn-arrow-no-name-reject",
+   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-change.rce",
+   "id": "lexing-parsing/harvested/04-spawn-arrow-no-name-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12755,8 +12755,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-reject.rce",
-   "id": "lexing-parsing/harvested/05-budget-no-expr-reject",
+   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-change.rce",
+   "id": "lexing-parsing/harvested/05-budget-no-expr-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12771,8 +12771,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-reject.rce",
-   "id": "lexing-parsing/harvested/05-supervisor-no-strategy-reject",
+   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-change.rce",
+   "id": "lexing-parsing/harvested/05-supervisor-no-strategy-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12787,8 +12787,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-branch-no-name-reject.rce",
-   "id": "lexing-parsing/harvested/06-branch-no-name-reject",
+   "path": "tests/lexing-parsing/harvested/06-branch-no-name-change.rce",
+   "id": "lexing-parsing/harvested/06-branch-no-name-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12803,8 +12803,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-node-no-braces-reject.rce",
-   "id": "lexing-parsing/harvested/06-node-no-braces-reject",
+   "path": "tests/lexing-parsing/harvested/06-node-no-braces-change.rce",
+   "id": "lexing-parsing/harvested/06-node-no-braces-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12819,8 +12819,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-reject.rce",
-   "id": "lexing-parsing/harvested/07-group-no-lanes-reject",
+   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-change.rce",
+   "id": "lexing-parsing/harvested/07-group-no-lanes-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12835,8 +12835,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-reject.rce",
-   "id": "lexing-parsing/harvested/07-priority-no-expr-reject",
+   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-change.rce",
+   "id": "lexing-parsing/harvested/07-priority-no-expr-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12851,8 +12851,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-interrupt-state-reject.rce",
-   "id": "lexing-parsing/harvested/08-interrupt-state-reject",
+   "path": "tests/lexing-parsing/harvested/08-interrupt-state-change.rce",
+   "id": "lexing-parsing/harvested/08-interrupt-state-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12867,8 +12867,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-two-else-reject.rce",
-   "id": "lexing-parsing/harvested/08-two-else-reject",
+   "path": "tests/lexing-parsing/harvested/08-two-else-change.rce",
+   "id": "lexing-parsing/harvested/08-two-else-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12883,8 +12883,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-reject.rce",
-   "id": "lexing-parsing/harvested/09-atomic-no-block-reject",
+   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-change.rce",
+   "id": "lexing-parsing/harvested/09-atomic-no-block-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12899,8 +12899,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/assign-in-expr-reject.rce",
-   "id": "lexing-parsing/harvested/assign-in-expr-reject",
+   "path": "tests/lexing-parsing/harvested/assign-in-expr-change.rce",
+   "id": "lexing-parsing/harvested/assign-in-expr-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12915,8 +12915,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/bad-dedent-reject.rce",
-   "id": "lexing-parsing/harvested/bad-dedent-reject",
+   "path": "tests/lexing-parsing/harvested/bad-dedent-change.rce",
+   "id": "lexing-parsing/harvested/bad-dedent-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12930,8 +12930,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/chained-compare-reject.rce",
-   "id": "lexing-parsing/harvested/chained-compare-reject",
+   "path": "tests/lexing-parsing/harvested/chained-compare-change.rce",
+   "id": "lexing-parsing/harvested/chained-compare-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12946,8 +12946,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/class-keyword-reject.rce",
-   "id": "lexing-parsing/harvested/class-keyword-reject",
+   "path": "tests/lexing-parsing/harvested/class-keyword-change.rce",
+   "id": "lexing-parsing/harvested/class-keyword-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12977,8 +12977,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/if-expr-no-else-reject.rce",
-   "id": "lexing-parsing/harvested/if-expr-no-else-reject",
+   "path": "tests/lexing-parsing/harvested/if-expr-no-else-change.rce",
+   "id": "lexing-parsing/harvested/if-expr-no-else-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -12993,8 +12993,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/kind-empty-reject.rce",
-   "id": "lexing-parsing/harvested/kind-empty-reject",
+   "path": "tests/lexing-parsing/harvested/kind-empty-change.rce",
+   "id": "lexing-parsing/harvested/kind-empty-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -13009,8 +13009,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/literal-out-of-range-reject.rce",
-   "id": "lexing-parsing/harvested/literal-out-of-range-reject",
+   "path": "tests/lexing-parsing/harvested/literal-out-of-range-change.rce",
+   "id": "lexing-parsing/harvested/literal-out-of-range-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
@@ -13022,8 +13022,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/missing-arrow-example-reject.rce",
-   "id": "lexing-parsing/harvested/missing-arrow-example-reject",
+   "path": "tests/lexing-parsing/harvested/missing-arrow-example-change.rce",
+   "id": "lexing-parsing/harvested/missing-arrow-example-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -13038,8 +13038,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/state-no-fields-reject.rce",
-   "id": "lexing-parsing/harvested/state-no-fields-reject",
+   "path": "tests/lexing-parsing/harvested/state-no-fields-change.rce",
+   "id": "lexing-parsing/harvested/state-no-fields-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -13054,8 +13054,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/step-no-on-reject.rce",
-   "id": "lexing-parsing/harvested/step-no-on-reject",
+   "path": "tests/lexing-parsing/harvested/step-no-on-change.rce",
+   "id": "lexing-parsing/harvested/step-no-on-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -13070,8 +13070,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/tab-indent-reject.rce",
-   "id": "lexing-parsing/harvested/tab-indent-reject",
+   "path": "tests/lexing-parsing/harvested/tab-indent-change.rce",
+   "id": "lexing-parsing/harvested/tab-indent-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
@@ -13083,8 +13083,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/try-in-then-reject.rce",
-   "id": "lexing-parsing/harvested/try-in-then-reject",
+   "path": "tests/lexing-parsing/harvested/try-in-then-change.rce",
+   "id": "lexing-parsing/harvested/try-in-then-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -13099,8 +13099,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/unterminated-string-reject.rce",
-   "id": "lexing-parsing/harvested/unterminated-string-reject",
+   "path": "tests/lexing-parsing/harvested/unterminated-string-change.rce",
+   "id": "lexing-parsing/harvested/unterminated-string-change",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -44333,7 +44333,7 @@
     "outputs": [
      "0 (initial) Counter { n = 0 }"
     ],
-    "outcome": "refused:Underflow"
+    "outcome": "kept:Underflow"
    },
    "ms": 45
   },
@@ -44895,7 +44895,7 @@
     "outputs": [
      "0 (initial) Db { rows = {}, writes = 0, durable = 0 }"
     ],
-    "outcome": "refused:Missing"
+    "outcome": "kept:Missing"
    },
    "ms": 42
   },
@@ -46075,8 +46075,8 @@
    "ms": 81
   },
   {
-   "path": "tests/tooling/emit-js-refused.rce",
-   "id": "tooling/emit-js-refused",
+   "path": "tests/tooling/emit-js-change.rce",
+   "id": "tooling/emit-js-change",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -46087,8 +46087,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-python-refused.rce",
-   "id": "tooling/emit-python-refused",
+   "path": "tests/tooling/emit-python-change.rce",
+   "id": "tooling/emit-python-change",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -46099,8 +46099,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-rust-refused.rce",
-   "id": "tooling/emit-rust-refused",
+   "path": "tests/tooling/emit-rust-change.rce",
+   "id": "tooling/emit-rust-change",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -46111,8 +46111,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-scala-refused.rce",
-   "id": "tooling/emit-scala-refused",
+   "path": "tests/tooling/emit-scala-change.rce",
+   "id": "tooling/emit-scala-change",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -46140,7 +46140,7 @@
    "area": "tooling",
    "clauses": [
     "CH12-M-6760dd1f",
-    "CH12-M-6e12b079"
+    "CH12-M-b922b8eb"
    ],
    "status": "n/a",
    "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
@@ -46160,11 +46160,11 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/run-refused-one-line.rce",
-   "id": "tooling/run-refused-one-line",
+   "path": "tests/tooling/run-change-one-line.rce",
+   "id": "tooling/run-change-one-line",
    "area": "tooling",
    "clauses": [
-    "CH12-M-6e12b079"
+    "CH12-M-b922b8eb"
    ],
    "status": "n/a",
    "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
@@ -46642,8 +46642,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/14-select-main-reject.rce",
-   "id": "types-checking/harvested/14-select-main-reject",
+   "path": "tests/types-checking/harvested/14-select-main-change.rce",
+   "id": "types-checking/harvested/14-select-main-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46655,8 +46655,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/15-actor-main-reject.rce",
-   "id": "types-checking/harvested/15-actor-main-reject",
+   "path": "tests/types-checking/harvested/15-actor-main-change.rce",
+   "id": "types-checking/harvested/15-actor-main-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46668,8 +46668,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/34-chan-types-main-reject.rce",
-   "id": "types-checking/harvested/34-chan-types-main-reject",
+   "path": "tests/types-checking/harvested/34-chan-types-main-change.rce",
+   "id": "types-checking/harvested/34-chan-types-main-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46681,8 +46681,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/47-select-fair-main-reject.rce",
-   "id": "types-checking/harvested/47-select-fair-main-reject",
+   "path": "tests/types-checking/harvested/47-select-fair-main-change.rce",
+   "id": "types-checking/harvested/47-select-fair-main-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46694,8 +46694,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/arena-escape-reject.rce",
-   "id": "types-checking/harvested/arena-escape-reject",
+   "path": "tests/types-checking/harvested/arena-escape-change.rce",
+   "id": "types-checking/harvested/arena-escape-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46707,8 +46707,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/borrow-escape-reject.rce",
-   "id": "types-checking/harvested/borrow-escape-reject",
+   "path": "tests/types-checking/harvested/borrow-escape-change.rce",
+   "id": "types-checking/harvested/borrow-escape-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46720,8 +46720,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/ed25519-rce-reject.rce",
-   "id": "types-checking/harvested/ed25519-rce-reject",
+   "path": "tests/types-checking/harvested/ed25519-rce-change.rce",
+   "id": "types-checking/harvested/ed25519-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46733,8 +46733,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/f32-literal-reject.rce",
-   "id": "types-checking/harvested/f32-literal-reject",
+   "path": "tests/types-checking/harvested/f32-literal-change.rce",
+   "id": "types-checking/harvested/f32-literal-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46746,8 +46746,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/f32-mixed-reject.rce",
-   "id": "types-checking/harvested/f32-mixed-reject",
+   "path": "tests/types-checking/harvested/f32-mixed-change.rce",
+   "id": "types-checking/harvested/f32-mixed-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46759,8 +46759,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/fail-not-error-reject.rce",
-   "id": "types-checking/harvested/fail-not-error-reject",
+   "path": "tests/types-checking/harvested/fail-not-error-change.rce",
+   "id": "types-checking/harvested/fail-not-error-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46772,8 +46772,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/framing-rce-reject.rce",
-   "id": "types-checking/harvested/framing-rce-reject",
+   "path": "tests/types-checking/harvested/framing-rce-change.rce",
+   "id": "types-checking/harvested/framing-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46785,8 +46785,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/group-rce-reject.rce",
-   "id": "types-checking/harvested/group-rce-reject",
+   "path": "tests/types-checking/harvested/group-rce-change.rce",
+   "id": "types-checking/harvested/group-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46798,8 +46798,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/hpke-rce-reject.rce",
-   "id": "types-checking/harvested/hpke-rce-reject",
+   "path": "tests/types-checking/harvested/hpke-rce-change.rce",
+   "id": "types-checking/harvested/hpke-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46811,8 +46811,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/int-mismatch-reject.rce",
-   "id": "types-checking/harvested/int-mismatch-reject",
+   "path": "tests/types-checking/harvested/int-mismatch-change.rce",
+   "id": "types-checking/harvested/int-mismatch-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46824,8 +46824,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/iter-yield-type-reject.rce",
-   "id": "types-checking/harvested/iter-yield-type-reject",
+   "path": "tests/types-checking/harvested/iter-yield-type-change.rce",
+   "id": "types-checking/harvested/iter-yield-type-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46837,8 +46837,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-copy-reject.rce",
-   "id": "types-checking/harvested/linear-copy-reject",
+   "path": "tests/types-checking/harvested/linear-copy-change.rce",
+   "id": "types-checking/harvested/linear-copy-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46851,8 +46851,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-field-reject.rce",
-   "id": "types-checking/harvested/linear-field-reject",
+   "path": "tests/types-checking/harvested/linear-field-change.rce",
+   "id": "types-checking/harvested/linear-field-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46864,8 +46864,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-in-list-reject.rce",
-   "id": "types-checking/harvested/linear-in-list-reject",
+   "path": "tests/types-checking/harvested/linear-in-list-change.rce",
+   "id": "types-checking/harvested/linear-in-list-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46877,22 +46877,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-loop-reject.rce",
-   "id": "types-checking/harvested/linear-loop-reject",
-   "area": "types-checking",
-   "clauses": [
-    "CH09-M-82e65964",
-    "HC-4",
-    "W-LIN-1"
-   ],
-   "status": "n/a",
-   "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
-   "observed": null,
-   "ms": 0
-  },
-  {
-   "path": "tests/types-checking/harvested/linear-one-branch-reject.rce",
-   "id": "types-checking/harvested/linear-one-branch-reject",
+   "path": "tests/types-checking/harvested/linear-loop-change.rce",
+   "id": "types-checking/harvested/linear-loop-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46905,8 +46891,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-unconsumed-reject.rce",
-   "id": "types-checking/harvested/linear-unconsumed-reject",
+   "path": "tests/types-checking/harvested/linear-one-branch-change.rce",
+   "id": "types-checking/harvested/linear-one-branch-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46919,8 +46905,22 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/missing-return-reject.rce",
-   "id": "types-checking/harvested/missing-return-reject",
+   "path": "tests/types-checking/harvested/linear-unconsumed-change.rce",
+   "id": "types-checking/harvested/linear-unconsumed-change",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "HC-4",
+    "W-LIN-1"
+   ],
+   "status": "n/a",
+   "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
+   "observed": null,
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/harvested/missing-return-change.rce",
+   "id": "types-checking/harvested/missing-return-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46932,8 +46932,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/mls-rce-reject.rce",
-   "id": "types-checking/harvested/mls-rce-reject",
+   "path": "tests/types-checking/harvested/mls-rce-change.rce",
+   "id": "types-checking/harvested/mls-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46945,8 +46945,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/modify-while-iterating-reject.rce",
-   "id": "types-checking/harvested/modify-while-iterating-reject",
+   "path": "tests/types-checking/harvested/modify-while-iterating-change.rce",
+   "id": "types-checking/harvested/modify-while-iterating-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46958,8 +46958,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/mut-alias-reject.rce",
-   "id": "types-checking/harvested/mut-alias-reject",
+   "path": "tests/types-checking/harvested/mut-alias-change.rce",
+   "id": "types-checking/harvested/mut-alias-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46971,8 +46971,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/non-exhaustive-reject.rce",
-   "id": "types-checking/harvested/non-exhaustive-reject",
+   "path": "tests/types-checking/harvested/non-exhaustive-change.rce",
+   "id": "types-checking/harvested/non-exhaustive-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46984,8 +46984,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/orphan-impl-reject.rce",
-   "id": "types-checking/harvested/orphan-impl-reject",
+   "path": "tests/types-checking/harvested/orphan-impl-change.rce",
+   "id": "types-checking/harvested/orphan-impl-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -46997,8 +46997,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/pq-rce-reject.rce",
-   "id": "types-checking/harvested/pq-rce-reject",
+   "path": "tests/types-checking/harvested/pq-rce-change.rce",
+   "id": "types-checking/harvested/pq-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47010,8 +47010,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/protect-rce-reject.rce",
-   "id": "types-checking/harvested/protect-rce-reject",
+   "path": "tests/types-checking/harvested/protect-rce-change.rce",
+   "id": "types-checking/harvested/protect-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47023,8 +47023,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/select-after-type-reject.rce",
-   "id": "types-checking/harvested/select-after-type-reject",
+   "path": "tests/types-checking/harvested/select-after-type-change.rce",
+   "id": "types-checking/harvested/select-after-type-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47036,8 +47036,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/state-no-init-reject.rce",
-   "id": "types-checking/harvested/state-no-init-reject",
+   "path": "tests/types-checking/harvested/state-no-init-change.rce",
+   "id": "types-checking/harvested/state-no-init-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47049,8 +47049,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/text-index-char-reject.rce",
-   "id": "types-checking/harvested/text-index-char-reject",
+   "path": "tests/types-checking/harvested/text-index-char-change.rce",
+   "id": "types-checking/harvested/text-index-char-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47062,8 +47062,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/treekem-rce-reject.rce",
-   "id": "types-checking/harvested/treekem-rce-reject",
+   "path": "tests/types-checking/harvested/treekem-rce-change.rce",
+   "id": "types-checking/harvested/treekem-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47075,8 +47075,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/u64-mixed-reject.rce",
-   "id": "types-checking/harvested/u64-mixed-reject",
+   "path": "tests/types-checking/harvested/u64-mixed-change.rce",
+   "id": "types-checking/harvested/u64-mixed-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47088,8 +47088,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unchecked-union-reject.rce",
-   "id": "types-checking/harvested/unchecked-union-reject",
+   "path": "tests/types-checking/harvested/unchecked-union-change.rce",
+   "id": "types-checking/harvested/unchecked-union-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47101,8 +47101,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unhandled-event-reject.rce",
-   "id": "types-checking/harvested/unhandled-event-reject",
+   "path": "tests/types-checking/harvested/unhandled-event-change.rce",
+   "id": "types-checking/harvested/unhandled-event-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47114,8 +47114,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unknown-name-reject.rce",
-   "id": "types-checking/harvested/unknown-name-reject",
+   "path": "tests/types-checking/harvested/unknown-name-change.rce",
+   "id": "types-checking/harvested/unknown-name-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47127,8 +47127,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unreachable-step-reject.rce",
-   "id": "types-checking/harvested/unreachable-step-reject",
+   "path": "tests/types-checking/harvested/unreachable-step-change.rce",
+   "id": "types-checking/harvested/unreachable-step-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47140,8 +47140,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unsafe-name-reject.rce",
-   "id": "types-checking/harvested/unsafe-name-reject",
+   "path": "tests/types-checking/harvested/unsafe-name-change.rce",
+   "id": "types-checking/harvested/unsafe-name-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47153,8 +47153,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/use-after-move-reject.rce",
-   "id": "types-checking/harvested/use-after-move-reject",
+   "path": "tests/types-checking/harvested/use-after-move-change.rce",
+   "id": "types-checking/harvested/use-after-move-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47166,8 +47166,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-reject.rce",
-   "id": "types-checking/harvested/w-intr-1-priority-not-literal-reject",
+   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-change.rce",
+   "id": "types-checking/harvested/w-intr-1-priority-not-literal-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47179,8 +47179,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-name-2-dup-branch-reject.rce",
-   "id": "types-checking/harvested/w-name-2-dup-branch-reject",
+   "path": "tests/types-checking/harvested/w-name-2-dup-branch-change.rce",
+   "id": "types-checking/harvested/w-name-2-dup-branch-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47192,8 +47192,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-par-3-bad-slot-reject.rce",
-   "id": "types-checking/harvested/w-par-3-bad-slot-reject",
+   "path": "tests/types-checking/harvested/w-par-3-bad-slot-change.rce",
+   "id": "types-checking/harvested/w-par-3-bad-slot-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47206,8 +47206,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-budget-text-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-budget-text-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-budget-text-change.rce",
+   "id": "types-checking/harvested/w-ty-1-budget-text-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47219,8 +47219,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-priority-text-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-priority-text-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-priority-text-change.rce",
+   "id": "types-checking/harvested/w-ty-1-priority-text-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47232,8 +47232,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-session-payload-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-session-payload-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-session-payload-change.rce",
+   "id": "types-checking/harvested/w-ty-1-session-payload-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47245,8 +47245,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/welcome-rce-reject.rce",
-   "id": "types-checking/harvested/welcome-rce-reject",
+   "path": "tests/types-checking/harvested/welcome-rce-change.rce",
+   "id": "types-checking/harvested/welcome-rce-change",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -47291,8 +47291,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/targeted/t35-refined-input-refused.rce",
-   "id": "types-checking/targeted/t35-refined-input-refused",
+   "path": "tests/types-checking/targeted/t35-refined-input-kept.rce",
+   "id": "types-checking/targeted/t35-refined-input-kept",
    "area": "types-checking",
    "clauses": [
     "CH16-M-262166d9",

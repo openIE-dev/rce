@@ -83,7 +83,7 @@ fn every_emitted_runtime_agrees() {
 }
 
 #[test]
-fn w_ref_1_refuses_outside_the_fragment() {
+fn w_ref_1_requires_change_outside_the_fragment() {
     for bad in [
         "type B = f64 where self < 1.0\n",
         "type B = i64 where self * 2 < 1\n",
@@ -101,7 +101,7 @@ fn w_ref_1_refuses_outside_the_fragment() {
 }
 
 #[test]
-fn a_state_write_outside_the_refinement_refuses_the_event() {
+fn a_state_write_outside_the_refinement_keeps_the_state() {
     let f = dir().join("s.rce");
     std::fs::write(
         &f,
@@ -111,5 +111,5 @@ fn a_state_write_outside_the_refinement_refuses_the_event() {
     let (c, o, _) = run(&["run", f.to_str().unwrap(), "Up(by: 60), Up(by: 60)"]);
     assert_eq!(c, 1);
     assert!(o.contains("1 Up(by: 60) V { level = 60 }"), "{o}");
-    assert!(o.contains("refused: trap(refinement: value is outside Pct)"), "{o}");
+    assert!(o.contains("kept: trap(refinement: value is outside Pct)"), "{o}");
 }

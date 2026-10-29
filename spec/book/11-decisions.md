@@ -22,7 +22,7 @@ each can be reversed independently.
    unchanged.** Stricter than "every (region, event) pair", looser than "every
    event in every region"; catches typos without boilerplate.
 6. **Errors refuse the event and leave state unchanged** (`example … ->
-   refused: X`), and are logged and output, never thrown.
+   kept: X`), and are logged and output, never thrown.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
@@ -395,4 +395,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: fb7ee5625e3f9dff21379fba6af986ab2cbeb65cf5d577637c07ba477c4a45dd -->
+<!-- body-sha256: 99c630ddf821f23275ba918b18626438421b6a37cf3049e6da9aec6f58bdb456 -->

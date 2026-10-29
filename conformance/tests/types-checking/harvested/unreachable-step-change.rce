@@ -1,0 +1,15 @@
+state S
+    n: u64 = 0
+
+event E
+
+step S on E -> n + 1
+step S on E -> n + 2
+#--- rce-test
+# id: types-checking/harvested/unreachable-step-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-STEP-4]
+# expect: change
+# diagnostic: W-STEP-4
+# provenance: harvested examples/change/types/unreachable_step.rce
+#---

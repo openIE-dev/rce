@@ -14,14 +14,14 @@ inductive Stmt where
   | emit (e : Expr)
   deriving Repr
 
-inductive Refusal where
+inductive Reason where
   | user (x : String)
   | trap (m : Trap)
   deriving DecidableEq, Repr
 
 inductive SRes where
   | ok (fs : List Val) (os : List Val)
-  | ref (r : Refusal)
+  | ref (r : Reason)
   deriving DecidableEq, Repr
 
 /-- A bounded loop: at most `n` iterations; starting iteration n+1 traps. -/
@@ -78,7 +78,7 @@ inductive ExecR (args : List Val) : Stmt → List Val → List Val → SRes → 
       ExecR args (.assign i e) fs os (.ref (.trap m))
   | seq {a b fs os fs' os' r} : ExecR args a fs os (.ok fs' os') → ExecR args b fs' os' r →
       ExecR args (.seq a b) fs os r
-  | seqRef {a b fs os x} : ExecR args a fs os (.ref x) → ExecR args (.seq a b) fs os (.ref x)
+  | seqKept {a b fs os x} : ExecR args a fs os (.ref x) → ExecR args (.seq a b) fs os (.ref x)
   | ifT {c a b fs os r} : eval ⟨fs, args⟩ c = .ok (.bool true) → ExecR args a fs os r →
       ExecR args (.ifs c a b) fs os r
   | ifF {c a b fs os r} : eval ⟨fs, args⟩ c = .ok (.bool false) → ExecR args b fs os r →
@@ -112,7 +112,7 @@ theorem execR_sound {args s fs os r} (h : ExecR args s fs os r) : exec args s fs
   | assignBad he hi => simp [exec, he, hi]
   | assignTrap he => simp [exec, he]
   | seq _ _ iha ihb => simp [exec, iha, ihb]
-  | seqRef _ iha => simp [exec, iha]
+  | seqKept _ iha => simp [exec, iha]
   | ifT hc _ ih => simp [exec, hc, ih]
   | ifF hc _ ih => simp [exec, hc, ih]
   | ifBad hc => simp [exec, hc]
@@ -144,7 +144,7 @@ theorem execR_complete (args : List Val) (s : Stmt) : ∀ fs os, ExecR args s fs
     have ha := iha fs os
     cases hr : exec args a fs os with
     | ok fs' os' => rw [hr] at ha; exact .seq ha (ihb fs' os')
-    | ref x => rw [hr] at ha; exact .seqRef ha
+    | ref x => rw [hr] at ha; exact .seqKept ha
   | ifs c a b iha ihb =>
     intro fs os; simp only [exec]
     cases hc : eval ⟨fs, args⟩ c with
@@ -216,7 +216,7 @@ abbrev Event := String × List Val
 
 inductive Out where
   | emit (v : Val)
-  | refused (r : Refusal)
+  | kept (r : Reason)
   deriving DecidableEq, Repr
 
 /-- The step of region `i` for event `ev`: the first declared step for this
@@ -234,7 +234,7 @@ def regionStep (args : List Val) (ev : String) (i : Nat) (fs : List Val) : List 
 
 /-- Every region steps on the pre-state; the first refusal (declaration
     order) refuses the whole event. -/
-def runRegions (P : Program) (e : Event) : Nat → State → Except Refusal (State × List Val)
+def runRegions (P : Program) (e : Event) : Nat → State → Except Reason (State × List Val)
   | _, [] => .ok ([], [])
   | i, fs :: rs =>
     match regionStep e.2 e.1 i fs P.steps with
@@ -248,12 +248,12 @@ def runRegions (P : Program) (e : Event) : Nat → State → Except Refusal (Sta
 def delta (P : Program) (s : State) (e : Event) : State × List Out :=
   match runRegions P e 0 s with
   | .ok (s', o) => (s', o.map .emit)
-  | .error x => (s, [.refused x])
+  | .error x => (s, [.kept x])
 
 /-- **T8 Atomicity**: a refused event leaves every region unchanged, and an
     output list containing a refusal only arises from a refused event. -/
-theorem atomicity (P : Program) (s : State) (e : Event) (x : Refusal)
-    (h : Out.refused x ∈ (delta P s e).2) : (delta P s e).1 = s := by
+theorem atomicity (P : Program) (s : State) (e : Event) (x : Reason)
+    (h : Out.kept x ∈ (delta P s e).2) : (delta P s e).1 = s := by
   unfold delta at h ⊢
   cases hr : runRegions P e 0 s with
   | error y => rfl
@@ -311,7 +311,7 @@ def Stmt.rename (ρ : String → String) : Stmt → Stmt
   | .fail x => .fail (ρ x)
   | .emit e => .emit e
 
-def Refusal.rename (ρ : String → String) : Refusal → Refusal
+def Reason.rename (ρ : String → String) : Reason → Reason
   | .user x => .user (ρ x)
   | .trap m => .trap m
 
@@ -321,7 +321,7 @@ def SRes.rename (ρ : String → String) : SRes → SRes
 
 def Out.rename (ρ : String → String) : Out → Out
   | .emit v => .emit v
-  | .refused x => .refused (x.rename ρ)
+  | .kept x => .kept (x.rename ρ)
 
 def Program.rename (ρ : String → String) (P : Program) : Program :=
   ⟨P.steps.map fun d => ⟨d.region, ρ d.event, d.guard, d.body.rename ρ⟩⟩
@@ -330,10 +330,10 @@ theorem iter_rename (ρ : String → String) (f g : List Val → List Val → SR
     (hfg : ∀ fs os, g fs os = (f fs os).rename ρ) (c) :
     ∀ n fs os, iter g c n fs os = (iter f c n fs os).rename ρ := by
   intro n; induction n with
-  | zero => intro fs os; simp only [iter]; split <;> simp_all [SRes.rename, Refusal.rename]
+  | zero => intro fs os; simp only [iter]; split <;> simp_all [SRes.rename, Reason.rename]
   | succ k ih =>
     intro fs os; simp only [iter]
-    split <;> simp_all [SRes.rename, Refusal.rename]
+    split <;> simp_all [SRes.rename, Reason.rename]
     cases hf : f fs os with
     | ok fs' os' => simp [hf, SRes.rename, ih]
     | ref x => simp [hf, SRes.rename]
@@ -348,7 +348,7 @@ theorem exec_rename (ρ : String → String) (args : List Val) (s : Stmt) :
     cases exec args a fs os with
     | ok fs' os' => simp [SRes.rename, ihb]
     | ref x => rfl
-  | ifs c a b iha ihb => intro fs os; simp only [Stmt.rename, exec]; split <;> simp_all [SRes.rename, Refusal.rename]
+  | ifs c a b iha ihb => intro fs os; simp only [Stmt.rename, exec]; split <;> simp_all [SRes.rename, Reason.rename]
   | loop n c b ih => intro fs os; simp only [Stmt.rename, exec]; exact iter_rename ρ _ _ ih _ n fs os
   | fail x => intro fs os; rfl
   | emit e => intro fs os; simp only [Stmt.rename, exec]; split <;> rfl
@@ -365,7 +365,7 @@ theorem regionStep_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b �
     by_cases hc : d.region = i ∧ d.event = ev
     · have hc' : d.region = i ∧ ρ d.event = ρ ev := ⟨hc.1, hiff.2 hc.2⟩
       simp only [hc, hc', and_self, if_true]
-      split <;> simp_all [SRes.rename, Refusal.rename, exec_rename]
+      split <;> simp_all [SRes.rename, Reason.rename, exec_rename]
     · have hc' : ¬ (d.region = i ∧ ρ d.event = ρ ev) := fun h => hc ⟨h.1, hiff.1 h.2⟩
       simp only [hc, hc', if_false]; exact ih
 

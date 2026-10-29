@@ -85,7 +85,7 @@ fn every_target_prints_the_reference_observations_for_the_apps() {
                 hs.push(s.spawn(move || {
                     let m = with_probes(&parse(&std::fs::read_to_string(rce().join(a)).unwrap()).unwrap());
                     let want = observe(&m);
-                    let code = emit(&m, lang).unwrap_or_else(|e| panic!("{a}: {lang:?} refused: {e}"));
+                    let code = emit(&m, lang).unwrap_or_else(|e| panic!("{a}: {lang:?} kept: {e}"));
                     let got = run(lang, &t, dir, &format!("{}_{:?}", stem(a), lang).to_lowercase(), &code).unwrap_or_else(|e| panic!("{a} {lang:?}: {e}"));
                     let got: Vec<&str> = got.lines().collect();
                     if let Some(i) = (0..want.len().max(got.len())).find(|&i| want.get(i).map(|s| s.as_str()) != got.get(i).copied()) {

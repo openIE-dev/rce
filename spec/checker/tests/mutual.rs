@@ -27,7 +27,7 @@ fn verdict(src: &str) -> Result<(), String> {
 }
 
 #[test]
-fn admitted_and_refused() {
+fn admitted_or_requires_change() {
     let ok = progs("ok_");
     let bad = progs("bad_");
     assert!(ok.len() >= 3 && bad.len() >= 2);

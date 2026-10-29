@@ -42,7 +42,7 @@ fn a_pinned_manifest_is_accepted() {
 }
 
 #[test]
-fn a_module_whose_hash_differs_is_refused_and_formatting_never_changes_a_hash() {
+fn a_module_whose_hash_differs_requires_change_and_formatting_never_changes_a_hash() {
     let d = tmp("hash");
     let t = manifest_for(&d, json!({}));
     // reformatting (extra blank lines, a comment) does not change the hash
@@ -55,7 +55,7 @@ fn a_module_whose_hash_differs_is_refused_and_formatting_never_changes_a_hash() 
 }
 
 #[test]
-fn unknown_keys_globs_relative_paths_and_unpinned_dependencies_are_refused() {
+fn unknown_keys_globs_relative_paths_and_unpinned_dependencies_require_change() {
     let d = tmp("bad");
     let good = manifest_for(&d, json!({}));
     for (why, extra) in [
@@ -80,7 +80,7 @@ fn unknown_keys_globs_relative_paths_and_unpinned_dependencies_are_refused() {
 }
 
 #[test]
-fn an_import_cycle_is_refused() {
+fn an_import_cycle_requires_change() {
     let d = tmp("cycle");
     let a = "# rce-version: 0.9\nmodule a\n\nuse b\n\npub fn f() -> i64\n    return 1\n";
     let b = "# rce-version: 0.9\nmodule b\n\nuse a\n\npub fn g() -> i64\n    return 2\n";
@@ -188,7 +188,7 @@ fn a_program_that_uses_the_library_pins_it_as_the_dependency_stdlib() {
 }
 
 #[test]
-fn a_wrong_library_hash_and_a_dependency_named_after_a_library_module_are_refused() {
+fn a_wrong_library_hash_and_a_dependency_named_after_a_library_module_require_change() {
     let d = tmp("stdlib-wrong");
     std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();
@@ -235,7 +235,7 @@ fn the_library_hash_is_over_the_canonical_json_of_its_manifest() {
 }
 
 #[test]
-fn a_dependency_named_after_a_library_namespace_is_refused_with_its_reason() {
+fn a_dependency_named_after_a_library_namespace_requires_change_with_its_reason() {
     let d = tmp("stdlib-namespace");
     std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();

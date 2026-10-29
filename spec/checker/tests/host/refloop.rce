@@ -1,8 +1,8 @@
 module refloop
 
 intent "a StepKept step that retries an effect whose result step is refused, which must not loop through StepKept; and an effect chain that never ends, which a stop must still end"
-    example StepKept(seq: 1, cause: "trap") -> refusals == 1 and req == 1
-    example Go -> refused: trap("division by zero")
+    example StepKept(seq: 1, cause: "trap") -> kept_outcomes == 1 and req == 1
+    example Go -> kept: trap("division by zero")
     example Endless -> endless and req == 1
     example Endless, RandomDone(req: 1, status: "failed", data: none, err: "no adapter") -> req == 2
 
@@ -17,12 +17,12 @@ event StepKept(seq: u64, cause: text)
 
 state S
     zero: u64 = 0
-    refusals: u64 = 0
+    kept_outcomes: u64 = 0
     req: u64 = 0
     endless: bool = false
 
 step S on Go
-    refusals = refusals / zero
+    kept_outcomes = kept_outcomes / zero
 
 step S on Endless
     endless = true
@@ -30,7 +30,7 @@ step S on Endless
     emit Random(req: req, n: 1)
 
 step S on StepKept(seq: _q, cause: _c)
-    refusals += 1
+    kept_outcomes += 1
     req += 1
     emit Random(req: req, n: 1)
 
@@ -39,4 +39,4 @@ step S on RandomDone(_, _, _, _)
         req += 1
         emit Random(req: req, n: 1)
     else
-        refusals = refusals / zero
+        kept_outcomes = kept_outcomes / zero

@@ -3,13 +3,13 @@ fn main()
 #--- rce-test
 # id: tooling/run-main-ok
 # area: tooling
-# clauses: [CH12-M-6760dd1f, CH12-M-6e12b079]
+# clauses: [CH12-M-6760dd1f, CH12-M-b922b8eb]
 # expect: cli
 # argv: ["run", "main.rce"]
 # status: 0
 # output_has:
 #   - emit 2
 # output_lacks:
-#   - REFUSED
+#   - requires change
 # provenance: targeted (round 3): 10.3, the control: a checked module with fn main() runs
 #---

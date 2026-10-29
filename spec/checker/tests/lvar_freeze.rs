@@ -72,7 +72,7 @@ fn agree(tag: &str, src: &str) -> Vec<String> {
 }
 
 
-fn refused(src: &str, rule: &str) -> String {
+fn kept(src: &str, rule: &str) -> String {
     let r = check_program(&[("t.rce".into(), src.to_string())], false);
     match &r[0].1 {
         Ok(()) => panic!("accepted, expected {rule}:\n{src}"),
@@ -254,7 +254,7 @@ fn no_top() -> i64
 
 #[test]
 fn w_lvar_2_decides_literal_sets() {
-    refused(
+    kept(
         "fn f() -> i64
     let x = lvar_new(0, 100)
     x.put(5)
@@ -262,7 +262,7 @@ fn w_lvar_2_decides_literal_sets() {
 ",
         "W-LVAR-2",
     );
-    let e = refused(
+    let e = kept(
         &format!("{LVL}
 fn g() -> i64
     let x = lvar_new(Lo)
@@ -273,7 +273,7 @@ fn g() -> i64
     );
     assert!(e.contains("compatible"), "{e}");
     // a symbolic set over finite values: every combination is decided
-    let e = refused(
+    let e = kept(
         "fn f(b: bool) -> i64
     let x = lvar_new(0, 100)
     x.put(5)
@@ -283,7 +283,7 @@ fn g() -> i64
     );
     assert!(e.contains("can be, on some input"), "{e}");
     // a parameter of a finite kind ranges over every variant (type-directed)
-    let e = refused(
+    let e = kept(
         &format!("{LVL}
 fn g(t: Lvl) -> i64
     let x = lvar_new(Lo)
@@ -314,7 +314,7 @@ fn g(t: Lvl) -> i64
 #[test]
 fn w_lvar_1_is_closed_under_aliasing() {
     // an alias made before the par
-    refused(
+    kept(
         "fn f() -> i64
     let x = lvar_new(0)
     let y = x
@@ -329,7 +329,7 @@ fn w_lvar_1_is_closed_under_aliasing() {
         "W-LVAR-1",
     );
     // a helper that freezes its parameter
-    refused(
+    kept(
         "fn peek(z: lvar i64) -> i64 = z.freeze()
 
 fn f() -> i64
@@ -345,7 +345,7 @@ fn f() -> i64
         "W-LVAR-1",
     );
     // a helper that puts, two calls deep, and a freeze through a parameter name
-    refused(
+    kept(
         "fn add(z: lvar i64, v: i64)
     z.put(v)
 
@@ -364,7 +364,7 @@ fn f(x: lvar i64) -> i64
         "W-LVAR-1",
     );
     // a name rebound from a fresh lvar to an outside one
-    refused(
+    kept(
         "fn f() -> i64
     let x = lvar_new(0)
     var r: i64 = 0
@@ -380,7 +380,7 @@ fn f(x: lvar i64) -> i64
         "W-LVAR-1",
     );
     // for ... par: a freeze of the outside lvar in the body
-    refused(
+    kept(
         "fn f() -> i64
     let x = lvar_new(0)
     var s: i64 = 0
@@ -441,7 +441,7 @@ fn main()
         admitted(p);
     }
     // lawful (bitwise or is a join) but not built from the combinators: no certificate
-    let e = refused(
+    let e = kept(
         "struct Bits
     v: i64
 
@@ -455,7 +455,7 @@ impl Merge for Bits
     );
     assert!(e.contains("no W-CRDT-1 certificate"), "{e}");
     // selection that keeps a non-key field on ties is not lawful: no certificate
-    let e = refused(
+    let e = kept(
         "struct Tag
     ts: i64
     who: i64
@@ -472,7 +472,7 @@ impl Merge for Tag
     );
     assert!(e.contains("not commutative") || e.contains("no W-CRDT-1 certificate"), "{e}");
     // unlawful: refuted with a counterexample
-    let e = refused(
+    let e = kept(
         "kind Ab
     P
     Q
@@ -526,7 +526,7 @@ fn main()
         assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
     }
     // a value type without Merge is refused at check time
-    let e = refused(
+    let e = kept(
         "fn f() -> i64
     let m: Map[text, text] = {\"a\": \"x\"}
     let n = m.merge({\"a\": \"y\"})
@@ -569,11 +569,11 @@ fn sets_are_their_own_value() {
 /// only when every field has a Merge, recursively.
 #[test]
 fn struct_merge_needs_every_field() {
-    let e = refused("struct P\n    n: i64\n    s: text\n\nfn f() -> i64\n    let x = lvar_new(P(n: 0, s: \"\"))\n    return 0\n", "W-CRDT-1");
+    let e = kept("struct P\n    n: i64\n    s: text\n\nfn f() -> i64\n    let x = lvar_new(P(n: 0, s: \"\"))\n    return 0\n", "W-CRDT-1");
     assert!(e.contains("field `s` of P"), "{e}");
-    let e = refused("struct In\n    t: text\n\nstruct Out\n    a: i64\n    b: In\n\nfn f() -> i64\n    let x = lvar_new(Out(a: 0, b: In(t: \"\")))\n    return 0\n", "W-CRDT-1");
+    let e = kept("struct In\n    t: text\n\nstruct Out\n    a: i64\n    b: In\n\nfn f() -> i64\n    let x = lvar_new(Out(a: 0, b: In(t: \"\")))\n    return 0\n", "W-CRDT-1");
     assert!(e.contains("field `b` of Out: field `t` of In"), "{e}");
-    let e = refused("struct Q\n    m: Map[text, text]\n\nfn f() -> i64\n    let x = lvar_new(Q(m: {\"a\": \"b\"}))\n    return 0\n", "W-CRDT-1");
+    let e = kept("struct Q\n    m: Map[text, text]\n\nfn f() -> i64\n    let x = lvar_new(Q(m: {\"a\": \"b\"}))\n    return 0\n", "W-CRDT-1");
     assert!(e.contains("field `m` of Q: its values"), "{e}");
     // every field has one: nested structs, sets of text, maps of ints, options
     let ok = "struct In\n    k: i64\n    up: bool\n\nstruct Out\n    a: In\n    tags: Set[text]\n    m: Map[text, i64]\n    o: i64?\n\nfn main()\n    let x = lvar_new(Out(a: In(k: 0, up: false), tags: set_of([]), m: {\"z\": 0}, o: none))\n    x.put(Out(a: In(k: 3, up: false), tags: set_of([\"b\"]), m: {\"z\": 2}, o: some(4)))\n    x.put(Out(a: In(k: 1, up: true), tags: set_of([\"a\"]), m: {\"y\": 1}, o: some(2)))\n    let v = x.freeze()\n    emit v.a.k\n    emit v.a.up\n    emit v.tags.tolist()\n    emit v.o\n    emit v.m\n";

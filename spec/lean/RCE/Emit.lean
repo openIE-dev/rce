@@ -101,7 +101,7 @@ def updK (ks : Nat → Nat) (d n : Nat) : Nat → Nat := fun j => if j = d then 
 inductive Flow where
   | normal (st : St)
   | brk (st : St)
-  | ret (r : Refusal)
+  | ret (r : Reason)
 
 /-- Big-step semantics of MiniRust, as Rust runs it. -/
 inductive RExec (args : List Val) : RS → St → Flow → Prop where

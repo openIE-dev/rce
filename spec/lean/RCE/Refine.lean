@@ -9,7 +9,7 @@
     Theorems: `holds_total` (the check decides), `fit_sound` (a value that
     passes the boundary satisfies p), `refine_preserved` (every state
     reachable by the checked δ from an initial state satisfying the field
-    predicates satisfies them), `refine_refused_unchanged`. -/
+    predicates satisfies them), `refine_kept_unchanged`. -/
 namespace RCE.Refine
 
 inductive Cmp | lt | le | gt | ge | eq | ne
@@ -105,7 +105,7 @@ theorem refine_preserved {E : Type} (ps : List Pred) (d : List Obs → E → Opt
   | nil => exact h
   | cons e es ih => exact ih _ (refine_step ps d s0 e h)
 
-theorem refine_refused_unchanged {E : Type} (ps : List Pred)
+theorem refine_kept_unchanged {E : Type} (ps : List Pred)
     (d : List Obs → E → Option (List Obs)) (s s' : List Obs) (e : E)
     (hd : d s e = some s') (hn : ¬ Inv ps s') : checked ps d s e = s := by
   unfold checked; rw [hd]; simp [hn]

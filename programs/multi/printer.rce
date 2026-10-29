@@ -2,9 +2,9 @@
 # and a unit of toner; the printer says how many jobs remain.
 intent "a printer that prints while it has jobs and toner"
     example Submit, Submit, Print -> jobs == 1 and toner == 1
-    example Print -> refused: NoJobs
-    example Submit, Submit, Submit, Print, Print, Print -> refused: NoToner
-    example Submit, Submit, Submit, Submit -> refused: QueueFull
+    example Print -> kept: NoJobs
+    example Submit, Submit, Submit, Print, Print, Print -> kept: NoToner
+    example Submit, Submit, Submit, Submit -> kept: QueueFull
 
 state Queue
     jobs: u8 = 0

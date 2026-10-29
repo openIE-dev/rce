@@ -874,7 +874,7 @@ fn main() {
         if !d.is_empty() {
             inc(&mut stats, "refused by checker (replaced, not compared)", 1);
             let rule = d[0].1.split_whitespace().find(|w| w.starts_with("W-")).unwrap_or("other").to_string();
-            inc(&mut stats, &format!("  refused: {rule}"), 1);
+            inc(&mut stats, &format!("  kept: {rule}"), 1);
             if fail_log.len() < 10 {
                 fail_log.push(d[0].1.clone());
             }
@@ -895,7 +895,7 @@ fn main() {
                 continue;
             }
         };
-        if run.refused {
+        if run.kept {
             inc(&mut stats, "logs refused at some event", 1);
         }
         let full = with_example(&src, &log);

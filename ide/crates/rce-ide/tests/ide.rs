@@ -81,7 +81,7 @@ fn stdio_and_in_process_language_server_agree() {
 }
 
 #[test]
-fn proposals_accept_reject_and_refuse_with_receipts() {
+fn proposals_accept_reject_and_require_change_with_receipts() {
     let (_t, mut ide) = ws(false);
     let ok = ide.propose("counter.rce", "mei g1", "add Reset", good());
     let bad = ide.propose("counter.rce", "mei g3", "break it", edits(serde_json::json!([{"op": "replace_item", "name": "step Counter on Inc", "text": "step Counter on Nope -> n"}])));
@@ -102,7 +102,7 @@ fn proposals_accept_reject_and_refuse_with_receipts() {
         "editor reloads after accept"
     );
     ide.apply(Action::Accept(bad)).unwrap();
-    let ProposalStatus::Refused {
+    let ProposalStatus::RequiresChange {
         diagnostics,
         receipt,
     } = &ide.proposals[1].status

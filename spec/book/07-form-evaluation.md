@@ -26,7 +26,7 @@ P = (S, E, δ, D, λ) is:
 - **δ : S × E → S × O\*** (state and the outputs of the step) is defined in
   6.4. It is a total function (T2).
 - **λ** maps each step to its output sequence O\*: values `emit`ted, and for a
-  refused event the record `Refused(X, payload)`.
+  refused event the record `Kept(X, payload)`.
 - **D** is the log: the sequence of admitted events e₁, e₂, …, each entry with
   its outcome (applied, or refused with X). The fold law: the state after the
   log is sₙ = foldl(δ₁, s₀, D) where δ₁ is the state component of δ.
@@ -492,4 +492,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: ae975bf1f62fc55bb3be460a2aeb925f42095687b06fbb19908386d724977d24 -->
+<!-- body-sha256: d2c8c424a4caf7d186e74c94911e47b77554d7c7224a186a9c64d36914fd988a -->

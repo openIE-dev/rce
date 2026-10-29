@@ -25,7 +25,7 @@ fn tmp(name: &str, text: &str) -> String {
 const BAD: &str = "fn f() -> i64\n    \"text\"\n";
 
 #[test]
-fn check_accepts_and_refuses() {
+fn check_accepts_or_requires_change() {
     assert_eq!(
         rce(&["check", COUNTER]),
         (0, format!("ok {COUNTER}\n"), String::new())
@@ -33,7 +33,7 @@ fn check_accepts_and_refuses() {
     let p = tmp("bad.rce", BAD);
     let (c, out, _) = rce(&["check", &p]);
     assert_eq!(c, 1);
-    assert!(out.starts_with(&format!("REFUSED {p}: line ")), "{out}");
+    assert!(out.starts_with(&format!("requires change {p}: line ")), "{out}");
     assert!(out.contains("W-TY-1"), "{out}");
 }
 
@@ -46,7 +46,7 @@ fn check_usage_and_missing_file() {
 }
 
 #[test]
-fn run_events_prints_each_state_and_stops_at_refusal() {
+fn run_events_prints_each_state_and_stops_at_kept() {
     let (c, out, _) = rce(&["run", COUNTER, "Inc, Inc, Dec"]);
     assert_eq!(c, 0);
     assert_eq!(
@@ -57,7 +57,7 @@ fn run_events_prints_each_state_and_stops_at_refusal() {
     assert_eq!(c, 1);
     assert_eq!(
         out,
-        "0 (initial) Counter { n = 0 }\n1 Dec refused: Underflow\n"
+        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n"
     );
 }
 

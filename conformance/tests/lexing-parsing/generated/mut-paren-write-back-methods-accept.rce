@@ -45,7 +45,7 @@ fn paren_zz() -> i64
 # id: lexing-parsing/generated/mut-paren-write-back-methods-accept
 # area: lexing-parsing
 # clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
-# expect: reject
+# expect: change
 # diagnostic: W-SYN-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `paren` of write-back-methods-accept

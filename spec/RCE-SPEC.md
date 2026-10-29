@@ -111,12 +111,12 @@ The normative grammar is section 3, and it is also the machine-readable one:
 `rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
-`spec/examples/` and requires every program in `spec/examples/reject/` to be
+`spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
 refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
-programs in `spec/examples/ill_typed/` and the 16 in
-`spec/examples/inadmissible/` must be refused). Current result (draft 0.9,
+programs in `spec/examples/change/types/` and the 16 in
+`spec/examples/change/admission/` must be refused). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
@@ -246,10 +246,10 @@ elif      else      emit      error     event     example   extern
 fail      false     fn        for       forall    from      if
 impl      in        intent    iter      kind      let       linear
 loop      match     module    mut       none      not       on
-or        pass      pub       recv      refused   return    select
-self      send      spawn     state     step      struct    then
-to        trait     true      try       type      use       var
-while     with      yield
+or        pass      pub       recv      return    select    self
+send      spawn     state     step      struct    then      to
+trait     true      try       type      use       var       while
+with      yield
 ```
 
 **One reserved list.** The language has one closed list of reserved words, the same in every module,
@@ -376,7 +376,7 @@ IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT 
 IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
-Outcome     = Expr | "refused" ":" ( NAME | "trap" "(" STRING ")" ) .
+Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
 ```
 
@@ -628,7 +628,7 @@ declaration and no conflict to resolve at parse time.
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/reject/` (tab indent, chained
+3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
@@ -820,7 +820,7 @@ make acceptance itself unbounded. Example: `type Pct = u8 where self <=
 `refinement: value is outside Pct`, and a step computing `level + 60` on
 `level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
 (`holds_total`, `fit_sound`, `refine_preserved`,
-`refine_refused_unchanged`, `admit_sound`; T35).
+`refine_kept_unchanged`, `admit_sound`; T35).
 
 **Error sets.** In `τ ! ε`, ε is a finite set of declared `error` names,
 written as one error name or as the name of a `kind` whose variants are all
@@ -1364,7 +1364,7 @@ P = (S, E, δ, D, λ) is:
 - **δ : S × E → S × O\*** (state and the outputs of the step) is defined in
   6.4. It is a total function (T2).
 - **λ** maps each step to its output sequence O\*: values `emit`ted, and for a
-  refused event the record `Refused(X, payload)`.
+  refused event the record `Kept(X, payload)`.
 - **D** is the log: the sequence of admitted events e₁, e₂, …, each entry with
   its outcome (applied, or refused with X). The fold law: the state after the
   log is sₙ = foldl(δ₁, s₀, D) where δ₁ is the state component of δ.
@@ -1875,8 +1875,8 @@ declaration order. Outputs are concatenated in declaration order.
 ### 6.5 Errors, traps and refusals
 
 A `fail X(…)` or a trap inside a step refuses the event: the state is
-unchanged, the log records the event with outcome `refused(X)` and λ outputs
-`Refused`. Nothing is thrown past a step; no event is dropped silently. In a
+unchanged, the log records the event with outcome `kept(X)` and λ outputs
+`Kept`. Nothing is thrown past a step; no event is dropped silently. In a
 pure function called from comptime, refusal is a compile error. In `main`, a
 trap or unhandled failure ends the command with the refusal as its output.
 
@@ -2063,8 +2063,8 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> refused: X` the last event is
-refused with the error X, for `-> refused: trap("K")` the last event is
+a final step whose outcome is o, where for `-> kept: X` the last event is
+refused with the error X, for `-> kept: trap("K")` the last event is
 refused by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
@@ -2316,7 +2316,7 @@ Classical.choice). Status per theorem:
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
-| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |
+| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is injective and fixes undeclared names, hence the state hash and the whole entry chain for every hash function, and that its event index is the `idx` the De Bruijn model hashes | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent`, `Positional.pos_rename`, `Positional.chain_name_independent`, `Positional.eventIndex_eq_idx` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
@@ -2328,7 +2328,7 @@ Classical.choice). Status per theorem:
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
 | T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |
 | T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
-| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
+| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_kept_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
 | T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
@@ -2570,7 +2570,7 @@ each can be reversed independently.
    unchanged.** Stricter than "every (region, event) pair", looser than "every
    event in every region"; catches typos without boilerplate.
 6. **Errors refuse the event and leave state unchanged** (`example … ->
-   refused: X`), and are logged and output, never thrown.
+   kept: X`), and are logged and output, never thrown.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
@@ -3009,7 +3009,7 @@ the order given, one line is printed:
 
 ```
 ok FILE
-REFUSED FILE: line N: RULE message[; line M: RULE message ...]
+requires change FILE: line N: RULE message[; line M: RULE message ...]
 ```
 
 Every refusal names its rule from section 7. Exit status 1 if any file is
@@ -3017,7 +3017,7 @@ refused, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
-The file must pass `rce check` alone; otherwise one `REFUSED` line is
+The file must pass `rce check` alone; otherwise one `requires change` line is
 printed and the status is 1.
 
 **With EVENTS.** EVENTS is written exactly as the event list of an
@@ -3034,9 +3034,9 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If δ refuses eₖ, the line
-is `k EVENT refused: ERROR`, no later event is applied, and the status is
+is `k EVENT kept: ERROR`, no later event is applied, and the status is
 1. Otherwise the status is 0. An event name that is not declared is a usage
-of a wrong event list: one `REFUSED` line, status 1.
+of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
@@ -3047,13 +3047,13 @@ $ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
 parameters. The command evaluates its body by the rules of section 6 and
 prints `emit VALUE` for each value emitted, in order. If the body traps or
-fails, the last line is `refused: REASON` and the status is 1. Calls to
+fails, the last line is `kept: REASON` and the status is 1. Calls to
 foreign functions (5.11) are not executed by the reference evaluator and
 trap. If there is no `fn main()`, the command says so and the status is 1.
 
@@ -3234,7 +3234,7 @@ instead evaluates `fn main` with tasks, channels, `select`, actors and
 JavaScript), and one scheduler admits their moves tick by tick in the
 order of `conc::run_main`, the reference of `rce run` without EVENTS. It
 prints `emit VALUE` per output and the line `outcome Done`,
-`outcome Deadlock` or `outcome Refused: REASON`. A module without
+`outcome Deadlock` or `outcome Stopped: REASON`. A module without
 `fn main()` prints the reference's message ("nothing to run") on standard
 error and exits with status 1, as `rce run` does. Fuel follows the reference's
 pools: each task has its own, starting full (its first ticks are the call
@@ -3313,7 +3313,7 @@ numbers dropped. The formatter is a function fmt on texts with:
 
 1. **Meaning preserved.** tok(fmt(t)) = tok(t). The formatter checks this
    equality on every file before writing it; if it would fail, the file is
-   left unchanged, a `REFUSED` line is printed and the status is 1.
+   left unchanged, a `requires change` line is printed and the status is 1.
 2. **Canonical layout.** In fmt(t): a block that is k levels deep starts its
    lines with exactly 4k spaces; no line has trailing spaces; there are no
    blank lines before the first line, no two blank lines in a row, and the
@@ -3473,7 +3473,7 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
 | `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} with the positional form of the event |
-| `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+| `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
 A refused event is the last step of its trace, with the unchanged state's
@@ -3509,9 +3509,9 @@ An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
 module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
-`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`refused_files` maps each refused file to its diagnostics. With
+`pending_files` maps each refused file to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -3572,7 +3572,7 @@ is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
 emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `refuses` reported separately, since a refusal is the rejection
+`emits` and `keeps` reported separately, since a refusal is the rejection
 of an input and an emitted value is the program's answer), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
@@ -3581,7 +3581,7 @@ readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
+sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
@@ -3859,7 +3859,7 @@ not on a proof.
   block writes at entry (struct fields and state fields are locals of
   the emitted step) and restore them on the trap. Checked by
   `spec/checker/tests/conc06_run.rs` (`budget_else_catches`,
-  `budget_else_refuses_undoable_effects`), `emit_run.rs`
+  `budget_else_with_undoable_effects_requires_change`), `emit_run.rs`
   (`budget_else_*`, reference against the Rust, Python and JavaScript
   runtimes) and `emit06b.rs` (`budget_else_is_atomic_on_every_target`,
   the limit swept across the block's cost on all four targets).
@@ -4265,7 +4265,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   supervisor; it supervises every actor whose type is one of its
   children, so the set an actor belongs to is fixed by the program, not
   by spawn order. When a handler of such an actor refuses its message
-  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  (a trap or a `fail`), the run log records `Kept(reason)`, then
   `Restart(child, instance, reason, tick t, k)`, where `instance` is the
   actor's id (6.6) and k counts this child's restarts in the window
   below. The strategy then resets the region of the failed actor
@@ -4276,7 +4276,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
   count, otherwise every restart of the run counts; more than the
   child's `restart bound` stops the supervisor with `Stopped(supervisor
-  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  S)` and the run ends `Stopped`. Mailbox policy: a restarted actor keeps
   its mailbox, since Form law 3 drops no message; only the message that
   failed is consumed, and it is logged as refused. A handler that fails
   inside `atomic` (C.11.10) leaves every handler of the batch
@@ -4298,7 +4298,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   `restart_is_an_input_replay_consumes`: replay reproduces the log,
   logged decisions govern under a changed bound, an edited decision is
   applied as logged, a mismatched one diverges) and `emit_run.rs`
-  `actor_refusals_match` (the Rust, Python and JavaScript runtimes take
+  `actor_kept_outcomes_match` (the Rust, Python and JavaScript runtimes take
   the same decisions as the reference, with and without a window) and
   `restart_inputs_replay_on_every_target` (each runtime prints its
   decisions with `--restart-log`, replays a logged list given as
@@ -5446,7 +5446,7 @@ both enter D and reach the program as inputs.
   its `host.Term` (HC-19), before anything else is appended; no snapshot
   (HS-5) is taken while D owes them. `rce host replay` and the validation
   after every run report the number of refused entries, and replay prints
-  the cause and text of each. Reference: `Host::refused`,
+  the cause and text of each. Reference: `Host::kept`,
   `interp::Cause`.
 - **HC-22 A restart is an input, and ids are never reused.** Adapter
   resources (sockets, terminals, media tracks) belong to one host process.
@@ -6007,13 +6007,13 @@ is cited by a test.
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
-| HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
+| HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_blocks_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, HD-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_is_delivered_as_text` |
-| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
-| HC-21, HD-4 | refusals are inputs, matched by field name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
+| HC-10b | typed inputs are inputs | `tests/host_kept.rs`: `typed_step_kept_is_admitted_and_marked`, `replay_detects_a_forged_host_step_kept`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
+| HC-21, HD-4 | refusals are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
-| HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 

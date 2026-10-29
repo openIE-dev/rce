@@ -1,0 +1,17 @@
+const LOOP_LIMIT: u64 = 10
+
+fn count(n: u64) -> u64
+    var k: u64 = 0
+    while k < n
+        k += 1
+    return k
+
+check count(20) == 20
+#--- rce-test
+# id: evaluation-fuel/harvested/loop-limit-low-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: change
+# diagnostic: W-INT-1
+# provenance: harvested examples/change/admission/loop_limit_low.rce
+#---

@@ -78,7 +78,7 @@ fn emitted_sql_loads_into_sqlite() {
 }
 
 #[test]
-fn typed_schema_refuses_bad_rows_and_index_matches_scan() {
+fn typed_schema_keeps_the_state_on_bad_rows_and_index_matches_scan() {
     let p = tmp("typed");
     let mut db = Db::open(&p).unwrap();
     db.insert("free", "x", "anything").unwrap();
@@ -130,7 +130,7 @@ fn rce_db_cli() {
     assert_eq!(run(&["insert", "u", "b", "Bob\t7"]).0, 0);
     let (c, o) = run(&["insert", "u", "c", "Cy\tseven"]);
     assert_eq!(c, 1, "{o}");
-    assert!(o.starts_with("REFUSED"), "{o}");
+    assert!(o.starts_with("KEPT"), "{o}");
     assert_eq!(run(&["index", "u", "age"]).0, 0);
     assert_eq!(run(&["lookup", "u", "age", "7"]).1, "b\tBob\t7\n");
     assert_eq!(run(&["scan", "u"]).1, "b\tBob\t7\n");

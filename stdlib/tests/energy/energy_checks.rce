@@ -75,7 +75,7 @@ fn rejects(_why: text, e: text) -> bool
     let o = open_envelope(&b) catch OpenedReceipt(receipt: sample(99), prot: [], payload: [], kid: "refused", sig: [])
     return o.kid == "refused"
 
-fn mint_refused() -> bool
+fn mint_fails() -> bool
     var r = sample(0)
     r.profile = "jcp/1"
     let a = receipt_core(&r) catch [7]
@@ -110,7 +110,7 @@ fn conf_ok(e: text, core: text, w: Receipt) -> bool
     let again = if w.profile == "jcp/2" then (receipt_core(&w) catch []) else copy(c)
     return o.payload == c and o.receipt == w and again == c and o.kid == w.steward
 
-check mint_refused()
+check mint_fails()
 check bad_dids()
 # remaining budget follows the stream (allow debits, deny does not)
 fn conserve_ok() -> bool

@@ -51,7 +51,7 @@ pub enum ProposalStatus {
         receipt: String,
     },
     /// The checker refused it on accept; nothing was written.
-    Refused {
+    RequiresChange {
         diagnostics: Vec<String>,
         receipt: Option<String>,
     },
@@ -112,7 +112,7 @@ impl ReceiptRow {
             delta_j: r.body.delta_j,
             verdict: match &d.verdict {
                 Verdict::Pass => "pass".into(),
-                Verdict::Refused { .. } => "refused".into(),
+                Verdict::RequiresChange { .. } => "requires change".into(),
                 Verdict::Rejected { .. } => "rejected".into(),
                 v => format!("{v:?}").to_lowercase(),
             },
