@@ -13,8 +13,8 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `05-types-ownership.md` | `9bf4da7ffa7afa6304e34a4b9a523bad2c22f667eabfe0dcc63d66a6514199aa` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb` | What kind of channel does a capacity of 0 give? (one word) |
 | `07-form-evaluation.md` | `0dc0c2af67c908c2000eb760a3f14aa6dabf408b6729723fe42b4fcd39f788a8` | Which JavaScript function is named for rounding to binary32? |
-| `08-steps-loops-concurrency.md` | `6e403282d3fe412ba0ac3a00a518a340e3b1337b0978399aeaba3b2571c162ad` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `d3f925d7b7230629754f2574572ec5c4c10b0d7d655060f420d6d0b5ee9f5182` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
+| `08-steps-loops-concurrency.md` | `3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811` | Name-free hashing uses indices named after which logician? (two words) |
+| `09-wellformedness.md` | `515463b2081ca4bbf0514f709572c0de1e3ddfa3a5e2c92a952035a4fe9058ff` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
 | `10-theorems.md` | `86c527f15354073e564232027b6775535873033fe643ebc8f86c43e51f4fc626` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 078013f559a9ece7b6c24ae147451ed2e847809e465d9176314bd1dce33f37bb -->
+<!-- body-sha256: 4736d06b4d90d52ab2e9d92dafa1cd4b3536f3511d4a8f1dd856d8ca468945a8 -->
