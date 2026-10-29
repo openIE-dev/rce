@@ -1,0 +1,617 @@
+# The runtime library of the Python 3.13 lift (spec/lift/python/lift_py.py).
+# Each definition states one rule of the Python Language Reference or of the
+# library reference for the values of the lifted subset: integers that stay
+# inside i64, text of code points, lists, and dictionaries kept as two
+# lists in insertion order. A definition either gives CPython's result or
+# traps (an index out of range, a key that is missing, an integer outside
+# i64, a character the definition does not carry); none gives a different
+# value. The lifter copies the definitions a lifted program calls into it.
+
+# An index of a sequence of n items (Python counts a negative index from the
+# end; an index out of range raises IndexError, here a trap).
+fn py_ix(i: i64, n: usize) -> usize
+    let m = n as i64
+    let j = if i < 0 then i + m else i
+    check j >= 0 and j < m
+    return j as usize
+
+# a // b rounds toward negative infinity (expressions.html#binary-arithmetic-operations).
+fn py_floordiv(a: i64, b: i64) -> i64
+    let q = a / b
+    if a % b != 0 and ((a < 0) != (b < 0))
+        return q - 1
+    return q
+
+# a % b has the sign of b.
+fn py_mod(a: i64, b: i64) -> i64
+    let r = a % b
+    if r != 0 and ((r < 0) != (b < 0))
+        return r + b
+    return r
+
+# a ** b for b >= 0 (a negative b gives a float in Python, here a trap).
+fn py_pow(a: i64, b: i64) -> i64
+    check b >= 0
+    var r: i64 = 1
+    var x = a
+    var e = b
+    while e > 0 bound 64
+        if e % 2 == 1
+            r = r * x
+        e = e / 2
+        if e > 0
+            x = x * x
+    return r
+
+# pow(a, b, m) for b >= 0 and m > 0.
+fn py_powmod(a: i64, b: i64, m: i64) -> i64
+    check b >= 0 and m > 0
+    var r: i64 = py_mod(1, m)
+    var x = py_mod(a, m)
+    var e = b
+    while e > 0 bound 64
+        if e % 2 == 1
+            r = py_mod(r * x, m)
+        e = e / 2
+        x = py_mod(x * x, m)
+    return r
+
+# a << b: a times 2 ** b; a negative count raises ValueError (a trap).
+fn py_shl(a: i64, b: i64) -> i64
+    check b >= 0
+    if a == 0
+        return 0
+    return a * py_pow(2, b)
+
+# a >> b: a divided by 2 ** b, rounded toward negative infinity.
+fn py_shr(a: i64, b: i64) -> i64
+    check b >= 0
+    if b >= 63
+        return if a < 0 then -1 else 0
+    return a >> b
+
+fn py_str_b(b: bool) -> text = if b then "True" else "False"
+
+# The number of items of range(a, b, s) (library/stdtypes.html#range).
+fn py_rlen(a: i64, b: i64, s: i64) -> i64
+    check s != 0
+    if s > 0
+        return if b > a then (b - a + s - 1) / s else 0
+    return if a > b then (a - b - s - 1) / (0 - s) else 0
+
+fn py_range(a: i64, b: i64, s: i64) -> List[i64]
+    var o: List[i64] = []
+    for k in 0..py_rlen(a, b, s)
+        o.push(a + k * s)
+    return o
+
+# The code point of a one-character text, from its UTF-8 bytes.
+fn py_ord(c: text) -> i64
+    check c.len_chars() == 1
+    let b0 = c[0] as i64
+    if b0 < 128
+        return b0
+    if b0 < 224
+        return (b0 - 192) * 64 + (c[1] as i64 - 128)
+    if b0 < 240
+        return (b0 - 224) * 4096 + (c[1] as i64 - 128) * 64 + (c[2] as i64 - 128)
+    return (b0 - 240) * 262144 + (c[1] as i64 - 128) * 4096 + (c[2] as i64 - 128) * 64 + (c[3] as i64 - 128)
+
+# chr(n); a surrogate has no UTF-8 form, so it traps.
+fn py_chr(n: i64) -> text
+    check n >= 0 and n <= 1114111 and (n < 55296 or n > 57343)
+    var b: List[i64] = []
+    if n < 128
+        b.push(n)
+    elif n < 2048
+        b.push(192 + n / 64)
+        b.push(128 + n % 64)
+    elif n < 65536
+        b.push(224 + n / 4096)
+        b.push(128 + (n / 64) % 64)
+        b.push(128 + n % 64)
+    else
+        b.push(240 + n / 262144)
+        b.push(128 + (n / 4096) % 64)
+        b.push(128 + (n / 64) % 64)
+        b.push(128 + n % 64)
+    return b.utf8()
+
+fn py_str_at(s: text, i: i64) -> text
+    let cs = s.chars()
+    return copy(cs[py_ix(i, cs.len())])
+
+# s * n and n * s.
+fn py_rep_s(s: text, n: i64) -> text
+    var o = ""
+    for _k in 0..n
+        o = o + copy(s)
+    return o
+
+# The indices a slice [lo:hi:st] selects in a sequence of n items
+# (reference/datamodel.html, slice.indices).
+fn py_slice_ix(n: i64, lo: i64, hi: i64, st: i64, has_lo: bool, has_hi: bool) -> List[i64]
+    check st != 0
+    var o: List[i64] = []
+    if st > 0
+        var a = if has_lo then lo else 0
+        var b = if has_hi then hi else n
+        if a < 0
+            a = a + n
+        if a < 0
+            a = 0
+        if a > n
+            a = n
+        if b < 0
+            b = b + n
+        if b < 0
+            b = 0
+        if b > n
+            b = n
+        for k in 0..py_rlen(a, b, st)
+            o.push(a + k * st)
+        return o
+    var a = if has_lo then lo else n - 1
+    var b = if has_hi then hi else -1
+    if has_lo and a < 0
+        a = a + n
+    if a < -1
+        a = -1
+    if a > n - 1
+        a = n - 1
+    if has_hi and b < 0
+        b = b + n
+    if b < -1
+        b = -1
+    if b > n - 1
+        b = n - 1
+    for k in 0..py_rlen(a, b, st)
+        o.push(a + k * st)
+    return o
+
+fn py_slice[T](xs: &List[T], lo: i64, hi: i64, st: i64, has_lo: bool, has_hi: bool) -> List[T]
+    var o: List[T] = []
+    for i in py_slice_ix(xs.len() as i64, lo, hi, st, has_lo, has_hi)
+        o.push(copy(xs[i as usize]))
+    return o
+
+fn py_slice_s(s: text, lo: i64, hi: i64, st: i64, has_lo: bool, has_hi: bool) -> text
+    let cs = s.chars()
+    return "".join(py_slice(&cs, lo, hi, st, has_lo, has_hi))
+
+fn py_cat[T](a: List[T], b: List[T]) -> List[T]
+    var o = a
+    for x in b
+        o.push(copy(x))
+    return o
+
+# [x] * n
+fn py_rep_l[T](a: List[T], n: i64) -> List[T]
+    var o: List[T] = []
+    for _k in 0..n
+        for x in a
+            o.push(copy(x))
+    return o
+
+fn py_pop_last[T](xs: &mut List[T]) -> T
+    check xs.len() > 0
+    let r = copy(xs[xs.len() - 1])
+    let _ = xs.pop()
+    return r
+
+fn py_pop_at[T](xs: &mut List[T], i: i64) -> T
+    let j = py_ix(i, xs.len())
+    let r = copy(xs[j])
+    var o: List[T] = []
+    for k in 0..xs.len()
+        if k != j
+            o.push(copy(xs[k]))
+    xs = o
+    return r
+
+# list.insert clamps the index to the list (library/stdtypes.html#mutable-sequence-types).
+fn py_insert[T](xs: &mut List[T], i: i64, x: T)
+    let n = xs.len() as i64
+    var j = if i < 0 then i + n else i
+    if j < 0
+        j = 0
+    if j > n
+        j = n
+    var o: List[T] = []
+    for k in 0..n
+        if k == j
+            o.push(copy(x))
+        o.push(copy(xs[k as usize]))
+    if j == n
+        o.push(copy(x))
+    xs = o
+
+fn py_extend[T](xs: &mut List[T], ys: List[T])
+    for y in ys
+        xs.push(copy(y))
+
+fn py_index[T: Eq](xs: &List[T], x: T) -> i64
+    for k in 0..xs.len()
+        if xs[k] == x
+            return k as i64
+    check false
+    return -1
+
+fn py_count[T: Eq](xs: &List[T], x: T) -> i64
+    var n: i64 = 0
+    for y in xs
+        if y == x
+            n += 1
+    return n
+
+fn py_remove[T: Eq](xs: &mut List[T], x: T)
+    let j = py_index(xs, copy(x))
+    let _ = py_pop_at(xs, j)
+
+fn py_sorted[T: Ord](xs: List[T]) -> List[T]
+    var o = xs
+    o.sort()
+    return o
+
+# sorted(xs, reverse=True): equal items are equal values here, so the
+# reversed ascending order is Python's order.
+fn py_sorted_rev[T: Ord](xs: List[T]) -> List[T]
+    var o = xs
+    o.sort()
+    return o.reverse()
+
+fn py_min2[T: Ord](a: T, b: T) -> T = if b < a then b else a
+
+fn py_max2[T: Ord](a: T, b: T) -> T = if b > a then b else a
+
+fn py_min_l[T: Ord](xs: List[T]) -> T
+    check xs.len() > 0
+    var m = copy(xs[0])
+    for x in xs
+        if x < m
+            m = copy(x)
+    return m
+
+fn py_max_l[T: Ord](xs: List[T]) -> T
+    check xs.len() > 0
+    var m = copy(xs[0])
+    for x in xs
+        if x > m
+            m = copy(x)
+    return m
+
+fn py_sum(xs: &List[i64]) -> i64
+    var s: i64 = 0
+    for x in xs
+        s += x
+    return s
+
+fn py_any(xs: List[bool]) -> bool
+    for x in xs
+        if x
+            return true
+    return false
+
+fn py_all(xs: List[bool]) -> bool
+    for x in xs
+        if not x
+            return false
+    return true
+
+fn py_enumerate[T](xs: List[T], start: i64) -> List[(i64, T)]
+    var o: List[(i64, T)] = []
+    var i = start
+    for x in xs
+        o.push((i, copy(x)))
+        i += 1
+    return o
+
+fn py_zip[A, B](a: List[A], b: List[B]) -> List[(A, B)]
+    var o: List[(A, B)] = []
+    var n = a.len()
+    if b.len() < n
+        n = b.len()
+    for k in 0..n
+        o.push((copy(a[k]), copy(b[k])))
+    return o
+
+fn py_divmod(a: i64, b: i64) -> (i64, i64) = (py_floordiv(a, b), py_mod(a, b))
+
+# Dictionaries: (keys, values) in insertion order (library/stdtypes.html#dict:
+# "Dictionaries preserve insertion order").
+fn py_dfind[K: Eq, V](d: &(List[K], List[V]), k: K) -> i64
+    for i in 0..d.0.len()
+        if d.0[i] == k
+            return i as i64
+    return -1
+
+# The place of key k; a missing key raises KeyError, here a trap.
+fn py_dix[K: Eq, V](d: &(List[K], List[V]), k: K) -> usize
+    let i = py_dfind(d, k)
+    check i >= 0
+    return i as usize
+
+fn py_dset[K: Eq, V](d: &mut (List[K], List[V]), k: K, v: V)
+    let i = py_dfind(d, copy(k))
+    if i >= 0
+        d.1[i as usize] = v
+        return
+    d.0.push(k)
+    d.1.push(v)
+
+fn py_dget_or[K: Eq, V](d: &(List[K], List[V]), k: K, dflt: V) -> V
+    let i = py_dfind(d, k)
+    if i < 0
+        return dflt
+    return copy(d.1[i as usize])
+
+fn py_dpop[K: Eq, V](d: &mut (List[K], List[V]), k: K) -> V
+    let i = py_dfind(d, k)
+    check i >= 0
+    let _ = py_pop_at(&mut d.0, i)
+    return py_pop_at(&mut d.1, i)
+
+fn py_ditems[K, V](d: &(List[K], List[V])) -> List[(K, V)]
+    var o: List[(K, V)] = []
+    for i in 0..d.0.len()
+        o.push((copy(d.0[i]), copy(d.1[i])))
+    return o
+
+# Text methods. Where CPython's rule depends on Unicode data the runtime
+# does not carry (case mapping, white space, digits), the definition is
+# given for ASCII text and traps on other text.
+fn py_ascii(s: &text) -> bool = s.len_bytes() == s.len_chars()
+
+fn py_ascii_ws_safe(s: &text) -> bool
+    if not py_ascii(s)
+        return false
+    for i in 0..s.len_bytes()
+        let b = s[i] as i64
+        if b >= 28 and b <= 31
+            return false
+    return true
+
+fn py_upper(s: text) -> text
+    check py_ascii(&s)
+    return s.upper()
+
+fn py_lower(s: text) -> text
+    check py_ascii(&s)
+    return s.lower()
+
+fn py_strip(s: text) -> text
+    check py_ascii_ws_safe(&s)
+    return s.strip()
+
+fn py_split_ws(s: text) -> List[text]
+    check py_ascii_ws_safe(&s)
+    return s.words()
+
+fn py_split(s: text, sep: text) -> List[text]
+    check sep.len_bytes() > 0
+    return s.split(sep)
+
+fn py_replace(s: text, a: text, b: text) -> text
+    if a.len_bytes() == 0
+        var o = copy(b)
+        for c in s.chars()
+            o = o + c + copy(b)
+        return o
+    return b.join(s.split(a))
+
+# str.find counts code points.
+fn py_find(s: text, sub: text) -> i64
+    let cs = s.chars()
+    let ss = sub.chars()
+    let n = cs.len() as i64
+    let m = ss.len() as i64
+    var i: i64 = 0
+    while i + m <= n bound (n + 1) as u64
+        var ok = true
+        for j in 0..m
+            if cs[(i + j) as usize] != ss[j as usize]
+                ok = false
+                break
+        if ok
+            return i
+        i += 1
+    return -1
+
+# str.index: str.find, and a missing sub raises ValueError (a trap).
+fn py_index_s(s: text, sub: text) -> i64
+    let i = py_find(s, sub)
+    check i >= 0
+    return i
+
+# int.bit_length: the number of bits of abs(n) without sign and leading zeros.
+fn py_bitlen(n: i64) -> i64
+    if n == 0 - 9223372036854775807 - 1
+        return 64
+    var m = if n < 0 then 0 - n else n
+    var k: i64 = 0
+    while m > 0 bound 64
+        m = m / 2
+        k += 1
+    return k
+
+# str.count: occurrences that do not overlap; an empty sub counts len + 1.
+fn py_count_s(s: text, sub: text) -> i64
+    let cs = s.chars()
+    let ss = sub.chars()
+    let n = cs.len() as i64
+    let m = ss.len() as i64
+    if m == 0
+        return n + 1
+    var c: i64 = 0
+    var i: i64 = 0
+    while i + m <= n bound (n + 1) as u64
+        var ok = true
+        for j in 0..m
+            if cs[(i + j) as usize] != ss[j as usize]
+                ok = false
+                break
+        if ok
+            c += 1
+            i += m
+        else
+            i += 1
+    return c
+
+fn py_isdigit(s: text) -> bool
+    check py_ascii(&s)
+    return s.isdigit()
+
+fn py_isalpha(s: text) -> bool
+    check py_ascii(&s)
+    return s.isalpha()
+
+# int(s) for [space][sign]digits[space], digits grouped by single underscores;
+# other text traps.
+fn py_int_s(s: text) -> i64
+    check py_ascii_ws_safe(&s)
+    let t = s.strip()
+    let cs = t.chars()
+    check cs.len() > 0
+    var neg = false
+    var i: usize = 0
+    if cs[0] == "-" or cs[0] == "+"
+        neg = cs[0] == "-"
+        i = 1
+    check i < cs.len()
+    var v: i64 = 0
+    var prev_us = true
+    while i < cs.len() bound (cs.len() + 1) as u64
+        let c = copy(cs[i])
+        if c == "_"
+            check not prev_us
+            prev_us = true
+        else
+            check c.isdigit()
+            v = v * 10 + (py_ord(c) - 48)
+            prev_us = false
+        i += 1
+    check not prev_us
+    return if neg then 0 - v else v
+
+fn py_digits(n: i64, base: i64, upper: bool) -> text
+    let ds = if upper then "0123456789ABCDEF".chars() else "0123456789abcdef".chars()
+    if n == 0
+        return "0"
+    var o = ""
+    var m = n
+    while m != 0 bound 64
+        let d = m % base
+        let e = if d < 0 then 0 - d else d
+        o = copy(ds[e as usize]) + o
+        m = m / base
+    return o
+
+# Groups of g digits from the right, joined by sep (format spec "," and "_").
+fn py_group(d: text, sep: text, g: i64) -> text
+    if sep.len_bytes() == 0
+        return d
+    let cs = d.chars()
+    let n = cs.len() as i64
+    var o = ""
+    for i in 0..n
+        if i > 0 and (n - i) % g == 0
+            o = o + copy(sep)
+        o = o + copy(cs[i as usize])
+    return o
+
+fn py_pad(body: text, fill: text, align: text, width: i64) -> text
+    let n = body.len_chars() as i64
+    if n >= width
+        return body
+    let p = width - n
+    if align == "<"
+        return body + py_rep_s(fill, p)
+    if align == "^"
+        let l = p / 2
+        return py_rep_s(copy(fill), l) + body + py_rep_s(fill, p - l)
+    return py_rep_s(fill, p) + body
+
+# format(n, spec) for an int: [[fill]align][sign][#][0][width][,|_][type],
+# type one of d x X o b (library/string.html#format-specification-mini-language).
+fn py_fmt_int(n: i64, fill: text, align: text, sign: text, alt: bool, width: i64, sep: text, base: i64, upper: bool) -> text
+    let g = if base == 10 then 3 else 4
+    let body = py_group(py_digits(n, base, upper), sep, g)
+    var sg = ""
+    if n < 0
+        sg = "-"
+    elif sign == "+"
+        sg = "+"
+    elif sign == " "
+        sg = " "
+    var pre = ""
+    if alt and base == 16
+        pre = if upper then "0X" else "0x"
+    elif alt and base == 8
+        pre = "0o"
+    elif alt and base == 2
+        pre = "0b"
+    if align == "="
+        let head = sg + pre
+        let k = width - (head.len_chars() as i64)
+        return head + py_pad(body, fill, ">", k)
+    return py_pad(sg + pre + body, fill, align, width)
+
+# format(s, spec) for a text: [[fill]align][width][.precision][s].
+fn py_fmt_str(s: text, fill: text, align: text, width: i64, prec: i64) -> text
+    var t = s
+    if prec >= 0
+        t = py_slice_s(t, 0, prec, 1, true, true)
+    return py_pad(t, fill, align, width)
+
+fn py_hex2(n: i64, w: i64) -> text
+    var d = py_digits(n, 16, false)
+    while d.len_chars() < w as usize bound 8
+        d = "0" + d
+    return d
+
+# repr(s) (library/functions.html#repr, Objects/unicodeobject.c unicode_repr):
+# single quotes unless the text holds ' and no ", backslash escapes for the
+# quote, the backslash, tab, newline and carriage return, \xhh for other
+# characters below space and DEL, and \x, \u or \U for every character that
+# str.isprintable() rejects, read from the non-printable ranges the lifter
+# writes from the oracle's Unicode database.
+fn py_repr_s(s: text) -> text
+    let has_sq = s.contains("'")
+    let has_dq = s.contains("\"")
+    let q = if has_sq and not has_dq then "\"" else "'"
+    var o = copy(q)
+    for c in s.chars()
+        let cp = py_ord(copy(c))
+        if c == q or c == "\\"
+            o = o + "\\" + c
+        elif cp == 9
+            o = o + "\\t"
+        elif cp == 10
+            o = o + "\\n"
+        elif cp == 13
+            o = o + "\\r"
+        elif cp < 32 or cp == 127
+            o = o + "\\x" + py_hex2(cp, 2)
+        elif cp < 127
+            o = o + c
+        elif py_nonprintable(cp)
+            if cp <= 255
+                o = o + "\\x" + py_hex2(cp, 2)
+            elif cp <= 65535
+                o = o + "\\u" + py_hex2(cp, 4)
+            else
+                o = o + "\\U" + py_hex2(cp, 8)
+        else
+            o = o + c
+    return o + q
+
+fn py_nonprintable(cp: i64) -> bool
+    var lo: usize = 0
+    var hi: usize = PY_NP_LO.len()
+    while lo < hi bound 64
+        let mid = (lo + hi) / 2
+        if PY_NP_HI[mid] < cp
+            lo = mid + 1
+        else
+            hi = mid
+    return lo < PY_NP_LO.len() and PY_NP_LO[lo] <= cp

@@ -1,0 +1,110 @@
+# Lifted from ints.py by spec/lift/python/lift_py.py; do not edit.
+
+fn py_floordiv(a: i64, b: i64) -> i64
+    let q = a / b
+    if a % b != 0 and ((a < 0) != (b < 0))
+        return q - 1
+    return q
+
+fn py_mod(a: i64, b: i64) -> i64
+    let r = a % b
+    if r != 0 and ((r < 0) != (b < 0))
+        return r + b
+    return r
+
+fn py_pow(a: i64, b: i64) -> i64
+    check b >= 0
+    var r: i64 = 1
+    var x = a
+    var e = b
+    while e > 0 bound 64
+        if e % 2 == 1
+            r = r * x
+        e = e / 2
+        if e > 0
+            x = x * x
+    return r
+
+fn py_powmod(a: i64, b: i64, m: i64) -> i64
+    check b >= 0 and m > 0
+    var r: i64 = py_mod(1, m)
+    var x = py_mod(a, m)
+    var e = b
+    while e > 0 bound 64
+        if e % 2 == 1
+            r = py_mod(r * x, m)
+        e = e / 2
+        x = py_mod(x * x, m)
+    return r
+
+fn py_shl(a: i64, b: i64) -> i64
+    check b >= 0
+    if a == 0
+        return 0
+    return a * py_pow(2, b)
+
+fn py_shr(a: i64, b: i64) -> i64
+    check b >= 0
+    if b >= 63
+        return if a < 0 then -1 else 0
+    return a >> b
+
+fn py_rlen(a: i64, b: i64, s: i64) -> i64
+    check s != 0
+    if s > 0
+        return if b > a then (b - a + s - 1) / s else 0
+    return if a > b then (a - b - s - 1) / (0 - s) else 0
+
+fn py_range(a: i64, b: i64, s: i64) -> List[i64]
+    var o: List[i64] = []
+    for k in 0..py_rlen(a, b, s)
+        o.push(a + k * s)
+    return o
+
+fn py_min2[T: Ord](a: T, b: T) -> T = if b < a then b else a
+
+fn py_max2[T: Ord](a: T, b: T) -> T = if b > a then b else a
+
+fn py_sum(xs: &List[i64]) -> i64
+    var s: i64 = 0
+    for x in xs
+        s += x
+    return s
+
+fn py_divmod(a: i64, b: i64) -> (i64, i64) = (py_floordiv(a, b), py_mod(a, b))
+
+fn py_str_i(x: i64) -> text = x.tostr()
+
+fn py_repr_T2ii(x: (i64, i64)) -> text = "(" + py_str_i(copy(x.0)) + ", " + py_str_i(copy(x.1)) + ")"
+
+fn py_repr_Li(xs: List[i64]) -> text
+    var o = "["
+    var first = true
+    for x in xs
+        if not first
+            o = o + ", "
+        o = o + py_str_i(copy(x))
+        first = false
+    return o + "]"
+
+fn f_gcd(v_a: i64, v_b: i64) -> i64 bound 1000
+    if (v_b == 0)
+        return (v_a).abs()
+    return f_gcd(v_b, py_mod(v_a, v_b))
+
+fn f_fact(v_n: i64) -> i64 bound 1000
+    return (if (v_n <= 1) then 1 else (v_n * f_fact((v_n - 1))))
+
+fn main()
+    var v_a: i64 = 0
+    var v_b: i64 = 0
+    let t_2 = [(7, 2), ((0 - 7), 2), (7, (0 - 2)), ((0 - 7), (0 - 2)), (0, 5)]
+    for k_1 in 0..t_2.len()
+        let t_3 = copy(t_2[k_1])
+        v_a = t_3.0
+        v_b = t_3.1
+        emit (py_str_i(v_a) + " // " + py_str_i(v_b) + " = " + py_str_i(py_floordiv(v_a, v_b)) + ", " + py_str_i(v_a) + " % " + py_str_i(v_b) + " = " + py_str_i(py_mod(v_a, v_b))) + " " + py_repr_T2ii(py_divmod(v_a, v_b)) + "\n"
+    emit py_str_i(py_pow(2, 10)) + " " + py_str_i(py_pow(3, 0)) + " " + py_str_i((0 - py_pow(2, 2))) + " " + py_str_i(py_pow((0 - 2), 3)) + " " + py_str_i(py_shl(1, 40)) + " " + py_str_i(py_shr((0 - 1), 3)) + " " + py_str_i(py_shr(255, 70)) + " " + py_str_i((6 & 3)) + " " + py_str_i((6 | 3)) + " " + py_str_i((6 ^ 3)) + " " + py_str_i((~5)) + "\n"
+    emit py_str_i(f_gcd(1071, 462)) + " " + py_str_i(f_gcd((0 - 24), 36)) + " " + py_repr_Li([f_fact(c_4) for c_4 in py_range(0, 21, 5)]) + "\n"
+    let t_5 = [1, 2, 3, 4]
+    emit py_str_i(py_powmod(3, 200, 1000003)) + " " + py_str_i(((0 - 9)).abs()) + " " + py_str_i(py_max2(3, py_max2(7, 5))) + " " + py_str_i(py_min2(3, py_min2(7, 5))) + " " + py_str_i(py_sum(&t_5)) + "\n"
