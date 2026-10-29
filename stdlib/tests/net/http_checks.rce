@@ -123,6 +123,14 @@ check hp(" / HTTP/1.1\r\n\r\n", true, false, false) == "ERR:request line"
 check hp("POST /p HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\nb\r\nhello world\r\n0\r\n\r\n", true, false, false) == "POST|/p|1.1|0||Host=x;Transfer-Encoding=chunked|hello world||78"
 check hp("GET  HTTP/1.1\r\n\r\n", true, false, false) == "ERR:request line"
 check hp("HTTP/1.1 2000 OK\r\n\r\n", false, false, false) == "ERR:status line"
+check hp("GET / HTTP/1.1\r\n\r\n", true, false, false) == "ERR:Host"
+check hp("GET / HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n", true, false, false) == "ERR:Host"
+check hp("GET / HTTP/1.0\r\nHost: a\r\nhost: b\r\n\r\n", true, false, false) == "ERR:Host"
+check hp("GET / HTTP/1.0\r\nHost: a\r\n\r\n", true, false, false) == "GET|/|1.0|0||Host=a|||27"
+check hp("GET / HTTP/1.1\r\nhOsT: a\r\n\r\n", true, false, false) == "GET|/|1.1|0||hOsT=a|||27"
+# h11 differs on the next case (h11 is more lenient or stricter here)
+check hp("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: x\r\n\r\n", true, false, false) == "GET|/|1.1|0||Host=x|||59"
+check hp("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nGET / HTTP/1.1\r\nHost: x\r\n\r\n", true, false, false) == "ERR:request line"
 check hp("X-CUSTOM * HTTP/1.1\r\nHost: h0.example\r\nX-Long-Name: \tt\r\nContent-Length: 15\r\n\r\naxax{zb{b{} \n{y", true, false, false) == "X-CUSTOM|*|1.1|0||Host=h0.example;X-Long-Name=t;Content-Length=15|axax{zb{b{} \n{y||93"
 check hp("X-CUSTOM /a/b?c=d HTTP/1.1\r\nHost: h1.example\r\nX-Long-Name: a,b\r\nX-Long-Name: v\r\nX-b: q=\"x y\"\r\nX-n_1: \r\nContent-Length: 2\r\n\r\nz{", true, false, false) == "X-CUSTOM|/a/b?c=d|1.1|0||Host=h1.example;X-Long-Name=a,b;X-Long-Name=v;X-b=q=\"x y\";X-n_1=;Content-Length=2|z{||126"
 check hp("HTTP/1.1 400 \r\nHost: h8.example\r\nX-A: q=\"x y\"\r\n\r\nz\n\r", false, false, true) == "||1.1|400||Host=h8.example;X-A=q=\"x y\"|z\n\r||52"
@@ -183,7 +191,7 @@ check hp("HTTP/1.1 500 Moved Temporarily\r\nHost: h", false, false, false) == "E
 check hp("DELETE * HTTP/1.1\r\nHost: h1.example\r\nX-A: \tt\r\nX-A: q=\"x y\"\r\nX-b: \r\nX-n_1: \r\n\r\n", true, false, false) == "DELETE|*|1.1|0||Host=h1.example;X-A=t;X-A=q=\"x y\";X-b=;X-n_1=|||78"
 check hp("HTTP/1.1 404 \r\nHost: h0.example\r\nX-Long", false, false, false) == "ERR:incomplete head"
 check hp("HTTP/1.1 404 OK\r\nHost: h8.example\r\nX-b: v\r\nTransfer-Encoding: chunked\r\n\r\n6\r\n\r\rzcxx\r\n3\r\n\r}\n\r\n4\r\n\rc\r{\r\n0\r\n\r\n", false, false, false) == "||1.1|404|OK|Host=h8.example;X-b=v;Transfer-Encoding=chunked|\r\rzcxx\r}\n\rc\r{||106"
-# h11 agreed on 69 accepted messages, differed on 4
+# h11 agreed on 71 accepted messages, differed on 5
 check hser(true, "GET", "/", 0, "", ["Host"], ["x"], "") == "GET / HTTP/1.1\r\nHost: x\r\n\r\n"
 check hser(true, "POST", "/up", 0, "", ["Host", "Content-Type"], ["x", "text/plain"], "payload") == "POST /up HTTP/1.1\r\nHost: x\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\npayload"
 check hser(false, "", "", 200, "OK", ["Server"], ["rce"], "hello") == "HTTP/1.1 200 OK\r\nServer: rce\r\nContent-Length: 5\r\n\r\nhello"

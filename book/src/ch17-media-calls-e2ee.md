@@ -162,6 +162,12 @@ reached only through such capabilities. The same contract has
 enforcement targets underneath the host: WebAssembly (WASM), bare metal,
 Linux, macOS, Windows and other OSes, each entered as strictly as the
 target allows (HC-5 lists the mechanisms). `rce host` prints the target
-it entered at start. The contract conforms to OpenIE Sandbox v0.1
+it entered at start, in a line made from the rules it installed (HC-5a):
+on Linux, Landlock restricts TCP bind and connect by port and not by
+address, so the line says "by port" and names the addresses the net
+adapter allows, and it says when the User Datagram Protocol (UDP) is not
+restricted; with `--http` alone the listener is opened before the target
+is entered and the line says that no new Internet Protocol (IP) socket
+can be opened. The contract conforms to OpenIE Sandbox v0.1
 (https://sandbox.transaction.science) and to the Joule Context Protocol
 (JCP) v0.3 (https://jcp.transaction.science).
