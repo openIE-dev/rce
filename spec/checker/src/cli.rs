@@ -11,7 +11,12 @@ use std::io::{BufRead, Write};
 
 /// Exit codes of spec 10.1.
 pub const OK: i32 = 0;
+/// A text that is not in Form: it requires change.
 pub const REQUIRES_CHANGE: i32 = 1;
+/// A run of an admitted program that ended with a step whose event did not
+/// apply: the state was kept. Not a statement about the code; same status as
+/// spec 10.1 gives every non-zero outcome of a run.
+pub const STEP_KEPT: i32 = 1;
 pub const USAGE: i32 = 2;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
@@ -713,7 +718,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     for l in &r.lines {
                         writeln!(out, "{l}").map_err(w)?;
                     }
-                    if r.kept { REQUIRES_CHANGE } else { OK }
+                    if r.kept { STEP_KEPT } else { OK }
                 }
                 Err(e) => {
                     writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
