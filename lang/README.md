@@ -6,15 +6,36 @@ language into RCE will be judged against, in the formats that
 (section 16 for the per-language files, section 20 for acceptance and for
 the corpus rules K1 to K7).
 
-**No lifter of section 16 exists yet.** The probe
-[`spec/lift/go/lift_go.py`](../spec/lift/go/lift_go.py) lifts one Go
-pattern (a struct with one method per event, `spec/lift/go/door.go`) into
-a Form; nothing lifts the programs of these corpora, and no grammar lock,
-lift table, runtime library or print table of section 16 is written. What
-is here is the other side of the comparison: for each of three languages, a
-pinned implementation, the rule that turns one of its runs into a record,
-and a corpus of programs, each with the record of its run on that
-implementation.
+**One lifter of these corpora exists: a lift of a subset of Python 3.13,
+and it carries 6 of the 92 Python programs.**
+[`spec/lift/python/lift_py.py`](../spec/lift/python/lift_py.py) (Python's
+own `ast`, nothing else) lifts integers (to i64, whose overflow traps),
+text, lists, dictionaries in insertion order, tuples, functions, `print`,
+f-strings with int and str format specs, `for` loops and `while` loops
+whose count bound a closed list of rules derives, into RCE text that calls
+[`spec/lift/python/runtime.rce`](../spec/lift/python/runtime.rce); every
+other construct requires change with a rule id (`L-PY-EXC`, `L-PY-DYN`,
+`L-PY-UNBOUNDED` and 22 more, `lift_py.py rules`) and its line.
+[`verify_lift.py`](../spec/lift/python/verify_lift.py) runs each lifted
+program and compares its exit status, standard output and class of standard
+error with the record of CPython's run kept here. Of the 92 Python programs
+(openIE-dev/openie-research-experiments `rce/bench/lift-python/`), 5 lift
+and give CPython's record byte for byte, 1 lifts and stops at the recursion
+bound where CPython stops at its recursion limit (the one program of the
+corpus that ends at that limit), 0 lift and give another result, 3 lift and
+stop at an i64 overflow where CPython's integers do not overflow, 1 lifts
+and did not finish within 120 s under `rce run` (`algorithms/hanoi`: 2^20
+list pushes through recursion), and 82 require change. On a module written
+for use, the pinned standard library's `heapq.py`, 0 of its 15 functions
+lift: their item type is fixed by no call in the module (`L-PY-POLY`). It
+is a first lifter: section 16's grammar lock, lift table and print table
+are not written, and the other languages have only the Go probe
+[`spec/lift/go/lift_go.py`](../spec/lift/go/lift_go.py), which lifts one Go
+pattern (a struct with one method per event, `spec/lift/go/door.go`) into a
+Form. The rest of this directory is the other side of the comparison: for
+each of three languages, a pinned implementation, the rule that turns one
+of its runs into a record, and a corpus of programs, each with the record
+of its run on that implementation.
 
 ## Terms
 
@@ -195,8 +216,9 @@ prints one line per case, with the result names of section 20:
   not hold (every case is then `NOT-RUN` and the line names the pin), a
   file cannot be read, or the expected file breaks K1.
 
-Section 20's `differs` is the result of comparing a lift with the oracle;
-no lift exists yet, so `verify` never prints it. The exit status is 0 when
+Section 20's `differs` is the result of comparing a lift with the oracle,
+so `corpus.py verify`, which runs only the oracle, never prints it; the
+Python lift's harness `spec/lift/python/verify_lift.py` does. The exit status is 0 when
 every case matches, 1 when a case is `ORACLE-FAIL` and none is `NOT-RUN`,
 and 2 when a case is `NOT-RUN`. The output holds no times and no paths, so
 it can be compared with `corpus/verify.txt` byte for byte. On another host,
