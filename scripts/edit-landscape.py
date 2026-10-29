@@ -41,7 +41,7 @@ resumes). The run is
 a pure function of the checkout and the seed (each family has its own
 seeded generator, so the job count does not change the result).
 """
-import argparse, importlib.util, json, multiprocessing, re, shutil, subprocess, tempfile
+import argparse, bisect, importlib.util, json, multiprocessing, re, shutil, subprocess, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -101,6 +101,47 @@ def code_spans(src):
     return lines, out
 
 
+class Edits:
+    """The single typed edits of a text, indexed 0..len-1 in a fixed order
+    without materialising them (a large program has millions of renames)."""
+
+    def __init__(self):
+        self.groups = []  # (class, line, start, end, replacements)
+        self.ends = []
+        self.n = 0
+
+    def add(self, cls, i, a, b, reps):
+        if reps:
+            self.groups.append((cls, i, a, b, reps))
+            self.n += len(reps)
+            self.ends.append(self.n)
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, k):
+        g = bisect.bisect_right(self.ends, k)
+        cls, i, a, b, reps = self.groups[g]
+        start = self.ends[g] - len(reps)
+        return (cls, i, a, b, reps[k - start])
+
+
+class _Others:
+    """The names of a program other than one, as a sequence (rename replacements)."""
+
+    def __init__(self, names, pos):
+        self.names, self.pos = names, pos
+
+    def __len__(self):
+        return len(self.names) - 1
+
+    def __getitem__(self, j):
+        return self.names[j if j < self.pos else j + 1]
+
+    def __bool__(self):
+        return len(self) > 0
+
+
 def edits(src):
     """Every single typed edit of `src` as (class, line, start, end, replacement), in a fixed order."""
     lines, spans = code_spans(src)
@@ -109,26 +150,25 @@ def edits(src):
         for a, b in segs:
             names.update(m.group(0) for m in IDENT.finditer(l, a, b) if m.group(0) not in corpus.KEYWORDS)
     names = sorted(names)
-    out = []
+    where = {n: k for k, n in enumerate(names)}
+    out = Edits()
     for i, l, segs in spans:
         for a, b in segs:
             for m in IDENT.finditer(l, a, b):
                 w = m.group(0)
                 if w in corpus.KEYWORDS:
                     continue
-                out += [("rename", i, m.start(), m.end(), n) for n in names if n != w]
+                out.add("rename", i, m.start(), m.end(), _Others(names, where[w]))
             for m in OPER.finditer(l, a, b):
                 cls = next(c for c in corpus.OP_CLASSES if m.group(0) in c)
-                out += [("operator", i, m.start(), m.end(), o) for o in cls if o != m.group(0)]
+                out.add("operator", i, m.start(), m.end(), [o for o in cls if o != m.group(0)])
             for m in INT.finditer(l, a, b):
                 n = int(m.group(0))
-                out.append(("literal", i, m.start(), m.end(), str(n + 1)))
-                if n > 0:
-                    out.append(("literal", i, m.start(), m.end(), str(n - 1)))
+                out.add("literal", i, m.start(), m.end(), [str(n + 1)] + ([str(n - 1)] if n > 0 else []))
             for m in BOOL.finditer(l, a, b):
-                out.append(("literal", i, m.start(), m.end(), "false" if m.group(0) == "true" else "true"))
+                out.add("literal", i, m.start(), m.end(), ["false" if m.group(0) == "true" else "true"])
             for m in TYPE.finditer(l, a, b):
-                out += [("type", i, m.start(), m.end(), t) for t in TYPE_OTHERS[m.group(0)]]
+                out.add("type", i, m.start(), m.end(), TYPE_OTHERS[m.group(0)])
     return lines, out
 
 
@@ -207,14 +247,19 @@ class Family:
         text, seen, pts = self.src, {corpus.sha(self.src)}, []
         for d in range(1, DEPTH + 1):
             lines, es = edits(text)
-            cands = []
-            for e in es:
+            # uniform over the edits whose result is new: draw, and draw again on a seen result
+            pick = None
+            for _ in range(10000):
+                if not len(es):
+                    break
+                e = es[self.rng.next() % len(es)]
                 t = apply(lines, e)
                 if corpus.sha(t) not in seen:
-                    cands.append((e, t))
-            if not cands:
+                    pick = (e, t)
+                    break
+            if pick is None:
                 break
-            e, text = cands[self.rng.next() % len(cands)]
+            e, text = pick
             seen.add(corpus.sha(text))
             r = self.eval(text)
             pts.append({"path": self.path, "chain": c, "d": d, "edit": e[0], "text_sha256": corpus.sha(text), **r, "_text": text})
@@ -226,11 +271,16 @@ class Family:
         while cur["E"] > 0 and steps < k + 3:
             lines, es = edits(text)
             if len(es) > NEIGHBOURS:
-                idx, pick = list(range(len(es))), []
-                for _ in range(NEIGHBOURS):
-                    j = self.rng.next() % len(idx)
-                    pick.append(idx.pop(j))
+                # a uniform sample without replacement: draw, and draw again on a repeat
+                pick, got = [], set()
+                while len(pick) < NEIGHBOURS:
+                    j = self.rng.next() % len(es)
+                    if j not in got:
+                        got.add(j)
+                        pick.append(j)
                 es = [es[j] for j in pick]
+            else:
+                es = [es[j] for j in range(len(es))]
             best = None
             for e in es:
                 t = apply(lines, e)
