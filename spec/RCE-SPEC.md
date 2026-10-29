@@ -2081,6 +2081,23 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
 
+**The lookup-table control (W-INT-2).** The examples of a module are
+finitely many event lists folded from s₀, so they say nothing about any
+other list. The *lookup-table control* of a module M is M with one more
+field per region, the region's position in the trie of the example event
+lists (each list restricted to the events the region has a step for): each
+step of M applies only at a position that has a child for its event and
+moves the position to that child (where M selects no step of the region,
+the control only moves the position), and an event at a position with no
+child for it is kept with an error of its own. The control equals M on every prefix of every example
+list, so it meets every example of M, and it keeps the state on every other
+list. A `check` is a proposition about comptime values and functions, and a
+contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
+admits it and reports the recommended change W-INT-2 (10.2): its
+obligations do not constrain behaviour beyond the listed examples. W-INT-2
+never makes a program require change; it says what the examples do not
+state.
+
 ### 6.10 Behaviour, equivalence and dimension
 
 This section defines what "the same behaviour" means for two programs, and
@@ -2230,6 +2247,9 @@ The Form
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
+- W-INT-2 (recommended; never requires change) A module with a step and
+  `example` lines, whose obligations its lookup-table control meets (6.9):
+  `rce check` admits it and prints the recommendation (10.2).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -3151,6 +3171,25 @@ it, its outputs, or the kept record), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
+
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
@@ -3601,25 +3640,6 @@ The verdict is over the explored alphabet and, when a bound is reached, to
 that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
-
-`rce fingerprint [--depth N] [--fuel N] [--json] FILE...` prints the
-behaviour fingerprint of each program (proposal `behaviour-fingerprint.md`,
-BF-1): the SHA-256 of the name-free output (the label `rce equiv`
-compares) of every event sequence of length 1 to N (default 8) over the
-event instances `rce equiv` explores, hashed bottom up over the explored
-graph, so it costs one hash per state within N − 1 steps of s₀ and event
-instance, with N and the instances' name-free keys hashed in. Two programs
-with the same output on every such sequence share it, so two programs
-`rce equiv` judges equivalent share it at every depth whatever their
-shape, while their program hashes (CC-1) differ; a shared fingerprint is
-a candidate that `rce equiv` confirms, since programs that differ only
-after more than N events, or only on a payload outside the explored
-alphabet, share it too. One FILE prints the fingerprint, the depth and
-the number of sequences, instances and states stepped; several print one
-line `HASH  FILE` each. Status 1 and `not fingerprinted` for a program
-with no state region or no explorable event, or when `--fuel` states
-(default 100,000) are reached before depth N. JSON format
-`rce-fingerprint/1`. It is informative: no admission depends on it.
 
 `rce change [--fuel N] OLD NEW` classifies a change to a program by the
 classes of C.15 and proposal CC-2, comparing the two programs under one

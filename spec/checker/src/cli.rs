@@ -179,6 +179,35 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
     (e, c)
 }
 
+/// The recommended changes of an admitted module (10.2). W-INT-2 (6.9): the
+/// module has a step and its only obligations on its steps are `example`
+/// lines, so its lookup-table control (the module on the prefixes of the
+/// example event lists, every other event kept) meets them. A recommended
+/// change never changes the verdict or the exit status.
+pub fn recommendations(m: &Module) -> Vec<String> {
+    let steps = m.items.iter().filter(|i| matches!(i, Item::Step { .. })).count();
+    let mut lines: Vec<usize> = vec![];
+    for i in &m.items {
+        match i {
+            Item::Example(x) => lines.push(x.line),
+            Item::Intent(_, xs, _) => lines.extend(xs.iter().map(|x| x.line)),
+            _ => {}
+        }
+    }
+    let Some(first) = lines.iter().min() else { return vec![] };
+    if steps == 0 {
+        return vec![];
+    }
+    let n = lines.len();
+    vec![format!(
+        "line {first}: W-INT-2 the {n} example line{} {} the only obligation{} on the steps; their lookup-table control (6.9) meets {}, so they do not constrain behaviour beyond the listed examples",
+        if n == 1 { "" } else { "s" },
+        if n == 1 { "is" } else { "are" },
+        if n == 1 { "" } else { "s" },
+        if n == 1 { "it" } else { "them" },
+    )]
+}
+
 /// `rce emit TARGET FILE`: `form` prints the Form JSON, `core` the core
 /// `rce-core/1` as JSON; `rust`, `python`, `js` and `scala` print a
 /// self-contained program that prints the module's observations (10.5).
@@ -703,9 +732,19 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     Ok(match a.first().map(String::as_str) {
         Some("check") if !rest.is_empty() => {
             let mut bad = 0;
-            for (p, v) in crate::check_program(&load(rest)?, false) {
+            let files = load(rest)?;
+            let srcs: HashMap<&str, &str> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
+            for (p, v) in crate::check_program(&files, false) {
                 match v {
-                    Ok(()) => writeln!(out, "ok {p}").map_err(w)?,
+                    Ok(()) => {
+                        writeln!(out, "ok {p}").map_err(w)?;
+                        // recommended changes (10.2, W-INT-2): the verdict stays `ok`
+                        if let Some(m) = srcs.get(p.as_str()).and_then(|s| parse(s).ok()) {
+                            for r in recommendations(&m) {
+                                writeln!(out, "recommended {p}: {r}").map_err(w)?;
+                            }
+                        }
+                    }
                     Err(e) => {
                         bad += 1;
                         writeln!(out, "requires change {p}: {e}").map_err(w)?

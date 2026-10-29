@@ -70,6 +70,9 @@ The Form
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
+- W-INT-2 (recommended; never requires change) A module with a step and
+  `example` lines, whose obligations its lookup-table control meets (6.9):
+  `rce check` admits it and prints the recommendation (10.2).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -123,4 +126,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: d3f925d7b7230629754f2574572ec5c4c10b0d7d655060f420d6d0b5ee9f5182 -->
+<!-- body-sha256: 515463b2081ca4bbf0514f709572c0de1e3ddfa3a5e2c92a952035a4fe9058ff -->

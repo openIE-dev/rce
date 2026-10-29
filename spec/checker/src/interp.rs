@@ -349,6 +349,12 @@ fn int_name(t: &Ty) -> Option<&'static str> {
 }
 
 impl<'a> Interp<'a> {
+    /// Give the next input a fresh fuel budget: each input is one run of δ
+    /// (HC-7a), as `form_json` and the host do before every event.
+    pub fn refuel(&mut self) {
+        self.fuel = fuel_limit();
+    }
+
     pub fn new(m: &'a Module) -> Self {
         let mut it = Interp {
             m,

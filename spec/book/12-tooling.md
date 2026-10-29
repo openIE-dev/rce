@@ -202,6 +202,25 @@ it, its outputs, or the kept record), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
+
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
@@ -653,25 +672,6 @@ that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 
-`rce fingerprint [--depth N] [--fuel N] [--json] FILE...` prints the
-behaviour fingerprint of each program (proposal `behaviour-fingerprint.md`,
-BF-1): the SHA-256 of the name-free output (the label `rce equiv`
-compares) of every event sequence of length 1 to N (default 8) over the
-event instances `rce equiv` explores, hashed bottom up over the explored
-graph, so it costs one hash per state within N − 1 steps of s₀ and event
-instance, with N and the instances' name-free keys hashed in. Two programs
-with the same output on every such sequence share it, so two programs
-`rce equiv` judges equivalent share it at every depth whatever their
-shape, while their program hashes (CC-1) differ; a shared fingerprint is
-a candidate that `rce equiv` confirms, since programs that differ only
-after more than N events, or only on a payload outside the explored
-alphabet, share it too. One FILE prints the fingerprint, the depth and
-the number of sequences, instances and states stepped; several print one
-line `HASH  FILE` each. Status 1 and `not fingerprinted` for a program
-with no state region or no explorable event, or when `--fuel` states
-(default 100,000) are reached before depth N. JSON format
-`rce-fingerprint/1`. It is informative: no admission depends on it.
-
 `rce change [--fuel N] OLD NEW` classifies a change to a program by the
 classes of C.15 and proposal CC-2, comparing the two programs under one
 text: it prints both program hashes (equal hashes mean a renaming
@@ -701,4 +701,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 5c48cf61b856c01115f752ad0e6a3e0284d2a4b03f9ea0b6832aa29abd3d9d16 -->
+<!-- body-sha256: 422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90 -->

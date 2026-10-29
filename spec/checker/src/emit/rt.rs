@@ -952,7 +952,7 @@ pub fn par_fuel(cum: &mut u64, f0: u64, used: u64) -> R<()> {
     Ok(())
 }
 pub type State = Vec<(&'static str, Vec<(&'static str, V)>)>;
-fn show_state(s: &State) -> String {
+pub fn show_state(s: &State) -> String {
     s.iter().map(|(r, fs)| format!("{r} {{ {} }}", fs.iter().map(|(n, v)| format!("{n} = {}", show(v))).collect::<Vec<_>>().join(", "))).collect::<Vec<_>>().join("; ")
 }
 pub fn delta(s: &State, ev: &V) -> Result<(State, Vec<V>), String> {
@@ -1057,12 +1057,12 @@ fn form_value(v: &V) -> FV {
         _ => FV::Null,
     }
 }
+/// The canonical JSON of a float in D (6.1.1 rule 3), as `interp::float_json`:
+/// the digits of `shortest_e`, so an exact tie goes to the even digit.
 fn float_json(x: f64) -> String {
     if x == 0.0 { return if x.is_sign_negative() { "-0.0".into() } else { "0.0".into() }; }
-    let e = format!("{:e}", x.abs());
-    let (m, ex) = e.split_once('e').unwrap();
-    let ex: i32 = ex.parse().unwrap();
-    let digits: String = m.chars().filter(|c| *c != '.').collect();
+    let (digits, ex) = shortest_e(x);
+    let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
     let sign = if x < 0.0 { "-" } else { "" };
     let a = x.abs();
     if (1e-4..1e16).contains(&a) {
