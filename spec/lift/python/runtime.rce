@@ -280,7 +280,7 @@ fn py_max_l[T: Ord](xs: List[T]) -> T
             m = copy(x)
     return m
 
-fn py_sum(xs: &List[i64]) -> i64
+fn py_sum(xs: List[i64]) -> i64
     var s: i64 = 0
     for x in xs
         s += x

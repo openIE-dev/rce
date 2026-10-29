@@ -409,17 +409,25 @@ class Lifter:
         for name, f in self.fns.items():
             if f.node is not None:
                 self.setup_fn(f)
-        # infer: functions first, then the module's statements
-        for name, f in self.fns.items():
-            if f.node is not None:
-                self.cur = f
-                self.block(f.node.body)
-        self.cur = mod
-        for s in body:
-            if isinstance(s, ast.FunctionDef):
-                continue
-            self.stmt(s)
-        self.solve_pending()
+        # infer: functions first, then the module's statements, twice: the
+        # first walk fixes the types that calls written later give to
+        # parameters, the second reports what is still not fixed
+        for f in self.fns.values():
+            f.setup_diags = list(f.diags)
+        for walk in (1, 2):
+            for f in self.fns.values():
+                f.diags = list(f.setup_diags)
+            self.pending = []
+            for name, f in self.fns.items():
+                if f.node is not None:
+                    self.cur = f
+                    self.block(f.node.body)
+            self.cur = mod
+            for s in body:
+                if isinstance(s, ast.FunctionDef):
+                    continue
+                self.stmt(s)
+            self.solve_pending()
         self.finish()
         return text, None
 
@@ -1294,8 +1302,8 @@ class Lifter:
             elif m in self.DICT_METHODS - self.LIST_METHODS - self.STR_METHODS:
                 unify(rtp, D(TV(), TV()))
             P = prune(rtp)
-        if isinstance(P, TV) and P.origin in ("import", "error"):
-            return TV(P.origin)
+        if isinstance(P, TV) and P.origin in ("import", "error", "param"):
+            return TV("error" if P.origin == "param" else P.origin)   # reported by its import, construct or L-PY-POLY
         if isinstance(P, TV):
             self.diag(e, "L-PY-TYPE", f"the receiver of .{m}() has no fixed type")
             return TV()
@@ -1886,11 +1894,23 @@ class Printer:
             return a
         return f"(~{a})"
 
+    def scoped(self, fn, node, what):
+        """Code that must not need a temporary bound before the statement
+        (a test run on every iteration, a branch or operand evaluated only
+        sometimes, the item of a comprehension)."""
+        n0 = len(self.pre)
+        c = fn()
+        if len(self.pre) > n0:
+            raise Diag(node.lineno, "L-PY-SYNTAX", f"{what} that needs a temporary value")
+        return c
+
     def truth(self, e):
         """The truth value of e, as a bool."""
         if isinstance(e, ast.BoolOp):
             op = " and " if isinstance(e.op, ast.And) else " or "
-            return "(" + op.join(self.truth(v) for v in e.values) + ")"
+            first = self.truth(e.values[0])
+            rest = [self.scoped(lambda v=v: self.truth(v), v, "an operand of and/or") for v in e.values[1:]]
+            return "(" + op.join([first] + rest) + ")"
         if isinstance(e, ast.UnaryOp) and isinstance(e.op, ast.Not):
             return f"(not {self.truth(e.operand)})"
         t = self.ty(e)
@@ -1935,7 +1955,10 @@ class Printer:
         raise Diag(e.lineno, "L-PY-SYNTAX", "a dict that is not a variable or an item, used with in")
 
     def ex_IfExp(self, e):
-        return f"(if {self.truth(e.test)} then {self.val(e.body)} else {self.val(e.orelse)})"
+        c = self.truth(e.test)
+        a = self.scoped(lambda: self.val(e.body), e, "a branch of a conditional expression")
+        b = self.scoped(lambda: self.val(e.orelse), e, "a branch of a conditional expression")
+        return f"(if {c} then {a} else {b})"
 
     def ex_Subscript(self, e):
         bt = self.ty(e.value)
@@ -1987,8 +2010,8 @@ class Printer:
         pat = self.pattern(g.target)
         cond = ""
         if g.ifs:
-            cond = " if " + " and ".join(self.truth(c) for c in g.ifs)
-        body = self.val(e.elt)
+            cond = " if " + " and ".join(self.scoped(lambda c=c: self.truth(c), e, "a comprehension condition") for c in g.ifs)
+        body = self.scoped(lambda: self.val(e.elt), e, "the item of a comprehension")
         self.alias = saved
         return f"[{body} for {pat} in {src}{cond}]"
 
@@ -2173,6 +2196,12 @@ class Printer:
                     out.append(self.name_ref(a.id))
                 elif self.is_place(a):
                     out.append("&mut " + self.place(a))
+                elif not any(isinstance(x, ast.Call) for x in ast.walk(a)):
+                    # a new list or dict that only the callee sees: evaluated first, which
+                    # changes nothing since the expression calls nothing
+                    t = self.fresh()
+                    self.pre.append(f"var {t} = {self.val(a)}")
+                    out.append(f"&mut {t}")
                 else:
                     raise Diag(a.lineno, "L-PY-ALIAS", f"{g.name} mutates its argument {p}, here a computed value")
             else:
@@ -2226,12 +2255,7 @@ class Printer:
             # Python keeps the first of equal items; equal items are equal values here
             return r
         if name == "sum":
-            c = self.val(a[0])
-            if isinstance(a[0], ast.Name):
-                return f"{self.use('py_sum')}(&{self.place(a[0])})"
-            t = self.fresh()
-            self.pre.append(f"let {t} = {c}")
-            return f"{self.use('py_sum')}(&{t})"
+            return f"{self.use('py_sum')}({self.val(a[0])})"
         if name in ("any", "all"):
             return f"{self.use('py_' + name)}({self.val(a[0])})"
         if name in ("sorted", "list"):
@@ -2404,9 +2428,10 @@ class Printer:
             orelse = s.orelse
             while len(orelse) == 1 and isinstance(orelse[0], ast.If):
                 s2 = orelse[0]
-                self.pre = []
+                saved, self.pre = self.pre, []
                 c = self.truth(s2.test)
-                if self.pre:
+                needs, self.pre = bool(self.pre), saved
+                if needs:
                     break
                 self.emit(f"elif {c}")
                 self.depth += 1
@@ -2548,7 +2573,8 @@ class Printer:
         if s.orelse:
             flag = self.fresh("brk")
             self.emit(f"var {flag} = false")
-        self.emit(f"while {self.truth(s.test)} bound {b} as u64")
+        test = self.scoped(lambda: self.truth(s.test), s, "a while test")
+        self.emit(f"while {test} bound {b} as u64")
         self.brk.append(flag)
         self.depth += 1
         self.block(s.body)

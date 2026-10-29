@@ -65,7 +65,7 @@ fn py_min2[T: Ord](a: T, b: T) -> T = if b < a then b else a
 
 fn py_max2[T: Ord](a: T, b: T) -> T = if b > a then b else a
 
-fn py_sum(xs: &List[i64]) -> i64
+fn py_sum(xs: List[i64]) -> i64
     var s: i64 = 0
     for x in xs
         s += x
@@ -106,5 +106,4 @@ fn main()
         emit (py_str_i(v_a) + " // " + py_str_i(v_b) + " = " + py_str_i(py_floordiv(v_a, v_b)) + ", " + py_str_i(v_a) + " % " + py_str_i(v_b) + " = " + py_str_i(py_mod(v_a, v_b))) + " " + py_repr_T2ii(py_divmod(v_a, v_b)) + "\n"
     emit py_str_i(py_pow(2, 10)) + " " + py_str_i(py_pow(3, 0)) + " " + py_str_i((0 - py_pow(2, 2))) + " " + py_str_i(py_pow((0 - 2), 3)) + " " + py_str_i(py_shl(1, 40)) + " " + py_str_i(py_shr((0 - 1), 3)) + " " + py_str_i(py_shr(255, 70)) + " " + py_str_i((6 & 3)) + " " + py_str_i((6 | 3)) + " " + py_str_i((6 ^ 3)) + " " + py_str_i((~5)) + "\n"
     emit py_str_i(f_gcd(1071, 462)) + " " + py_str_i(f_gcd((0 - 24), 36)) + " " + py_repr_Li([f_fact(c_4) for c_4 in py_range(0, 21, 5)]) + "\n"
-    let t_5 = [1, 2, 3, 4]
-    emit py_str_i(py_powmod(3, 200, 1000003)) + " " + py_str_i(((0 - 9)).abs()) + " " + py_str_i(py_max2(3, py_max2(7, 5))) + " " + py_str_i(py_min2(3, py_min2(7, 5))) + " " + py_str_i(py_sum(&t_5)) + "\n"
+    emit py_str_i(py_powmod(3, 200, 1000003)) + " " + py_str_i(((0 - 9)).abs()) + " " + py_str_i(py_max2(3, py_max2(7, 5))) + " " + py_str_i(py_min2(3, py_min2(7, 5))) + " " + py_str_i(py_sum([1, 2, 3, 4])) + "\n"
