@@ -13,6 +13,13 @@ front end's job and is certified through the reference adapter.
                    that example's block. The example's expected value is used
                    only to admit the module; the lines compared are printed
                    by the emitted program.
+  trace            the same example, run with `--trace --fuel-trace`: the
+                   answer is the whole trace, the example's block without
+                   its `example LINE` header (every entry of D as
+                   `d applied|kept HASH BODY`, the state after each event,
+                   the outputs, the reason an event was kept, `trace HEAD`
+                   and `fuel N`), and its head.
+The target is the one positional argument (rust, python, js or scala).
 Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
@@ -22,34 +29,68 @@ RCE = os.environ.get("RCE", "rce")
 TMP = os.path.join(tempfile.gettempdir(), f"rce-conformance-{LANG}")
 os.makedirs(TMP, exist_ok=True)
 EXT = {"rust": "rs", "python": "py", "js": "js", "scala": "scala"}[LANG]
+LAST_EXE = [None]   # rust: the one executable this process keeps
 
 def sh(cmd, inp=None, timeout=300):
     p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
     return p.returncode, p.stdout, p.stderr
 
+def write(path, text):
+    """Write a whole file under its name at once: parallel jobs write the
+    same names (a run and a trace of the same events emit the same
+    program), and a reader must never see a file another job is writing."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as w:
+        w.write(text)
+    os.replace(tmp, path)
+
 def emit(src):
     h = hashlib.sha256(src.encode()).hexdigest()[:16]
-    f = os.path.join(TMP, f"m{h}.rce"); open(f, "w").write(src)
+    f = os.path.join(TMP, f"m{h}.rce"); write(f, src)
     rc, out, err = sh([RCE, "emit", LANG, f])
     if rc != 0:
         return None, err.strip() or out.strip()
-    prog = os.path.join(TMP, f"m{h}.{EXT}"); open(prog, "w").write(out)
+    prog = os.path.join(TMP, f"m{h}.{EXT}"); write(prog, out)
     if LANG == "rust":
-        # keyed by the emitted program, so a changed runtime is never served from a stale binary
-        exe = os.path.join(TMP, "x" + hashlib.sha256(out.encode()).hexdigest()[:20])
+        # keyed by the emitted program, so a changed runtime is never served
+        # from a stale binary, and private to this process; the process keeps
+        # only its last executable (a run and a trace of the same events
+        # share it), so a whole run's disk use stays bounded (an executable
+        # is a few MB, and the suite has well over a thousand programs)
+        exe = os.path.join(TMP, f"x{hashlib.sha256(out.encode()).hexdigest()[:20]}_{os.getpid()}")
         if not os.path.exists(exe):
-            # a private output name, then an atomic rename: parallel jobs may build the same program
-            tmp_exe = f"{exe}_{os.getpid()}"
-            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", tmp_exe, prog], timeout=600)
+            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", exe, prog], timeout=600)
             if rc != 0:
                 return None, "rustc: " + e[-800:]
-            os.replace(tmp_exe, exe)
+        if LAST_EXE[0] not in (None, exe) and os.path.exists(LAST_EXE[0]):
+            os.remove(LAST_EXE[0])
+        LAST_EXE[0] = exe
         return [exe], None
     if LANG == "python":
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
     if LANG == "js":
         return [os.environ.get("RCE_NODE", "node"), prog], None
     return [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "run", "--jvm", "21", "--server=false", "-q", prog, "--"], None
+
+def blocks_of(out):
+    """The example blocks of an emitted program's output, in order, as
+    (LINE, lines). A block starts at its `example LINE` header and ends at
+    the next header, at `main` (the first line of fn main's observation,
+    which comes after every example), or at the observation of an item that
+    follows the example: `const NAME`, `check LINE` or `fn NAME` (with its
+    `fuel N`). An example's own lines never start so: they are `initial`,
+    `K ...` for event K, `  emit`, `d`, `trace` and `fuel`. So a block holds
+    the example's own lines only, as emit::trace_example returns them."""
+    blocks, cur = [], None
+    for l in out.splitlines():
+        mm = re.match(r"example (\d+)$", l)
+        if mm:
+            cur = (int(mm.group(1)), []); blocks.append(cur); continue
+        if l == "main" or re.match(r"(const|check|fn) ", l):
+            cur = None; continue
+        if cur is not None:
+            cur[1].append(l)
+    return blocks
 
 def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
@@ -97,13 +138,7 @@ def run_events(src, events, extra=()):
         else:
             return {"error": f"emit: {err}"}
     rc, out, e = sh(cmd + list(extra))
-    blocks, cur = {}, None
-    for l in out.splitlines():
-        mm = re.match(r"example (\d+)$", l)
-        if mm:
-            cur = int(mm.group(1)); blocks[cur] = []; continue
-        if cur is not None:
-            blocks[cur].append(l)
+    blocks = dict(blocks_of(out))
     if n not in blocks:
         return {"error": f"no observation block for line {n}; exit {rc}; {e[-300:]}"}
     lines = blocks[n]
@@ -114,25 +149,57 @@ def run_events(src, events, extra=()):
         outcome = outcome_of(lines.pop().split(" refused: ", 1)[1])
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
-GENESIS = "0" * 64
+TRACE_ARGS = ("--trace", "--fuel-trace")
 
 def trace(src, events):
-    """6.1 D: the emitted program logs each example's D chain with `--trace`
-    (canonical JSON, N3 floats, SHA-256 entries, as the reference writes it)
-    and prints `trace HEAD`; the head of the last log is the trace head."""
+    """6.1 D and its derived lines: with `--trace` the emitted program prints
+    each entry of an example's D (canonical JSON, N3 floats, SHA-256, as the
+    reference writes it) before the event's line and `trace HEAD` after the
+    last event; with `--fuel-trace` it prints the example's `fuel N`. The
+    whole block is returned; nothing in it is dropped or rewritten. With no
+    events the module's last example is traced."""
     if events:
-        r = run_events(src, events, ("--trace",))
+        r = run_events(src, events, TRACE_ARGS)
         if "error" in r: return r
-        heads = [l[6:] for l in r["block"] if l.startswith("trace ")]
+        lines = r["block"]
     else:
         cmd, err = emit(src)
         if cmd is None:
             return {"error": f"emit: {err}"}
-        rc, out, e = sh(cmd + ["--trace"])
-        if rc != 0 and "trace " not in out:
-            return {"error": f"exit {rc}: {e[-300:]}"}
-        heads = [l[6:] for l in out.splitlines() if l.startswith("trace ")]
-    return {"verdict": "accept", "trace": {"head": heads[-1] if heads else GENESIS, "steps": []}}
+        rc, out, e = sh(cmd + list(TRACE_ARGS))
+        blocks = blocks_of(out)
+        if not blocks:
+            return {"error": f"no example block; exit {rc}; {e[-300:]}"}
+        lines = blocks[-1][1]
+    heads = [l[6:] for l in lines if l.startswith("trace ")]
+    return {"verdict": "accept", "trace": {"head": heads[-1] if heads else None, "lines": lines}}
+
+def toolchain():
+    """The version of the target's toolchain, as it reports it."""
+    cmd = {"rust": [os.environ.get("RCE_RUSTC", "rustc"), "--version"],
+           "python": [os.environ.get("RCE_PYTHON", "python3"), "--version"],
+           "js": [os.environ.get("RCE_NODE", "node"), "--version"],
+           "scala": [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "--version"]}[LANG]
+    try:
+        rc, out, err = sh(cmd, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as ex:
+        return f"{os.path.basename(cmd[0])} does not run: {ex}"
+    name = os.path.basename(cmd[0])   # never a machine-local path in a report
+    if rc != 0:
+        return f"{name} exited {rc}"
+    v = (out.strip() or err.strip()).splitlines()
+    line = v[0] if v else ""
+    # node prints only `vX.Y.Z`; the others name themselves
+    return line if line.lower().startswith(name.lower()[:4]) else f"{name} {line}"
+
+def emitted_by():
+    """The checker that emits, from the provenance line of an emitted file
+    (`emitted by rce VERSION (COMMIT)`)."""
+    f = os.path.join(TMP, "hello.rce")
+    write(f, "const K: i64 = 1\n")
+    rc, out, err = sh([RCE, "emit", LANG, f])
+    m = re.search(r"emitted by (rce \S+ \([^)]*\))", out.splitlines()[0] if out else "")
+    return m.group(1) if m else f"unknown: {(err or out).strip()[:200]}"
 
 for line in sys.stdin:
     if not line.strip():
@@ -141,7 +208,8 @@ for line in sys.stdin:
     try:
         op = req.get("op")
         if op == "hello":
-            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "ops": ["run", "trace"], "features": ["fuel", "trace"]}
+            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "emitted_by": emitted_by(),
+                 "toolchain": toolchain(), "ops": ["run", "trace"], "features": ["fuel", "trace"]}
         elif op == "run":
             r = run_events(req["source"], req["events"]) if req.get("events") else run_main(req["source"], req.get("fuel"))
         elif op == "trace":

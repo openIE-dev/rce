@@ -990,11 +990,11 @@ fn run_example1(line: usize, events: Vec<Ev>) {
         match delta(&s, &ev) {
             Ok((s2, outs)) => {
                 s = s2;
-                if tr { d.add(name, &ev, &s); }
+                if tr { d.add(name, &ev, &s, false); }
                 println!("{k} {} {}", show(&ev), show_state(&s));
                 for o in outs { println!("  emit {}", show(&o)); }
             }
-            Err(r) => { if tr { d.add(name, &ev, &s); } println!("{k} {} refused: {r}", show(&ev)); break; }
+            Err(r) => { if tr { d.add(name, &ev, &s, true); } println!("{k} {} refused: {r}", show(&ev)); break; }
         }
     }
     if tr { println!("trace {}", d.prev); }
@@ -1112,13 +1112,17 @@ fn jstr(s: &str) -> String {
 }
 struct DLog { prev: String, seq: usize }
 impl DLog {
-    fn add(&mut self, name: &str, ev: &V, st: &State) {
+    /// Append one entry and print it (`--trace`): `d applied|kept HASH BODY`,
+    /// BODY being the canonical JSON that HASH is the SHA-256 of.
+    fn add(&mut self, name: &str, ev: &V, st: &State, kept: bool) {
         let ty = match event_index(name) { Some(k) => k.to_string(), None => jstr(name) };
         let evj = format!("{{\"payload\":{},\"type\":{ty}}}", form_value_pos(ev).json());
         let sj = FV::List(st.iter().map(|(_, fs)| FV::List(fs.iter().map(|(_, v)| form_value_pos(v)).collect())).collect()).json();
         let sh = sha256_hex(sj.as_bytes());
         let body = format!("{{\"event\":{evj},\"prev_hash\":\"{}\",\"seq\":{},\"state_hash\":\"{sh}\"}}", self.prev, self.seq);
-        self.prev = sha256_hex(body.as_bytes());
+        let h = sha256_hex(body.as_bytes());
+        println!("d {} {h} {body}", if kept { "kept" } else { "applied" });
+        self.prev = h;
         self.seq += 1;
     }
 }

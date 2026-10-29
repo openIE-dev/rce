@@ -997,9 +997,9 @@ def run_events(s0: Vector[Any], events: Vector[Any], d: DLog): Unit = {
     try ev = th() catch { case e: Flow => say(s"$k $name " + why(e)); return }
     if (ev == null) { say(s"$k $name not an event"); return }
     var r: (Vector[Any], Vector[Any]) = null
-    try r = delta(s, ev) catch { case e: Refuse => if (tr) d.add(name, ev, s); say(s"$k " + show(ev) + " refused: " + e.r); return }
+    try r = delta(s, ev) catch { case e: Refuse => if (tr) d.add(name, ev, s, true); say(s"$k " + show(ev) + " refused: " + e.r); return }
     s = r._1
-    if (tr) d.add(name, ev, s)
+    if (tr) d.add(name, ev, s, false)
     say(s"$k " + show(ev) + " " + show_state(s))
     for (o <- r._2) say("  emit " + show(o))
   }
@@ -1119,12 +1119,15 @@ def fv_json(x: Any): String = x match {
 def d_sha(s: String): String = sha256hex(s.getBytes("UTF-8"))
 final class DLog {
   var prev: String = D_GENESIS; var seq: Int = 0
-  def add(name: String, ev: Any, st: Vector[Any]): Unit = {
+  // one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+  def add(name: String, ev: Any, st: Vector[Any], kept: Boolean): Unit = {
     val ty = if (EVENT_INDEX.contains(name)) EVENT_INDEX(name).toString else jstr(name)
     val evj = "{\"payload\":" + fv_json(form_value_pos(ev)) + ",\"type\":" + ty + "}"
     val sj = fv_json(st.map(r => vec(at(r, 1)).map(f => form_value_pos(at(f, 1)))))
     val body = "{\"event\":" + evj + ",\"prev_hash\":\"" + prev + "\",\"seq\":" + seq + ",\"state_hash\":\"" + d_sha(sj) + "\"}"
-    prev = d_sha(body); seq += 1
+    val h = d_sha(body)
+    say("d " + (if (kept) "kept" else "applied") + " " + h + " " + body)
+    prev = h; seq += 1
   }
 }
 def run_main(f: (Any, Vector[Any]) => Vector[Any]): Unit = {

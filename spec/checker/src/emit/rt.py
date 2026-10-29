@@ -1057,10 +1057,10 @@ def run_events(s, events, d):
             print("%d %s not an event" % (k, name)); return
         try: s2, outs = delta(s, ev)
         except Refuse as r:
-            if TRACE: d.add(name, ev, s)
+            if TRACE: d.add(name, ev, s, True)
             print("%d %s refused: %s" % (k, show(ev), r.r)); return
         s = s2
-        if TRACE: d.add(name, ev, s)
+        if TRACE: d.add(name, ev, s, False)
         print("%d %s %s" % (k, show(ev), show_state(s)))
         for o in outs: print("  emit " + show(o))
 
@@ -1181,12 +1181,15 @@ def fv_json(x):
 def d_sha(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
 class DLog:
     def __init__(s): s.prev = D_GENESIS; s.seq = 0
-    def add(s, name, ev, st):
+    def add(s, name, ev, st, kept):
+        # one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
         ty = str(EVENT_INDEX[name]) if name in EVENT_INDEX else jstr(name)
         evj = '{"payload":' + fv_json(form_value_pos(ev)) + ',"type":' + ty + "}"
         sj = fv_json([[form_value_pos(v) for n, v in fs] for r, fs in st])
         body = '{"event":' + evj + ',"prev_hash":"' + s.prev + '","seq":' + str(s.seq) + ',"state_hash":"' + d_sha(sj) + '"}'
-        s.prev = d_sha(body); s.seq += 1
+        h = d_sha(body)
+        print("d " + ("kept" if kept else "applied") + " " + h + " " + body)
+        s.prev = h; s.seq += 1
 
 class Refuse(Exception):
     def __init__(s, r): s.r = r

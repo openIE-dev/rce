@@ -23,6 +23,8 @@ for p in tests:
     if m.get("expect") not in EXPECT: errs.append(f"{p}: expect {m.get('expect')}")
     if m.get("expect") == "reject" and not m.get("diagnostic"): errs.append(f"{p}: reject without diagnostic")
     if m.get("expect") == "cli" and not isinstance(m.get("argv"), list): errs.append(f"{p}: cli without argv")
+    if m.get("expect") == "trace" and not (isinstance(m.get("trace_lines"), list) and m["trace_lines"]):
+        errs.append(f"{p}: trace without trace_lines (the whole trace)")
     cl = m.get("clauses") or []
     if not cl: errs.append(f"{p}: no clauses")
     for c in cl:

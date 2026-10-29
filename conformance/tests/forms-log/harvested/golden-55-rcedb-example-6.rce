@@ -46,5 +46,11 @@ step Db on Scan(start: f)
 # expect: trace
 # events: Delete(key: "x")
 # trace_head: a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59
+# trace_lines:
+#   - 0 (initial) Db { rows = {}, writes = 0, durable = 0 }
+#   - d kept a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59 {"event":{"payload":["x"],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"344c3c2bb7e8d5bff7840606154bf905a61d56420ffceafa35b715a5889f4ffc"}
+#   - 1 Delete(key: "x") refused: Missing
+#   - trace a32ec4e16cce2c216290d0ffdbb643d3cf912e6c709e6dbc574e859208e2df59
+#   - fuel 12
 # provenance: golden spec/traces/55_rcedb.json
 #---

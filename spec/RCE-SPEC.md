@@ -3167,10 +3167,17 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the conformance suite (`conformance/`) the Scala emitter passes 52 of 1,832 results, with 1,189 failures and 591 unsupported (`conformance/README.md`), so the Scala target does not yet agree with the reference on that suite.
-When `rustc`, `python3` or `node` is missing,
-its test prints `SKIPPED` and the reason; a skipped target is never
-counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter was not run in the whole-trace baseline (`conformance/README.md`); an earlier run, which recorded statuses only, passes 52 of its 1,832 results, with 1,189 failures and 591 unsupported (`conformance/reports/results-emit-scala.json`), so the Scala target does not agree with the reference on that suite.
+The targets a test run covers are named as data,
+one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
+`python`, `js`, `scala`), never by an environment variable or a flag. Every
+test that runs emitted programs runs them on each covered target it uses
+and fails when a covered target's toolchain does not start; a target the
+file does not name is reported as not covered by the run, never counted as
+a pass, and a test of that target alone is reported as ignored. The file
+names `rust`, `python` and `js`, the toolchains of the continuous
+integration runs; Scala is covered by adding its word. The
+oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
@@ -3191,6 +3198,21 @@ starts a new evaluator for each, and running out traps with the message
 used. These two arguments exist for the test below; the default program
 takes no argument.
 
+**The log D.** With the argument `--trace`, an emitted program also prints
+the log D (6.1) of each example. Before the line of each event that δ
+applied or kept comes its entry, `d applied HASH BODY` or `d kept HASH
+BODY`, where BODY is the canonical JSON of `{event, prev_hash, seq,
+state_hash}` over the positional forms and HASH is its SHA-256; after the
+example's last event comes `trace HEAD`, the hash of the last entry (64
+zeros when there is none). `emit::observe_trace` computes the same lines
+with the reference evaluator, the fuel lines of `--fuel-trace` included.
+The head commits to the events and the state hashes only. The state shown
+after each event, the outputs, the reason an event was kept and the fuel
+are not hashed, so a trace is compared whole: every line of an example's
+block, the entries of D included. The emit adapters of `conformance/`
+answer a trace with that block, and the harness compares it line for line
+with the block `rce-conform` prints for the same program and events.
+
 `spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
 the 50 programs of the emitter tests (with probes) against
 `emit::observe_fuel` of the reference evaluator, in all three targets. It
@@ -3203,7 +3225,7 @@ arguments before entering a call; the trap observation and the total are
 what the test fixes. The Scala target is in the same test (the emitted
 file is packaged once into a jar and run with `java -jar`); on 2026-10-14
 it agreed on all 54 programs of that corpus and at all 1,366 swept limits
-(`RCE_FUEL_LANGS=scala`).
+(a run that covered Scala alone).
 
 
 **Running `fn main`.** Run with the argument `--run`, an emitted program

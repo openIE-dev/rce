@@ -67,7 +67,7 @@ def label(src, origin, fixtures=None):
         tr = ref.trace(src, evs)
         if "trace" in tr:
             put("forms-log", f"{stem}-ex{line}-trace", src, {"clauses": [], "expect": "trace", "events": evs,
-                "trace_head": tr["trace"]["head"], "provenance": prov + f" example@{line}"})
+                "trace_head": tr["trace"]["head"], "trace_lines": tr["trace"]["lines"], "provenance": prov + f" example@{line}"})
 
 # 1. .rce files
 roots = [spec / "examples", spec / "conc06", spec / "conc06b", spec / "checker" / "tests"]
@@ -123,7 +123,7 @@ for g in sorted((spec / "traces").glob("*.json")):
             findings.append({"kind": "golden-mismatch", "file": str(g.relative_to(spec)), "events": evs, "golden": golden, "reference": got})
             continue
         put("forms-log", f"golden-{slug(g.stem)}-{slug(t['source'])}", src, {"clauses": [], "expect": "trace", "events": evs,
-            "trace_head": golden, "provenance": f"golden spec/{g.relative_to(spec)}"})
+            "trace_head": golden, "trace_lines": tr["trace"]["lines"], "provenance": f"golden spec/{g.relative_to(spec)}"})
 
 json.dump(findings, open(out.parent / "findings" / "harvest-findings.json", "w"), indent=1)
 print(json.dumps({"written": n["files"], "unique_programs": len(seen), "golden_mismatches": len(findings)}))

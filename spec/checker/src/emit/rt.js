@@ -904,9 +904,9 @@ function runEvents(s, events, d) {
     try { ev = th(); } catch (e) { if (!isFlow(e)) throw e; say(k + " " + name + " " + why(e)); return; }
     if (ev === null) { say(k + " " + name + " not an event"); return; }
     let r;
-    try { r = delta(s, ev); } catch (e) { if (e instanceof Refuse) { if (TRACE) d.add(name, ev, s); say(k + " " + show(ev) + " refused: " + e.r); return; } throw e; }
+    try { r = delta(s, ev); } catch (e) { if (e instanceof Refuse) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " refused: " + e.r); return; } throw e; }
     s = r[0];
-    if (TRACE) d.add(name, ev, s);
+    if (TRACE) d.add(name, ev, s, false);
     say(k + " " + show(ev) + " " + showState(s));
     for (const o of r[1]) say("  emit " + show(o));
   }
@@ -1005,12 +1005,15 @@ function fvJson(x) {
 const dSha = (s) => sha256hex(enc.encode(s));
 class DLog {
   constructor() { this.prev = D_GENESIS; this.seq = 0; }
-  add(name, ev, st) {
+  // one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+  add(name, ev, st, kept) {
     const ty = Object.hasOwn(EVENT_INDEX, name) ? String(EVENT_INDEX[name]) : jstr(name);
     const evj = '{"payload":' + fvJson(formValuePos(ev)) + ',"type":' + ty + "}";
     const sj = fvJson(st.map(([r, fs]) => fs.map(([n, v]) => formValuePos(v))));
     const body = '{"event":' + evj + ',"prev_hash":"' + this.prev + '","seq":' + this.seq + ',"state_hash":"' + dSha(sj) + '"}';
-    this.prev = dSha(body); this.seq++;
+    const h = dSha(body);
+    say("d " + (kept ? "kept" : "applied") + " " + h + " " + body);
+    this.prev = h; this.seq++;
   }
 }
 function runMain(f) {

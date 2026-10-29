@@ -14,6 +14,9 @@ use serde_json::Value;
 use std::path::Path;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn spec() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
@@ -106,6 +109,7 @@ fn program(v: &Value) -> (String, Vec<String>) {
 #[test]
 fn evaluator_and_emitters_agree_with_lean() {
     let text = std::fs::read_to_string(spec().join("checker/tests/vectors/lvar-lean.jsonl")).unwrap();
+    let covered = targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], |l| tool(l).to_string());
     let mut n = 0;
     for line in text.lines() {
         let v: Value = serde_json::from_str(line).unwrap();
@@ -118,11 +122,7 @@ fn evaluator_and_emitters_agree_with_lean() {
         let langs: &[Lang] = if n < 4 { &[Lang::Rust, Lang::Python, Lang::Js] } else { &[Lang::Python, Lang::Js] };
         let pm = with_probes(&m);
         let want_p = observe(&pm);
-        for &lang in langs {
-            if Command::new(tool(lang)).arg("--version").output().is_err() {
-                eprintln!("SKIPPED {lang:?}: {} not found (not a pass)", tool(lang));
-                continue;
-            }
+        for &lang in langs.iter().filter(|l| covered.contains(l)) {
             let code = emit(&pm, lang).unwrap();
             let out = run(lang, &format!("v{n}"), &code).unwrap_or_else(|e| panic!("vector {n} {lang:?}: {e}"));
             let out: Vec<&str> = out.lines().collect();

@@ -8,6 +8,9 @@ use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn tool(lang: Lang) -> &'static str {
     match lang {
         Lang::Rust => "rustc",
@@ -52,11 +55,7 @@ fn agree(tag: &str, src: &str) -> Vec<String> {
     assert!(d[0].1.is_ok(), "{tag}: {:?}\n{src}", d[0].1);
     let m = with_probes(&parse(src).unwrap());
     let want = observe(&m);
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
-        if Command::new(tool(lang)).arg("--version").output().is_err() {
-            eprintln!("SKIPPED {lang:?}: {} not found (not a pass)", tool(lang));
-            continue;
-        }
+    for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], |l| tool(l).to_string()) {
         let code = emit(&m, lang).unwrap_or_else(|e| panic!("{tag} {lang:?}: not emitted: {e}"));
         let got = run(lang, tag, &code).unwrap_or_else(|e| panic!("{tag} {lang:?} did not run: {e}"));
         let got: Vec<&str> = got.lines().collect();

@@ -27,5 +27,11 @@ fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len_bytes()
 # expect: trace
 # events: Dec(b: [226, 130, 172])
 # trace_head: c3af5d0cbc03831af4fba193e15796bdcf12e3e1f2c800239dc89255d78d6b48
+# trace_lines:
+#   - 0 (initial) S { t = "" }
+#   - d applied c3af5d0cbc03831af4fba193e15796bdcf12e3e1f2c800239dc89255d78d6b48 {"event":{"payload":[[226,130,172]],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"8fc6bf16000e356aa9dd634dc165a43cecfe7c33b264cb48990f7310856e6d44"}
+#   - 1 Dec(b: [226, 130, 172]) S { t = "€" }
+#   - trace c3af5d0cbc03831af4fba193e15796bdcf12e3e1f2c800239dc89255d78d6b48
+#   - fuel 7
 # provenance: harvested examples/56_utf8.rce example@3
 #---

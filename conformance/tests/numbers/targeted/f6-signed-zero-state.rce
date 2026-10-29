@@ -9,6 +9,12 @@ step S on Neg -> x * -1.0
 # expect: trace
 # events: Neg
 # trace_head: 5aca37fb97cfaedc3b9cd206cec6e1f47ca94ae6c57391760066e98505876f66
+# trace_lines:
+#   - 0 (initial) S { x = 0 }
+#   - d applied 5aca37fb97cfaedc3b9cd206cec6e1f47ca94ae6c57391760066e98505876f66 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"e8a717a29cc36f22f9d44584fd3029b3e345a470ee5df808d2f7d90c478c6de1"}
+#   - 1 Neg S { x = -0 }
+#   - trace 5aca37fb97cfaedc3b9cd206cec6e1f47ca94ae6c57391760066e98505876f66
+#   - fuel 5
 # provenance: targeted.py: expected result read off the clause
 # note: law F6: the head differs from the same program with x * 1.0 (92e4ec2875cac39dae65db1c0d8e5badc693e4b5db6d4af3bf31d32d18269970)
 #---

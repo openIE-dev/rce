@@ -33,5 +33,13 @@ step Profile on Rename(name: n) -> n
 # expect: trace
 # events: SetVolume(pct: 40), Rename(name: "ok")
 # trace_head: b0f731a024530d633b2a820391fe92199fb2da08a6691122df74d2c1c44057a0
+# trace_lines:
+#   - 0 (initial) Volume { level = 0 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - d applied 8d2687390dab4f61cee0a06983224297c3c29dc1dc0e90f423a39fb11e33a9eb {"event":{"payload":[40],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"b8d21f8feba9c67c5b11bc8bd558560ae3ced55677cedd859f6cf19e96e34be2"}
+#   - 1 SetVolume(pct: 40) Volume { level = 40 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - d applied b0f731a024530d633b2a820391fe92199fb2da08a6691122df74d2c1c44057a0 {"event":{"payload":["ok"],"type":1},"prev_hash":"8d2687390dab4f61cee0a06983224297c3c29dc1dc0e90f423a39fb11e33a9eb","seq":1,"state_hash":"631f9ba646f953dba65c57af8f64fc8c351738d07c408cab1202825e1f97b10d"}
+#   - 2 Rename(name: "ok") Volume { level = 40 }; Codes { accepted = 0 }; Profile { name = "ok" }
+#   - trace b0f731a024530d633b2a820391fe92199fb2da08a6691122df74d2c1c44057a0
+#   - fuel 7
 # provenance: harvested examples/51_refined_input.rce example@7
 #---

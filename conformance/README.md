@@ -31,12 +31,17 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 ## Running
 
-**Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The reference and the three emitter reports were rerun against public `rce` `4a3dc1f` (next section); the other reports were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
+**Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The reference, emit-python and emit-js reports are the whole-trace emit baseline (below); emit-rust and emit-scala hold the statuses of earlier runs and were not run in that baseline; the other reports were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
 
     export RCE_CONFORM=/path/to/rce-conform   # cargo build -p rce-spec-check --bin rce-conform
-    python3 harness/run.py --adapter adapters/reference.json --jobs 8
-    python3 tools/coverage.py
-    python3 tools/parity.py
+    export RCE=/path/to/rce                   # the emitters' `rce emit`
+    python3 harness/run.py adapters/reference.json
+    python3 harness/run.py adapters/emit-python.json     # likewise emit-js and emit-rust
+    python3 tools/coverage.py reports/results-reference.json   # clause coverage, with the reference's statuses
+    python3 tools/parity.py                   # byte parity of every answer with the reference's
+    python3 tools/readme_status.py            # the status block below
+
+A trace test passes only when the whole trace equals the reference's, line for line: every entry of D, the state after each event, the outputs, the reasons events were kept and the fuel (`trace_lines`), not only the head. `tools/trace_lines.py` writes `trace_lines` into the trace tests from `rce-conform`. `harness/run.py ADAPTER [TESTS [OUT]]` takes positional arguments only: the adapter file, the test directory (default `tests`) and the results file (default `reports/results-NAME.json`), with one job per processor; the options of its older spelling (`--adapter`, `--jobs`, `--stop-on-fail` and others) remain only for `tools/mutate.py` and `tools/run-all.sh`, which use them. On a machine too small for one run of an emitter, run it directory by directory (`harness/run.py ADAPTER tests/AREA PART`) and join the parts with `tools/join_results.py OUT PART...`. A whole run of the Rust emitter compiles about 1,459 programs; the `emit-rust conformance` workflow (`.github/workflows/emit-rust.yml`, run by hand and once a week) runs it on GitHub's runners, together with the reference run and `tools/parity.py` at the same commit, and uploads `results-emit-rust.json` with their reports.
 
 ## Status
 
@@ -47,9 +52,12 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The three counts agree.
 - Coverage: language profile 205 of 205 normative clauses covered (100.0%).
   Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
-- Reference: 1964 pass, 0 fail, 15 unsupported of 1979 (23 October 2026, in-repository run; see below).
-- Emitters: python 1459 pass / 0 fail / 520 not applicable or unsupported; js 1459 pass / 0 fail / 520 not applicable or unsupported; rust 1459 pass / 0 fail / 520 not applicable or unsupported. Parity with the reference: python 1460 agree, 0 disagree; js 1460 agree, 0 disagree; rust 1460 agree, 0 disagree.
-- Scala emitter: 52 pass, 1189 fail, 591 unsupported of 1832 results (146 tests have no Scala result). Scala does not yet agree with the reference.
+- Reference: 1964 pass, 0 fail, 15 unsupported of 1979.
+  Run: rce reference interpreter; version 0.1.0, commit b21b8a65333d.
+- Emitters run in this baseline, traces compared whole and line for line: Python (rce emit python; emitted by rce 0.1.0 (b21b8a65333d); Python 3.13.16): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported; JavaScript (rce emit js; emitted by rce 0.1.0 (b21b8a65333d); node v22.22.0): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported.
+  Byte parity with the reference (`reports/parity.md`): Python 1459 same, 0 different, 0 without an answer to compare; JavaScript 1459 same, 0 different, 0 without an answer to compare.
+- Rust emitter: not run in this baseline. `reports/results-emit-rust.json` holds the statuses of an earlier run (1979 results), made before answers were recorded; none of them is compared with the reference or counted as a pass.
+- Scala emitter: not run in this baseline. `reports/results-emit-scala.json` holds the statuses of an earlier run (1832 results, 1189 of them fail), made before answers were recorded; none of them is compared with the reference or counted as a pass.
 - Wasm playground: 419 pass, 16 fail, 1504 unsupported of 1939 results.
 - Lean core model: 210 pass, 1 fail, 1766 unsupported of 1977 results.
 - Tree-sitter grammar `00b639a`: 1773 of 1773 programs agree with the reference parser (0 disagreements).
@@ -57,13 +65,24 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The mutation baseline (the unmutated mutation build) fails 20 tests; that is not the reference run, which has 0 failures.
 <!-- status:end -->
 
+## Whole-trace emit baseline (27 October 2026)
+
+The reference, emit-python and emit-js results in `reports/` are one run each, made on 27 October 2026 on a Linux x86_64 machine with 4 processors. `rce` and `rce-conform` were built from commit `b21b8a65333d` with the pinned rustc 1.98.1 (`spec/checker/rust-toolchain.toml`), release profile; `$RCE_ENGINE` was not set. The emitted programs ran on CPython 3.13.16 (`python3`) and Node v22.22.0 (`node`). Each results file names the commit and, for an emitter, the emitting checker and the toolchain in its `hello`, and `reports/parity.md` repeats them.
+
+In this run a trace passes only when the whole trace equals the reference's line for line (every entry of D, the state after each event, the outputs, the reasons events were kept and the fuel), and `tools/parity.py` compares the canonical bytes of every answer, not statuses.
+
+- **Reference:** 1,964 pass, 0 fail, 15 unsupported of 1,979. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`.
+- **Python and JavaScript:** each 1,459 pass (1,357 run tests and 102 trace tests), 0 fail, 0 error, and 520 not applicable: 346 reject, 91 accept, 30 host, 30 replicate and 23 cli tests, which ask for admission, the host or the reference's tools, none of which an emitter serves (`not_applicable` in the adapter files). Each of the 1,459 answers has the same bytes as the reference's answer to the same test.
+- **Rust:** not run in this baseline. A whole run compiles about 1,459 programs with `rustc -O`, too long for this 4-processor machine in the time this baseline had; the `emit-rust conformance` workflow (`.github/workflows/emit-rust.yml`) runs it on GitHub's runners with the same whole-trace comparison and uploads its results file. `reports/results-emit-rust.json` is still the status-only file of the 18 October run (below), which is not compared or counted.
+- **Scala:** not run in this baseline: neither this machine nor the continuous integration runners have `scala-cli`. `reports/results-emit-scala.json` is the status-only file of an earlier run, which is not compared or counted.
+
 ## Run in the rce repository (23 October 2026)
 
-Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and `conformance.yml` runs the reference adapter against `rce` and `rce-conform` built from the same commit, so there is no commit to pin: `reports/results-reference.json` is the run at the current head. The run of 23 October (`rce` at the monorepo merge, with `$RCE` set and `$RCE_ENGINE` unset): 1,964 pass, 0 fail, 15 unsupported. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`; without `$RCE_ENGINE` the adapter reports them as unsupported, never as passes.
+Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and `conformance.yml` runs the reference adapter against `rce` and `rce-conform` built from the same commit, and each results file names the commit it was run at in its `hello`; the committed `reports/results-reference.json` is the run of the whole-trace emit baseline (the section above). The run of 23 October (`rce` at the monorepo merge, with `$RCE` set and `$RCE_ENGINE` unset): 1,964 pass, 0 fail, 15 unsupported. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`; without `$RCE_ENGINE` the adapter reports them as unsupported, never as passes.
 
 ## Run against public `rce` 4a3dc1f (one language, 18 October 2026)
 
-The reference, emit-python, emit-js and emit-rust results in `reports/` were rerun against public `rce` main `4a3dc1f`, with `rce-conform` and `rce` built from that commit (`$RCE_ENGINE` set to the same `rce`). Before the tests were converted to the one-language rules the reference run had 1,575 pass and 404 fail; the converted suite has 1,965 pass and 14 fail.
+The reference, emit-python, emit-js and emit-rust results were rerun against public `rce` main `4a3dc1f`, with `rce-conform` and `rce` built from that commit (`$RCE_ENGINE` set to the same `rce`). Of these, only `reports/results-emit-rust.json` is still that run's file; it records statuses only and is not counted (Status above), and the whole-trace emit baseline replaced the other three. Before the tests were converted to the one-language rules the reference run had 1,575 pass and 404 fail; the converted suite has 1,965 pass and 14 fail.
 
 - **The 14 not re-run:** the 14 `handler-spec` tests (appendix D) need the engine's `rce`, which is not public; their committed results (pass, engine run) are kept, and they fail here because public `rce` has no `spec` declarations.
 - **Not re-run, results kept as committed (minus the removed `emit06-reject`):** emit-scala (needs a Scala toolchain run that was not made), wasm-playground (needs a playground build of the new checker) and lean-core (needs the Lean build). Their results predate the conversion of 371 programs and the rename of `emit06-reject` to `emit06-accept`, so for those tests they describe the earlier program text. `reports/tree-sitter.json` was not regenerated either; it still lists the earlier program text.

@@ -45,4 +45,4 @@ jobs:
       - name: Run the suite against the reference checker
         working-directory: conformance
         # RCE_ENGINE (the handler-spec profile, appendix D) is not set: the engine is not public, so those tests report unsupported.
-        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py --adapter adapters/reference.json --jobs 4
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py adapters/reference.json

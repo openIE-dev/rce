@@ -23,5 +23,13 @@ step S on Tick(n: n)
 # expect: trace
 # events: Key(c: "a"), Tick(n: 1)
 # trace_head: 3528bb9f74152cef3e7f204246d8170a3cd2d3353b69d7c4a94eb3460a8b502a
+# trace_lines:
+#   - 0 (initial) S { seen = "", now = 0 }
+#   - d applied 5ab5c1b2a2c6fc19b6117dc1c78bdea56928da3c997ad537c0679a3bfc652d1f {"event":{"payload":["a"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"6f5da5f0ac3daaeaf13012aea3318a24321013fcb83b780bab214758dbcc9b08"}
+#   - 1 Key(c: "a") S { seen = "a", now = 0 }
+#   - d applied 3528bb9f74152cef3e7f204246d8170a3cd2d3353b69d7c4a94eb3460a8b502a {"event":{"payload":[1],"type":1},"prev_hash":"5ab5c1b2a2c6fc19b6117dc1c78bdea56928da3c997ad537c0679a3bfc652d1f","seq":1,"state_hash":"38d8e023d06e961f835363c4dcad75b818c7e4ca3be9425664f707a69835e209"}
+#   - 2 Tick(n: 1) S { seen = "a", now = 1 }
+#   - trace 3528bb9f74152cef3e7f204246d8170a3cd2d3353b69d7c4a94eb3460a8b502a
+#   - fuel 12
 # provenance: harvested checker/tests/host/ticked.rce example@5
 #---

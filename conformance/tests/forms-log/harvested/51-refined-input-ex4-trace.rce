@@ -33,5 +33,11 @@ step Profile on Rename(name: n) -> n
 # expect: trace
 # events: SetVolume(pct: 40)
 # trace_head: 8d2687390dab4f61cee0a06983224297c3c29dc1dc0e90f423a39fb11e33a9eb
+# trace_lines:
+#   - 0 (initial) Volume { level = 0 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - d applied 8d2687390dab4f61cee0a06983224297c3c29dc1dc0e90f423a39fb11e33a9eb {"event":{"payload":[40],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"b8d21f8feba9c67c5b11bc8bd558560ae3ced55677cedd859f6cf19e96e34be2"}
+#   - 1 SetVolume(pct: 40) Volume { level = 40 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - trace 8d2687390dab4f61cee0a06983224297c3c29dc1dc0e90f423a39fb11e33a9eb
+#   - fuel 5
 # provenance: harvested examples/51_refined_input.rce example@4
 #---

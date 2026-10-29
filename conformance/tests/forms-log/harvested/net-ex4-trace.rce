@@ -165,5 +165,14 @@ step Net on Restarted(below: _b)
 # expect: trace
 # events: Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x")
 # trace_head: cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de
+# trace_lines:
+#   - 0 (initial) Net { next = 0, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 0 }
+#   - d applied be51df253cf2e8a3cd14d23bb88fb4960ed6f62ee6b8db812ec82931891b1554 {"event":{"payload":["127.0.0.1:1"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"e11d1b7894034fe16b30deb88967ff2cd9e84806236d0ec4e02b8cb53bb675d9"}
+#   - 1 Listen(addr: "127.0.0.1:1") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 0 }
+#   - "  emit NetListen(req: 1, addr: \"127.0.0.1:1\")"
+#   - d applied cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de {"event":{"payload":[1,"failed",null,"x"],"type":9},"prev_hash":"be51df253cf2e8a3cd14d23bb88fb4960ed6f62ee6b8db812ec82931891b1554","seq":1,"state_hash":"3419e82a852935ae35324fa4e4595cd45aa1e83f2f653f5f4ac9ea249385ef5d"}
+#   - 2 NetListenDone(req: 1, status: "failed", data: none, err: "x") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 1 }
+#   - trace cc196b992bf011126cbbdf7d165021b71f24feca5c7ea7fa7632e898e8f203de
+#   - fuel 30
 # provenance: harvested checker/tests/host/net.rce example@4
 #---

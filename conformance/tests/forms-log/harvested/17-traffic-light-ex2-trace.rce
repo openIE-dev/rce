@@ -23,5 +23,13 @@ step Signal on Tick
 # expect: trace
 # events: Tick, Tick
 # trace_head: 1d8f58dbd0558cc747db24934edcf83cb350758f218f83b4abfbd0ebe02f35a6
+# trace_lines:
+#   - 0 (initial) Signal { light = Red }
+#   - d applied b45d736a74d4250bb2b6a28a944d1068dc6d7e76f46bc1f80e687de1954e0695 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"a4a190464150891e2a619f2165c82881772b72107c3348fc0687333c13b7f3e7"}
+#   - 1 Tick Signal { light = Green }
+#   - d applied 1d8f58dbd0558cc747db24934edcf83cb350758f218f83b4abfbd0ebe02f35a6 {"event":{"payload":[],"type":0},"prev_hash":"b45d736a74d4250bb2b6a28a944d1068dc6d7e76f46bc1f80e687de1954e0695","seq":1,"state_hash":"0d5b19be75992d25749716e83c2d55cbb13174578c8243244c59731ca9fbc15d"}
+#   - 2 Tick Signal { light = Yellow }
+#   - trace 1d8f58dbd0558cc747db24934edcf83cb350758f218f83b4abfbd0ebe02f35a6
+#   - fuel 11
 # provenance: harvested examples/17_traffic_light.rce example@2
 #---

@@ -9,6 +9,9 @@ use rce_spec_check::interp::V;
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn list(n: usize) -> V {
     V::List((0..n as i128).map(|i| V::Int(i, "i64")).collect())
 }
@@ -64,7 +67,7 @@ fn emitted(src: &str, stem: &str, target: &str) -> Option<String> {
         "js" => ("mjs", "node"),
         _ => ("rs", "rustc"),
     };
-    if Command::new(tool).arg("--version").output().is_err() {
+    if !targets::covers(target, tool) {
         return None;
     }
     let p = d.join(format!("{stem}.{ext}"));

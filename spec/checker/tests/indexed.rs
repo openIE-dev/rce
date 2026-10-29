@@ -6,6 +6,9 @@
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 const ENC: &str = "# rce-version: 0.8
 fn main()
     let s = \"<a href='x'>&\\\"é\\n\\t\\\\ q/?=</a>\"
@@ -64,7 +67,7 @@ fn reference_and_every_runtime_agree_on_the_encoders() {
     let reference = emits(&o);
     assert_eq!(reference.len(), 4, "{o}");
     for (target, ext, tool) in [("rust", "rs", "rustc"), ("python", "py", "python3"), ("js", "mjs", "node")] {
-        if Command::new(tool).arg("--version").output().is_err() {
+        if !targets::covers(target, tool) {
             continue;
         }
         let (c, out, err) = run(&["emit", target, f.to_str().unwrap()]);

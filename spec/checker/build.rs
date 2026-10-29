@@ -14,7 +14,36 @@ fn main() {
     embed_stdlib();
     println!("cargo:rerun-if-changed=../../.git/HEAD");
     println!("cargo:rerun-if-changed=../../.git/refs/heads");
+    emit_targets();
     tree_sitter();
+}
+
+/// The emit targets that `tests/emit_targets.txt` names (spec 10.5,
+/// tests/common/targets.rs), each passed to the tests as
+/// `--cfg rce_emit="WORD"`: a test that runs one target alone is marked
+/// ignored, never passed, when the file does not name its target. Without
+/// the file no target is passed: the build goes on with a warning, and the
+/// tests that read the file fail when they run.
+fn emit_targets() {
+    const FILE: &str = "tests/emit_targets.txt";
+    const ALL: [&str; 4] = ["rust", "python", "js", "scala"];
+    println!("cargo:rerun-if-changed={FILE}");
+    println!("cargo:rustc-check-cfg=cfg(rce_emit, values(\"rust\", \"python\", \"js\", \"scala\"))");
+    let text = match std::fs::read_to_string(FILE) {
+        Ok(t) => t,
+        Err(e) => {
+            println!("cargo:warning={FILE}: {e}; no emit target is covered");
+            return;
+        }
+    };
+    for l in text.lines() {
+        let w = l.split('#').next().unwrap_or("").trim();
+        if w.is_empty() {
+            continue;
+        }
+        assert!(ALL.contains(&w), "{FILE}: `{w}` is not an emit target (rust, python, js, scala)");
+        println!("cargo:rustc-cfg=rce_emit=\"{w}\"");
+    }
 }
 
 #[cfg(feature = "tree-sitter")]
