@@ -207,3 +207,44 @@ fn use_paths_keep_their_names() {
     }
     assert!(out.contains("use num.linalg"), "{out}");
 }
+
+/// Project `src`, check the projection and run both: the projection is
+/// admitted and prints what the source prints.
+fn projects_and_runs_alike(name: &str, src: &str) -> String {
+    let f = tmp(&format!("{name}.rce"), src);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (st, projected) = rce(&["fmt", "--nameless", &f]);
+    assert_eq!(st, 0, "{projected}");
+    let g = tmp(&format!("{name}_nameless.rce"), &projected);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{projected}\n{out}");
+    assert_eq!(rce(&["run", &f]), rce(&["run", &g]), "{projected}");
+    projected
+}
+
+#[test]
+fn a_builtin_method_keeps_its_name_beside_a_function_of_that_name() {
+    // stdlib/lib/math/math.rce declares `pub fn sqrt` and calls `x.sqrt()`,
+    // the f64 method: `x.m(…)` reaches a function of the module only as a
+    // method of an `impl` block (5.15), so the call keeps its name
+    let p = projects_and_runs_alike(
+        "sqrt",
+        "fn sqrt(x: f64) -> f64\n    return x.sqrt() + 1.0\n\nfn main()\n    emit sqrt(4.0)\n",
+    );
+    assert!(p.contains("v0.sqrt()") && p.contains("emit f0(4.0)"), "{p}");
+}
+
+#[test]
+fn fields_of_an_imported_type_keep_their_names() {
+    // stdlib/lib/num/stats.rce reads `a.m` and `a.n` of a `linalg.Mat` and
+    // also declares locals `m` and `n`: the locals are renamed, the fields of
+    // the imported type are not, in accesses and in literal labels alike, and
+    // a range `0..n` is not a member access
+    let p = projects_and_runs_alike(
+        "imported_fields",
+        "use num.linalg\n\nstruct Shape\n    n: usize\n\nfn size(a: &linalg.Mat, s: &Shape) -> usize\n    let m = a.m\n    var t = 0\n    for _i in 0..m\n        t = t + 1\n    return t * a.n + s.n\n\nfn main()\n    let a = linalg.Mat(m: 2, n: 3, a: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])\n    let s = Shape(n: 1)\n    emit size(&a, &s)\n",
+    );
+    assert!(p.contains(".m\n") && p.contains(".n + ") && p.contains("Mat(m: 2, n: 3, a: ["), "{p}");
+    assert!(!p.contains("let m ") && !p.contains("fn size"), "{p}");
+}
