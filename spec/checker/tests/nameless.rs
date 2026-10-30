@@ -248,3 +248,31 @@ fn fields_of_an_imported_type_keep_their_names() {
     assert!(p.contains(".m\n") && p.contains(".n + ") && p.contains("Mat(m: 2, n: 3, a: ["), "{p}");
     assert!(!p.contains("let m ") && !p.contains("fn size"), "{p}");
 }
+
+#[test]
+fn template_holes_are_projected_like_code() {
+    // spec/examples-0.9/ok/15_templates.rce: the expressions in a template's
+    // `{…}` name the module's own locals and fields, so they are renamed with
+    // them; the template's text and its `{{` `}}` stay as written
+    let p = projects_and_runs_alike(
+        "templates",
+        "# rce-version: 0.9\nstruct User\n    name: text\n\nfn greet(u: &User, n: i64) -> text\n    return text.t\"Hi {u.name}, {n} new {{ok}}\"\n\nfn main()\n    let u = User(name: \"ann\")\n    emit greet(&u, 3)\n",
+    );
+    assert!(p.contains("t\"Hi {v1.v0}, {v2} new {{ok}}\""), "{p}");
+}
+
+#[test]
+fn the_authority_structs_keep_their_names() {
+    // spec/examples-0.9/ok/07_dir_caps.rce: the checker reads DirRead,
+    // DirWrite and their field `root` by name (F.5.1, W-CAP-3), so they keep
+    // them; a local named `root` is still renamed
+    let f = tmp("caps.rce", "# rce-version: 0.9\nstruct DirRead\n    root: text\n\nextern \"C\" fn file_len(w: &World, dir: Cap[DirRead], path: &text) -> i64\n\nfn reader(w: &World, root: Cap[DirRead], out: chan i64)\n    let sub = root.narrow(\"logs\")\n    let name = \"app.log\"\n    out <- file_len(w, sub, &name)\n\nfn main()\n    emit 0\n");
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (st, p) = rce(&["fmt", "--nameless", &f]);
+    assert_eq!(st, 0, "{p}");
+    assert!(p.contains("struct DirRead\n    root: text") && p.contains("Cap[DirRead]") && !p.contains("root: Cap"), "{p}");
+    let g = tmp("caps_nameless.rce", &p);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{p}\n{out}");
+}
