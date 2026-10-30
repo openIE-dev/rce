@@ -10,6 +10,7 @@
 | `rce emit TARGET FILE` | `form`, `rust`, `python`, `js` or `scala` (the emit registry lists further targets) |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce equiv [--fuel N] [--json] A B` | whether two programs have the same behaviour on the explored events, with the shortest distinguishing sequence when not |
+| `rce fingerprint [--depth N] [--fuel N] [--json] FILE...` | a hash of what a program outputs on every event sequence up to N events long: programs `rce equiv` judges equivalent share it whatever their shape |
 | `rce change [--fuel N] OLD NEW` | classify a change: erratum (every export compatible, every behaviour kept), meaning change, interface change |
 | `rce dim [--fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce lsp` | language server on standard input and output |
