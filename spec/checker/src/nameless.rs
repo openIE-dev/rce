@@ -17,7 +17,12 @@
 //! declared is left as written, which keeps the output a valid program.
 //! The projection is deterministic and idempotent.
 //!
-//! Status: written without the toolchain at hand; not yet built or run.
+//! A use is placed by its position as well as its name: after `.` a call
+//! is renamed only when it names a method of the module's own `impl`
+//! blocks, a field only when it is a field of the module's own types, and a
+//! label in parentheses only when the callee is the module's own name, so a
+//! standard library method or another module's field keeps its name even
+//! when the module declares the same name for something else.
 
 use crate::parse::{lex, Tok, DRAFT06_KEYWORDS, KEYWORDS};
 use std::collections::{BTreeMap, HashSet};
@@ -27,7 +32,7 @@ const BUILTIN_TYPES: &[&str] = &[
     "List", "Map", "Set", "Box", "Option", "Secret", "Cap", "Guarded", "Text", "World", "Template",
     "Shell", "Prompt", "Header", "mathint", "Tick", "self", "some", "none", "true", "false",
     // semantic names: the entry point, the built-in traits and their methods
-    "main", "Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge", "eq", "cmp", "hash", "show", "merge",
+    "main", "Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge", "eq", "cmp", "hash", "show", "merge", "bottom",
     "Start", "Input", "Display", "Exit", "Synced", "Backpressure", "Deadlock",
     // per-program constants the checker reads by name (6.7, C.11.11)
     "LOOP_LIMIT", "RESTART_WINDOW", "TICK_NS",
@@ -56,13 +61,34 @@ fn prefix(k: Kind) -> &'static str {
     }
 }
 
-/// The rename map: declared name → positional name.
-fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
+/// What the scan learns about the module's own names.
+struct Names {
+    /// declared name → positional name
+    map: BTreeMap<String, String>,
+    /// names declared as fields of the module's own types (struct, state,
+    /// event and error fields, kind variant payloads)
+    fields: HashSet<String>,
+    /// names declared as methods in the module's own `impl` blocks
+    methods: HashSet<String>,
+    /// every type, event, error, region, variant and function the module
+    /// declares, including those whose names are reserved
+    own: HashSet<String>,
+    /// the module's own functions (their labels are parameters)
+    fns: HashSet<String>,
+}
+
+/// The rename map and the facts that place each use.
+fn renames(src: &str) -> Result<Names, String> {
     let toks: Vec<Tok> = lex(src)?.into_iter().map(|(t, _)| t).collect();
     let reserved: HashSet<&str> = KEYWORDS.iter().chain(DRAFT06_KEYWORDS.iter()).chain(BUILTIN_TYPES.iter()).copied().collect();
     let mut declared: Vec<(String, Kind)> = vec![];
     let mut seen: HashSet<String> = HashSet::new();
+    // every name the module declares, reserved ones too (`event Input(…)`)
+    let mut own: HashSet<String> = HashSet::new();
     let mut declare = |n: &str, k: Kind| {
+        if k != Kind::Value {
+            own.insert(n.to_string());
+        }
         // `_` is the wildcard and a `_` prefix means "deliberately unused"
         // (F.3.2, W-UNUSED-1): both carry meaning and are kept as written.
         if n == "_" {
@@ -76,8 +102,28 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
     let mut in_kind_block = false;
     let mut kind_depth = 0usize;
     let mut depth = 0usize;
+    // `impl` blocks: their `fn` members are methods, reached after `.`
+    let mut in_impl = false;
+    let mut impl_depth = 0usize;
+    let mut methods: HashSet<String> = HashSet::new();
+    // fields: `NAME :` at a line start in a type block, and the labels in
+    // parentheses after a name (resolved below, once every name is known)
+    let mut line_fields: HashSet<String> = HashSet::new();
+    let mut labels: Vec<(String, String)> = vec![];
+    let mut parens: Vec<Option<String>> = vec![];
     for i in 0..toks.len() {
         match &toks[i] {
+            Tok::P("(") => {
+                let callee = match (i.checked_sub(2).map(|k| &toks[k]), i.checked_sub(1).map(|k| &toks[k])) {
+                    (Some(Tok::P(".")), _) => None,
+                    (_, Some(Tok::Id(c))) => Some(c.clone()),
+                    _ => None,
+                };
+                parens.push(callee);
+            }
+            Tok::P(")") => {
+                parens.pop();
+            }
             Tok::Indent => {
                 depth += 1;
             }
@@ -85,6 +131,9 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
                 depth = depth.saturating_sub(1);
                 if in_kind_block && depth < kind_depth {
                     in_kind_block = false;
+                }
+                if in_impl && depth < impl_depth {
+                    in_impl = false;
                 }
             }
             Tok::Id(n) => {
@@ -97,7 +146,13 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
                     declare(n, Kind::Event);
                 } else if prev_kw("error") {
                     declare(n, Kind::Error);
+                } else if prev_kw("impl") {
+                    in_impl = true;
+                    impl_depth = depth + 1;
                 } else if prev_kw("fn") {
+                    if in_impl && depth == impl_depth {
+                        methods.insert(n.clone());
+                    }
                     declare(n, Kind::Fn);
                 } else if prev_kw("struct") || prev_kw("trait") || prev_kw("type") || prev_kw("protocol") {
                     declare(n, Kind::Type);
@@ -113,6 +168,11 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
                     && matches!(prev, Some(Tok::Nl) | Some(Tok::Indent) | Some(Tok::P("(")) | Some(Tok::P(",")) | Some(Tok::P("|")))
                 {
                     // a field, a parameter, a payload field or a struct-literal key
+                    if matches!(prev, Some(Tok::Nl) | Some(Tok::Indent)) {
+                        line_fields.insert(n.clone());
+                    } else if let Some(Some(c)) = parens.last() {
+                        labels.push((c.clone(), n.clone()));
+                    }
                     declare(n, Kind::Value);
                 } else if matches!(prev, Some(Tok::P(":"))) && matches!(next, Some(Tok::P(")")) | Some(Tok::P(","))) && !reserved.contains(n.as_str()) {
                     // the binding side of a payload pattern: `Deposit(amount: a)`
@@ -137,6 +197,15 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
         .filter_map(|t| if let Tok::Id(s) = t { Some(s.clone()) } else { None })
         .filter(|s| !declared_set.contains(s.as_str()))
         .collect();
+    // a label is a field when its callee is one of the module's own types,
+    // variants, events or errors (a function's labels are its parameters)
+    let kinds: BTreeMap<&str, Kind> = declared.iter().map(|(n, k)| (n.as_str(), *k)).collect();
+    let mut fields = line_fields;
+    for (c, n) in labels {
+        if own.contains(&c) && kinds.get(c.as_str()) != Some(&Kind::Fn) {
+            fields.insert(n);
+        }
+    }
     for (n, k) in &declared {
         loop {
             let c = counters.entry(*k).or_insert(0);
@@ -148,23 +217,95 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
             }
         }
     }
-    Ok(map)
+    let fns = declared.iter().filter(|(_, k)| *k == Kind::Fn).map(|(n, _)| n.clone()).collect();
+    Ok(Names { map, fields, methods, own, fns })
+}
+
+/// The module paths of a text's `use` lines.
+fn use_paths(src: &str) -> Vec<String> {
+    src.lines()
+        .filter_map(|l| l.trim_start().strip_prefix("use "))
+        .filter_map(|r| r.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '.')).next())
+        .map(|p| p.trim_end_matches('.').to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+/// The field names of the types declared by the standard library modules a
+/// text uses, and by the modules those use: a value of such a type can reach
+/// the module, and its fields are named by that module, not by this one.
+fn foreign_fields(src: &str) -> HashSet<String> {
+    use crate::ast::Item;
+    let mut out = HashSet::new();
+    let mut todo = use_paths(src);
+    let mut done: HashSet<String> = HashSet::new();
+    while let Some(p) = todo.pop() {
+        if !done.insert(p.clone()) {
+            continue;
+        }
+        let (Some(text), Some(m)) = (crate::stdlib::source(&p), crate::stdlib::module(&p)) else { continue };
+        todo.extend(use_paths(text));
+        for it in &m.items {
+            match it {
+                Item::Struct { fields, .. } | Item::State { fields, .. } => out.extend(fields.iter().map(|f| f.name.clone())),
+                Item::Event { payload, .. } | Item::Error { payload, .. } => out.extend(payload.iter().map(|(n, _)| n.clone())),
+                Item::Kind { variants, .. } => {
+                    out.extend(variants.iter().flat_map(|(_, ps)| ps.iter().map(|(n, _)| n.clone())))
+                }
+                _ => {}
+            }
+        }
+    }
+    out
 }
 
 /// Rewrite identifiers outside strings and comments by the map.
-fn builtin_methods() -> &'static HashSet<String> {
-    static M: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
-    M.get_or_init(|| crate::specread::all_methods().into_iter().collect())
-}
-
 pub fn nameless(src: &str) -> Result<String, String> {
-    let map = renames(src)?;
+    let Names { map, fields, methods, own, fns } = renames(src)?;
+    let foreign = foreign_fields(src);
     let b = src.as_bytes();
     let mut out = String::with_capacity(src.len());
     let mut i = 0;
+    // for each open parenthesis, what it follows: one of the module's own
+    // functions (its labels are parameters), one of its own types, variants,
+    // events or errors (its labels are fields), or another module's name
+    #[derive(Clone, Copy, PartialEq)]
+    enum Callee {
+        OwnFn,
+        OwnType,
+        Other,
+    }
+    let mut parens: Vec<Callee> = vec![];
+    let mut last_word: Option<(usize, Callee)> = None; // end, and what it names
+    // `NAME[…](`: generic arguments sit between a name and its parentheses
+    let mut brackets: Vec<Option<Callee>> = vec![];
     while i < b.len() {
         let c = b[i] as char;
-        if c == '"' {
+        if c == '[' {
+            brackets.push(match last_word {
+                Some((e, k)) if e == i => Some(k),
+                _ => None,
+            });
+            out.push(c);
+            i += 1;
+        } else if c == ']' {
+            if let Some(Some(k)) = brackets.pop() {
+                last_word = Some((i + 1, k));
+            }
+            out.push(c);
+            i += 1;
+        } else if c == '(' {
+            parens.push(match last_word {
+                Some((e, k)) if e == i => k,
+                _ => Callee::Other,
+            });
+            out.push(c);
+            i += 1;
+        } else if c == ')' {
+            parens.pop();
+            out.push(c);
+            i += 1;
+        } else if c == '"' {
             // string or template literal body: copy verbatim with escapes
             let start = i;
             i += 1;
@@ -218,15 +359,55 @@ pub fn nameless(src: &str) -> Result<String, String> {
                 out.push_str(word);
                 continue;
             }
-            // a standard library method after `.` keeps its name (5.15: the
-            // method table is closed and not a declaration of the program),
-            // unless the program declares a function of that name, which is
-            // then the name being called
-            let after_dot = start > 0 && b[start - 1] == b'.';
+            // `..` is a range, not a member access
+            let after_dot = start > 0 && b[start - 1] == b'.' && !(start > 1 && b[start - 2] == b'.');
+            let called = b.get(i) == Some(&b'(');
+            let rest = src[i..].trim_start_matches([' ', '\t']);
+            let label = rest.starts_with(':')
+                && !rest.starts_with("::")
+                && matches!(src[..start].trim_end_matches([' ', '\t']).chars().last(), Some('(') | Some(','));
+            let keep = if after_dot && called {
+                // `x.m(…)` reaches the module's own function only as a method
+                // of an `impl` block (5.15); otherwise it is a standard
+                // library method or a function of another module, which keep
+                // their names whatever this module declares
+                !methods.contains(word)
+            } else if after_dot {
+                // `x.f` names a field: one of the module's own types, or of a
+                // type another module declares, which keeps its name; a field
+                // name an imported type also declares keeps it everywhere it
+                // names a field, as the receiver's type is not known here
+                foreign.contains(word) || (map.get(word).is_some_and(|r| r.starts_with('v')) && !fields.contains(word))
+            } else if label && !parens.is_empty() {
+                // `NAME:` inside parentheses labels a parameter or field of
+                // the callee: renamed only when the callee is the module's own
+                match parens.last().copied().unwrap_or(Callee::Other) {
+                    Callee::OwnFn => false,
+                    Callee::OwnType => foreign.contains(word),
+                    Callee::Other => true,
+                }
+            } else if rest.starts_with(':') && !rest.starts_with("::") && src[line_start..start].trim().is_empty() {
+                // a field declared at the start of a line in a type block
+                foreign.contains(word)
+            } else {
+                false
+            };
+            let local = (map.contains_key(word) || own.contains(word)) && (!after_dot || methods.contains(word));
+            let callee = if word == "fn" && !after_dot {
+                // a lambda `fn(x: T) => …`: its parameters are its own
+                Callee::OwnFn
+            } else if !local {
+                Callee::Other
+            } else if fns.contains(word) || src[..start].trim_end().strip_suffix("fn").is_some_and(|p| p.ends_with(|c: char| !c.is_ascii_alphanumeric() && c != '_') || p.is_empty()) {
+                // a function of the module, or any name declared by `fn` here
+                Callee::OwnFn
+            } else {
+                Callee::OwnType
+            };
+            last_word = Some((i, callee));
             match map.get(word) {
-                Some(r) if after_dot && !r.starts_with('f') && builtin_methods().contains(word) => out.push_str(word),
-                Some(r) => out.push_str(r),
-                None => out.push_str(word),
+                Some(r) if !keep => out.push_str(r),
+                _ => out.push_str(word),
             }
         } else {
             out.push(c);
