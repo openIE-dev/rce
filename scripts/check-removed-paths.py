@@ -2,11 +2,12 @@
 """Fail when a tracked text file names a path that git history removed.
 
 A file deleted or renamed in an earlier commit is a retired path. Any
-mention of one (`lib/hpke.rce`, `$here/lib/crypto.rce`) points at a version
-of the repository that no longer exists, so this check lists every such
-mention and exits 1. A mention that resolves to a file that exists now,
-relative to the mentioning file's directory or any directory above it
-(`lib/crypto.rce` inside stdlib/ is stdlib/lib/crypto.rce), is not stale.
+mention of one (`lib/<name>.rce`, `$here/lib/<name>.rce` after the root
+lib/ was removed) points at a version of the repository that no longer
+exists, so this check lists every such mention and exits 1. A mention that
+resolves to a file that exists now, relative to the mentioning file's
+directory or any directory above it (`lib/<name>.rce` inside stdlib/ is
+stdlib/lib/<name>.rce), is not stale.
 
 The ledger records past changes and may name what a change removed, so
 spec/proposals/LEDGER.md is not checked. Needs the full history (CI checks
