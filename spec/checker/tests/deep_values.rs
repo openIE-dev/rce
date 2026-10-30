@@ -44,3 +44,42 @@ fn deep_values_clone_and_compare_without_overflow() {
     assert_eq!(code, 0, "{out}{}", String::from_utf8_lossy(&err));
     assert!(out.contains("2 checks") && out.contains("1 passed, 0 failed"), "{out}");
 }
+
+/// Moving a value into a record shares it instead of copying it, so building
+/// a value k deep costs O(k), and the last handle to it is dropped on a grown
+/// stack. Before, each `Node(inner: Box(t))` copied `t`: depth 4,000 took 25 s
+/// and 4.4 GB, depth 8,000 aborted, and dropping a value 1,000,000 deep
+/// overflowed the host's stack.
+const LONG: &str = "kind Nest
+    Leaf
+    Node(inner: Box[Nest])
+
+fn build(k: i64) -> Nest
+    var t: Nest = Leaf
+    for _i in 0..k
+        t = Node(inner: Box(t))
+    return t
+
+fn top(k: i64) -> bool
+    let t = build(k)
+    let u = t
+    match u
+        Leaf -> return false
+        Node(_) -> return true
+
+check top(1000000)
+";
+
+#[test]
+fn a_million_deep_value_is_built_moved_and_dropped() {
+    let d = std::env::temp_dir().join(format!("rce-long-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let p = d.join("long.rce");
+    std::fs::write(&p, LONG).unwrap();
+    let a = vec!["test".to_string(), p.to_string_lossy().into_owned()];
+    let (mut out, mut err) = (vec![], vec![]);
+    let code = cli::main(&a, &mut &b""[..], &mut out, &mut err);
+    let out = String::from_utf8_lossy(&out);
+    assert_eq!(code, 0, "{out}{}", String::from_utf8_lossy(&err));
+    assert!(out.contains("1 passed, 0 failed"), "{out}");
+}

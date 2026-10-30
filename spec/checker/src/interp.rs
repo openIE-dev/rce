@@ -12,24 +12,55 @@ use std::collections::HashMap;
 /// variable, passing an argument) is O(1); a write copies only when the
 /// buffer is shared. Evaluation and fuel are unchanged.
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Shared<T>(pub std::sync::Arc<T>);
-impl<T: std::fmt::Debug> std::fmt::Debug for Shared<T> {
+pub struct Shared<T: Hollow>(pub std::sync::Arc<T>);
+/// What a shared buffer holds can be moved out, leaving an empty one behind.
+/// Dropping the last handle to a deep value would otherwise recurse as deep
+/// as the value on the host's stack (an abort, not the defined `evaluation
+/// depth` trap of 6.7); `Shared`'s drop moves the contents out and drops
+/// them on a stack grown on the heap, as `eval` does.
+pub trait Hollow {
+    fn hollow(&mut self) -> Self;
+}
+impl Hollow for String {
+    fn hollow(&mut self) -> Self {
+        std::mem::take(self)
+    }
+}
+impl<T> Hollow for Vec<T> {
+    fn hollow(&mut self) -> Self {
+        std::mem::take(self)
+    }
+}
+impl Hollow for V {
+    fn hollow(&mut self) -> Self {
+        std::mem::replace(self, V::Unit)
+    }
+}
+impl<T: Hollow> Drop for Shared<T> {
+    fn drop(&mut self) {
+        if let Some(t) = std::sync::Arc::get_mut(&mut self.0) {
+            let t = t.hollow();
+            stacker::maybe_grow(64 * 1024, 1024 * 1024, move || drop(t));
+        }
+    }
+}
+impl<T: Hollow + std::fmt::Debug> std::fmt::Debug for Shared<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         (*self.0).fmt(f)
     }
 }
-impl<T> std::ops::Deref for Shared<T> {
+impl<T: Hollow> std::ops::Deref for Shared<T> {
     type Target = T;
     fn deref(&self) -> &T {
         &self.0
     }
 }
-impl<T: Clone> std::ops::DerefMut for Shared<T> {
+impl<T: Hollow + Clone> std::ops::DerefMut for Shared<T> {
     fn deref_mut(&mut self) -> &mut T {
         std::sync::Arc::make_mut(&mut self.0)
     }
 }
-impl<T> From<T> for Shared<T> {
+impl<T: Hollow> From<T> for Shared<T> {
     fn from(t: T) -> Self {
         Shared(std::sync::Arc::new(t))
     }
@@ -39,9 +70,12 @@ impl From<&str> for Shared<String> {
         Shared(std::sync::Arc::new(t.to_string()))
     }
 }
-impl<T: Clone> Shared<T> {
-    pub fn take(self) -> T {
-        std::sync::Arc::try_unwrap(self.0).unwrap_or_else(|a| (*a).clone())
+impl<T: Hollow + Clone> Shared<T> {
+    pub fn take(mut self) -> T {
+        match std::sync::Arc::get_mut(&mut self.0) {
+            Some(t) => t.hollow(),
+            None => (*self.0).clone(),
+        }
     }
 }
 impl std::fmt::Display for Shared<String> {
@@ -92,7 +126,10 @@ impl std::borrow::Borrow<str> for Shared<String> {
     }
 }
 
-#[derive(Debug)]
+/// A value. Every compound value holds its parts in a `Shared` buffer, so
+/// cloning one (a move, a read, an argument) is O(1) whatever its depth, and
+/// a write copies only the level it changes.
+#[derive(Debug, Clone)]
 pub enum V {
     Int(i128, &'static str), // "lit" = an integer literal not yet given a type
     F(f64),
@@ -103,10 +140,10 @@ pub enum V {
     List(Shared<Vec<V>>),
     /// a Set[τ]: canonical order, no duplicates (7.1); shown and embedded as a list
     Set(Shared<Vec<V>>),
-    Map(Vec<(V, V)>),
-    Opt(Option<Box<V>>),
-    Rec(String, Vec<(String, V)>), // struct, kind variant, event, error
-    Err(Box<V>),                   // the error side of an error union
+    Map(Shared<Vec<(V, V)>>),
+    Opt(Option<Shared<V>>),
+    Rec(String, Shared<Vec<(String, V)>>), // struct, kind variant, event, error
+    Err(Shared<V>),                        // the error side of an error union
     Fn(String),
     Closure(Vec<Param>, Box<Expr>, Vec<HashMap<String, V>>),
     Range(i128, i128, &'static str),
@@ -118,40 +155,6 @@ pub enum V {
     Task(String),                              // join handle of a spawned task (C.11.9)
     Session(String, String, i128),             // endpoint: send channel, receive channel, capacity
     LVar(std::sync::Arc<crate::conc::LCell>),  // lattice cell (C.11.8)
-}
-/// Cloning a value is structural, so its native recursion is as deep as the
-/// value. A deep value cloned inside a deep evaluation would otherwise run
-/// out of the host's stack (an abort, not the defined `evaluation depth`
-/// trap of 6.7); the recursive cases grow the stack on the heap as `eval`
-/// does.
-impl Clone for V {
-    fn clone(&self) -> V {
-        use V::*;
-        match self {
-            Int(a, k) => Int(*a, k),
-            F(x) => F(*x),
-            Bool(b) => Bool(*b),
-            Text(t) => Text(t.clone()),
-            Unit => Unit,
-            Tuple(v) => Tuple(v.clone()),
-            List(v) => List(v.clone()),
-            Set(v) => Set(v.clone()),
-            Map(kv) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Map(kv.clone())),
-            Opt(o) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Opt(o.clone())),
-            Rec(n, fs) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Rec(n.clone(), fs.clone())),
-            Err(e) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Err(e.clone())),
-            Fn(n) => Fn(n.clone()),
-            Closure(p, b, env) => Closure(p.clone(), b.clone(), env.clone()),
-            Range(a, b, k) => Range(*a, *b, k),
-            F32(x) => F32(*x),
-            Gen(i) => Gen(*i),
-            Chan(a, c) => Chan(a.clone(), *c),
-            Actor(a, b) => Actor(a.clone(), b.clone()),
-            Task(t) => Task(t.clone()),
-            Session(a, b, c) => Session(a.clone(), b.clone(), *c),
-            LVar(c) => LVar(c.clone()),
-        }
-    }
 }
 impl PartialEq for V {
     fn eq(&self, o: &V) -> bool {
@@ -504,7 +507,7 @@ impl<'a> Interp<'a> {
             (V::Int(x, _), Ty::Path(p, _)) if p.len() == 1 && p[0] == "f32" => {
                 Ok(V::F32(x as f32 as f64))
             }
-            (V::Opt(Some(x)), Ty::Opt(i)) => Ok(V::Opt(Some(Box::new(self.fit(*x, i)?)))),
+            (V::Opt(Some(x)), Ty::Opt(i)) => Ok(V::Opt(Some(Shared::from(self.fit(x.take(), i)?)))),
             (V::List(xs), Ty::Path(p, a)) if p.len() == 1 && p[0] == "List" && a.len() == 1 => {
                 Ok(V::List(
                     xs.into_iter()
@@ -523,7 +526,7 @@ impl<'a> Interp<'a> {
                 for (k, v) in xs {
                     map_set(&mut m, self.fit(k, &a[0])?, self.fit(v, &a[1])?);
                 }
-                Ok(V::Map(m))
+                Ok(V::Map(m.into()))
             }
             (V::Tuple(xs), Ty::Tuple(ts)) if xs.len() == ts.len() => Ok(V::Tuple(
                 xs.into_iter()
@@ -1025,10 +1028,10 @@ impl<'a> Interp<'a> {
                 if let Some(p) = self.variants.get(n)
                     && p.is_empty()
                 {
-                    return Ok(V::Rec(n.clone(), vec![]));
+                    return Ok(V::Rec(n.clone(), vec![].into()));
                 }
                 if let Some(Item::Event { .. } | Item::Error { .. }) = self.types.get(n) {
-                    return Ok(V::Rec(n.clone(), vec![]));
+                    return Ok(V::Rec(n.clone(), vec![].into()));
                 }
                 self.const_value(n)
             }
@@ -1093,7 +1096,7 @@ impl<'a> Interp<'a> {
                     let x = self.eval(b)?;
                     map_set(&mut m, k, x);
                 }
-                Ok(V::Map(m))
+                Ok(V::Map(m.into()))
             }
             E::ChanNew(t, cap, line) => self.chan_new(t, cap.as_deref(), *line),
             E::Call(f, args, _, sz) => self.call(f, args, *sz),
@@ -1215,7 +1218,7 @@ impl<'a> Interp<'a> {
                 V::Err(err) => {
                     self.scopes.push(HashMap::new());
                     if let Some(n) = bind {
-                        self.bind(n, *err);
+                        self.bind(n, err.take());
                     }
                     let r = self.eval(h);
                     self.scopes.pop();
@@ -1226,7 +1229,7 @@ impl<'a> Interp<'a> {
             E::Try(x, els, _) => match self.eval(x)? {
                 V::Err(err) => Err(Flow::Fail(match els {
                     Some(e) => self.eval(e)?,
-                    None => *err,
+                    None => err.take(),
                 })),
                 // `try e` without `else` only types for `e : T ! E` (W-TY-1
                 // otherwise), so an option here is the ok value of a
@@ -1239,7 +1242,7 @@ impl<'a> Interp<'a> {
                     }
                     None => trap("try on none"),
                 },
-                V::Opt(Some(v)) => Ok(*v),
+                V::Opt(Some(v)) => Ok(v.take()),
                 v => Ok(v),
             },
             E::If(c, a, b, _) => {
@@ -1621,7 +1624,7 @@ impl<'a> Interp<'a> {
             };
             out.push((f, v));
         }
-        Ok(Some(V::Rec(n.to_string(), out)))
+        Ok(Some(V::Rec(n.to_string(), out.into())))
     }
 
     fn call(&mut self, f: &Expr, args: &[Arg], sized: bool) -> R<V> {
@@ -1681,7 +1684,7 @@ impl<'a> Interp<'a> {
                 match n.as_str() {
                     "some" => {
                         let v = self.eval(&args[0].e)?;
-                        return Ok(V::Opt(Some(Box::new(v))));
+                        return Ok(V::Opt(Some(Shared::from(v))));
                     }
                     "copy" | "Box" => return self.eval(&args[0].e),
                     "ct_choose" if args.len() == 3 => {
@@ -1868,7 +1871,7 @@ impl<'a> Interp<'a> {
                 None => Ok(V::Unit),
             },
             Err(Flow::Fail(e)) => match &fd.sig.ret {
-                Some(Ty::Union(..)) => Ok(V::Err(Box::new(e))),
+                Some(Ty::Union(..)) => Ok(V::Err(Shared::from(e))),
                 _ => Err(Flow::Fail(e)),
             },
             Err(f) => Err(f),
@@ -1934,7 +1937,7 @@ impl<'a> Interp<'a> {
                     _ => "/",
                 };
                 Ok(match self.arith(op, Int(x, t), a[0].clone()) {
-                    Ok(v) => Opt(Some(Box::new(v))),
+                    Ok(v) => Opt(Some(Shared::from(v))),
                     Result::Err(Flow::Trap(_)) => Opt(None),
                     Result::Err(f) => return Result::Err(f),
                 })
@@ -2089,7 +2092,7 @@ impl<'a> Interp<'a> {
                 self.release(obj);
                 let r = xs.pop();
                 self.assign(obj, List(xs))?;
-                Ok(Opt(r.map(Box::new)))
+                Ok(Opt(r.map(Shared::from)))
             }
             (List(_), "clear") => {
                 self.assign(obj, List(vec![].into()))?;
@@ -2120,7 +2123,7 @@ impl<'a> Interp<'a> {
             (List(xs), "contains") => Ok(Bool(xs.contains(&a[0]))),
             (List(xs), "get") => match &a[0] {
                 Int(i, _) => Ok(Opt(if *i >= 0 {
-                    xs.get(*i as usize).cloned().map(Box::new)
+                    xs.get(*i as usize).cloned().map(Shared::from)
                 } else {
                     None
                 })),
@@ -2178,7 +2181,7 @@ impl<'a> Interp<'a> {
             (Map(mm), "len") => Ok(Int(mm.len() as i128, "usize")),
             (Map(mm), "get") => Ok(match mm.iter().find(|(k, _)| key_eq(k, &a[0])) {
                 Some((_, v)) => v.clone(),
-                None => Err(Box::new(Rec("Missing".into(), vec![]))),
+                None => Err(Shared::from(Rec("Missing".into(), vec![].into()))),
             }),
             (Map(mm), "contains") => Ok(Bool(mm.iter().any(|(k, _)| key_eq(k, &a[0])))),
             (Map(mut mm), "insert") => {
@@ -2190,14 +2193,14 @@ impl<'a> Interp<'a> {
                 let i = mm.iter().position(|(k, _)| key_eq(k, &a[0]));
                 let r = i.map(|i| mm.remove(i).1);
                 self.assign(obj, Map(mm))?;
-                Ok(Opt(r.map(Box::new)))
+                Ok(Opt(r.map(Shared::from)))
             }
             (Map(mm), "keys") => Ok(List(mm.into_iter().map(|x| x.0).collect())),
             (Map(mm), "values") => Ok(List(mm.into_iter().map(|x| x.1).collect())),
             (Opt(x), "isnone") => Ok(Bool(x.is_none())),
             (Opt(x), "issome") => Ok(Bool(x.is_some())),
             (Opt(x), "or") => Ok(match x {
-                Some(v) => *v,
+                Some(v) => v.take(),
                 None => a[0].clone(),
             }),
             (r, _) => trap(format!("{} has no method {m} at comptime", r.show())),
