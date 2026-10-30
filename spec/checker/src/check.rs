@@ -101,6 +101,9 @@ pub struct Checker {
     /// functions and impl heads linked from imported modules (src/link.rs)
     pub imported_fns: HashSet<String>,
     pub imported_types: HashSet<String>,
+    /// the `&` `let` borrows live at the statement being checked (5.6):
+    /// root, borrow name, line of its `let`, line of its last use
+    live_loans: Vec<(String, String, usize, usize)>,
 }
 
 const SAFE_FORMS: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
@@ -187,6 +190,7 @@ impl Checker {
             secret_structs: HashSet::new(),
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
+            live_loans: vec![],
         }
     }
     pub(crate) fn push_scope_pub(&mut self) {
@@ -1834,6 +1838,23 @@ impl Checker {
     }
     /// `tail`: the block is in tail position of a function body (spec 5.3 [Tail]).
     fn block_t(&mut self, b: &[Stmt], tail: bool) -> bool {
+        // 5.6: a `let` borrow is live until the last use of its name in
+        // this block; a conflicting use of an overlapping path before then
+        // requires change
+        let mut loans = vec![];
+        if b.iter().any(|s| matches!(s, Stmt::Let(_, _, Expr::Borrow(..), _) | Stmt::Var(_, _, Expr::Borrow(..), _))) {
+            let mm: HashSet<String> = self
+                .methods
+                .iter()
+                .filter(|(_, f)| matches!(f.decl.sig.params.first(), Some(Param::SelfRef(true))))
+                .map(|(_, f)| f.decl.sig.name.clone())
+                .collect();
+            for (l, m) in crate::borrow::let_borrow_conflicts(b, &mm) {
+                self.e(d(l, "W-OWN-2", m));
+            }
+            loans = crate::borrow::let_loans(b);
+            loans.retain(|l| !l.mutable);
+        }
         self.scopes.push(HashMap::new());
         let mut div = false;
         for (i, s) in b.iter().enumerate() {
@@ -1846,7 +1867,12 @@ impl Checker {
                 break;
             }
             self.tailpos = tail && i + 1 == b.len();
+            let base = self.live_loans.len();
+            for l in loans.iter().filter(|l| l.i < i && i <= l.j) {
+                self.live_loans.push((l.root.clone(), l.alias.clone(), l.line, l.used));
+            }
             div = self.stmt(s);
+            self.live_loans.truncate(base);
         }
         self.tailpos = false;
         if !div {
@@ -3054,6 +3080,9 @@ impl Checker {
             if l.field && matches!(self.cx, Cx::Step | Cx::Handler) { /* fields are moved out of the pre-state copy */
             } else if l.param && matches!(l.ty, T::Ref(..)) {
             } else {
+                if let Some((_, a, ll, u)) = self.live_loans.iter().find(|x| x.0 == n).cloned() {
+                    self.e(d(line, "W-OWN-2", format!("`{n}` is moved while `{a}` (line {ll}) borrows it with `&`, and `{a}` is used again at line {u}: end the borrow before this use (5.6 [No-Alias-Write])")));
+                }
                 self.set_moved(n, true);
             }
         }
@@ -3879,23 +3908,24 @@ impl Checker {
                 }
             }
         }
-        // aliasing of borrows among the arguments (W-OWN-2)
-        let mut roots: Vec<(String, bool)> = vec![];
+        // aliasing of borrows among the arguments (W-OWN-2): two borrows
+        // conflict when one is `&mut` and their paths overlap, that is one
+        // is a prefix of the other (5.6); `f.a` and `f.b` do not overlap,
+        // `x[i]` and `x[j]` always do
+        let mut paths: Vec<(String, Vec<crate::borrow::Proj>, bool)> = vec![];
         for a in args {
             if let Expr::Borrow(m, x, _) = &a.e
-                && let Some(r) = place_root(x)
+                && let Some((r, p)) = crate::borrow::place_path(x)
             {
-                roots.push((r, *m));
+                paths.push((r, p, *m));
             }
         }
-        for (i, (r, m)) in roots.iter().enumerate() {
-            for (s, n) in &roots[i + 1..] {
-                if r == s && (*m || *n) {
-                    self.e(d(
-                        l,
-                        "W-OWN-2",
-                        format!("`{r}` is borrowed mutably and again in one call"),
-                    ));
+        for (i, (r, p, m)) in paths.iter().enumerate() {
+            for (s, q, n) in &paths[i + 1..] {
+                if r == s && (*m || *n) && crate::borrow::overlaps(p, q) {
+                    let (a, b) = (crate::borrow::show_path(r, p), crate::borrow::show_path(s, q));
+                    let what = if a == b { format!("`{a}` is borrowed mutably and again in one call") } else { format!("`{a}` and `{b}` overlap and one of them is borrowed mutably in one call") };
+                    self.e(d(l, "W-OWN-2", what));
                 }
             }
         }

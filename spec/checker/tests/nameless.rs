@@ -180,3 +180,30 @@ fn a_field_named_like_a_builtin_method_does_not_rename_the_method() {
     let (st, out) = rce(&["equiv", "--fuel", "200", &f, &g]);
     assert_eq!(st, 0, "{out}");
 }
+
+#[test]
+fn float_exponent_is_not_a_name() {
+    // A program that declares a name `e`: the exponent of `1.5e-3` and of
+    // `2E+4` is part of the literal, not a use of the name.
+    let src = "fn e(x: f64) -> f64\n    return x * 1.5e-3 + 2E+4\n\nfn h() -> i64\n    return 0x1e\n\nfn main()\n    emit e(2.0)\n    emit h()\n";
+    let p = tmp("float_exp.rce", src);
+    let (code, out) = rce(&["fmt", "--nameless", &p]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("1.5e-3") && out.contains("2E+4") && out.contains("0x1e"), "{out}");
+    let q = tmp("float_exp_nameless.rce", &out);
+    let (c2, o2) = rce(&["check", &q]);
+    assert_eq!(c2, 0, "{o2}");
+}
+
+#[test]
+fn use_paths_keep_their_names() {
+    // stdlib/lib/num/stats.rce uses `num.linalg` and declares names that the
+    // projection renames; the module path must not change.
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../stdlib/lib/num/stats.rce");
+    let (code, out) = rce(&["fmt", "--nameless", p.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    for l in out.lines().filter(|l| l.trim_start().starts_with("use ")) {
+        assert!(!l.contains(" v") || l.contains("use num") || l.contains("use core"), "{l}");
+    }
+    assert!(out.contains("use num.linalg"), "{out}");
+}

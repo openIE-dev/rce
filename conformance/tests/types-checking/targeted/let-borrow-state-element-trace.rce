@@ -1,0 +1,39 @@
+# 5.6: a `let` borrow of a state list element whose index variable changes
+# after the `let`: the write through it lands in the element read at the
+# `let`, and the whole trace (with fuel) is the same on every adapter.
+intent "let borrow of a state element"
+    example Hit(k: 1), Hit(k: 1), Hit(k: 2) -> xs[1] == 2
+
+state S
+    xs: List[i64] = [0, 0, 0]
+    i: usize = 0
+
+event Hit(k: usize)
+
+fn bump(x: &mut i64)
+    x = x + 1
+
+step S on Hit(k: k)
+    i = k
+    let e = &mut xs[i]
+    i = 0
+    bump(e)
+#--- rce-test
+# id: types-checking/targeted/let-borrow-state-element-trace
+# area: types-checking
+# clauses: [T6, W-OWN-2]
+# expect: trace
+# events: Hit(k: 1), Hit(k: 1), Hit(k: 2)
+# trace_head: c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72
+# trace_lines:
+#   - 0 (initial) S { xs = [0, 0, 0], i = 0 }
+#   - d applied 95c7b6f2bd919e70774519bd1cb9e7d74a382f7cadf3edb2a15155a2d99f6f38 {"event":{"payload":[1],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"f2bef3773532002c5cea18c0a041537a48ae708e5628630dcebb09f11de5732a"}
+#   - 1 Hit(k: 1) S { xs = [0, 1, 0], i = 0 }
+#   - d applied 8c1bc07ebe1c9ca964b30f28d839af4835aa2de0b178045ba578b715ec3a36d5 {"event":{"payload":[1],"type":0},"prev_hash":"95c7b6f2bd919e70774519bd1cb9e7d74a382f7cadf3edb2a15155a2d99f6f38","seq":1,"state_hash":"29a3aa85d2911f8366c3472f25c0e2978332a0bb84ba1bb10dbea878b4d8b187"}
+#   - 2 Hit(k: 1) S { xs = [0, 2, 0], i = 0 }
+#   - d applied c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72 {"event":{"payload":[2],"type":0},"prev_hash":"8c1bc07ebe1c9ca964b30f28d839af4835aa2de0b178045ba578b715ec3a36d5","seq":2,"state_hash":"586dd9db153c8bb87e188ac1c4f2cf6968f11819f45c16ee30cf08b0d26905c1"}
+#   - 3 Hit(k: 2) S { xs = [0, 2, 1], i = 0 }
+#   - trace c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72
+#   - fuel 74
+# provenance: borrow-fix: writes through a let borrow (5.6; Lean writeVia)
+#---

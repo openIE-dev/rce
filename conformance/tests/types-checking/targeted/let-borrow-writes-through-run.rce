@@ -1,0 +1,52 @@
+# 5.6: a write through a `let` `&mut` borrow is a write to the borrowed
+# place; after the borrow's last use the place can be used again.
+struct Foo
+    a: i64
+    b: i64
+
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn main()
+    var n: i64 = 0
+    let a = &mut n
+    bump(a)
+    a += 5
+    emit n
+    n = n * 10
+    emit n
+    var f: Foo = Foo(a: 0, b: 0)
+    let fa = &mut f.a
+    bump(&mut f.b)
+    bump(fa)
+    emit f.a
+    emit f.b
+    var xs: List[i64] = [1, 2, 3]
+    var i: usize = 1
+    let e = &mut xs[i]
+    i = 2
+    e = e * 100
+    emit xs
+    emit i
+    var ys: List[i64] = []
+    let l = &mut ys
+    l.append(7)
+    for k in 0..3
+        l.append(k as i64)
+    emit ys.len()
+#--- rce-test
+# id: types-checking/targeted/let-borrow-writes-through-run
+# area: types-checking
+# clauses: [T6, W-OWN-2]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 6
+#   - emit 60
+#   - emit 1
+#   - emit 1
+#   - emit [1, 200, 3]
+#   - emit 2
+#   - emit 4
+# provenance: borrow-fix: writes through let borrows land in the place (5.6; Lean writeVia, write_after_borrow_ends_ok)
+#---

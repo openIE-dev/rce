@@ -126,6 +126,9 @@ impl std::borrow::Borrow<str> for Shared<String> {
     }
 }
 
+/// numbers the index temporaries of `let &mut` borrows (crate::borrow)
+static LB_TEMPS: std::sync::Mutex<usize> = std::sync::Mutex::new(0);
+
 /// A value. Every compound value holds its parts in a `Shared` buffer, so
 /// cloning one (a move, a read, an argument) is O(1) whatever its depth, and
 /// a write copies only the level it changes.
@@ -1015,7 +1018,9 @@ impl<'a> Interp<'a> {
     }
 
     fn eval_inner(&mut self, e: &Expr) -> R<V> {
-        self.tick()?;
+        if !matches!(e, Expr::Name(n, _) if crate::borrow::is_temp(n)) {
+            self.tick()?;
+        }
         use Expr as E;
         match e {
             E::Name(n, _) => {
@@ -2235,6 +2240,14 @@ impl<'a> Interp<'a> {
 
     /// Runs a block; returns the tail value if the block ends in one (5.3 [Tail]).
     pub fn exec_block_tail(&mut self, b: &[Stmt]) -> R<Option<V>> {
+        // 5.6: a `let &mut` borrow names its place (crate::borrow)
+        let lowered;
+        let b = if b.iter().any(crate::borrow::is_let_mut) {
+            lowered = crate::borrow::lower_block(b, &mut LB_TEMPS.lock().unwrap_or_else(|e| e.into_inner()));
+            &lowered[..]
+        } else {
+            b
+        };
         self.scopes.push(HashMap::new());
         let mut r = Ok(None);
         for (i, s) in b.iter().enumerate() {
@@ -2291,7 +2304,10 @@ impl<'a> Interp<'a> {
     }
 
     pub(crate) fn exec(&mut self, s: &Stmt, tail: bool) -> R<Option<V>> {
-        self.tick()?;
+        // the `let` of a borrow's index temporary is not a source statement
+        if !matches!(s, Stmt::Let(Pat::Path(p), None, _, _) if p.len() == 1 && crate::borrow::is_temp(&p[0])) {
+            self.tick()?;
+        }
         match s {
             Stmt::Expr(e) => {
                 let v = self.eval(e)?;
@@ -2467,6 +2483,13 @@ impl<'a> Interp<'a> {
                 let base = self.scopes.len();
                 self.scopes.push(HashMap::new());
                 let mut r = Ok(None);
+                let lowered;
+                let body = if body.iter().any(crate::borrow::is_let_mut) {
+                    lowered = crate::borrow::lower_block(body, &mut LB_TEMPS.lock().unwrap_or_else(|e| e.into_inner()));
+                    &lowered[..]
+                } else {
+                    &body[..]
+                };
                 for s in body.iter() {
                     r = self.exec(s, false);
                     if r.is_err() {

@@ -174,4 +174,40 @@ theorem disjoint_fields_ok {x : Var} :
     ∃ Γ', BWt ⟨[x], [], []⟩ (.seq (.borrow 100 (x, [0]) true) (.borrow 101 (x, [1]) true)) Γ' :=
   ⟨_, .seq (.borrowMut (by simp [valid]) (by simp [free]) (by simp [find])) (.borrowMut (by simp [valid]) (by simp [free, overlaps, List.isPrefixOf]) (by simp [find]))⟩
 
+/-- A write to the borrowed root while a `let` `&mut` borrow of it is still
+    used (`let a = &mut n; n = 5; bump(a)`): the write requires change, so
+    the later write through `a` cannot be lost. -/
+theorem write_while_mut_borrowed_no_typing {Γ b x} :
+    ¬ ∃ Γ', BWt Γ (.seq (.borrow b (x, []) true) (.seq (.write (x, [])) (.writeVia b))) Γ' := by
+  intro ⟨Γ', h⟩
+  cases h with
+  | seq h1 h2 =>
+    cases h1 with
+    | borrowMut =>
+      cases h2 with
+      | seq h3 _ =>
+        cases h3 with
+        | write _ hfree => simp [free, overlaps, List.isPrefixOf] at hfree
+
+/-- A mutable borrow of a whole value while a `let` `&mut` borrow of one of
+    its fields is live (`let a = &mut f.a; g(&mut f)`). -/
+theorem mut_root_while_field_borrowed_no_typing {Γ b c x} :
+    ¬ ∃ Γ', BWt Γ (.seq (.borrow b (x, [0]) true) (.borrow c (x, []) true)) Γ' := by
+  intro ⟨Γ', h⟩
+  cases h with
+  | seq h1 h2 =>
+    cases h1 with
+    | borrowMut =>
+      cases h2 with
+      | borrowMut _ hfree => simp [free, overlaps, List.isPrefixOf] at hfree
+
+/-- Once the borrow has ended (after its last use), the root can be written
+    again: `let a = &mut n; bump(a); n = 5` is well typed. -/
+theorem write_after_borrow_ends_ok {x : Var} :
+    ∃ Γ', BWt ⟨[x], [], []⟩
+      (.seq (.borrow 100 (x, []) true) (.seq (.writeVia 100) (.seq (.endRef 100) (.write (x, []))))) Γ' :=
+  ⟨_, .seq (.borrowMut (by simp [valid]) (by simp [free]) (by simp [find]))
+      (.seq (.writeVia (l := ⟨100, (x, []), true⟩) (by simp [find]) rfl (by simp [valid]) (by simp [free]))
+        (.seq .endRef (.write (by simp) (by simp [free]))))⟩
+
 end RCE.Borrow
