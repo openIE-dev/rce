@@ -46,12 +46,21 @@ fn generated_chat_is_in_sync() {
 fn dms_are_end_to_end_encrypted_and_replay() {
     let src = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/chat.rce")).unwrap();
     let m = parse(&src).unwrap();
-    let addrs: Vec<String> = (0..2).map(|_| format!("127.0.0.1:{}", port())).collect();
+    // `port()` frees the port it found before the adapter binds it, and two
+    // calls can return the same port, so both listeners are bound first, with
+    // fresh ports until both bind (as in app_chat.rs)
+    let (addrs, mut bound) = (0..20)
+        .find_map(|_| {
+            let addrs: Vec<String> = (0..2).map(|_| format!("127.0.0.1:{}", port())).collect();
+            let bound: Vec<_> = (0..2).map(|i| chan_adapters(&addrs[i], &[addrs[1 - i].clone()]).ok()).collect::<Option<Vec<_>>>()?;
+            Some((addrs, bound))
+        })
+        .expect("no two free local ports in 20 attempts");
     let mut stores: Vec<MemStore> = (0..2).map(|_| MemStore::default()).collect();
     let mut hosts = vec![];
     for (i, st) in stores.iter_mut().enumerate() {
         let peer = addrs[1 - i].clone();
-        let mut ads: Vec<Box<dyn Adapter>> = chan_adapters(&addrs[i], &[peer.clone()]).unwrap().into_iter().map(|x| Box::new(x) as Box<dyn Adapter>).collect();
+        let mut ads: Vec<Box<dyn Adapter>> = std::mem::take(&mut bound[i]).into_iter().map(|x| Box::new(x) as Box<dyn Adapter>).collect();
         ads.push(Box::new(RandomAdapter));
         let mut h = Host::start_with(&m, Box::new(st), ads).unwrap();
         h.admit(&src, &format!(r#"Setup(me: "{}", peers: ["{peer}"])"#, ["ann", "bob"][i])).unwrap();
