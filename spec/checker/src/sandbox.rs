@@ -3,23 +3,31 @@
 //! sandbox with one contract (HC-5 capability checking), independent of the
 //! OS: the checker and the deterministic host enforce it before any OS layer.
 //! Underneath, an enforcement target makes the host process itself hold no
-//! more than the grants: no network but the granted addresses, writes only
-//! under the log directory and the granted roots, no exec unless a PTY is
-//! granted. Entering it
-//! changes no meaning: the program has no ambient authority anyway (5.15);
-//! the sandbox removes the host's own.
+//! more than the grants: network only as the target can name the grants,
+//! writes only under the log directory and the granted roots, no exec unless
+//! a PTY is granted. Entering it changes no meaning: the program has no
+//! ambient authority anyway (5.15); the sandbox removes the host's own.
+//!
+//! HC-5a: the line the host prints when it enters a target is generated
+//! from the rules it installed ([`Rule`], [`seatbelt_rules`],
+//! `landlock::Installed`), so it names each restriction with its
+//! granularity and never one the target did not install.
 //!
 //! Only the `rce` binary enables this ([`enable`]); library callers and
 //! in-process tests are never sandboxed, since a sandbox is per process and
 //! cannot be left.
 //!
 //! OS enforcement targets in this file:
-//! - macOS target (Seatbelt): `sandbox_init` with a profile that denies all network access,
-//!   (unless `--net` grants addresses; the net adapter then checks each
-//!   address), denies writes outside the log's directory, the granted roots and
-//!   `/dev`, and denies process exec unless `--pty` was granted.
-//! - Linux target: Landlock (see `landlock`), then a seccomp-BPF filter on every
-//!   thread (see [`seccomp`]).
+//! - macOS target (Seatbelt): `sandbox_init` with a profile that denies all
+//!   network use but the granted ports (Seatbelt names a port at
+//!   `localhost` or at any address, nothing finer; the net adapter checks
+//!   the exact address), denies writes outside the log's directory, the
+//!   granted roots and `/dev`, and denies process exec unless `--pty` was
+//!   granted.
+//! - Linux target: Landlock (see `landlock`): TCP bind and connect by port,
+//!   then a seccomp-BPF filter on every thread (see [`seccomp`]), which
+//!   fails every new IP socket when the only network grant is a listener
+//!   opened before entering.
 //! - To do: Windows (AppContainer), FreeBSD (Capsicum), OpenBSD
 //!   (pledge/unveil), iOS, Android; on these no OS target is entered and
 //!   [`enter`] says so. The WASM and bare-metal targets are not OS layers
@@ -38,20 +46,129 @@ pub fn enabled() -> bool {
     ENABLED.load(Ordering::SeqCst)
 }
 
+/// How a granted address is used.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GrantKind {
+    /// the host connects to it (`--net`, `--peer`)
+    Connect,
+    /// the host binds it after entering the target (`--net`, a listener to retry)
+    Listen,
+    /// a listener bound before entering the target (`--http`, `--chan`):
+    /// only its accepted connections are used afterwards
+    Prebound,
+}
+
+/// One granted network address (HC-5, HC-5a).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NetGrant {
+    pub host: String,
+    pub port: u16,
+    pub loopback: bool,
+    /// the host is an IP address, so no name is resolved
+    pub numeric: bool,
+    pub kind: GrantKind,
+}
+
+impl NetGrant {
+    /// `HOST:PORT` (an IPv6 host in brackets); `None` when it has no port.
+    pub fn parse(addr: &str, kind: GrantKind) -> Option<NetGrant> {
+        let (h, p) = addr.rsplit_once(':')?;
+        let port: u16 = p.parse().ok()?;
+        let host = h.trim_start_matches('[').trim_end_matches(']').to_string();
+        let ip: Option<std::net::IpAddr> = host.parse().ok();
+        let loopback = ip.map_or(host == "localhost", |i| i.is_loopback());
+        Some(NetGrant { host, port, loopback, numeric: ip.is_some(), kind })
+    }
+    pub fn addr(&self) -> String {
+        if self.host.contains(':') { format!("[{}]:{}", self.host, self.port) } else { format!("{}:{}", self.host, self.port) }
+    }
+}
+
 fn quote(p: &Path) -> String {
     let c = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     format!("\"{}\"", c.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+/// One network rule of the macOS target, from which both the SBPL text and
+/// the printed description are made.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Rule {
+    /// bind and accept on a port, at localhost or (`any`) at any address
+    Inbound { port: u16, any: bool },
+    /// connect to a port, at localhost or (`any`) at any address
+    Outbound { port: u16, any: bool },
+    /// the system resolver, for a grant that names a host by name
+    Resolver,
+}
+
+impl Rule {
+    fn sbpl(&self) -> String {
+        let at = |port: &u16, any: &bool| format!("{}:{port}", if *any { "*" } else { "localhost" });
+        match self {
+            Rule::Inbound { port, any } => format!("(allow network-bind network-inbound (local ip \"{}\"))", at(port, any)),
+            Rule::Outbound { port, any } => format!("(allow network-outbound (remote ip \"{}\"))", at(port, any)),
+            Rule::Resolver => "(allow network-outbound (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))".into(),
+        }
+    }
+}
+
+/// The network rules Seatbelt gets for the grants. Seatbelt names a host
+/// only as `localhost` or `*`, so a grant that is not a loopback address
+/// is allowed on its port at any address.
+pub fn seatbelt_rules(grants: &[NetGrant]) -> Vec<Rule> {
+    let mut rs: Vec<Rule> = vec![];
+    for g in grants {
+        let any = !g.loopback;
+        rs.push(match g.kind {
+            GrantKind::Connect => Rule::Outbound { port: g.port, any },
+            GrantKind::Listen | GrantKind::Prebound => Rule::Inbound { port: g.port, any },
+        });
+        if !g.numeric {
+            rs.push(Rule::Resolver);
+        }
+    }
+    rs.sort();
+    rs.dedup();
+    rs
+}
+
+fn port_list(ps: &[u16]) -> String {
+    format!("{ps:?}")
+}
+
+/// The description of the network rules actually installed (HC-5a).
+pub fn seatbelt_description(rules: &[Rule]) -> String {
+    let mut parts: Vec<String> = vec![];
+    for (inbound, any) in [(true, false), (true, true), (false, false), (false, true)] {
+        let ps: Vec<u16> = rules
+            .iter()
+            .filter_map(|r| match r {
+                Rule::Inbound { port, any: a } if inbound && *a == any => Some(*port),
+                Rule::Outbound { port, any: a } if !inbound && *a == any => Some(*port),
+                _ => None,
+            })
+            .collect();
+        if !ps.is_empty() {
+            parts.push(format!("{} ports {} at {}", if inbound { "listening on" } else { "connecting to" }, port_list(&ps), if any { "any address" } else { "localhost" }));
+        }
+    }
+    if parts.is_empty() {
+        return "no network".into();
+    }
+    let resolver = if rules.contains(&Rule::Resolver) { ", and the name resolver" } else { "" };
+    format!("network only {}{resolver} (TCP and UDP; Seatbelt cannot name other addresses; the net adapter checks the exact address)", parts.join(" and "))
+}
+
 /// The macOS target's Seatbelt profile (SBPL) for the given grants.
-pub fn profile(log_dir: &Path, writable: &[&Path], pty: bool, net: bool) -> String {
+pub fn profile(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant]) -> String {
     let mut w = format!("(require-not (subpath {}))", quote(log_dir));
     for r in writable {
         w.push_str(&format!(" (require-not (subpath {}))", quote(r)));
     }
-    let mut p = "(version 1)\n(allow default)\n".to_string();
-    if !net {
-        p.push_str("(deny network*)\n");
+    let mut p = "(version 1)\n(allow default)\n(deny network*)\n".to_string();
+    for r in seatbelt_rules(grants) {
+        p.push_str(&r.sbpl());
+        p.push('\n');
     }
     p.push_str(&format!("(deny file-write* (require-all (require-not (subpath \"/dev\")) {w}))\n"));
     if !pty {
@@ -60,18 +177,23 @@ pub fn profile(log_dir: &Path, writable: &[&Path], pty: bool, net: bool) -> Stri
     p
 }
 
+/// Whether the host may still create IP sockets after entering: only when
+/// some grant is used by connecting or binding after the target is entered.
+pub fn needs_ip_sockets(grants: &[NetGrant]) -> bool {
+    grants.iter().any(|g| g.kind != GrantKind::Prebound)
+}
+
 /// Enter this OS's enforcement target of the sandbox. `Ok(description)`
 /// when entered, `Err(reason)` when there is none here yet.
-pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, net: bool, ports: &[u16]) -> Result<String, String> {
+pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant]) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
-        let _ = ports;
         use std::ffi::{CStr, CString, c_char, c_int};
         unsafe extern "C" {
             fn sandbox_init(profile: *const c_char, flags: u64, errorbuf: *mut *mut c_char) -> c_int;
             fn sandbox_free_error(errorbuf: *mut c_char);
         }
-        let prof = CString::new(profile(log_dir, writable, pty, net)).map_err(|e| e.to_string())?;
+        let prof = CString::new(profile(log_dir, writable, pty, grants)).map_err(|e| e.to_string())?;
         let mut err: *mut c_char = std::ptr::null_mut();
         // SAFETY: prof is a valid NUL-terminated string; err is freed below.
         let rc = unsafe { sandbox_init(prof.as_ptr(), 0, &mut err) };
@@ -82,37 +204,70 @@ pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, net: bool, ports: &[
             }
             return Err(msg);
         }
-        Ok(format!("sandbox, macOS target (Seatbelt): {}, writes only under the log directory{}{}", if net { "network only to granted addresses (--net, --chan, --peer)" } else { "no network" }, if writable.is_empty() { "" } else { " and the granted roots" }, if pty { "" } else { ", no exec" }))
+        Ok(format!("sandbox, macOS target (Seatbelt): {}, writes only under the log directory{}{}", seatbelt_description(&seatbelt_rules(grants)), if writable.is_empty() { "" } else { " and the granted roots" }, if pty { "" } else { ", no exec" }))
     }
     #[cfg(target_os = "linux")]
     {
-        let ll = landlock::enter(log_dir, writable, pty, net, ports);
+        let net = needs_ip_sockets(grants);
+        let ll = landlock::enter(log_dir, writable, pty, grants);
         // no_new_privs is set by landlock::enter; set it again in case
         // Landlock was unavailable, so the filter can still be installed.
         // SAFETY: plain prctl on our own process.
         unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
         let sc = seccomp::install(pty, net);
         match (ll, sc) {
-            (Ok(l), Ok(s)) => Ok(format!("sandbox, Linux target: {l}; {s}")),
+            (Ok(l), Ok(s)) => Ok(format!("sandbox, Linux target: {}; {s}", l.describe(grants, net))),
             (Err(l), Ok(s)) => Ok(format!("sandbox, Linux target: {s} (Landlock not entered: {l})")),
-            (Ok(l), Err(s)) => Ok(format!("sandbox, Linux target: {l} (seccomp not entered: {s})")),
+            (Ok(l), Err(s)) => Ok(format!("sandbox, Linux target: {} (seccomp not entered: {s})", l.describe(grants, true))),
             (Err(l), Err(s)) => Err(format!("Linux target: {l}; {s}")),
         }
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        let _ = (log_dir, writable, pty, net, ports);
+        let _ = (log_dir, writable, pty, grants);
         Err("no OS target for this platform yet (to do: Windows AppContainer, FreeBSD, OpenBSD, iOS, Android); the capability contract is still enforced by the checker and host".into())
     }
+}
+
+/// The Linux description of what Landlock installed (HC-5a). `abi` is the
+/// Landlock ABI; `rules` the (port, bind, connect) rules added; `ip` says
+/// whether seccomp leaves new IP sockets allowed (then UDP is not
+/// restricted by any layer).
+pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[NetGrant], ip: bool, writable: bool, pty: bool) -> String {
+    let udp = if ip { ", UDP not restricted" } else { "" };
+    let net = if abi < 4 {
+        format!("network not restricted by Landlock (ABI {abi}){udp}")
+    } else {
+        let bind: Vec<u16> = rules.iter().filter(|r| r.1).map(|r| r.0).collect();
+        let conn: Vec<u16> = rules.iter().filter(|r| r.2).map(|r| r.0).collect();
+        let what = if bind.is_empty() && conn.is_empty() {
+            "no TCP bind or connect".to_string()
+        } else if bind == conn {
+            format!("TCP bind and connect only on ports {}", port_list(&bind))
+        } else {
+            let b = if bind.is_empty() { "no TCP bind".to_string() } else { format!("TCP bind only on ports {}", port_list(&bind)) };
+            let c = if conn.is_empty() { "no connect".to_string() } else { format!("connect only on ports {}", port_list(&conn)) };
+            format!("{b} and {c}")
+        };
+        let adapter: Vec<String> = grants.iter().filter(|g| g.kind != GrantKind::Prebound).map(NetGrant::addr).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        let by_port = if rules.is_empty() { String::new() } else { format!(" (by port: any address on those ports; the net adapter allows only {})", adapter.join(", ")) };
+        let pre: Vec<String> = grants.iter().filter(|g| g.kind == GrantKind::Prebound).map(NetGrant::addr).collect();
+        let pre = if pre.is_empty() { String::new() } else { format!(" (the listener {} was opened before entering)", pre.join(", ")) };
+        format!("{what}{by_port}{pre}{udp}")
+    };
+    format!("Landlock ABI {abi}: {net}, writes only under the log directory{}{}", if writable { " and the granted roots" } else { "" }, if pty { "" } else { ", no exec" })
 }
 
 /// Linux target, part 1: Landlock (kernel 5.13+), entered with raw syscalls. Writes are
 /// handled (denied) everywhere but the log directory, the granted roots and
 /// `/dev`; exec is handled (denied) unless `--pty`; on ABI 4+ TCP bind and
-/// connect are handled and allowed only on the granted ports (none without
-/// a network grant). Reads are not restricted. `no_new_privs` is set first.
+/// connect are handled: bind is allowed only on the ports of Listen grants
+/// and connect only on the ports of Connect grants (a Prebound listener was
+/// bound before, and accepting is not restricted). Reads are not
+/// restricted. `no_new_privs` is set first.
 #[cfg(target_os = "linux")]
 mod landlock {
+    use super::{GrantKind, NetGrant};
     use std::os::fd::AsRawFd;
     use std::path::Path;
 
@@ -158,7 +313,21 @@ mod landlock {
         format!("{what}: {}", std::io::Error::last_os_error())
     }
 
-    pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, net: bool, ports: &[u16]) -> Result<String, String> {
+    /// What Landlock installed: its ABI and the port rules (port, bind, connect).
+    pub struct Installed {
+        abi: i64,
+        rules: Vec<(u16, bool, bool)>,
+        writable: bool,
+        pty: bool,
+    }
+
+    impl Installed {
+        pub fn describe(&self, grants: &[NetGrant], ip: bool) -> String {
+            super::landlock_description(self.abi, &self.rules, grants, ip, self.writable, self.pty)
+        }
+    }
+
+    pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant]) -> Result<Installed, String> {
         // SAFETY: the version query takes no attribute.
         let abi = unsafe { libc::syscall(CREATE_RULESET, std::ptr::null::<RulesetAttr>(), 0usize, FLAG_VERSION) };
         if abi < 1 {
@@ -191,13 +360,29 @@ mod landlock {
                 return Err(err("landlock_add_rule"));
             }
         }
-        if abi >= 4 && net {
-            for p in ports {
-                let rule = NetPort { allowed: BIND_TCP | CONNECT_TCP, port: *p as u64 };
+        // one rule per port: bind for Listen grants, connect for Connect grants
+        let mut ports: std::collections::BTreeMap<u16, (bool, bool)> = Default::default();
+        for g in grants {
+            let e = ports.entry(g.port).or_default();
+            match g.kind {
+                GrantKind::Listen => e.0 = true,
+                GrantKind::Connect => e.1 = true,
+                GrantKind::Prebound => {}
+            }
+        }
+        let mut rules = vec![];
+        if abi >= 4 {
+            for (p, (bind, connect)) in ports {
+                if !bind && !connect {
+                    continue;
+                }
+                let allowed = if bind { BIND_TCP } else { 0 } | if connect { CONNECT_TCP } else { 0 };
+                let rule = NetPort { allowed, port: p as u64 };
                 // SAFETY: rule is a valid net-port attribute.
                 if unsafe { libc::syscall(ADD_RULE, rs, RULE_NET_PORT, &rule as *const NetPort, 0u32) } < 0 {
                     return Err(err("landlock_add_rule net"));
                 }
+                rules.push((p, bind, connect));
             }
         }
         // SAFETY: plain prctl and syscall on our own process.
@@ -210,28 +395,23 @@ mod landlock {
             }
             libc::close(rs);
         }
-        let netd = if abi < 4 {
-            "network not restricted (Landlock ABI < 4)".to_string()
-        } else if net {
-            format!("TCP only on granted ports {ports:?}")
-        } else {
-            "no TCP".to_string()
-        };
-        Ok(format!("Landlock ABI {abi}: {netd}, writes only under the log directory{}{}", if writable.is_empty() { "" } else { " and the granted roots" }, if pty { "" } else { ", no exec" }))
+        Ok(Installed { abi, rules, writable: !writable.is_empty(), pty })
     }
 }
-
 /// Linux: a seccomp-BPF filter, installed on every thread of the process
-/// (`SECCOMP_FILTER_FLAG_TSYNC`, so adapter threads started before the
-/// sandbox are covered). It is a deny list on top of Landlock: syscalls an
+/// (`SECCOMP_FILTER_FLAG_TSYNC`, so a thread started before the sandbox is
+/// covered too; Landlock is not, which is why the channel and HTTP
+/// threads start after [`enter`]). It is a deny list on top of Landlock: syscalls an
 /// RCE host never needs fail with EPERM: debugging other processes,
 /// mounts and namespaces, kernel modules, kexec and reboot, BPF and perf,
 /// keyrings, clock setting, io_uring (which would bypass the filter), and
-/// on x86_64 the x32 ABI and port I/O. `clone` with any CLONE_NEW* flag is
-/// refused and `clone3` answers ENOSYS (its flags cannot be inspected; libc
+/// on x86_64 the x32 ABI and port I/O. `clone` with any CLONE_NEW* flag
+/// fails with EPERM and `clone3` answers ENOSYS (its flags cannot be inspected; libc
 /// falls back to `clone`). Without `--pty`, execve and execveat fail;
-/// without a network grant, `socket` for AF_INET and AF_INET6 fails. A
-/// foreign architecture kills the process.
+/// unless a grant is connected to or bound after entering (a listener bound
+/// before, such as `--http`, needs no new socket), `socket` for AF_INET and
+/// AF_INET6 fails, which covers UDP and raw sockets too. A foreign
+/// architecture kills the process.
 ///
 /// The filter needs the audit architecture of the build target ([`arch`]).
 /// The table covers every Linux architecture Rust targets that Landlock
@@ -315,7 +495,7 @@ pub mod seccomp {
         sock_filter { code, jt, jf, k }
     }
 
-    /// Syscalls refused whatever was granted.
+    /// Syscalls that fail whatever was granted.
     pub fn denied() -> Vec<libc::c_long> {
         use libc::*;
         #[allow(unused_mut)]
@@ -376,7 +556,7 @@ pub mod seccomp {
         if !net {
             // socketcall multiplexes socket(2); its domain sits behind a
             // pointer the filter cannot read, so without a network grant it
-            // is refused whole (libc uses the direct calls on these kernels).
+            // fails whole (libc uses the direct calls on these kernels).
             p.push(jmp(JEQ_K, libc::SYS_socketcall as u32, 0, 1));
             p.push(st(RET_K, eperm));
         }
@@ -405,7 +585,7 @@ pub mod seccomp {
         if rc != 0 {
             return Err(format!("seccomp: {}", if rc > 0 { format!("thread {rc} could not be synchronised") } else { std::io::Error::last_os_error().to_string() }));
         }
-        Ok(format!("seccomp filter ({} instructions) on all threads{}{}", prog.len(), if pty { "" } else { ", no exec" }, if net { "" } else { ", no IP sockets" }))
+        Ok(format!("seccomp filter ({} instructions) on all threads{}{}", prog.len(), if pty { "" } else { ", no exec" }, if net { "" } else { ", no new IP sockets" }))
     }
 }
 }

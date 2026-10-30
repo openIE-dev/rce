@@ -1,0 +1,12 @@
+extern "C" fn c_take(xs: List[u8]) -> u32
+
+fn main()
+    emit c_take([1, 2])
+#--- rce-test
+# id: effects-capabilities/harvested/extern-owned-param-change
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, HC-4, W-FFI-1]
+# expect: change
+# diagnostic: W-FFI-1
+# provenance: harvested examples/change/types/extern_owned_param.rce
+#---

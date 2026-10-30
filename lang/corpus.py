@@ -88,8 +88,8 @@ def text(s):
 
 def canon(v):
     """Canonical JSON of a record value: null, bool, int, text, list, record.
-    These records hold no floats, so a float is refused rather than
-    written."""
+    These records hold no floats, so a float raises an error rather
+    than being written."""
     if v is None:
         return "null"
     if v is True:

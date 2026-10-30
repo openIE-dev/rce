@@ -1,0 +1,10 @@
+# The emit targets that test runs of this repository cover (spec 10.5),
+# one word per line: rust, python, js or scala. Every test that runs
+# emitted programs runs them on each target named here, and fails when the
+# target's toolchain (rustc, python3, node, scala-cli) does not start. A
+# target not named here is reported as not covered, never as a pass.
+# CI runs on ubuntu-latest, which has rustc, python3 and node and no
+# scala-cli, so scala is not named; add the word to cover it.
+rust
+python
+js

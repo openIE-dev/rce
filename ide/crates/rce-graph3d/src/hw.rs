@@ -19,7 +19,7 @@ fn hw(id: String, label: String, kind: Kind, detail: String) -> Node {
         kind,
         file: None,
         line: None,
-        refused: false,
+        requires_change: false,
         rank: 0.0,
         energy: Default::default(),
         live: None,

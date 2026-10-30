@@ -1,5 +1,5 @@
 // The ACP client runs outside agents only inside the native jail, which is
-// Linux-only (Landlock + seccomp); elsewhere it refuses by design.
+// Linux-only (Landlock + seccomp); elsewhere it does not run, by design.
 #![cfg(target_os = "linux")]
 //! acp-client against the mock ACP agent binary, with the real rce-mcp.
 use acp_client::{AcpClient, AcpConfig, client::AcpError, g4::AcpG4};
@@ -82,7 +82,7 @@ fn edits_go_through_rce_mcp_and_each_turn_is_signed() {
     assert_eq!(r.stop_reason, "end_turn");
     assert_eq!(r.permissions_granted, ["propose_edit"]);
     assert_eq!(r.mediated, ["counter.rce"]);
-    assert!(r.unmediated.is_empty() && r.refused_methods.is_empty());
+    assert!(r.unmediated.is_empty() && r.methods_outside_grant.is_empty());
     assert_eq!(r.tool_calls[0].3, "completed");
     assert!(r.agent_text.contains("done") && r.usage.is_some());
     assert!(
@@ -128,7 +128,7 @@ fn edits_go_through_rce_mcp_and_each_turn_is_signed() {
 }
 
 #[test]
-fn fs_terminal_and_foreign_tools_are_refused() {
+fn fs_terminal_and_foreign_tools_are_outside_the_grant() {
     let (e, c, l) = env();
     let mut a = AcpClient::start(c, l).unwrap();
     let p = e.ws.join("counter.rce").display().to_string();
@@ -140,7 +140,7 @@ fn fs_terminal_and_foreign_tools_are_refused() {
         ))
         .unwrap();
     assert_eq!(
-        r.refused_methods,
+        r.methods_outside_grant,
         ["fs/write_text_file", "fs/read_text_file", "terminal/create"]
     );
     assert!(
@@ -171,7 +171,7 @@ fn writes_outside_rce_mcp_are_reverted_and_flagged() {
 }
 
 #[test]
-fn other_protocol_versions_are_refused() {
+fn other_protocol_versions_are_not_spoken() {
     let (_e, mut c, l) = env();
     c.env.push(("MOCK_ACP_VERSION".into(), "2".into()));
     match AcpClient::start(c, l) {
@@ -413,7 +413,7 @@ fn jailed_agent_uses_mcp_over_http_and_the_network_proxy() {
         .unwrap();
     let t = &r.agent_text;
     // Through the proxy: allowed, with the supervisor's credential (the
-    // agent never saw it); undeclared: 403; direct: refused by the jail.
+    // agent never saw it); undeclared: 403; direct: not performed, the jail denies it.
     assert!(t.starts_with("fetch 200 cred=yes "), "{t}");
     assert!(t.contains("fetch 403 "), "{t}");
     assert!(

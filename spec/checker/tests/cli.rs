@@ -25,15 +25,25 @@ fn tmp(name: &str, text: &str) -> String {
 const BAD: &str = "fn f() -> i64\n    \"text\"\n";
 
 #[test]
-fn check_accepts_and_refuses() {
+fn check_accepts_or_requires_change() {
     assert_eq!(
         rce(&["check", COUNTER]),
-        (0, format!("ok {COUNTER}\n"), String::new())
+        (
+            0,
+            format!(
+                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 2 example lines are the only obligations on the steps; \
+                 their lookup-table control (6.9) meets them, so they do not constrain behaviour beyond the listed examples\n"
+            ),
+            String::new()
+        )
     );
+    // no example line, no recommendation (W-INT-2 needs example lines and a step)
+    let p = tmp("plain.rce", "state C\n    n: u64 = 0\n\nevent Inc\n\nstep C on Inc -> n + 1\n");
+    assert_eq!(rce(&["check", &p]), (0, format!("ok {p}\n"), String::new()));
     let p = tmp("bad.rce", BAD);
     let (c, out, _) = rce(&["check", &p]);
     assert_eq!(c, 1);
-    assert!(out.starts_with(&format!("REFUSED {p}: line ")), "{out}");
+    assert!(out.starts_with(&format!("requires change {p}: line ")), "{out}");
     assert!(out.contains("W-TY-1"), "{out}");
 }
 
@@ -46,7 +56,7 @@ fn check_usage_and_missing_file() {
 }
 
 #[test]
-fn run_events_prints_each_state_and_stops_at_refusal() {
+fn run_events_prints_each_state_and_stops_at_kept() {
     let (c, out, _) = rce(&["run", COUNTER, "Inc, Inc, Dec"]);
     assert_eq!(c, 0);
     assert_eq!(
@@ -57,7 +67,7 @@ fn run_events_prints_each_state_and_stops_at_refusal() {
     assert_eq!(c, 1);
     assert_eq!(
         out,
-        "0 (initial) Counter { n = 0 }\n1 Dec refused: Underflow\n"
+        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n"
     );
 }
 

@@ -1,0 +1,13 @@
+# rce-version: 0.6
+fn f()
+    par
+        branch
+            pass
+#--- rce-test
+# id: lexing-parsing/harvested/06-branch-no-name-change
+# area: lexing-parsing
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: change
+# diagnostic: W-SYN-1
+# provenance: harvested conc06/change/06_branch_no_name.rce
+#---

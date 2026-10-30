@@ -72,18 +72,23 @@ fn shape_sees_a_changed_literal_but_not_a_moved_line() {
 }
 
 /// Through the emitted Form: `rce emit form` then `rce unform` gives source
-/// whose AST, verdict and observations equal the original's.
+/// whose AST, verdict and observations equal the original's. The Form is of
+/// the linked program (4.1), so for a module that uses library modules the
+/// original is its linked copy, without the `use` lines the Form's source
+/// leaves out (the imported items are among its terms).
 #[test]
 fn emitted_form_terms_round_trip_and_check() {
     let mut n = 0;
     let mut bad = vec![];
     for f in files() {
         let src = std::fs::read_to_string(&f).unwrap();
-        let Ok(m) = parse(&src) else { continue };
+        let Ok(_) = parse(&src) else { continue };
         let verdict = rce_spec_check::check_program(&[("t.rce".into(), src.clone())], false)[0].1.is_ok();
         if !verdict {
             continue;
         }
+        let mut m = rce_spec_check::program(&src).unwrap();
+        m.items.retain(|i| !matches!(i, rce_spec_check::ast::Item::Use(..)));
         let Ok(form) = rce_spec_check::cli::emit("form", &src) else {
             bad.push(format!("{}: emit form failed", f.display()));
             continue;
@@ -98,7 +103,7 @@ fn emitted_form_terms_round_trip_and_check() {
         }
         let v2 = rce_spec_check::check_program(&[("t.rce".into(), back.clone())], false)[0].1.is_ok();
         if !v2 {
-            bad.push(format!("{}: unformed source is refused", f.display()));
+            bad.push(format!("{}: unformed source requires change", f.display()));
             continue;
         }
         // observations name `check` items by source line; lines are not terms

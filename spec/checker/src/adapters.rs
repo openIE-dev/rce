@@ -32,7 +32,8 @@ pub fn file_adapters(root: &Path) -> Vec<FileAdapter> {
 }
 
 impl FileAdapter {
-    /// The path under the root, or why it is refused (least privilege).
+    /// The path under the root, or why the access is not performed (least
+    /// privilege).
     fn resolve(&self, p: &str) -> Result<PathBuf, String> {
         if p.is_empty() && self.kind == "FileList" {
             return Ok(self.root.clone());
@@ -192,6 +193,11 @@ pub mod pty {
                 libc::signal(libc::SIGINT, libc::SIG_DFL);
                 libc::signal(libc::SIGQUIT, libc::SIG_DFL);
                 libc::signal(libc::SIGTSTP, libc::SIG_DFL);
+                // the host loop blocks SIGTERM and SIGINT for its stop thread;
+                // a blocked mask survives exec, and the shell must not inherit it
+                let mut none: libc::sigset_t = std::mem::zeroed();
+                libc::sigemptyset(&mut none);
+                libc::sigprocmask(libc::SIG_SETMASK, &none, std::ptr::null_mut());
                 Ok(())
             });
         }
@@ -235,6 +241,11 @@ pub mod pty {
     impl Adapter for PtyAdapter {
         fn kind(&self) -> &'static str {
             self.kind
+        }
+        /// HC-22: session ids continue from `floor`.
+        fn restart(&mut self, floor: u64) {
+            let mut p = self.ptys.borrow_mut();
+            p.next = p.next.max(floor.saturating_sub(1));
         }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut p = self.ptys.borrow_mut();
@@ -372,27 +383,73 @@ impl Adapter for BlobAdapter {
     }
 }
 
-/// W1i network adapter (TCP), the transport under P4 remote channels.
-/// Authority (HC-5): only the `host:port` addresses granted with `--net`.
-/// `NetConnect(req, addr)` -> u64 id; `NetListen(req, addr)` -> u64 id
-/// (the address must be granted); `NetAccept(req, id)` -> u64 id of a new
+/// The bytes a request gives as `text` (its UTF-8 encoding) or as a
+/// `List[i64]` of 0..255 (HC-10a); anything else fails the request.
+pub fn request_bytes(v: &Value) -> Result<Vec<u8>, String> {
+    match v {
+        Value::Null => Ok(vec![]),
+        Value::String(s) => Ok(s.as_bytes().to_vec()),
+        Value::Array(xs) => xs.iter().map(|x| x.as_u64().filter(|b| *b <= 255).map(|b| b as u8).ok_or_else(|| "byte outside 0..255".to_string())).collect(),
+        _ => Err("data is neither text nor bytes".into()),
+    }
+}
+
+/// W1i network adapter (TCP), the transport under P4 remote channels; its
+/// contract is HC-23 of Appendix E. Authority (HC-5): only the `host:port`
+/// addresses granted with `--net`, by their exact text.
+/// `NetConnect(req, addr)` -> u64 id (waits at most NET_CONNECT_MS);
+/// `NetListen(req, addr)` -> u64 id; `NetAccept(req, id)` -> u64 id of a new
 /// connection, or failed `none` when nothing is waiting; `NetSend(req, id,
-/// data)` -> u64 bytes; `NetRecv(req, id, max)` -> text received now (may be
-/// empty), failed `eof` when closed; `NetClose(req, id)` -> u64 0. Every
-/// byte received is an input logged in D (HC-10).
+/// data: text or List[i64])` -> u64 bytes handed to the connection, which
+/// writes them on its own thread under NET_WRITE_MS, so a send never waits
+/// for the peer; `NetRecv(req, id, max)` -> List[i64], the bytes received
+/// now (possibly none), failed `eof` when the peer closed and nothing is
+/// left; `NetClose(req, id)` -> u64 0, closing once the bytes handed over
+/// are written. Every byte received is an input logged in D exactly as it
+/// arrived (HC-10, HC-10a). Ids are never reused within D (HC-22).
 pub mod net {
     use crate::host::{Adapter, EffectResult};
     use serde_json::{Value, json};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, VecDeque};
     use std::io::{ErrorKind, Read, Write};
-    use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-    use std::time::Duration;
+    use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+    use std::sync::{Arc, Condvar, Mutex};
+    use std::time::{Duration, Instant};
 
     pub const NET_KINDS: [&str; 6] = ["NetConnect", "NetListen", "NetAccept", "NetSend", "NetRecv", "NetClose"];
+    /// HC-23: the longest NetConnect waits for the peer (the one wait of the adapter).
+    pub const NET_CONNECT_MS: u64 = 5_000;
+    /// HC-23: the longest a connection waits for its peer to take bytes handed to it.
+    pub const NET_WRITE_MS: u64 = 30_000;
+    /// HC-23: the most bytes handed to one connection and not yet written.
+    pub const NET_QUEUE_MAX: usize = 1_000_000;
+    /// HC-10a: the most bytes one NetRecv delivers: N9 SIZE_LIMIT, so the
+    /// delivered `List[i64]` can always be built.
+    pub const NET_RECV_MAX: usize = crate::interp::SIZE_LIMIT;
+
+    #[derive(Default)]
+    struct Out {
+        buf: VecDeque<u8>,
+        closing: bool,
+        failed: bool,
+    }
+
+    type OutQ = Arc<(Mutex<Out>, Condvar)>;
+
+    struct Conn {
+        s: TcpStream,
+        out: OutQ,
+        /// HD-3: the start of a UTF-8 character a read ended inside, carried
+        /// to the next read when the module takes received bytes as text
+        carry: Vec<u8>,
+        /// a read error met after bytes were read: those bytes are
+        /// delivered first, and the error is the next read's result
+        error: Option<String>,
+    }
 
     enum Sock {
         L(TcpListener),
-        S(TcpStream),
+        S(Conn),
     }
 
     #[derive(Default)]
@@ -400,6 +457,8 @@ pub mod net {
         next: u64,
         socks: BTreeMap<u64, Sock>,
         grants: Vec<String>,
+        /// HD-3: the module takes `NetRecvDone` data as text
+        text: bool,
     }
 
     pub struct NetAdapter {
@@ -410,6 +469,84 @@ pub mod net {
     pub fn net_adapters(grants: &[String]) -> Vec<NetAdapter> {
         let nets = std::rc::Rc::new(std::cell::RefCell::new(Nets { grants: grants.to_vec(), ..Default::default() }));
         NET_KINDS.iter().map(|k| NetAdapter { kind: k, nets: nets.clone() }).collect()
+    }
+
+    /// Wait until `s` can take bytes, at most `ms` (unix: poll; elsewhere a short sleep).
+    pub(crate) fn wait_writable(s: &TcpStream, ms: u64) {
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+            let mut p = libc::pollfd { fd: s.as_raw_fd(), events: libc::POLLOUT, revents: 0 };
+            // SAFETY: one valid pollfd.
+            unsafe { libc::poll(&mut p, 1, ms.min(1000) as i32) };
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = s;
+            std::thread::sleep(Duration::from_millis(ms.min(2)));
+        }
+    }
+
+    /// The writer of one connection: writes the queued bytes in order. A
+    /// peer that takes no byte for NET_WRITE_MS while bytes wait, or a write
+    /// error, fails the connection: it is shut down and later requests on
+    /// it fail with `closed`. After NetClose it closes once the queue is empty.
+    fn writer(mut s: TcpStream, q: OutQ) {
+        let (m, cv) = &*q;
+        loop {
+            let chunk: Vec<u8> = {
+                let mut g = m.lock().unwrap();
+                while g.buf.is_empty() && !g.closing && !g.failed {
+                    g = cv.wait(g).unwrap();
+                }
+                if g.failed || g.buf.is_empty() {
+                    break;
+                }
+                g.buf.iter().take(65536).copied().collect()
+            };
+            let mut done = 0;
+            let mut last = Instant::now();
+            let mut failed = false;
+            while done < chunk.len() {
+                match s.write(&chunk[done..]) {
+                    Ok(0) => failed = true,
+                    Ok(n) => {
+                        done += n;
+                        last = Instant::now();
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {
+                        let left = Duration::from_millis(NET_WRITE_MS).saturating_sub(last.elapsed());
+                        if left.is_zero() {
+                            failed = true;
+                        } else {
+                            wait_writable(&s, left.as_millis() as u64);
+                        }
+                    }
+                    Err(_) => failed = true,
+                }
+                if failed {
+                    break;
+                }
+            }
+            let mut g = m.lock().unwrap();
+            if failed {
+                g.failed = true;
+                g.buf.clear();
+                break;
+            }
+            g.buf.drain(..done);
+        }
+        let _ = s.shutdown(Shutdown::Both);
+    }
+
+    fn conn(s: TcpStream) -> Result<Conn, String> {
+        s.set_nodelay(true).ok();
+        s.set_nonblocking(true).map_err(|e| e.to_string())?;
+        let w = s.try_clone().map_err(|e| e.to_string())?;
+        let out: OutQ = Default::default();
+        let q = out.clone();
+        std::thread::spawn(move || writer(w, q));
+        Ok(Conn { s, out, carry: vec![], error: None })
     }
 
     impl Nets {
@@ -423,21 +560,119 @@ pub mod net {
         }
     }
 
+    /// The length of the UTF-8 character whose first byte is `b`.
+    fn utf8_len(b: u8) -> usize {
+        match b {
+            0xF0.. => 4,
+            0xE0.. => 3,
+            0xC0.. => 2,
+            _ => 1,
+        }
+    }
+
+    /// Read at most `want` bytes into `out` without waiting: Ok(true) at
+    /// the end of the stream.
+    fn read_some(s: &mut TcpStream, out: &mut Vec<u8>, want: usize) -> Result<bool, String> {
+        let mut buf = vec![0u8; want.min(65536)];
+        let mut got = 0;
+        while got < want {
+            let k = (want - got).min(buf.len());
+            match s.read(&mut buf[..k]) {
+                Ok(0) => return Ok(true),
+                Ok(n) => {
+                    out.extend_from_slice(&buf[..n]);
+                    got += n;
+                }
+                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Ok(false)
+    }
+
+    fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
+        // HD-3: bytes carried to the next read are delivered before the
+        // connection's failure, so nothing received is lost
+        if c.out.0.lock().unwrap().failed {
+            return if c.carry.is_empty() { Err("closed".into()) } else { Ok(json!(std::mem::take(&mut c.carry))) };
+        }
+        if let Some(e) = c.error.take() {
+            return Err(e);
+        }
+        let mut out: Vec<u8> = std::mem::take(&mut c.carry);
+        let want = max.saturating_sub(out.len());
+        let mut r = read_some(&mut c.s, &mut out, want);
+        // HD-3: taken as text, a read does not end inside a character: it
+        // reads past max, by at most 3 bytes, to complete the last one; a
+        // character whose bytes have not arrived waits for the next read,
+        // and at the end of the stream it is delivered as it is
+        let cut = match std::str::from_utf8(&out) {
+            Err(e) if e.error_len().is_none() => Some(e.valid_up_to()),
+            _ => None,
+        };
+        if text
+            && r == Ok(false)
+            && let Some(start) = cut
+        {
+            let need = utf8_len(out[start]).saturating_sub(out.len() - start);
+            r = read_some(&mut c.s, &mut out, need);
+            if r == Ok(false) && std::str::from_utf8(&out[start..]).is_err() {
+                c.carry = out.split_off(start);
+            }
+        }
+        match r {
+            // HC-10a: exactly the bytes received, in order, as a list of 0..255
+            Ok(true) if out.is_empty() => Err("eof".into()),
+            Err(e) if out.is_empty() => Err(e),
+            Err(e) => {
+                c.error = Some(e);
+                Ok(json!(out))
+            }
+            Ok(_) => Ok(json!(out)),
+        }
+    }
+
+    fn send(c: &mut Conn, data: &Value) -> Result<Value, String> {
+        let d = super::request_bytes(data)?;
+        let (m, cv) = &*c.out;
+        let mut g = m.lock().unwrap();
+        if g.failed || g.closing {
+            return Err("closed".into());
+        }
+        if g.buf.len() + d.len() > NET_QUEUE_MAX {
+            return Err("send buffer full".into());
+        }
+        g.buf.extend(d.iter().copied());
+        cv.notify_all();
+        Ok(json!(d.len()))
+    }
+
     impl Adapter for NetAdapter {
         fn kind(&self) -> &'static str {
             self.kind
         }
+        /// HC-22: ids continue from `floor`, so no id issued before a restart is reused.
+        fn restart(&mut self, floor: u64) {
+            let mut n = self.nets.borrow_mut();
+            n.next = n.next.max(floor.saturating_sub(1));
+        }
+        fn text(&mut self) {
+            if self.kind == "NetRecv" {
+                self.nets.borrow_mut().text = true;
+            }
+        }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut n = self.nets.borrow_mut();
+            let text = n.text;
             let id = r["id"].as_u64().unwrap_or(0);
             let addr = r["addr"].as_str().unwrap_or("").to_string();
             let res: Result<Value, String> = match self.kind {
                 "NetConnect" => n.granted(&addr).and_then(|_| {
                     let sa = addr.to_socket_addrs().map_err(|e| e.to_string())?.next().ok_or("no address")?;
-                    let s = TcpStream::connect_timeout(&sa, Duration::from_secs(5)).map_err(|e| e.to_string())?;
-                    s.set_nodelay(true).ok();
-                    s.set_nonblocking(true).map_err(|e| e.to_string())?;
-                    Ok(json!(n.add(Sock::S(s))))
+                    let s = TcpStream::connect_timeout(&sa, Duration::from_millis(NET_CONNECT_MS)).map_err(|e| if e.kind() == ErrorKind::TimedOut { "timed_out".to_string() } else { e.to_string() })?;
+                    let c = conn(s)?;
+                    Ok(json!(n.add(Sock::S(c))))
                 }),
                 "NetListen" => n.granted(&addr).and_then(|_| {
                     let l = TcpListener::bind(&addr).map_err(|e| e.to_string())?;
@@ -446,47 +681,36 @@ pub mod net {
                 }),
                 "NetAccept" => match n.socks.get(&id) {
                     Some(Sock::L(l)) => match l.accept() {
-                        Ok((s, _)) => {
-                            s.set_nodelay(true).ok();
-                            s.set_nonblocking(true).map_err(|e| e.to_string()).map(|_| s).map(|s| json!(n.add(Sock::S(s))))
-                        }
+                        Ok((s, _)) => conn(s).map(|c| json!(n.add(Sock::S(c)))),
                         Err(e) if e.kind() == ErrorKind::WouldBlock => Err("none".into()),
                         Err(e) => Err(e.to_string()),
                     },
                     _ => Err(format!("no listener {id}")),
                 },
                 "NetSend" => match n.socks.get_mut(&id) {
-                    Some(Sock::S(s)) => {
-                        let d = r["data"].as_str().unwrap_or("").as_bytes();
-                        s.set_nonblocking(false).ok();
-                        let w = s.write_all(d).map(|_| json!(d.len())).map_err(|e| e.to_string());
-                        s.set_nonblocking(true).ok();
-                        w
-                    }
+                    Some(Sock::S(c)) => send(c, &r["data"]),
                     _ => Err(format!("no connection {id}")),
                 },
                 "NetRecv" => match n.socks.get_mut(&id) {
-                    Some(Sock::S(s)) => {
-                        let max = r["max"].as_u64().unwrap_or(65536).min(1 << 20) as usize;
-                        let mut out = vec![];
-                        let mut buf = [0u8; 4096];
-                        let mut eof = false;
-                        while out.len() < max {
-                            match s.read(&mut buf[..(max - out.len()).min(4096)]) {
-                                Ok(0) => {
-                                    eof = true;
-                                    break;
-                                }
-                                Ok(k) => out.extend_from_slice(&buf[..k]),
-                                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                                Err(e) => return EffectResult::failed(e.to_string()),
-                            }
-                        }
-                        if eof && out.is_empty() { Err("eof".into()) } else { Ok(json!(String::from_utf8_lossy(&out))) }
-                    }
+                    Some(Sock::S(c)) => recv(c, (r["max"].as_u64().unwrap_or(65536) as usize).min(NET_RECV_MAX), text),
                     _ => Err(format!("no connection {id}")),
                 },
-                "NetClose" => n.socks.remove(&id).map(|_| json!(0)).ok_or(format!("no socket {id}")),
+                "NetClose" => match n.socks.remove(&id) {
+                    Some(Sock::S(c)) => {
+                        let (m, cv) = &*c.out;
+                        m.lock().unwrap().closing = true;
+                        cv.notify_all();
+                        // HD-3: the bytes of a character carried for a read
+                        // that never came are not delivered; err lists
+                        // them, so D records them
+                        if !c.carry.is_empty() {
+                            return EffectResult { status: crate::host::Status::Delivered, data: Some(json!(0)), error: format!("closed with {} received bytes of an incomplete UTF-8 character not delivered: {:?}", c.carry.len(), c.carry) };
+                        }
+                        Ok(json!(0))
+                    }
+                    Some(Sock::L(_)) => Ok(json!(0)),
+                    None => Err(format!("no socket {id}")),
+                },
                 k => Err(format!("unknown net request `{k}`")),
             };
             match res {
@@ -762,18 +986,33 @@ pub mod chan {
     /// As `chan_adapters_tls`, on a listener the caller already bound (for example to
     /// port 0), so there is no window between choosing the address and listening on it.
     pub fn chan_adapters_tls_on(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
+        let (xs, start) = chan_adapters_tls_deferred(l, me, peers, id)?;
+        start();
+        Ok(xs)
+    }
+
+    /// Starts the threads of a channel listener bound earlier. The host
+    /// calls it after entering the sandbox (HC-5a): Landlock applies to
+    /// the thread that enters it and the threads it starts afterwards, so
+    /// an acceptor started before would run outside it.
+    pub type Start = Box<dyn FnOnce() + Send>;
+
+    /// `chan_adapters_tls_on` with its threads not started yet.
+    pub fn chan_adapters_tls_deferred(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<(Vec<ChanAdapter>, Start), String> {
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let pins: Arc<HashMap<String, [u8; 32]>> = Arc::new(peers.iter().cloned().collect());
         let scfg = crate::tls::server_config(id, peers.iter().map(|p| p.1).collect())?;
         let (sh, pn) = (shared.clone(), pins.clone());
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                s.set_nodelay(true).ok();
-                s.set_read_timeout(Some(TLS_POLL)).ok();
-                let Ok(conn) = rustls::ServerConnection::new(scfg.clone()) else { continue };
-                let (sh, pn) = (sh.clone(), pn.clone());
-                std::thread::spawn(move || tls_loop(Box::new(rustls::StreamOwned::new(conn, s)), None, sh, pn));
-            }
+        let start: Start = Box::new(move || {
+            std::thread::spawn(move || {
+                for s in l.incoming().flatten() {
+                    s.set_nodelay(true).ok();
+                    s.set_read_timeout(Some(TLS_POLL)).ok();
+                    let Ok(conn) = rustls::ServerConnection::new(scfg.clone()) else { continue };
+                    let (sh, pn) = (sh.clone(), pn.clone());
+                    std::thread::spawn(move || tls_loop(Box::new(rustls::StreamOwned::new(conn, s)), None, sh, pn));
+                }
+            });
         });
         let c = std::rc::Rc::new(std::cell::RefCell::new(Chans {
             me: me.into(),
@@ -783,22 +1022,31 @@ pub mod chan {
             tls: Some((id.clone(), pins)),
             tls_out: HashMap::new(),
         }));
-        Ok(CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect())
+        Ok((CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect(), start))
     }
 
     /// Listen on `me` (a granted local address) and reach only `peers`.
     pub fn chan_adapters(me: &str, peers: &[String]) -> std::io::Result<Vec<ChanAdapter>> {
+        let (xs, start) = chan_adapters_deferred(me, peers)?;
+        start();
+        Ok(xs)
+    }
+
+    /// `chan_adapters` with the listener bound and its threads not started yet.
+    pub fn chan_adapters_deferred(me: &str, peers: &[String]) -> std::io::Result<(Vec<ChanAdapter>, Start)> {
         let l = TcpListener::bind(me)?;
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let sh = shared.clone();
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                let sh = sh.clone();
-                std::thread::spawn(move || serve_conn(s, sh));
-            }
+        let start: Start = Box::new(move || {
+            std::thread::spawn(move || {
+                for s in l.incoming().flatten() {
+                    let sh = sh.clone();
+                    std::thread::spawn(move || serve_conn(s, sh));
+                }
+            });
         });
         let c = std::rc::Rc::new(std::cell::RefCell::new(Chans { me: me.into(), grants: peers.to_vec(), shared, out: HashMap::new(), tls: None, tls_out: HashMap::new() }));
-        Ok(CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect())
+        Ok((CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect(), start))
     }
 
     impl Chans {
@@ -913,7 +1161,8 @@ pub mod chan {
 /// `MediaRead(req, id)` -> text `"<seq>:<digest>"`, failed `eof` at the end;
 /// `MediaPlay(req, track, digest)` -> u64 bytes: the playback sink (λ,
 /// output only) checks the blob against its digest and appends it to
-/// `<root>/play/<track>`; a frame whose bytes do not match is refused.
+/// `<root>/play/<track>`; a frame whose bytes do not match is not appended
+/// (the result is failed).
 pub mod media {
     use crate::host::{Adapter, EffectResult};
     use serde_json::{Value, json};
@@ -1026,6 +1275,11 @@ pub mod media {
         fn kind(&self) -> &'static str {
             self.kind
         }
+        /// HC-22: track ids continue from `floor`.
+        fn restart(&mut self, floor: u64) {
+            let mut m = self.m.borrow_mut();
+            m.next = m.next.max(floor.saturating_sub(1));
+        }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut m = self.m.borrow_mut();
             let res = match self.kind {
@@ -1037,6 +1291,873 @@ pub mod media {
             match res {
                 Ok(v) => EffectResult::ok(v),
                 Err(e) => EffectResult::failed(e),
+            }
+        }
+    }
+}
+
+/// The HTTP event host (Appendix E HC-24 to HC-26): `--http HOST:PORT`.
+///
+/// The host frames requests, so it can serve connections concurrently and
+/// apply limits and deadlines before any byte enters D. Each complete
+/// request is one logged input `HttpRequest(id, method, target, version,
+/// names, values, body)`; a request that breaks the syntax, a limit or a deadline
+/// after its first byte is one `HttpMalformed(id, status, why)`. The id is
+/// the seq of the input's own entry. The program answers with the effect
+/// `HttpRespond(req, status, names, values, body)`. Replay reads requests
+/// from D and never parses (HC-8, HC-10).
+///
+/// The syntax is RFC 9112 with the strict choices of `net.http`
+/// (`stdlib/lib/net/http.rce`): [`parse_request`] and
+/// `net.http.parse_message(b, true, false, false)` agree on every vector of
+/// `stdlib/tests/net/http_checks.rce` and on mutations of them
+/// (`tests/http_parse.rs`). Only the host applies the limits below, the
+/// 505 for a version other than 1.x and the 501 for a transfer coding it
+/// does not implement.
+pub mod http {
+    use crate::host::{Adapter, EffectResult};
+    use serde_json::{Value, json};
+    use std::collections::HashMap;
+    use std::io::{ErrorKind, Read, Write};
+    use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, mpsc};
+    use std::time::{Duration, Instant};
+
+    /// The longest request line, in bytes (414 past it).
+    pub const LINE_MAX: usize = 8192;
+    /// The longest head: request line and fields with their line ends (431).
+    pub const HEAD_MAX: usize = 65536;
+    /// The most field lines in a head (431).
+    pub const FIELDS_MAX: usize = 100;
+    /// The longest body (413): N9 SIZE_LIMIT, so `body: List[i64]` can always be built.
+    pub const BODY_MAX: usize = crate::interp::SIZE_LIMIT;
+    /// The most connections open at once; the acceptor waits past it.
+    pub const CONNS_MAX: usize = 256;
+    /// From the first byte of a request to the end of its head (408).
+    pub const HEAD_MS: u64 = 10_000;
+    /// From the end of the head to the end of the body (408); 1 MB at 34 KB/s.
+    pub const BODY_MS: u64 = 30_000;
+    /// Between requests on one connection: then it closes, and nothing is logged.
+    pub const IDLE_MS: u64 = 5_000;
+    /// For the program's response to an admitted request: then the connection closes.
+    pub const RESPOND_MS: u64 = 60_000;
+    /// For writing one response.
+    pub const WRITE_MS: u64 = 30_000;
+
+    /// The limits and deadlines as `host.HttpListen` records them (keys sorted).
+    pub fn limits_json() -> String {
+        format!(
+            "\"body_max\":{BODY_MAX},\"body_ms\":{BODY_MS},\"conns_max\":{CONNS_MAX},\"fields_max\":{FIELDS_MAX},\"head_max\":{HEAD_MAX},\"head_ms\":{HEAD_MS},\"idle_ms\":{IDLE_MS},\"line_max\":{LINE_MAX},\"respond_ms\":{RESPOND_MS},\"write_ms\":{WRITE_MS}"
+        )
+    }
+
+    /// One request as the host admits it.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    pub struct Parsed {
+        pub method: String,
+        pub target: String,
+        pub major: u8,
+        pub minor: u8,
+        /// field names as written and values without surrounding whitespace, in order
+        pub names: Vec<String>,
+        pub values: Vec<String>,
+        pub body: Vec<u8>,
+        /// trailer fields of a chunked body (parsed, not delivered: HC-24)
+        pub trailer_names: Vec<String>,
+        pub trailer_values: Vec<String>,
+        /// the connection closes after the response
+        pub close: bool,
+        /// a HEAD request: the response carries no body
+        pub head: bool,
+        /// `Expect: 100-continue` with a body to come
+        pub expect_continue: bool,
+    }
+
+    impl Parsed {
+        /// The version as sent (`HTTP/1.1`): the parser admits only `HTTP/`,
+        /// a digit, a dot and a digit, so this is the text of the request line.
+        pub fn version(&self) -> String {
+            format!("HTTP/{}.{}", self.major, self.minor)
+        }
+    }
+
+    /// Whether the connection closes after the response to a request of
+    /// this version with these fields (RFC 9112 9.3): from HTTP/1.1 on when
+    /// Connection lists `close`, and for HTTP/1.0 unless it lists
+    /// `keep-alive`. The version and the fields are in the host's value of
+    /// the request, which D holds (HC-24), so this is a function of D
+    /// (HC-26, `host::http_inputs`).
+    pub fn closes(version: &str, names: &[String], values: &[String]) -> bool {
+        let conn: Vec<String> = header(names, values, "connection").map(|c| list_items(&c.to_ascii_lowercase())).unwrap_or_default();
+        let minor = version.strip_prefix("HTTP/1.").and_then(|m| m.parse::<u8>().ok()).unwrap_or(0);
+        if minor >= 1 { conn.iter().any(|c| c == "close") } else { !conn.iter().any(|c| c == "keep-alive") }
+    }
+
+    /// RFC 9110 5.6.2 `tchar` characters, as `net.http`'s `tchar`.
+    pub fn tchar(c: u8) -> bool {
+        c.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&c)
+    }
+
+    fn trim_ows(t: &str) -> String {
+        t.trim_matches([' ', '\t']).to_string()
+    }
+
+    fn ascii_text(b: &[u8]) -> Result<String, &'static str> {
+        if b.iter().all(|&x| x == 9 || (32..=126).contains(&x)) { Ok(b.iter().map(|&x| x as char).collect()) } else { Err("not ASCII text") }
+    }
+
+    /// The values of a field (case-insensitive name) joined with ", ", or none.
+    pub fn header(names: &[String], values: &[String], name: &str) -> Option<String> {
+        let vs: Vec<&str> = names.iter().zip(values).filter(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str()).collect();
+        (!vs.is_empty()).then(|| vs.join(", "))
+    }
+
+    fn list_items(v: &str) -> Vec<String> {
+        v.split(',').map(trim_ows).collect()
+    }
+
+    fn dec(t: &str) -> i64 {
+        if t.is_empty() || t.len() > 15 || !t.bytes().all(|c| c.is_ascii_digit()) { -1 } else { t.parse().unwrap_or(-1) }
+    }
+
+    fn hexnum(t: &str) -> i64 {
+        if t.is_empty() || t.len() > 15 || !t.bytes().all(|c| c.is_ascii_hexdigit()) { -1 } else { i64::from_str_radix(t, 16).unwrap_or(-1) }
+    }
+
+    fn field(t: &str) -> Result<(String, String), &'static str> {
+        let b = t.as_bytes();
+        if !b.is_empty() && (b[0] == b' ' || b[0] == b'\t') {
+            return Err("obs-fold");
+        }
+        let mut i = 0;
+        while i < b.len() && b[i] != b':' {
+            if !tchar(b[i]) {
+                return Err("field name");
+            }
+            i += 1;
+        }
+        if i >= b.len() || i == 0 {
+            return Err("field line");
+        }
+        Ok((t[..i].to_string(), trim_ows(&t[i + 1..])))
+    }
+
+    fn start_line(t: &str) -> Result<(String, String, u8, u8), &'static str> {
+        let ps: Vec<&str> = t.split(' ').collect();
+        if ps.len() != 3 || ps[0].is_empty() || ps[1].is_empty() {
+            return Err("request line");
+        }
+        if !ps[0].bytes().all(tchar) {
+            return Err("method");
+        }
+        if !ps[1].bytes().all(|c| (33..=126).contains(&c)) {
+            return Err("target");
+        }
+        let v = ps[2].as_bytes();
+        if v.len() != 8 || !ps[2].starts_with("HTTP/") || v[6] != b'.' || !v[5].is_ascii_digit() || !v[7].is_ascii_digit() {
+            return Err("version");
+        }
+        Ok((ps[0].to_string(), ps[1].to_string(), v[5] - b'0', v[7] - b'0'))
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Default)]
+    enum Stage {
+        #[default]
+        Start,
+        Fields,
+        Body(usize),
+        ChunkSize,
+        ChunkData(usize),
+        Trailers,
+    }
+
+    /// What one call of [`Parser::feed`] found.
+    #[derive(Debug, PartialEq)]
+    pub enum Progress {
+        /// more bytes are needed
+        Incomplete,
+        /// a complete request and the number of bytes it used
+        Complete(Parsed, usize),
+        /// the status and the why of a request delivered as `HttpMalformed`
+        Malformed(u16, String),
+    }
+
+    /// A request parser that resumes where it stopped: `feed` takes the
+    /// whole buffer of the request so far, and every byte is examined a
+    /// bounded number of times, so a slow sender costs no more than a fast one.
+    #[derive(Default)]
+    pub struct Parser {
+        stage: Stage,
+        /// bytes of complete units (lines, chunks) consumed
+        pos: usize,
+        /// where the search for the current line's end resumes
+        scan: usize,
+        skipped: usize,
+        head_end: Option<usize>,
+        p: Parsed,
+    }
+
+    fn bad(why: &str) -> Progress {
+        Progress::Malformed(400, why.to_string())
+    }
+
+    impl Parser {
+        /// Whether the whole head has arrived and was accepted.
+        pub fn head_done(&self) -> bool {
+            self.head_end.is_some()
+        }
+        pub fn expect_continue(&self) -> bool {
+            self.p.expect_continue
+        }
+
+        /// The CR ending the line that starts at pos, `Ok(None)` when the
+        /// buffer ends first; a bare CR or LF makes the request malformed
+        /// (net.http `line_end`).
+        fn line_end(&mut self, b: &[u8]) -> Result<Option<usize>, &'static str> {
+            let mut k = self.scan.max(self.pos);
+            while k < b.len() {
+                match b[k] {
+                    13 => {
+                        if k + 1 >= b.len() {
+                            self.scan = k;
+                            return Ok(None);
+                        }
+                        if b[k + 1] != 10 {
+                            self.scan = k;
+                            return Err("bare CR");
+                        }
+                        return Ok(Some(k));
+                    }
+                    10 => {
+                        self.scan = k;
+                        return Err("bare LF");
+                    }
+                    _ => k += 1,
+                }
+            }
+            self.scan = k;
+            Ok(None)
+        }
+
+        fn next_line(&mut self, e: usize) {
+            self.pos = e + 2;
+            self.scan = self.pos;
+        }
+
+        pub fn feed(&mut self, b: &[u8]) -> Progress {
+            loop {
+                match self.stage {
+                    Stage::Start => {
+                        // leading empty lines before a request are skipped (RFC 9112 2.2), at most 16
+                        while self.skipped < 16 && self.pos + 1 < b.len() && b[self.pos] == 13 && b[self.pos + 1] == 10 {
+                            self.pos += 2;
+                            self.scan = self.pos;
+                            self.skipped += 1;
+                        }
+                        let e = match self.line_end(b) {
+                            Err(w) => return if self.scan - self.pos > LINE_MAX { too_long_line() } else { bad(w) },
+                            Ok(None) => return if self.scan - self.pos > LINE_MAX { too_long_line() } else { Progress::Incomplete },
+                            Ok(Some(e)) => e,
+                        };
+                        if e - self.pos > LINE_MAX {
+                            return too_long_line();
+                        }
+                        let sl = match ascii_text(&b[self.pos..e]) {
+                            Ok(t) => t,
+                            Err(w) => return bad(w),
+                        };
+                        match start_line(&sl) {
+                            Ok((m, t, a, c)) => {
+                                self.p.method = m;
+                                self.p.target = t;
+                                self.p.major = a;
+                                self.p.minor = c;
+                            }
+                            Err(w) => return bad(w),
+                        }
+                        self.next_line(e);
+                        self.stage = Stage::Fields;
+                    }
+                    Stage::Fields => {
+                        let e = match self.line_end(b) {
+                            Err(w) => return if self.scan > HEAD_MAX { too_long_head() } else { bad(w) },
+                            Ok(None) => return if b.len() > HEAD_MAX { too_long_head() } else { Progress::Incomplete },
+                            Ok(Some(e)) => e,
+                        };
+                        if e + 2 > HEAD_MAX {
+                            return too_long_head();
+                        }
+                        if e == self.pos {
+                            self.next_line(e);
+                            if let Some(r) = self.end_of_head() {
+                                return r;
+                            }
+                            continue;
+                        }
+                        if self.p.names.len() >= FIELDS_MAX {
+                            return Progress::Malformed(431, format!("over {FIELDS_MAX} fields"));
+                        }
+                        let t = match ascii_text(&b[self.pos..e]) {
+                            Ok(t) => t,
+                            Err(w) => return bad(w),
+                        };
+                        match field(&t) {
+                            Ok((n, v)) => {
+                                self.p.names.push(n);
+                                self.p.values.push(v);
+                            }
+                            Err(w) => return bad(w),
+                        }
+                        self.next_line(e);
+                    }
+                    Stage::Body(n) => {
+                        let h = self.pos;
+                        if b.len() < h + n {
+                            return Progress::Incomplete;
+                        }
+                        self.p.body = b[h..h + n].to_vec();
+                        return self.complete(h + n);
+                    }
+                    Stage::ChunkSize => {
+                        let e = match self.line_end(b) {
+                            Err(w) => return bad(w),
+                            Ok(None) => return self.chunk_overflow(b),
+                            Ok(Some(e)) => e,
+                        };
+                        let line = match ascii_text(&b[self.pos..e]) {
+                            Ok(t) => t,
+                            Err(w) => return bad(w),
+                        };
+                        let size: String = line.chars().take_while(|c| *c != ';' && *c != ' ' && *c != '\t').collect();
+                        let n = hexnum(&size);
+                        if n < 0 {
+                            return bad("chunk size");
+                        }
+                        self.next_line(e);
+                        if n == 0 {
+                            self.stage = Stage::Trailers;
+                        } else {
+                            if self.p.body.len() + n as usize > BODY_MAX {
+                                return too_big();
+                            }
+                            self.stage = Stage::ChunkData(n as usize);
+                        }
+                    }
+                    Stage::ChunkData(n) => {
+                        let i = self.pos;
+                        if i + n + 2 > b.len() {
+                            return self.chunk_overflow(b);
+                        }
+                        self.p.body.extend_from_slice(&b[i..i + n]);
+                        if b[i + n] != 13 || b[i + n + 1] != 10 {
+                            return bad("chunk end");
+                        }
+                        self.pos = i + n + 2;
+                        self.scan = self.pos;
+                        self.stage = Stage::ChunkSize;
+                    }
+                    Stage::Trailers => {
+                        let e = match self.line_end(b) {
+                            Err(w) => return bad(w),
+                            Ok(None) => return self.chunk_overflow(b),
+                            Ok(Some(e)) => e,
+                        };
+                        if e == self.pos {
+                            return self.complete(e + 2);
+                        }
+                        let t = match ascii_text(&b[self.pos..e]) {
+                            Ok(t) => t,
+                            Err(w) => return bad(w),
+                        };
+                        match field(&t) {
+                            Ok((n, v)) => {
+                                self.p.trailer_names.push(n);
+                                self.p.trailer_values.push(v);
+                            }
+                            Err(w) => return bad(w),
+                        }
+                        self.next_line(e);
+                    }
+                }
+            }
+        }
+
+        /// The encoded body (sizes, data, trailers) may use at most
+        /// BODY_MAX + HEAD_MAX bytes, so a chunked body is bounded too.
+        fn chunk_overflow(&self, b: &[u8]) -> Progress {
+            let h = self.head_end.unwrap_or(0);
+            if b.len() - h > BODY_MAX + HEAD_MAX { too_big() } else { Progress::Incomplete }
+        }
+
+        /// The rules applied once the head is complete, in the order of
+        /// `net.http.parse_message` (the version and Host first).
+        fn end_of_head(&mut self) -> Option<Progress> {
+            self.head_end = Some(self.pos);
+            let p = &mut self.p;
+            if p.major != 1 {
+                return Some(Progress::Malformed(505, format!("HTTP/{}.{} is not supported", p.major, p.minor)));
+            }
+            // RFC 9112 3.2: at most one Host field, and exactly one from HTTP/1.1 on
+            let hosts = p.names.iter().filter(|n| n.eq_ignore_ascii_case("host")).count();
+            if hosts > 1 || (hosts == 0 && p.minor >= 1) {
+                return Some(bad("Host"));
+            }
+            p.close = closes(&p.version(), &p.names, &p.values);
+            p.head = p.method == "HEAD";
+            let expect = header(&p.names, &p.values, "expect").is_some_and(|e| e.eq_ignore_ascii_case("100-continue")) && p.minor >= 1;
+            let te = header(&p.names, &p.values, "transfer-encoding");
+            let cl = header(&p.names, &p.values, "content-length");
+            if let Some(te) = te {
+                if cl.is_some() {
+                    return Some(bad("both Transfer-Encoding and Content-Length"));
+                }
+                let items = list_items(&te);
+                if !items[items.len() - 1].eq_ignore_ascii_case("chunked") {
+                    return Some(bad("transfer coding"));
+                }
+                if items[..items.len() - 1].iter().any(|x| x.eq_ignore_ascii_case("chunked")) {
+                    return Some(bad("chunked twice"));
+                }
+                if items.len() > 1 {
+                    return Some(Progress::Malformed(501, "unsupported transfer coding".into()));
+                }
+                p.expect_continue = expect;
+                self.stage = Stage::ChunkSize;
+                return None;
+            }
+            if let Some(cl) = cl {
+                let items = list_items(&cl);
+                let n = dec(&items[0]);
+                if items.iter().any(|x| dec(x) != n) || n < 0 {
+                    return Some(bad("Content-Length"));
+                }
+                if n as usize > BODY_MAX {
+                    return Some(too_big());
+                }
+                p.expect_continue = expect && n > 0;
+                self.stage = Stage::Body(n as usize);
+                return None;
+            }
+            let used = self.pos;
+            Some(self.complete(used))
+        }
+
+        fn complete(&mut self, used: usize) -> Progress {
+            Progress::Complete(std::mem::take(&mut self.p), used)
+        }
+    }
+
+    fn too_long_line() -> Progress {
+        Progress::Malformed(414, format!("request line over {LINE_MAX} bytes"))
+    }
+    fn too_long_head() -> Progress {
+        Progress::Malformed(431, format!("field section over {HEAD_MAX} bytes"))
+    }
+    fn too_big() -> Progress {
+        Progress::Malformed(413, format!("body over {BODY_MAX} bytes"))
+    }
+
+    /// Parse one request from the front of `b`: `Ok(Some((request, used)))`,
+    /// `Ok(None)` when more bytes are needed, or `Err((status, why))`.
+    pub fn parse_request(b: &[u8]) -> Result<Option<(Parsed, usize)>, (u16, String)> {
+        match Parser::default().feed(b) {
+            Progress::Incomplete => Ok(None),
+            Progress::Complete(p, n) => Ok(Some((p, n))),
+            Progress::Malformed(s, w) => Err((s, w)),
+        }
+    }
+
+    /// The reason phrases the host writes (RFC 9110 15); others are empty.
+    pub fn reason(status: u64) -> &'static str {
+        match status {
+            200 => "OK",
+            201 => "Created",
+            202 => "Accepted",
+            203 => "Non-Authoritative Information",
+            204 => "No Content",
+            205 => "Reset Content",
+            206 => "Partial Content",
+            300 => "Multiple Choices",
+            301 => "Moved Permanently",
+            302 => "Found",
+            303 => "See Other",
+            304 => "Not Modified",
+            307 => "Temporary Redirect",
+            308 => "Permanent Redirect",
+            400 => "Bad Request",
+            401 => "Unauthorized",
+            402 => "Payment Required",
+            403 => "Forbidden",
+            404 => "Not Found",
+            405 => "Method Not Allowed",
+            406 => "Not Acceptable",
+            407 => "Proxy Authentication Required",
+            408 => "Request Timeout",
+            409 => "Conflict",
+            410 => "Gone",
+            411 => "Length Required",
+            412 => "Precondition Failed",
+            413 => "Content Too Large",
+            414 => "URI Too Long",
+            415 => "Unsupported Media Type",
+            416 => "Range Not Satisfiable",
+            417 => "Expectation Failed",
+            421 => "Misdirected Request",
+            422 => "Unprocessable Content",
+            426 => "Upgrade Required",
+            428 => "Precondition Required",
+            429 => "Too Many Requests",
+            431 => "Request Header Fields Too Large",
+            500 => "Internal Server Error",
+            501 => "Not Implemented",
+            502 => "Bad Gateway",
+            503 => "Service Unavailable",
+            504 => "Gateway Timeout",
+            505 => "HTTP Version Not Supported",
+            507 => "Insufficient Storage",
+            _ => "",
+        }
+    }
+
+    /// The bytes of the response to `r` (an `HttpRespond` request as Form
+    /// JSON), or why the effect fails (HC-26), and whether the connection
+    /// closes after it. The host adds only the status line,
+    /// `Content-Length` and `Connection: close`; with `head` and `close`
+    /// from `host::http_inputs`, every byte of the response is a function
+    /// of D.
+    pub fn response_bytes(r: &Value, head: bool, close: bool) -> Result<(Vec<u8>, bool), String> {
+        // HD-2: the request is read by field name; a missing field is empty
+        let Some(status) = r["status"].as_u64() else { return Err("status is not an integer from 200 to 599".into()) };
+        if !(200..=599).contains(&status) {
+            return Err(format!("status {status} is outside 200 to 599"));
+        }
+        let strs = |k: &str| -> Vec<String> { r[k].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect() };
+        let (names, values) = (strs("names"), strs("values"));
+        if names.len() != values.len() {
+            return Err("names and values differ in length".into());
+        }
+        let mut program_close = false;
+        for (n, v) in names.iter().zip(&values) {
+            if n.is_empty() || !n.bytes().all(tchar) {
+                return Err(format!("field name `{n}` has a character that is not a tchar"));
+            }
+            if !v.bytes().all(|c| c == 9 || (32..=126).contains(&c)) {
+                return Err(format!("the value of `{n}` is not visible ASCII"));
+            }
+            let l = n.to_ascii_lowercase();
+            if l == "content-length" || l == "transfer-encoding" {
+                return Err(format!("`{n}` is written by the host"));
+            }
+            if l == "connection" {
+                if !v.eq_ignore_ascii_case("close") {
+                    return Err("Connection may only be `close`".into());
+                }
+                program_close = true;
+            }
+        }
+        let body = super::request_bytes(&r["body"])?;
+        let bodyless = status == 204 || status == 304;
+        if bodyless && !body.is_empty() {
+            return Err(format!("a {status} response has no body"));
+        }
+        let close = close || program_close;
+        let mut out = format!("HTTP/1.1 {status} {}\r\n", reason(status));
+        for (n, v) in names.iter().zip(&values) {
+            out.push_str(&format!("{n}: {v}\r\n"));
+        }
+        if !bodyless {
+            out.push_str(&format!("Content-Length: {}\r\n", body.len()));
+        }
+        if close && !program_close {
+            out.push_str("Connection: close\r\n");
+        }
+        out.push_str("\r\n");
+        let mut bytes = out.into_bytes();
+        if !head {
+            bytes.extend_from_slice(&body);
+        }
+        Ok((bytes, close))
+    }
+
+    /// The bytes the host writes for one response.
+    pub struct Reply {
+        pub bytes: Vec<u8>,
+        pub close: bool,
+    }
+
+    /// What the HTTP adapter hands the admitter.
+    pub enum HttpIn {
+        Request { req: Parsed, reply: mpsc::Sender<Reply> },
+        Malformed { status: u16, why: String, reply: mpsc::Sender<Reply> },
+        /// a bind that had failed succeeded on a retry
+        Listening,
+    }
+
+    /// How the adapter hands an input to the admitter; false when the admitter is gone.
+    pub type Deliver = Arc<dyn Fn(HttpIn) -> bool + Send + Sync>;
+
+    /// A request admitted and not yet answered.
+    pub struct Pending {
+        pub reply: mpsc::Sender<Reply>,
+        pub close: bool,
+        pub head: bool,
+    }
+
+    /// The open requests, by id (the seq of their entry).
+    pub type Open = std::rc::Rc<std::cell::RefCell<HashMap<u64, Pending>>>;
+
+    /// The adapter of the `HttpRespond` effect (HC-26). Its result is
+    /// `delivered` with the length of the response handed to the request's
+    /// connection thread, which writes it later; a write that fails then
+    /// is not reported to the program.
+    pub struct RespondAdapter {
+        open: Open,
+    }
+
+    impl Adapter for RespondAdapter {
+        fn kind(&self) -> &'static str {
+            "HttpRespond"
+        }
+        fn perform(&mut self, r: &Value) -> EffectResult {
+            let id = r["req"].as_u64().unwrap_or(0);
+            let mut open = self.open.borrow_mut();
+            let Some(p) = open.get(&id) else { return EffectResult::failed(format!("no request {id}")) };
+            // a response that fails the checks leaves the request open
+            let (bytes, close) = match response_bytes(r, p.head, p.close) {
+                Ok(x) => x,
+                Err(e) => return EffectResult::failed(e),
+            };
+            let p = open.remove(&id).unwrap();
+            let n = bytes.len();
+            match p.reply.send(Reply { bytes, close }) {
+                Ok(()) => EffectResult::ok(json!(n)),
+                Err(_) => EffectResult::failed(format!("no request {id}")),
+            }
+        }
+    }
+
+    struct Ctx {
+        stopping: AtomicBool,
+        active: AtomicUsize,
+    }
+
+    /// The HTTP listener of one host process. It binds before the sandbox
+    /// is entered ([`Server::bind`]) and starts its threads after
+    /// ([`Server::start`]), so they run under the sandbox.
+    pub struct Server {
+        pub addr: String,
+        l: Option<TcpListener>,
+        error: Option<String>,
+        ctx: Arc<Ctx>,
+        open: Open,
+    }
+
+    impl Server {
+        /// Bind the granted address; a failure is recorded and retried by `start`.
+        pub fn bind(addr: &str) -> Server {
+            let (l, error) = match TcpListener::bind(addr) {
+                Ok(l) => (Some(l), None),
+                Err(e) => (None, Some(e.to_string())),
+            };
+            Server { addr: addr.to_string(), l, error, ctx: Arc::new(Ctx { stopping: AtomicBool::new(false), active: AtomicUsize::new(0) }), open: Default::default() }
+        }
+        /// Whether the address is bound now.
+        pub fn bound(&self) -> bool {
+            self.error.is_none()
+        }
+        /// The local address actually bound (for a grant of port 0).
+        pub fn local_addr(&self) -> Option<std::net::SocketAddr> {
+            self.l.as_ref().and_then(|l| l.local_addr().ok())
+        }
+        /// The payload of `host.HttpListen`: the address and the limits, or
+        /// the address and the bind error.
+        pub fn listen_payload(&self) -> String {
+            let a = serde_json::to_string(&self.addr).unwrap();
+            match &self.error {
+                None => format!("{{\"addr\":{a},{}}}", limits_json()),
+                Some(e) => format!("{{\"addr\":{a},\"error\":{}}}", serde_json::to_string(e).unwrap()),
+            }
+        }
+        /// After a retry bound the address.
+        pub fn listening(&mut self) {
+            self.error = None;
+        }
+        pub fn responder(&self) -> RespondAdapter {
+            RespondAdapter { open: self.open.clone() }
+        }
+        pub fn open(&self) -> Open {
+            self.open.clone()
+        }
+        /// Connections open now.
+        pub fn active(&self) -> usize {
+            self.ctx.active.load(Ordering::SeqCst)
+        }
+        /// Stop accepting: new connections are closed at once, idle ones
+        /// close, and a request already being read is finished.
+        pub fn stop(&self) {
+            self.ctx.stopping.store(true, Ordering::SeqCst);
+        }
+        /// Start the acceptor (or the retry of a failed bind, every second).
+        pub fn start(&mut self, deliver: Deliver) {
+            let ctx = self.ctx.clone();
+            match self.l.take() {
+                Some(l) => {
+                    std::thread::spawn(move || accept_loop(l, ctx, deliver));
+                }
+                None => {
+                    let addr = self.addr.clone();
+                    std::thread::spawn(move || {
+                        loop {
+                            std::thread::sleep(Duration::from_secs(1));
+                            if let Ok(l) = TcpListener::bind(&addr) {
+                                if deliver(HttpIn::Listening) {
+                                    accept_loop(l, ctx, deliver);
+                                }
+                                return;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    struct Active(Arc<Ctx>);
+    impl Drop for Active {
+        fn drop(&mut self) {
+            self.0.active.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    fn accept_loop(l: TcpListener, ctx: Arc<Ctx>, deliver: Deliver) {
+        loop {
+            while ctx.active.load(Ordering::SeqCst) >= CONNS_MAX {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            match l.accept() {
+                Ok((s, _)) => {
+                    if ctx.stopping.load(Ordering::SeqCst) {
+                        continue;
+                    }
+                    ctx.active.fetch_add(1, Ordering::SeqCst);
+                    let (c, d) = (ctx.clone(), deliver.clone());
+                    std::thread::spawn(move || {
+                        let _a = Active(c.clone());
+                        connection(s, &c, &d);
+                    });
+                }
+                Err(_) => std::thread::sleep(Duration::from_millis(10)),
+            }
+        }
+    }
+
+    /// Close after a response: stop writing, read what the client still
+    /// sends for a moment so the response is not lost to a reset, then close.
+    fn finish(mut s: TcpStream) {
+        let _ = s.shutdown(Shutdown::Write);
+        let _ = s.set_read_timeout(Some(Duration::from_millis(100)));
+        let start = Instant::now();
+        let mut b = [0u8; 65536];
+        let mut left: usize = 4 << 20;
+        while start.elapsed() < Duration::from_secs(1) && left > 0 {
+            match s.read(&mut b) {
+                Ok(0) => break,
+                Ok(n) => left = left.saturating_sub(n),
+                Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::Interrupted => {}
+                Err(_) => break,
+            }
+        }
+    }
+
+    /// One connection: requests are read under the deadlines, parsed, and
+    /// admitted one at a time, the next only after the previous response,
+    /// so responses stay in order (RFC 9112 9.3.2).
+    fn connection(mut s: TcpStream, ctx: &Ctx, deliver: &Deliver) {
+        s.set_nodelay(true).ok();
+        let mut buf: Vec<u8> = vec![];
+        let mut tmp = vec![0u8; 65536];
+        loop {
+            let mut p = Parser::default();
+            let idle_since = Instant::now();
+            let mut first: Option<Instant> = (!buf.is_empty()).then(Instant::now);
+            let mut head_at: Option<Instant> = None;
+            let mut continued = false;
+            let outcome: Result<(Parsed, usize), (u16, String)> = loop {
+                if !buf.is_empty() {
+                    match p.feed(&buf) {
+                        Progress::Complete(r, n) => break Ok((r, n)),
+                        Progress::Malformed(st, w) => break Err((st, w)),
+                        Progress::Incomplete => {}
+                    }
+                }
+                if p.head_done() && head_at.is_none() {
+                    head_at = Some(Instant::now());
+                    if p.expect_continue() && !continued {
+                        continued = true;
+                        let _ = s.set_write_timeout(Some(Duration::from_millis(WRITE_MS)));
+                        if s.write_all(b"HTTP/1.1 100 Continue\r\n\r\n").is_err() {
+                            return;
+                        }
+                    }
+                }
+                let (deadline, expired) = match (first, head_at) {
+                    (None, _) => (idle_since + Duration::from_millis(IDLE_MS), None),
+                    (Some(f), None) => (f + Duration::from_millis(HEAD_MS), Some("head timed out")),
+                    (Some(_), Some(h)) => (h + Duration::from_millis(BODY_MS), Some("body timed out")),
+                };
+                if first.is_none() && ctx.stopping.load(Ordering::SeqCst) {
+                    return;
+                }
+                let now = Instant::now();
+                if now >= deadline {
+                    match expired {
+                        None => return,
+                        Some(w) => break Err((408, w.to_string())),
+                    }
+                }
+                let _ = s.set_read_timeout(Some((deadline - now).clamp(Duration::from_millis(1), Duration::from_millis(200))));
+                match s.read(&mut tmp) {
+                    // closed between requests or inside one: nothing is logged
+                    Ok(0) => return,
+                    Ok(n) => {
+                        buf.extend_from_slice(&tmp[..n]);
+                        first.get_or_insert_with(Instant::now);
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::Interrupted => {}
+                    Err(_) => return,
+                }
+            };
+            let (tx, rx) = mpsc::channel();
+            let close_after = match outcome {
+                Ok((r, used)) => {
+                    buf.drain(..used);
+                    let c = r.close;
+                    if !deliver(HttpIn::Request { req: r, reply: tx }) {
+                        return;
+                    }
+                    c
+                }
+                Err((status, why)) => {
+                    if !deliver(HttpIn::Malformed { status, why, reply: tx }) {
+                        return;
+                    }
+                    true
+                }
+            };
+            let reply = match rx.recv_timeout(Duration::from_millis(RESPOND_MS)) {
+                Ok(r) => r,
+                // no response in time, or the admitter is gone: close; a
+                // later HttpRespond for this request fails `no request N`
+                Err(_) => return,
+            };
+            let _ = s.set_write_timeout(Some(Duration::from_millis(WRITE_MS)));
+            if s.write_all(&reply.bytes).and_then(|_| s.flush()).is_err() {
+                return;
+            }
+            if reply.close || close_after {
+                finish(s);
+                return;
             }
         }
     }

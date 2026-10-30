@@ -74,6 +74,15 @@ step Call on MediaPlayDone(req: _r, status: st, data: d, err: _e)
 # expect: trace
 # events: Open(source: "pattern:2"), MediaOpenDone(req: 1, status: "delivered", data: some(1), err: "")
 # trace_head: 104470047f309a64c286cc02042c8e68ef46c05ea9ae4bbd4597679ca35c8f3e
+# trace_lines:
+#   - 0 (initial) Call { next = 0, track = 0, tick = 0, ended = false, frames = [], played = 0, bytes = 0, errors = 0 }
+#   - d applied 0baf32b3076e2b679ad2ee9789301434bc992126eafe6b96e3f217e4ce00b16e {"event":{"payload":["pattern:2"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"e8ed9ca42a0dd38d3b4f2f368d0d2a60f83e7d6f3bd1b8f52bf653f6a4664a5e"}
+#   - 1 Open(source: "pattern:2") Call { next = 1, track = 0, tick = 0, ended = false, frames = [], played = 0, bytes = 0, errors = 0 }
+#   - "  emit MediaOpen(req: 1, source: \"pattern:2\")"
+#   - d applied 104470047f309a64c286cc02042c8e68ef46c05ea9ae4bbd4597679ca35c8f3e {"event":{"payload":[1,"delivered",1,""],"type":2},"prev_hash":"0baf32b3076e2b679ad2ee9789301434bc992126eafe6b96e3f217e4ce00b16e","seq":1,"state_hash":"cc89a558a9f48556ed17fe6adbda8a0d065b72ff718319ace1a41ff86626e2fb"}
+#   - 2 MediaOpenDone(req: 1, status: "delivered", data: some(1), err: "") Call { next = 1, track = 1, tick = 0, ended = false, frames = [], played = 0, bytes = 0, errors = 0 }
+#   - trace 104470047f309a64c286cc02042c8e68ef46c05ea9ae4bbd4597679ca35c8f3e
+#   - fuel 31
 # flags: [generated]
 # provenance: gen_props.py: functions and locals of media-ex4-trace.rce renamed; head must not change (T7)
 #---

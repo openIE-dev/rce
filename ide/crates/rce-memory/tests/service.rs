@@ -142,7 +142,7 @@ fn every_action_writes_a_verified_receipt() {
         let (_, r) = m.forget(&mut ctx, id, None, 121).unwrap();
         assert!(
             matches!(r.body.draft.verdict, Verdict::Rejected { .. }),
-            "second forget refused, still receipted"
+            "second forget not performed, still receipted"
         );
         rs.push(r);
     }
@@ -191,7 +191,7 @@ fn remember_as_note_writes_markdown_and_forget_marks_it() {
         meter: None,
         policy_hash: "ph",
     };
-    let mut r = rem("Account", "decision", "Refuse overdrafts");
+    let mut r = rem("Account", "decision", "Keep the balance on an overdraft");
     r.note = true;
     r.text = "Regulators require it.\n".into();
     let (plan, rc) = m.remember(&mut ctx, &prog(), &r, 1_000).unwrap();

@@ -46,7 +46,7 @@ Make a file called `hello.rce`:
 
 `fn main()` declares a function called `main` with no parameters. The body
 is the indented line under it. RCE uses indentation for blocks, as Python
-does. Indent with spaces; a tab is refused.
+does. Indent with spaces; a tab requires change.
 
 `emit` produces an output value. A program does not print directly. It
 emits values, and the tool running it decides how to show them.

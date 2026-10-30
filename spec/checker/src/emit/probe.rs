@@ -327,7 +327,7 @@ pub fn with_probes(m: &Module) -> Module {
     if !events.is_empty() && m.items.iter().any(|i| matches!(i, Item::State { .. })) {
         extra.push(Item::Example(Example {
             events,
-            refused: None,
+            kept: None,
             value: None,
             line: 0,
         }));

@@ -14,6 +14,9 @@ use serde_json::Value;
 use std::path::Path;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn spec() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
@@ -76,7 +79,7 @@ fn lean_lvar_vectors_are_current() {
 fn program(v: &Value) -> (String, Vec<String>) {
     let mut src = String::from("fn main()\n");
     let mut want = vec!["main".to_string()];
-    // a cell nothing reads or writes is named `_c`: an unread name is refused (W-UNUSED-1)
+    // a cell nothing reads or writes is named `_c`: an unread name requires change (W-UNUSED-1)
     let used = |c: &str| v["steps"].as_array().unwrap().iter().any(|s| s[1] != "new" && format!("c_{}_{}", s[2][0], s[2][1]) == c);
     for s in v["steps"].as_array().unwrap() {
         let op = s[1].as_str().unwrap();
@@ -106,6 +109,7 @@ fn program(v: &Value) -> (String, Vec<String>) {
 #[test]
 fn evaluator_and_emitters_agree_with_lean() {
     let text = std::fs::read_to_string(spec().join("checker/tests/vectors/lvar-lean.jsonl")).unwrap();
+    let covered = targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], |l| tool(l).to_string());
     let mut n = 0;
     for line in text.lines() {
         let v: Value = serde_json::from_str(line).unwrap();
@@ -118,11 +122,7 @@ fn evaluator_and_emitters_agree_with_lean() {
         let langs: &[Lang] = if n < 4 { &[Lang::Rust, Lang::Python, Lang::Js] } else { &[Lang::Python, Lang::Js] };
         let pm = with_probes(&m);
         let want_p = observe(&pm);
-        for &lang in langs {
-            if Command::new(tool(lang)).arg("--version").output().is_err() {
-                eprintln!("SKIPPED {lang:?}: {} not found (not a pass)", tool(lang));
-                continue;
-            }
+        for &lang in langs.iter().filter(|l| covered.contains(l)) {
             let code = emit(&pm, lang).unwrap();
             let out = run(lang, &format!("v{n}"), &code).unwrap_or_else(|e| panic!("vector {n} {lang:?}: {e}"));
             let out: Vec<&str> = out.lines().collect();
@@ -137,7 +137,7 @@ fn evaluator_and_emitters_agree_with_lean() {
 /// becomes a branch running its own puts and gets in program order, the
 /// cells are allocated before the fork (allocation commutes with every
 /// other step), and each `freeze` is moved after the join, where W-LVAR-1
-/// accepts it (a freeze racing puts inside the `par` is refused). After
+/// accepts it (a freeze racing puts inside the `par` requires change). After
 /// the join every put has happened, so a freeze reads the join of all the
 /// puts to its cell (the lattice 0..6 under max); the run errs with
 /// `lvar conflict` exactly when some cell reaches the top 6, and otherwise
@@ -219,7 +219,7 @@ fn threaded_scheduler_agrees_with_lean() {
                 let got: Vec<String> = r.outputs.iter().map(|x| x.show()).collect();
                 assert_eq!(got, w, "vector {k}:\n{src}");
             }
-            Err(e) => assert!(matches!(&r.outcome, Outcome::Refused(m) if m.contains(&e)), "vector {k}: want {e}, got {:?}\n{src}", r.outcome),
+            Err(e) => assert!(matches!(&r.outcome, Outcome::Stopped(m) if m.contains(&e)), "vector {k}: want {e}, got {:?}\n{src}", r.outcome),
         }
         n += 1;
     }
@@ -271,8 +271,8 @@ fn run_schedule(news: &[String], th: &[Vec<Op>], order: &[usize]) -> Option<Resu
     let r = run_main(&parse(&src).unwrap(), &RunCfg::default()).unwrap();
     match r.outcome {
         Outcome::Done => Some(Ok(tags.into_iter().zip(r.outputs.iter().map(|x| x.show())).collect())),
-        Outcome::Refused(m) if m.contains("lvar wait cannot be satisfied") => None,
-        Outcome::Refused(m) => Some(Err(m)),
+        Outcome::Stopped(m) if m.contains("lvar wait cannot be satisfied") => None,
+        Outcome::Stopped(m) => Some(Err(m)),
         o => panic!("{o:?}\n{src}"),
     }
 }

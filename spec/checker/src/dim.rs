@@ -17,8 +17,8 @@
 //!
 //! `--control` computes the control quotient of 6.10 on the explored
 //! graph: the same states and transitions, with each step labelled only by
-//! its control outcome (which regions changed, whether and how it was
-//! refused, the constructors of what it emitted) instead of the values.
+//! its control outcome (which regions changed, whether it kept the state
+//! and why, the constructors of what it emitted) instead of the values.
 //! That is a coarser output function on the same deterministic machine, so
 //! its minimal size dim_c is at most dim, exactly as 6.10 states, and the
 //! predicate-equivalence oracle is concrete evaluation on reach(P): exact
@@ -51,16 +51,16 @@ pub struct Dim {
     /// `--control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
     /// Some explored step has a λ output (6.1): an emitted value, or the
-    /// record of a refusal. A program with no such step has one behaviour by
+    /// record of a kept step. A program with no such step has one behaviour by
     /// definition (6.10): its state is in D and readable, but no future
     /// output depends on it.
     pub has_output: bool,
     /// Some explored step emits a value.
     pub emits: bool,
-    /// Some explored step refuses its event.
-    pub refuses: bool,
+    /// Some explored step keeps the state (its event does not apply).
+    pub keeps: bool,
     /// Distinct output sequences over the explored steps (the text of a
-    /// step's emitted values, or its refusal; a silent step is excluded): 1
+    /// step's emitted values, or why it kept the state; a silent step is excluded): 1
     /// means every output is the same, so the program has one behaviour as
     /// well.
     pub distinct_outputs: usize,
@@ -115,7 +115,7 @@ fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
     let mut out = vec![];
     let mut skipped = vec![];
     // type aliases, refined or not (5.1): a refined field gets its base type's
-    // boundary set, and the refusal of an out-of-range value is an observed step
+    // boundary set, and a step that keeps the state on an out-of-range value is an observed step
     let aliases: HashMap<String, Ty> = m
         .items
         .iter()
@@ -188,11 +188,12 @@ fn expr_show(e: &Expr) -> String {
     }
 }
 
-/// The label of one step: the canonical text of its outputs, or its refusal.
+/// The label of one step: the canonical text of its outputs, or why it kept
+/// the state.
 fn step_label(r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
         Ok((_, outs)) => format!("ok:{}", outs.iter().map(|o| o.show()).collect::<Vec<_>>().join("|")),
-        Err(x) => format!("refused:{x}"),
+        Err(x) => format!("kept:{x}"),
     }
 }
 
@@ -227,8 +228,8 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
     idx
 }
 
-/// The control label of one step (6.10 control projection): the refusal's
-/// error (by declaration index) if refused, else the constructors of the
+/// The control label of one step (6.10 control projection): the error that
+/// kept the state (by declaration index) if the step was kept, else the constructors of the
 /// emitted values (by declaration index, or a type class); never a data
 /// value and never a name. It is a function of the step's output alone, so
 /// the control quotient is a coarsening of the behaviour quotient and
@@ -237,7 +238,7 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
 /// that label was not a coarsening and the pilot showed dim_c > dim on
 /// example 51.)
 /// The name-free output label of a step (T7): emitted values in their
-/// positional form (6.1), a refusal by the error's declaration index. Two
+/// positional form (6.1), a kept step by the error's declaration index. Two
 /// programs are compared on these, so a renaming never distinguishes them.
 fn pos_label(m: &Module, idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
@@ -245,8 +246,8 @@ fn pos_label(m: &Module, idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, 
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
             match idx.get(name) {
-                Some(i) => format!("refused:err#{i}"),
-                None => format!("refused:{x}"),
+                Some(i) => format!("kept:err#{i}"),
+                None => format!("kept:{x}"),
             }
         }
     }
@@ -271,8 +272,8 @@ fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>),
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
             match idx.get(name) {
-                Some(i) => format!("refused:err#{i}"),
-                None => format!("refused:{name}"), // a trap: its text carries no declared name
+                Some(i) => format!("kept:err#{i}"),
+                None => format!("kept:{name}"), // a trap: its text carries no declared name
             }
         }
     }
@@ -417,6 +418,13 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
 /// Breadth-first exploration of a program from its initial state over the
 /// boundary instances of its events (10.11), to at most `fuel` states.
 pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
+    explore_to(m, fuel, usize::MAX)
+}
+
+/// `explore` that expands only the states fewer than `max_depth` steps from
+/// s₀: a state at depth `max_depth` is stored but not stepped, and its row is
+/// unexplored (`None`, empty labels). `usize::MAX` is the whole exploration.
+fn explore_to(m: &Module, fuel: usize, max_depth: usize) -> Result<Graph, String> {
     let mut it = Interp::new(m);
     let s0 = it.initial_state().map_err(why)?;
     let (evs, skipped) = instances(m);
@@ -458,8 +466,16 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
     index.insert(key0, 0);
     states.push(s0);
     queue.push_back(0usize);
+    let mut depth: Vec<usize> = vec![0];
     let mut bound_reached = false;
     while let Some(i) = queue.pop_front() {
+        if depth[i] >= max_depth {
+            succ.push(vec![None; k]);
+            label.push(vec![String::new(); k]);
+            clabel.push(vec![String::new(); k]);
+            plabel.push(vec![String::new(); k]);
+            continue;
+        }
         let s = states[i].clone();
         let mut row = Vec::with_capacity(k);
         let mut lab = Vec::with_capacity(k);
@@ -480,6 +496,7 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
                         let j = states.len();
                         index.insert(key, j);
                         states.push(s2);
+                        depth.push(depth[i] + 1);
                         queue.push_back(j);
                         row.push(Some(j));
                     } else {
@@ -487,7 +504,7 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
                         row.push(None);
                     }
                 }
-                Err(_) => row.push(Some(i)), // T8: a refused event leaves the state unchanged
+                Err(_) => row.push(Some(i)), // T8: a kept step leaves the state unchanged
             }
         }
         succ.push(row);
@@ -527,7 +544,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     let n = states.len();
     let has_output = label.iter().flatten().any(|l| l != "ok:");
     let emits = label.iter().flatten().any(|l| l.starts_with("ok:") && l != "ok:");
-    let refuses = label.iter().flatten().any(|l| l.starts_with("refused:"));
+    let keeps = label.iter().flatten().any(|l| l.starts_with("kept:"));
     let distinct_outputs = label.iter().flatten().filter(|l| *l != "ok:").collect::<std::collections::BTreeSet<_>>().len();
 
     // Moore refinement with the full output labels (dim) and, if asked, the
@@ -568,7 +585,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     } else {
         None
     };
-    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, has_output, emits, refuses, distinct_outputs })
+    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, has_output, emits, keeps, distinct_outputs })
 }
 
 /// The text report of 10.11.
@@ -582,7 +599,7 @@ pub fn report(d: &Dim) -> String {
     ));
     s.push_str(&format!("redundancy          {:<8.2} bits: log2(states) - log2(behaviours)\n", d.redundancy_bits));
     let yn = |b: bool| if b { "yes" } else { "no" };
-    s.push_str(&format!("outputs             {:<8} some explored step has a λ output (emits: {}, refuses: {})\n", yn(d.has_output), yn(d.emits), yn(d.refuses)));
+    s.push_str(&format!("outputs             {:<8} some explored step has a λ output (emits: {}, keeps: {})\n", yn(d.has_output), yn(d.emits), yn(d.keeps)));
     s.push_str(&format!("distinct outputs    {:<8} distinct output sequences over the explored steps (silent steps excluded)\n", d.distinct_outputs));
     for (n, all, needed, b) in &d.regions {
         s.push_str(&format!("  region {:<12} {:<8.2} ({all} values, {needed} distinguish behaviours)\n", n, b));
@@ -607,7 +624,7 @@ pub fn report_json(d: &Dim) -> String {
         "redundancy_bits": d.redundancy_bits,
         "has_output": d.has_output,
         "emits": d.emits,
-        "refuses": d.refuses,
+        "keeps": d.keeps,
         "distinct_outputs": d.distinct_outputs,
         "regions": d.regions.iter().map(|(n, a, b, bits)| serde_json::json!({"name": n, "values": a, "needed": b, "bits": bits})).collect::<Vec<_>>(),
         "skipped": d.events_skipped,
@@ -688,7 +705,7 @@ pub fn equiv(a: &Module, b: &Module, fuel: usize) -> Result<Equiv, String> {
 }
 
 fn show_output(l: &str) -> String {
-    if l == "ok:" { "silent".into() } else if let Some(x) = l.strip_prefix("ok:") { format!("emits {x}") } else if let Some(x) = l.strip_prefix("refused:") { format!("refused: {x}") } else { l.to_string() }
+    if l == "ok:" { "silent".into() } else if let Some(x) = l.strip_prefix("ok:") { format!("emits {x}") } else if let Some(x) = l.strip_prefix("kept:") { format!("kept: {x}") } else { l.to_string() }
 }
 
 /// The text report of `rce equiv`.
@@ -726,6 +743,117 @@ pub fn equiv_json(e: &Equiv) -> String {
         "only_a": e.only_a,
         "only_b": e.only_b,
         "witness": e.witness.as_ref().map(|(seq, la, lb)| serde_json::json!({"after": seq, "a": la, "b": lb})),
+    });
+    crate::interp::canon_json(&v)
+}
+
+/// The result of `rce fingerprint FILE`: a behaviour fingerprint (proposal
+/// `behaviour-fingerprint.md`, BF-1).
+pub struct Fingerprint {
+    /// `sha256:` and 64 hex digits
+    pub hash: String,
+    pub depth: usize,
+    /// event instances in the alphabet (as `rce equiv` explores them)
+    pub alphabet: usize,
+    /// states within `depth - 1` steps of s₀, each stepped on every instance
+    pub states: usize,
+    /// event sequences the hash covers: alphabet^1 + ... + alphabet^depth
+    pub sequences: u128,
+}
+
+/// The behaviour fingerprint of a program to depth `n` (BF-1): the SHA-256
+/// of the name-free outputs (the labels `rce equiv` compares) of every event
+/// sequence of length 1 to `n` over the alphabet `rce equiv` explores, in the
+/// canonical order of that alphabet. The trace tree is hashed bottom up
+/// (h₀ = a constant; h_d(s) = SHA-256 over the instances e in order of the
+/// output of e at s and h_{d-1} of its successor), so the cost is one hash
+/// per (state within depth, instance), never one per sequence, and the
+/// result is a function of the outputs alone: two programs with the same
+/// output on every sequence of length at most `n` have the same fingerprint.
+/// The alphabet's name-free keys and `n` are hashed in, so two programs that
+/// `rce equiv` cannot compare (different alphabets) never share one. `fuel`
+/// bounds the states stepped; a fingerprint that would need an unexplored
+/// state is not computed.
+pub fn fingerprint(m: &Module, depth: usize, fuel: usize) -> Result<Fingerprint, String> {
+    use sha2::{Digest, Sha256};
+    if depth == 0 {
+        return Err("--depth n: n is at least 1".into());
+    }
+    let g = explore_to(m, fuel, depth)?;
+    let k = g.keys.len();
+    let n = g.states.len();
+    // depth of each state (BFS from s0 over explored rows)
+    let mut dist = vec![usize::MAX; n];
+    dist[0] = 0;
+    let mut q = VecDeque::from([0usize]);
+    while let Some(i) = q.pop_front() {
+        for t in g.succ[i].iter().flatten() {
+            if dist[*t] == usize::MAX {
+                dist[*t] = dist[i] + 1;
+                q.push_back(*t);
+            }
+        }
+    }
+    let leaf: [u8; 32] = Sha256::digest(b"rce-fingerprint/1 leaf").into();
+    // h[s] at remaining depth d, computed for d = 1..=depth; only states with
+    // dist + d <= depth are needed
+    let mut prev: Vec<Option<[u8; 32]>> = vec![Some(leaf); n];
+    for d in 1..=depth {
+        let mut cur: Vec<Option<[u8; 32]>> = vec![None; n];
+        for i in 0..n {
+            if dist[i] == usize::MAX || dist[i] + d > depth {
+                continue;
+            }
+            let mut h = Sha256::new();
+            for e in 0..k {
+                let l = g.plabel[i][e].as_bytes();
+                h.update((l.len() as u64).to_le_bytes());
+                h.update(l);
+                let next = match g.succ[i][e] {
+                    Some(j) => prev[j],
+                    None if d == 1 => Some(leaf),
+                    None => None,
+                };
+                match next {
+                    Some(x) => h.update(x),
+                    None => return Err(format!("fuel reached before depth {depth} ({n} states); raise --fuel or lower --depth")),
+                }
+            }
+            cur[i] = Some(h.finalize().into());
+        }
+        prev = cur;
+    }
+    let root = prev[0].ok_or("internal: no root hash")?;
+    let mut h = Sha256::new();
+    h.update(format!("rce-fingerprint/1 depth {depth} alphabet {}\n", k).as_bytes());
+    for key in &g.keys {
+        h.update((key.len() as u64).to_le_bytes());
+        h.update(key.as_bytes());
+    }
+    h.update(root);
+    let hash = format!("sha256:{}", h.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>());
+    let stepped = (0..n).filter(|&i| dist[i] < depth).count();
+    let sequences = (1..=depth as u32).fold(0u128, |acc, d| acc.saturating_add((k as u128).saturating_pow(d)));
+    Ok(Fingerprint { hash, depth, alphabet: k, states: stepped, sequences })
+}
+
+/// The text report of `rce fingerprint`.
+pub fn fingerprint_report(f: &Fingerprint) -> String {
+    format!(
+        "fingerprint         {}\ndepth               {:<8} event sequences of length 1 to {} ({} sequences)\nalphabet            {:<8} event instances explored\nstates              {:<8} states stepped\n",
+        f.hash, f.depth, f.depth, f.sequences, f.alphabet, f.states
+    )
+}
+
+/// The JSON report of `rce fingerprint` (format `rce-fingerprint/1`).
+pub fn fingerprint_json(f: &Fingerprint) -> String {
+    let v = serde_json::json!({
+        "format": "rce-fingerprint/1",
+        "fingerprint": f.hash,
+        "depth": f.depth,
+        "alphabet": f.alphabet,
+        "states": f.states,
+        "sequences": f.sequences.to_string(),
     });
     crate::interp::canon_json(&v)
 }

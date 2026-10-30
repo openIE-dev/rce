@@ -6,7 +6,7 @@ class Trap extends Error { constructor(m) { super(m); this.m = m; } }
 class Fail extends Error { constructor(v) { super("fail"); this.v = v; } }
 class Stop extends Error { constructor() { super("stop"); } }
 class Ret extends Error { constructor(v) { super("ret"); this.v = v; } }
-class Refuse extends Error { constructor(r) { super("refuse"); this.r = r; } }
+class Kept extends Error { constructor(r) { super("kept"); this.r = r; } }
 const trap = (m) => { throw new Trap(m); };
 // Fuel (6.7, 10.5): one unit at each point where the reference evaluator
 // ticks; each observation starts with full fuel and empty constant caches.
@@ -121,13 +121,24 @@ function intToF32(n) {
   let r = Math.fround(Number(m) * Math.pow(2, sh));
   return n < 0n ? -r : r;
 }
+// 6.3 N7: k lies in a range of DISPLAY_ESCAPE, the set of
+// spec/data/display-escape.json that the emitter writes after this runtime
+function displayEscapes(k) {
+  const n = DISPLAY_ESCAPE.length / 2;
+  let lo = 0, hi = n;
+  while (lo < hi) {
+    const m = (lo + hi) >> 1;
+    if (DISPLAY_ESCAPE[2 * m + 1] < k) lo = m + 1; else hi = m;
+  }
+  return lo < n && DISPLAY_ESCAPE[2 * lo] <= k;
+}
 function rdebug(s) {
   let o = '"';
   for (const c of s) {
     const k = c.codePointAt(0);
     if (c === "\t") o += "\\t"; else if (c === "\r") o += "\\r"; else if (c === "\n") o += "\\n";
     else if (c === "\\") o += "\\\\"; else if (c === '"') o += '\\"'; else if (c === "\0") o += "\\0";
-    else if (k < 0x20 || (k >= 0x7f && k <= 0x9f) || (k >= 0x300 && k <= 0x36f)) o += "\\u{" + k.toString(16) + "}";
+    else if (displayEscapes(k)) o += "\\u{" + k.toString(16) + "}";
     else o += c;
   }
   return o + '"';
@@ -803,7 +814,7 @@ function why(e) {
   if (e instanceof Stop) return "Stop";
   return "Ret";
 }
-// Rust Debug of the interpreter's V (refusal text); closures, iterators
+// Rust Debug of the interpreter's V (the text of a kept step); closures, iterators
 // and lvars print a placeholder
 function dbgV(v) {
   if (v === true || v === false) return "Bool(" + v + ")";
@@ -838,14 +849,14 @@ function dbgFlow(e) {
   if (e instanceof Cancel) return "Cancel(" + e.f + ")";
   return "?";
 }
-// machine step refusal (interp.rs)
-function refusal(e) {
+// why a machine step kept the state (interp.rs)
+function reason_of(e) {
   if (e instanceof Fail) return e.v instanceof Rec ? e.v.n : "?";
   if (e instanceof Trap) return "trap(" + e.m + ")";
   return "trap(" + dbgFlow(e) + ")";
 }
-// actor handler refusal (conc.rs)
-function actorRefusal(e) {
+// why an actor handler kept the state (conc.rs)
+function actorReason(e) {
   if (e instanceof Fail && e.v instanceof Rec) return e.v.n;
   if (e instanceof Trap) return "trap(" + e.m + ")";
   return "trap(" + dbgFlow(e) + ")";
@@ -867,7 +878,7 @@ function delta(s, ev) {
     for (const st of STEPS[name] || []) {
       OUT.length = 0;
       let r;
-      try { r = st(fs, ev); } catch (e) { if (isFlow(e)) throw new Refuse(refusal(e)); throw e; }
+      try { r = st(fs, ev); } catch (e) { if (isFlow(e)) throw new Kept(reason_of(e)); throw e; }
       if (r !== null) { got = [r, OUT.slice()]; break; }
     }
     if (got === null) nxt.push([name, fs]); else { nxt.push([name, got[0]]); outs.push(...got[1]); }
@@ -893,9 +904,9 @@ function runEvents(s, events, d) {
     try { ev = th(); } catch (e) { if (!isFlow(e)) throw e; say(k + " " + name + " " + why(e)); return; }
     if (ev === null) { say(k + " " + name + " not an event"); return; }
     let r;
-    try { r = delta(s, ev); } catch (e) { if (e instanceof Refuse) { if (TRACE) d.add(name, ev, s); say(k + " " + show(ev) + " refused: " + e.r); return; } throw e; }
+    try { r = delta(s, ev); } catch (e) { if (e instanceof Kept) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " kept: " + e.r); return; } throw e; }
     s = r[0];
-    if (TRACE) d.add(name, ev, s);
+    if (TRACE) d.add(name, ev, s, false);
     say(k + " " + show(ev) + " " + showState(s));
     for (const o of r[1]) say("  emit " + show(o));
   }
@@ -994,12 +1005,15 @@ function fvJson(x) {
 const dSha = (s) => sha256hex(enc.encode(s));
 class DLog {
   constructor() { this.prev = D_GENESIS; this.seq = 0; }
-  add(name, ev, st) {
+  // one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+  add(name, ev, st, kept) {
     const ty = Object.hasOwn(EVENT_INDEX, name) ? String(EVENT_INDEX[name]) : jstr(name);
     const evj = '{"payload":' + fvJson(formValuePos(ev)) + ',"type":' + ty + "}";
     const sj = fvJson(st.map(([r, fs]) => fs.map(([n, v]) => formValuePos(v))));
     const body = '{"event":' + evj + ',"prev_hash":"' + this.prev + '","seq":' + this.seq + ',"state_hash":"' + dSha(sj) + '"}';
-    this.prev = dSha(body); this.seq++;
+    const h = dSha(body);
+    say("d " + (kept ? "kept" : "applied") + " " + h + " " + body);
+    this.prev = h; this.seq++;
   }
 }
 function runMain(f) {
@@ -1259,8 +1273,19 @@ const groupRec = (lane, n) => new Rec("$group", [["lane", new Int(BigInt(lane), 
 // and its reply are exchanged synchronously with receiveMessageOnPort and
 // Atomics.wait on a shared flag. `par` and `for ... par` run their branches
 // on workers too (see "par and for ... par on workers" below).
-const WT = process.getBuiltinModule("worker_threads");
-const CRYPTO = process.getBuiltinModule("crypto");
+// Outside Node (a browser, a worker of another engine) there are no
+// threads to start: steps, D and the examples still run; tasks and `par`
+// need Node.
+const NODE = typeof process !== "undefined" && typeof process.getBuiltinModule === "function";
+const WT = NODE ? process.getBuiltinModule("worker_threads") : { isMainThread: true, workerData: null };
+// The module runs as the program only when node runs this file itself; a
+// host that imports it calls initialState and delta (10.5, E.9). When the
+// entry cannot be resolved, the module behaves as the program.
+const RCE_ENTRY = NODE && (() => {
+  try { return process.argv[1] === undefined || import.meta.url === process.getBuiltinModule("url").pathToFileURL(process.getBuiltinModule("fs").realpathSync(process.argv[1])).href; }
+  catch { return true; }
+})();
+const CRYPTO = NODE ? process.getBuiltinModule("crypto") : null;
 class Chan { constructor(id, cap) { this.id = id; this.cap = cap; } }
 class Task { constructor(id) { this.id = id; } }
 class Actor { constructor(id, ty) { this.id = id; this.ty = ty; } }
@@ -1651,7 +1676,7 @@ class SchedJ {
     for (const h of ACTOR_HANDLERS[st.ty] || []) {
       OUT.length = 0; HSENDS = [];
       let r;
-      try { r = h(st.fields, msg); } catch (e) { if (!isFlow(e)) throw e; HSENDS = null; OUT.length = 0; return ["err", actorRefusal(e)]; }
+      try { r = h(st.fields, msg); } catch (e) { if (!isFlow(e)) throw e; HSENDS = null; OUT.length = 0; return ["err", actorReason(e)]; }
       const sends = HSENDS; HSENDS = null;
       if (r === null) continue;
       const outs = OUT.slice(); OUT.length = 0;
@@ -1661,7 +1686,7 @@ class SchedJ {
   }
   onCrash(id, reason) {
     // restart as input (C.11.11)
-    this.alog.push("Refused(" + reason + ")");
+    this.alog.push("Kept(" + reason + ")");
     const ty = this.actors.get(id).ty;
     const sv = SUPERVISORS[ty];
     if (!sv) return;
@@ -1669,8 +1694,8 @@ class SchedJ {
     const tick = this.tick;
     let dec;
     if (this.rrep !== null) {
-      if (this.rrep.length && !SUP_TREE.includes(this.rrep[0][1] + "/" + this.rrep[0][2])) { this.stop = ["refused", "trap: upgrade removed supervisor position " + this.rrep[0][1] + "/" + this.rrep[0][2]]; return; }
-      if (this.rrep.length === 0 || this.rrep[0][3] !== id || this.rrep[0][1] !== sup) { this.stop = ["refused", "replay diverged"]; return; }
+      if (this.rrep.length && !SUP_TREE.includes(this.rrep[0][1] + "/" + this.rrep[0][2])) { this.stop = ["stopped", "trap: upgrade removed supervisor position " + this.rrep[0][1] + "/" + this.rrep[0][2]]; return; }
+      if (this.rrep.length === 0 || this.rrep[0][3] !== id || this.rrep[0][1] !== sup) { this.stop = ["stopped", "replay diverged"]; return; }
       dec = this.rrep.shift();
     } else {
       const key = sup + "\u0000" + child;
@@ -1688,7 +1713,7 @@ class SchedJ {
     }
     this.rlog.push(dec);
     const c = this.rlog.filter((r) => r[1] === sup && r[2] === child && (RESTART_WINDOW === 0 || tick - r[0] < RESTART_WINDOW)).length;
-    if (dec[4]) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
+    if (dec[4]) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
     this.alog.push("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
     for (const aid of dec[5]) { const a = this.actors.get(aid); if (a) a.fields = actorInit(a.ty); }
   }
@@ -1706,16 +1731,16 @@ class SchedJ {
     const txns = this.txns; this.txns = [];
     for (const txn of txns) {
       progress = true;
-      const results = []; let refused = null;
+      const results = []; let kept = null;
       for (const [id, ty, m] of txn) {
         this.ensureActor(id, ty); busy.add(id);
         const r = this.handler(id, m);
-        if (r[0] === "err") { refused = r[1]; break; }
+        if (r[0] === "err") { kept = r[1]; break; }
         results.push([id, r[1]]);
       }
-      if (refused !== null) {
+      if (kept !== null) {
         const failed = results.length;
-        txn.forEach(([id], k) => { if (k === failed) this.onCrash(id, refused); else this.alog.push("Refused(" + refused + ")"); });
+        txn.forEach(([id], k) => { if (k === failed) this.onCrash(id, kept); else this.alog.push("Kept(" + kept + ")"); });
         if (this.stop !== null) break;
         continue;
       }
@@ -1802,7 +1827,7 @@ class SchedJ {
         const c = this.chan(target);
         if (c === null) return null;
         if (sl.holding !== null) { if (sl.released) { sl.released = false; sl.holding = null; return ["val", UNIT]; } return null; }
-        if (this.chans.get(c).closed) { this.stop = ["refused", "trap: send on a closed channel"]; return ["cancel", CANCEL_TASK]; }
+        if (this.chans.get(c).closed) { this.stop = ["stopped", "trap: send on a closed channel"]; return ["cancel", CANCEL_TASK]; }
         if (this.space(c)) { this.staged.push([c, v]); return ["val", UNIT]; }
         this.chans.get(c).held.push([v, i]); sl.holding = c;
         return null;
@@ -1870,7 +1895,7 @@ class SchedJ {
     const res = r[0] === "ok" ? r : r[1] ? ["err", "cancelled"] : ["err", r[2]];
     const failed = r[0] === "err" && !r[1];
     const sl = this.slots[i]; sl.result = res;
-    if (i === 0) { if (res[0] === "err") return ["refused", res[1]]; }
+    if (i === 0) { if (res[0] === "err") return ["stopped", res[1]]; }
     else if (failed) this.slots.forEach((t, k) => { if (k !== i && t.parent === sl.parent && t.scope === sl.scope) t.cancel = true; });
     for (const t of this.slots) if (t.parent === i) t.cancel = true;
     return null;
@@ -1879,7 +1904,7 @@ class SchedJ {
     if (this.stop !== null) return this.stop;
     for (;;) {
       this.tick += 1;
-      if (this.tick > this.maxTicks) return ["refused", "trap: tick limit"];
+      if (this.tick > this.maxTicks) return ["stopped", "trap: tick limit"];
       let progress = this.linksPhase();
       progress = this.eventsPhase() || progress;
       const order = this.order();
@@ -1902,7 +1927,7 @@ class SchedJ {
         progress = true;
         if (req[0][0] === "spawn" && rep[0] === "spawned") {
           const [, f, args, prio, , , scope] = req[0];
-          if (!(f in FNS)) return ["refused", "trap: no task function " + f];
+          if (!(f in FNS)) return ["stopped", "trap: no task function " + f];
           this.spawnTask(f, args, rep[1], prio, i, scope);
         }
         sl.st = ["ready", rep];
@@ -1930,14 +1955,14 @@ function runTasks(main) {
   for (const a of process.argv) if (a.startsWith("--link=")) { const p = a.slice(7).split(","); links.push([Number(p[0]), p[1] === "partition", p[2], p[3]]); }
   const s = new SchedJ(links);
   const rec = restartTreeArg();
-  if (s.rrep !== null && rec !== null) { const e = treeMigrates(rec, SUP_TREE); if (e !== null) s.stop = ["refused", e]; }
+  if (s.rrep !== null && rec !== null) { const e = treeMigrates(rec, SUP_TREE); if (e !== null) s.stop = ["stopped", e]; }
   s.spawnTask(main, [], hid("main"), 0, null, 0);
   const o = s.run();
   const lines = s.outputs.map((v) => "emit " + show(v));
   if (process.argv.includes("--actor-log")) for (const e of s.alog) lines.push("actorlog " + e);
   if (process.argv.includes("--restart-log")) lines.push("restartlog v1 tree=" + SUP_TREE.join(","));
   if (process.argv.includes("--restart-log")) for (const r of s.rlog) lines.push("restartin " + r[0] + "|" + r[1] + "|" + r[2] + "|" + r[3] + "|" + (r[4] ? 1 : 0) + "|" + r[5].join(","));
-  lines.push(o[0] === "done" ? "outcome Done" : o[0] === "deadlock" ? "outcome Deadlock" : "outcome Refused: " + o[1]);
+  lines.push(o[0] === "done" ? "outcome Done" : o[0] === "deadlock" ? "outcome Deadlock" : "outcome Stopped: " + o[1]);
   process.stdout.write(lines.map((x) => x + "\n").join(""), () => process.exit(0));
 }
 

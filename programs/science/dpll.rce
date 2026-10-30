@@ -1,0 +1,113 @@
+# A small DPLL satisfiability solver: unit propagation, then a split on the
+# first unassigned variable. A clause is a list of literals: v means
+# variable v is true, -v that it is false (variables 1..n).
+#
+# What had to be stated: the split recurses on an assignment, which has no
+# constructor measure (6.7), so the function carries `bound 64`, a literal
+# cap on the active calls; a formula needs at most n + 1 of them, so this
+# solver handles up to 63 variables and traps with "recursion bound" past
+# that. The propagation loop states that each pass fixes one more variable.
+
+# The value of a literal under an assignment: 1 true, -1 false, 0 unknown.
+fn lit(a: &[i64], l: i64) -> i64
+    let v = a[l.abs() as usize]
+    return if l > 0 then v else 0 - v
+
+# 1 when every clause holds, -1 when one is false, 0 otherwise.
+fn status(cs: &[List[i64]], a: &[i64]) -> i64
+    var all = true
+    for c in cs
+        var sat = false
+        var open = false
+        for l in c
+            let x = lit(a, l)
+            if x == 1
+                sat = true
+            elif x == 0
+                open = true
+        if not sat and not open
+            return -1
+        if not sat
+            all = false
+    return if all then 1 else 0
+
+# Fix every unit clause until none is left (each pass fixes a variable).
+fn propagate(cs: &[List[i64]], a0: &[i64]) -> List[i64]
+    var a = copy(a0)
+    var changed = true
+    while changed bound a0.len() as u64
+        changed = false
+        for c in cs
+            var sat = false
+            var free_n = 0
+            var last: i64 = 0
+            for l in c
+                let x = lit(&a, l)
+                if x == 1
+                    sat = true
+                elif x == 0
+                    free_n += 1
+                    last = l
+            if not sat and free_n == 1 and lit(&a, last) == 0
+                a[last.abs() as usize] = if last > 0 then 1 else -1
+                changed = true
+    return a
+
+fn first_free(a: &[i64]) -> usize
+    for v in 1..a.len()
+        if a[v] == 0
+            return v
+    return 0
+
+fn set_var(a: &[i64], v: usize, x: i64) -> List[i64]
+    var b = copy(a)
+    b[v] = x
+    return b
+
+fn dpll(cs: &[List[i64]], a0: &[i64]) -> bool bound 64
+    let a = propagate(cs, a0)
+    let s = status(cs, &a)
+    if s != 0
+        return s == 1
+    let v = first_free(&a)
+    if v == 0
+        return false
+    let t = set_var(&a, v, 1)
+    if dpll(cs, &t)
+        return true
+    let f = set_var(&a, v, -1)
+    return dpll(cs, &f)
+
+fn satisfiable(n: usize, cs: &[List[i64]]) -> bool
+    let a: List[i64] = [0 for _ in 0..=n]
+    return dpll(cs, &a)
+
+const F1: List[List[i64]] = [[1, 2], [-1, 3], [-2, -3], [-3, 1]]
+# A list literal whose inner lists differ in length requires change today
+# (W-TY-1: the inner literals get different types), so a unit clause [x] is
+# written [x, x], which means the same.
+const F2: List[List[i64]] = [[1, 1], [-1, 2], [-2, -2]]
+const F3: List[List[i64]] = [[1, 2], [1, -2], [-1, 2], [-1, -2]]
+
+check satisfiable(3, &F1)
+check not satisfiable(2, &F2)
+check not satisfiable(2, &F3)
+
+# The pigeonhole formula PHP(m+1, m): m + 1 pigeons in m holes, unsatisfiable,
+# and hard for DPLL. Variable p*m + h + 1: pigeon p sits in hole h.
+fn php(m: usize) -> List[List[i64]]
+    var cs: List[List[i64]] = []
+    for p in 0..m + 1
+        cs.push([(p * m + h + 1) as i64 for h in 0..m])
+    for h in 0..m
+        for p in 0..m + 1
+            for q in p + 1..m + 1
+                cs.push([0 - ((p * m + h + 1) as i64), 0 - ((q * m + h + 1) as i64)])
+    return cs
+
+fn php_sat(m: usize) -> bool
+    let cs = php(m)
+    return satisfiable((m + 1) * m, &cs)
+
+check not php_sat(2)
+check not php_sat(3)

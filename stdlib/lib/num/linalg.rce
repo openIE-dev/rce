@@ -734,7 +734,7 @@ pub fn qr_r(f: &Qr) -> Mat
 # Least squares min ||A X - B|| for m >= n and full rank (DGELS 'N' for
 # matrices below the blocking crossover: DGEQR2, DORM2R, DTRTRS; the
 # DGELS rescaling only acts outside [SFMIN/EPS, EPS/SFMIN] and is not
-# reproduced: such inputs are refused with Shape).
+# reproduced: such inputs fail with Shape).
 pub fn lstsq(a: &Mat, b: &Mat) -> Mat ! LaError
     let m = a.m
     let n = a.n
@@ -1475,7 +1475,7 @@ pub struct Eigvals
 # adjacent, positive imaginary part first). Fails with why
 # "no convergence" (at = LAPACK INFO) in the rare case DLAHQR gives up.
 # Inputs whose largest entry lies outside [sqrt(SFMIN)/EPS,
-# EPS/sqrt(SFMIN)] would be rescaled by DGEEV first; they are refused.
+# EPS/sqrt(SFMIN)] would be rescaled by DGEEV first; they are an error.
 pub fn eigvals(a: &Mat) -> Eigvals ! LaError
     if a.m != a.n
         fail LaError(why: "eigvals needs a square matrix", at: -1)

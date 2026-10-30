@@ -36,10 +36,11 @@ reads a wall clock.
 
 ## Emitting a target language
 
-Every language is both an output and an input of the Form. A target is a
-row of the emit registry (`spec/proposals/emit-targets.md`): one emitter
-over the Form IR and one table per language, each passing the same gate,
-the reference trace of every example program byte for byte. This chapter
+RCE is designed so that every language is both an output and an input of
+the Form. In that design a target is a row of the emit registry
+(`spec/proposals/emit-targets.md`), one table per language, each passing
+the same gate, the reference trace of every example program byte for byte;
+the design is not built yet. This chapter
 uses the targets the reference checker emits today.
 
 `rce emit rust`, `rce emit python` and `rce emit js` translate a checked
@@ -70,5 +71,5 @@ output to equal the reference interpreter's.
 
 - `rce emit form` shows the Form behind a program.
 - The emitters produce Rust, Python, JavaScript and Scala that print the
-  same observations as the reference interpreter; further targets are
-  registry rows, not new emitters.
+  same observations as the reference interpreter on the conformance suite;
+  further targets are to be registry rows, not new emitters.

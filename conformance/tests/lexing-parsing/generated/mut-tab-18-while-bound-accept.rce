@@ -11,7 +11,7 @@ fn collatz_steps(n: u64) -> u64 ! Diverged
 # id: lexing-parsing/generated/mut-tab-18-while-bound-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 18-while-bound-accept

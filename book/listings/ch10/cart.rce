@@ -1,6 +1,6 @@
 intent "a cart and its statistics, updated by the same events"
     example AddItem(name: "tea"), AddItem(name: "jam"), RemoveItem(name: "tea") -> items == ["jam"] and adds == 2
-    example AddItem(name: "a"), AddItem(name: "b"), AddItem(name: "c"), AddItem(name: "d") -> refused: CartFull
+    example AddItem(name: "a"), AddItem(name: "b"), AddItem(name: "c"), AddItem(name: "d") -> kept: CartFull
 
 state Cart
     items: List[text] = []

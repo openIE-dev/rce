@@ -5,7 +5,7 @@ import RCE.Form
 of the Rust subset the emitter prints (`RE`, `RS`), with its own big-step
 semantics written the way Rust executes it: a mutable store with one loop
 counter variable `k_d` per loop nesting depth, `loop { … }` with `break`,
-`return Err(…)` for refusals, `?` propagation of traps, and `fs.get(i)` /
+`return Err(…)` for kept steps, `?` propagation of traps, and `fs.get(i)` /
 `fs[i] = v` with bounds checks.  `toRust` prints MiniRust as Rust source.
 
 Proved: for every core statement, the compiled MiniRust program has exactly
@@ -82,8 +82,8 @@ inductive RS where
   | ifelse (c : RE) (a b : RS)   -- if truthy((c)?)? { a } else { b }
   | loop (body : RS)             -- loop { body }
   | brk                          -- break;
-  | fail (x : String)            -- return Err(Refusal::User("x"));
-  | trap (m : Trap)              -- return Err(Refusal::Trap(Trap::m));
+  | fail (x : String)            -- return Err(Reason::User("x"));
+  | trap (m : Trap)              -- return Err(Reason::Trap(Trap::m));
   | letK (d n : Nat)             -- let mut k_d: u64 = n;
   | decK (d : Nat)               -- k_d -= 1;
   | ifKZero (d : Nat) (s : RS)   -- if k_d == 0 { s }
@@ -101,7 +101,7 @@ def updK (ks : Nat → Nat) (d n : Nat) : Nat → Nat := fun j => if j = d then 
 inductive Flow where
   | normal (st : St)
   | brk (st : St)
-  | ret (r : Refusal)
+  | ret (r : Reason)
 
 /-- Big-step semantics of MiniRust, as Rust runs it. -/
 inductive RExec (args : List Val) : RS → St → Flow → Prop where

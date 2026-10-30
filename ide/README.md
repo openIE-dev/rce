@@ -4,9 +4,9 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
 
 ## At a glance
 
-![The RCE IDE: editor with a live rce check diagnostic, proposals accepted or refused by the checker, receipts and energy, memory recall, network permission prompt](screens/ide.png)
+![The RCE IDE: editor with a live rce check diagnostic, proposals accepted by the checker or requiring change, receipts and energy, memory recall, network permission prompt](screens/ide.png)
 
-*The IDE. Left: the editor, with the checker naming the broken rule (W-STEP-1) on line 20. Right: proposals, each accepted or refused by `rce check` with a receipt; the receipt ledger with energy columns (empty where nothing was measured); memory recall; and a network request waiting for permission.*
+*The IDE. Left: the editor, with the checker naming the broken rule (W-STEP-1) on line 20. Right: proposals, each accepted by `rce check` or requiring change, with a receipt; the receipt ledger with energy columns (empty where nothing was measured); memory recall; and a network request waiting for permission.*
 
 ![Where the IDE sits: source, checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
 
@@ -76,7 +76,7 @@ Notes:
 - `rce-mcp --http` jails itself after binding (Landlock + seccomp; loopback or
   `--allow-host` only; outbound only to ports declared in `.rce-ide/net.json`).
   The jail exists on Linux only (kernel 6.7+ for Landlock ABI 4). On Windows and
-  macOS HTTP mode refuses to start unless you pass `--no-jail`; stdio mode is
+  macOS HTTP mode does not start unless you pass `--no-jail`; stdio mode is
   unaffected.
 - `rce-ide telemetry probe` lists the energy meters and the GPU launch source
   found on this machine. Without a readable meter, energy is reported as

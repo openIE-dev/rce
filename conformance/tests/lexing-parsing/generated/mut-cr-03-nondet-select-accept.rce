@@ -9,7 +9,7 @@ fn relay(a: chan i64, b: chan i64)
 # id: lexing-parsing/generated/mut-cr-03-nondet-select-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `cr` of 03-nondet-select-accept

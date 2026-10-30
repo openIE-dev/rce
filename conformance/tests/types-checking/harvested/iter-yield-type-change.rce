@@ -1,0 +1,10 @@
+fn names() -> iter text
+    yield 3
+#--- rce-test
+# id: types-checking/harvested/iter-yield-type-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: change
+# diagnostic: W-TY-1
+# provenance: harvested examples/change/types/iter_yield_type.rce
+#---

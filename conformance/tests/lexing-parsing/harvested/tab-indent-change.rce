@@ -1,0 +1,10 @@
+fn f() -> i64
+	return 1
+#--- rce-test
+# id: lexing-parsing/harvested/tab-indent-change
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: change
+# diagnostic: W-LEX-1
+# provenance: harvested examples/change/syntax/tab_indent.rce
+#---

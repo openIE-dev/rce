@@ -23,7 +23,7 @@ step Ledger on Spend(amount: a) -> spent + a
 # id: lexing-parsing/generated/mut-tab-53-capability-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 53-capability-accept

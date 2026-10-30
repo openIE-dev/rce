@@ -45,7 +45,7 @@ intent to a complete program.
 ```
 intent "a counter that never goes negative"
     example Inc, Inc, Dec      -> 1
-    example Dec                -> refused: Underflow
+    example Dec                -> kept: Underflow
 
 state Counter
     n: u64 = 0

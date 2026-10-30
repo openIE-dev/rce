@@ -1,0 +1,14 @@
+fn f(s: &text) -> List[text]
+    var out: List[text] = []
+    with arena a
+        let ws: List[text] @a = s.words()
+        out = ws
+    return out
+#--- rce-test
+# id: types-checking/harvested/arena-escape-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-REG-1]
+# expect: change
+# diagnostic: W-REG-1
+# provenance: harvested examples/change/types/arena_escape.rce
+#---

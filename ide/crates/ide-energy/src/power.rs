@@ -21,7 +21,7 @@ pub struct Integrator {
 }
 
 impl Integrator {
-    /// Add a point. Negative, NaN or out-of-order points are refused.
+    /// Add a point. Negative, NaN or out-of-order points are an error.
     pub fn push(&mut self, t_ns: u64, watts: f64) -> Result<(), String> {
         if !watts.is_finite() || watts < 0.0 {
             return Err(format!("bad power reading {watts} W"));

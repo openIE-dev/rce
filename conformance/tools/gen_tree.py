@@ -40,7 +40,7 @@ def main():
             src = f"# rce-version: 0.6\nfn main()\n    var s: f64 = {init}\n    for i in 0..{m} par\n        s {op} {body}\n    emit s\n"
             outs = ["emit " + ftext(want)]
             r = ref.run(src)
-            if r.get("verdict") == "reject": sys.exit(f"generator wrote a refused program: {r}\n{src}")
+            if r.get("verdict") == "change": sys.exit(f"generator wrote a program that requires change: {r}\n{src}")
             got = (r.get("outputs"), r.get("outcome"))
             if got != (outs, "done"):
                 findings.append({"case": src, "reference": got, "oracle": outs, "kind": "tree"})

@@ -2,7 +2,7 @@
 //!
 //! A [`Statechart`] is data, like [`crate::Machine`]. A [`ChartActor`] holds the
 //! active configuration. [`ChartActor::send`] either applies every enabled
-//! transition or refuses the event. Refusal leaves the configuration as it was.
+//! transition or keeps the configuration as it was: the event does not apply.
 //!
 //! A transition may name a guard id and an action id. Both are registered on
 //! the actor, not stored as functions in the chart. A guard is a pure function
@@ -11,7 +11,7 @@
 //! that transition. A guard that returns false does not take it either. The
 //! next transition declared on that same state for the same event is tried.
 //! When none of those pass, the event bubbles to the parent the way an event
-//! with no transition does. If nothing is taken, the send is refused and the
+//! with no transition does. If nothing is taken, the send does not apply and the
 //! configuration is unchanged.
 //!
 //! An action runs only after a taken transition has changed the configuration.
@@ -25,8 +25,8 @@
 //! child; it does not keep running. Entering the state again starts a new
 //! child at that initial configuration. [`ChartActor::send_to_child`] delivers
 //! an event to the active child and to no other actor. If no child is active,
-//! the send is refused and the parent configuration is unchanged. An event the
-//! child refuses changes neither actor.
+//! the send does not apply and the parent configuration is unchanged. An event
+//! that does not apply to the child changes neither actor.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -612,7 +612,7 @@ impl Statechart {
                 || overlaps(&enter, &claimed_exit)
             {
                 // Two regions enabled a step, but the steps do not stay in their
-                // own regions. Refuse the whole send rather than drop one of them.
+                // own regions. The whole send does not apply rather than drop one of them.
                 return None;
             }
             claimed_exit.extend(exit);
@@ -881,12 +881,12 @@ impl<'a> ChartActor<'a> {
         self.actions.insert(id.into(), action);
     }
 
-    /// Actions that ran, in order. A refused send adds nothing.
+    /// Actions that ran, in order. A send that does not apply adds nothing.
     pub fn action_log(&self) -> &[ActionRecord] {
         &self.action_log
     }
 
-    /// Applies `event` or refuses it.
+    /// Applies `event`, or keeps the configuration when it does not apply.
     ///
     /// The innermost active state is considered first. On that state, each
     /// transition on `event` is a candidate, in declaration order. A candidate
@@ -909,8 +909,8 @@ impl<'a> ChartActor<'a> {
     /// starts a new one at the initial configuration. A transition that does
     /// not exit the naming state leaves the running child as it is. The child
     /// is not part of this configuration. [`ChartActor::send_to_child`] is how
-    /// an event is delivered to it. A refused event does not start or stop a
-    /// child.
+    /// an event is delivered to it. An event that does not apply does not start or
+    /// stop a child.
     ///
     /// Returns `false` when nothing on the active path is taken, or when the
     /// enabled transitions would not leave one determined configuration. The
@@ -935,9 +935,9 @@ impl<'a> ChartActor<'a> {
 
     /// Delivers `event` to the active invoked child.
     ///
-    /// Returns `false` when no child is active, or when the child refuses the
-    /// event. A refusal leaves the child configuration and this configuration
-    /// as they were. A child that accepts the event changes only the child.
+    /// Returns `false` when no child is active, or when the event does not
+    /// apply to the child. The child configuration and this configuration then
+    /// stay as they were. A child that accepts the event changes only the child.
     /// This configuration does not change, and this actor's actions do not run.
     ///
     /// The event is not offered to a child of that child. Send to that actor

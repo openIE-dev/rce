@@ -12,17 +12,17 @@ can carry its own fields.
 `match` looks at a value and runs the arm whose pattern fits.
 `Circle(r: r)` matches a circle and names its radius `r`.
 
-The checker requires a `match` to cover every variant. Forgetting one is
-refused, so adding a variant later shows you every place that must handle
-it:
+The checker requires a `match` to cover every variant. A `match` that
+forgets one requires change, so adding a variant later shows you every
+place that must handle it:
 
 ```rce
-{{#include ../listings/ch07/refused/missing_case.rce}}
+{{#include ../listings/ch07/change/missing_case.rce}}
 ```
 
 ```text
 $ rce check missing_case.rce
-{{#include ../listings/ch07/refused/missing_case.out}}
+{{#include ../listings/ch07/change/missing_case.out}}
 ```
 
 A `_` pattern matches anything and can serve as the last arm.

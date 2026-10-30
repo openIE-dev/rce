@@ -12,7 +12,7 @@ check dot4([1.0 as f32, 2.0 as f32, 3.0 as f32, 4.0 as f32], [1.0 as f32, 1.0 as
 # id: lexing-parsing/generated/mut-bom-44-device-region-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of 44-device-region-accept

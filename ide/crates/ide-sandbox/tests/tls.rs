@@ -213,7 +213,7 @@ fn connect_tunnels_only_to_declared_hosts_with_matching_sni() {
 }
 
 #[test]
-fn credentialed_endpoints_refuse_tunnels_and_inject_on_absolute_https() {
+fn credentialed_endpoints_open_no_tunnels_and_inject_on_absolute_https() {
     let port = mock_tls();
     let p = Arc::new(Mutex::new(proxy(port, true, true)));
     let l = listen(p.clone(), "127.0.0.1:0").unwrap();
@@ -314,7 +314,7 @@ fn jailed_curl_reaches_declared_https_only_through_the_proxy() {
         out.contains("sni=localhost") && out.contains("GET /via-proxy"),
         "{out}"
     );
-    // Direct: the jail refuses the connect (port not granted).
+    // Direct: the connect is not performed; the jail denies it (port not granted).
     let o = run(vec![
         "--resolve".into(),
         format!("localhost:{port}:127.0.0.1"),

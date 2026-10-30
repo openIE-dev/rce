@@ -31,12 +31,17 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 ## Running
 
-**Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The reference and the three emitter reports were rerun against public `rce` `4a3dc1f` (next section); the other reports were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
+**Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The reference, emit-python and emit-js reports are the whole-trace emit baseline (below); emit-rust and emit-scala hold the statuses of earlier runs and were not run in that baseline; the other reports were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
 
     export RCE_CONFORM=/path/to/rce-conform   # cargo build -p rce-spec-check --bin rce-conform
-    python3 harness/run.py --adapter adapters/reference.json --jobs 8
-    python3 tools/coverage.py
-    python3 tools/parity.py
+    export RCE=/path/to/rce                   # the emitters' `rce emit`
+    python3 harness/run.py adapters/reference.json
+    python3 harness/run.py adapters/emit-python.json     # likewise emit-js and emit-rust
+    python3 tools/coverage.py reports/results-reference.json   # clause coverage, with the reference's statuses
+    python3 tools/parity.py                   # byte parity of every answer with the reference's
+    python3 tools/readme_status.py            # the status block below
+
+A trace test passes only when the whole trace equals the reference's, line for line: every entry of D, the state after each event, the outputs, the reasons events were kept and the fuel (`trace_lines`), not only the head. `tools/trace_lines.py` writes `trace_lines` into the trace tests from `rce-conform`. `harness/run.py ADAPTER [TESTS [OUT]]` takes positional arguments only: the adapter file, the test directory (default `tests`) and the results file (default `reports/results-NAME.json`), with one job per processor; the options of its older spelling (`--adapter`, `--jobs`, `--stop-on-fail` and others) remain only for `tools/mutate.py` and `tools/run-all.sh`, which use them. On a machine too small for one run of an emitter, run it directory by directory (`harness/run.py ADAPTER tests/AREA PART`) and join the parts with `tools/join_results.py OUT PART...`. A whole run of the Rust emitter compiles about 1,459 programs; the `emit-rust conformance` workflow (`.github/workflows/emit-rust.yml`, run by hand and once a week) runs it on GitHub's runners, together with the reference run and `tools/parity.py` at the same commit, and uploads `results-emit-rust.json` with their reports.
 
 ## Status
 
@@ -47,9 +52,12 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The three counts agree.
 - Coverage: language profile 205 of 205 normative clauses covered (100.0%).
   Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
-- Reference: 1964 pass, 0 fail, 15 unsupported of 1979 (23 October 2026, in-repository run; see below).
-- Emitters: python 1459 pass / 0 fail / 520 not applicable or unsupported; js 1459 pass / 0 fail / 520 not applicable or unsupported; rust 1459 pass / 0 fail / 520 not applicable or unsupported. Parity with the reference: python 1460 agree, 0 disagree; js 1460 agree, 0 disagree; rust 1460 agree, 0 disagree.
-- Scala emitter: 52 pass, 1189 fail, 591 unsupported of 1832 results (146 tests have no Scala result). Scala does not yet agree with the reference.
+- Reference: 1964 pass, 0 fail, 15 unsupported of 1979.
+  Run: rce reference interpreter; version 0.1.0, commit 511c3e5a71ee.
+- Emitters run in this baseline, traces compared whole and line for line: Python (rce emit python; emitted by rce 0.1.0 (511c3e5a71ee); Python 3.13.16): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported; JavaScript (rce emit js; emitted by rce 0.1.0 (511c3e5a71ee); v22.22.0): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported.
+  Byte parity with the reference (`reports/parity.md`): Python 1459 same, 0 different, 0 without an answer to compare; JavaScript 1459 same, 0 different, 0 without an answer to compare.
+- Rust emitter: not run in this baseline. `reports/results-emit-rust.json` holds the statuses of an earlier run (1979 results), made before answers were recorded; none of them is compared with the reference or counted as a pass.
+- Scala emitter: not run in this baseline. `reports/results-emit-scala.json` holds the statuses of an earlier run (1979 results), made before answers were recorded; none of them is compared with the reference or counted as a pass.
 - Wasm playground: 419 pass, 16 fail, 1504 unsupported of 1939 results.
 - Lean core model: 210 pass, 1 fail, 1766 unsupported of 1977 results.
 - Tree-sitter grammar `00b639a`: 1773 of 1773 programs agree with the reference parser (0 disagreements).
@@ -57,24 +65,41 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The mutation baseline (the unmutated mutation build) fails 20 tests; that is not the reference run, which has 0 failures.
 <!-- status:end -->
 
+## Whole-trace emit baseline (27 October 2026)
+
+The reference, emit-python and emit-js results in `reports/` are one run each, made on 27 October 2026 on a Linux x86_64 machine with 4 processors. `rce` and `rce-conform` were built from commit `b21b8a65333d` with the pinned rustc 1.98.1 (`spec/checker/rust-toolchain.toml`), release profile; `$RCE_ENGINE` was not set. The emitted programs ran on CPython 3.13.16 (`python3`) and Node v22.22.0 (`node`). Each results file names the commit and, for an emitter, the emitting checker and the toolchain in its `hello`, and `reports/parity.md` repeats them.
+
+In this run a trace passes only when the whole trace equals the reference's line for line (every entry of D, the state after each event, the outputs, the reasons events were kept and the fuel), and `tools/parity.py` compares the canonical bytes of every answer, not statuses.
+
+- **Reference:** 1,964 pass, 0 fail, 15 unsupported of 1,979. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`.
+- **Python and JavaScript:** each 1,459 pass (1,357 run tests and 102 trace tests), 0 fail, 0 error, and 520 not applicable: 346 reject, 91 accept, 30 host, 30 replicate and 23 cli tests, which ask for admission, the host or the reference's tools, none of which an emitter serves (`not_applicable` in the adapter files). Each of the 1,459 answers has the same bytes as the reference's answer to the same test.
+- **Rust:** not run in this baseline. A whole run compiles about 1,459 programs with `rustc -O`, too long for this 4-processor machine in the time this baseline had; the `emit-rust conformance` workflow (`.github/workflows/emit-rust.yml`) runs it on GitHub's runners with the same whole-trace comparison and uploads its results file. `reports/results-emit-rust.json` is still the status-only file of the 18 October run (below), which is not compared or counted.
+- **Scala:** not run in this baseline: this machine has no `scala-cli`. The `emit-scala` job of `conformance.yml` (added by #50) runs the whole suite against the Scala emitter with scala-cli and the same whole-trace comparison, and fails on any failing test; it passed on #50's last head. `reports/results-emit-scala.json` is the status-only file of an earlier run, which is not compared or counted.
+
+On 29 October 2026 the `emit-rust conformance` workflow ran on `main` at `cd86488aaaf9` (run 40802140476, rustc 1.98.1): the Rust emitter passes 1,459 tests, 0 fail, 520 not applicable, and each of the 1,459 answers has the same bytes as the reference's. Its results file is the workflow's artifact; `reports/results-emit-rust.json` is not replaced by it, so the summary above does not count it. The reference, Python and JavaScript reports were run again on `main` at `511c3e5a71ee` after the host fixes (#31) changed two harvested programs; the counts are unchanged and every answer has the same bytes as the reference's.
+
+## Scala emitter run, trace heads only (28 October 2026)
+
+The run of 28 October 2026, made before the whole-trace baseline and so comparing each trace by its head only, was against `rce` built from the branch of issue #41: 1,459 pass, 0 fail, 520 not applicable, the same counts as the Python and JavaScript emitters; its results file records statuses only, so the summary above does not count it. The adapter pins Scala 3.10.0 and JVM 21 (`--scala 3.10.0 --jvm 21`) and the report records the toolchain it ran with (`toolchain`, from the adapter's `hello`). That run compiled each program with the Scala 3.10.0 compiler (`org.scala-lang:scala3-compiler_3`, fetched from Maven Central) in one resident JVM and ran it on OpenJDK 21.0.12 through a local stand-in for `scala-cli run`, because the scala-cli binary could not be installed where it was made. The `emit-scala` job of `conformance.yml` runs the same suite with scala-cli itself and fails on any failing test. Since the whole-trace baseline that job compares every trace line for line; its results file is uploaded by the job, and `reports/results-emit-scala.json` is replaced by one such run when it passes.
+
 ## Run in the rce repository (23 October 2026)
 
-Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and `conformance.yml` runs the reference adapter against `rce` and `rce-conform` built from the same commit, so there is no commit to pin: `reports/results-reference.json` is the run at the current head. The run of 23 October (`rce` at the monorepo merge, with `$RCE` set and `$RCE_ENGINE` unset): 1,964 pass, 0 fail, 15 unsupported. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`; without `$RCE_ENGINE` the adapter reports them as unsupported, never as passes.
+Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and `conformance.yml` runs the reference adapter against `rce` and `rce-conform` built from the same commit, and each results file names the commit it was run at in its `hello`; the committed `reports/results-reference.json` is the run of the whole-trace emit baseline (the section above). The run of 23 October (`rce` at the monorepo merge, with `$RCE` set and `$RCE_ENGINE` unset): 1,964 pass, 0 fail, 15 unsupported. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`; without `$RCE_ENGINE` the adapter reports them as unsupported, never as passes.
 
 ## Run against public `rce` 4a3dc1f (one language, 18 October 2026)
 
-The reference, emit-python, emit-js and emit-rust results in `reports/` were rerun against public `rce` main `4a3dc1f`, with `rce-conform` and `rce` built from that commit (`$RCE_ENGINE` set to the same `rce`). Before the tests were converted to the one-language rules the reference run had 1,575 pass and 404 fail; the converted suite has 1,965 pass and 14 fail.
+The reference, emit-python, emit-js and emit-rust results were rerun against public `rce` main `4a3dc1f`, with `rce-conform` and `rce` built from that commit (`$RCE_ENGINE` set to the same `rce`). Of these, only `reports/results-emit-rust.json` is still that run's file; it records statuses only and is not counted (Status above), and the whole-trace emit baseline replaced the other three. Before the tests were converted to the one-language rules the reference run had 1,575 pass and 404 fail; the converted suite has 1,965 pass and 14 fail.
 
 - **The 14 not re-run:** the 14 `handler-spec` tests (appendix D) need the engine's `rce`, which is not public; their committed results (pass, engine run) are kept, and they fail here because public `rce` has no `spec` declarations.
-- **Not re-run, results kept as committed (minus the removed `emit06-reject`):** emit-scala (needs a Scala toolchain run that was not made), wasm-playground (needs a playground build of the new checker) and lean-core (needs the Lean build). Their results predate the conversion of 371 programs and the rename of `emit06-reject` to `emit06-accept`, so for those tests they describe the earlier program text. `reports/tree-sitter.json` was not regenerated either; it still lists the earlier program text.
-- **Conversions:** programs were changed only as the one-language rules require (`_name` for unused names, `let _ =` for dropped results, `loop bound N`, `len_bytes`, renamed reserved words `ct` and `label`, externs taking `&World`). Expectations that encode the retired `&mut` write-back (T33) were re-derived under F.4.4 and checked by hand (`write-back-methods`, with its two generated fuel tests). `s4-std-modules` now expects W-UNUSED-1, because an unused `use` is refused. `emit06-reject` became `emit06-accept` because `par` is part of the language. The 12 version mutants were removed, and clauses W-VER-1 and the 2.7 version sentence are in the `retired` profile.
+- **Not re-run, results kept as committed (minus the removed `emit06-change`):** emit-scala (needs a Scala toolchain run that was not made), wasm-playground (needs a playground build of the new checker) and lean-core (needs the Lean build). Their results predate the conversion of 371 programs and the rename of `emit06-change` to `emit06-accept`, so for those tests they describe the earlier program text. `reports/tree-sitter.json` was not regenerated either; it still lists the earlier program text.
+- **Conversions:** programs were changed only as the one-language rules require (`_name` for unused names, `let _ =` for dropped results, `loop bound N`, `len_bytes`, renamed reserved words `ct` and `label`, externs taking `&World`). Expectations that encode the retired `&mut` write-back (T33) were re-derived under F.4.4 and checked by hand (`write-back-methods`, with its two generated fuel tests). `s4-std-modules` now expects W-UNUSED-1, because an unused `use` requires change. `emit06-change` became `emit06-accept` because `par` is part of the language. The 12 version mutants were removed, and clauses W-VER-1 and the 2.7 version sentence are in the `retired` profile.
 
 ## Partial runs against public `rce` (17 October 2026)
 
 The committed `reports/` were produced against the engine repository, not public `rce`; the reference adapter (`rce-conform`) is not in public `rce`, so no reference report can be regenerated from public sources. Two partial runs were made against public `rce` main `4304048` with a check-only adapter and the emit-python adapter (the counts are from those runs, not from `reports/`):
 
 - **Check tests: 436 pass, 12 fail of 448** (1,543 further tests need an operation the check-only adapter does not offer). Causes of the 12: six `W-SES-4` tests (session use after move, send, close or in a loop) are reported under `W-SES-2` or `W-OWN-1`, or accepted, so public `rce` does not enforce `W-SES-4` as written; three `W-TY-3` tests (int and float mixing, narrowing, equality) are reported as `W-TY-1`; `w-mod-2-cycle` (module cycle) is accepted; `w-state-3-borrow-field` is reported as `W-TY-2` and `W-TY-1`; `w-trait-1-impl-mismatch` is accepted.
-- **emit-python: 1,304 pass, 156 fail, 531 not applicable.** Causes: (1) 103 tests (102 in `forms-log` and `f6-signed-zero-state`) expect the emitted program to take `--trace` and print `trace HEAD`; emitted Python from public `rce` has no `--trace` line, so the adapter sees the genesis head. (2) 27 `concurrency/generated` tests are float reductions in `for ... par` whose oracle is the fixed balanced tree of spec C.8; public `rce` evaluates them as the left fold (`tree-prod-006` gives 1.857142857142857 where the tree gives 1.8571428571428568). Float multiplication and addition are not associative, so the two orders differ in the last digits; the specification sentence that the tree equals the left fold holds only for associative operations. (3) 13 tests expect `-0` where public `rce` prints `0` (`ceil` of a tiny negative, and `-0` state). (4) 11 overflow tests agree on the trap but print a different out-of-range value in the message. The other two are `n9-size-limit` (public `rce` finishes where the test expects a size-limit trap) and `r5-generic-call` (the emitter refuses a generic call with unknown type `T`).
+- **emit-python: 1,304 pass, 156 fail, 531 not applicable.** Causes: (1) 103 tests (102 in `forms-log` and `f6-signed-zero-state`) expect the emitted program to take `--trace` and print `trace HEAD`; emitted Python from public `rce` has no `--trace` line, so the adapter sees the genesis head. (2) 27 `concurrency/generated` tests are float reductions in `for ... par` whose oracle is the fixed balanced tree of spec C.8; public `rce` evaluates them as the left fold (`tree-prod-006` gives 1.857142857142857 where the tree gives 1.8571428571428568). Float multiplication and addition are not associative, so the two orders differ in the last digits; the specification sentence that the tree equals the left fold holds only for associative operations. (3) 13 tests expect `-0` where public `rce` prints `0` (`ceil` of a tiny negative, and `-0` state). (4) 11 overflow tests agree on the trap but print a different out-of-range value in the message. The other two are `n9-size-limit` (public `rce` finishes where the test expects a size-limit trap) and `r5-generic-call` (the emitter does not yet print a generic call with unknown type `T`).
 
 None of these is a suite error; each is a place where public `rce` and the engine behind the committed reports differ. They are not fixed in public `rce` here because the `-0` text and several of these paths are being changed in a pending export.
 
@@ -86,12 +111,12 @@ only material read while building it.
 - Test262 (`INTERPRETING.md` in tc39/test262): metadata lives in the test file,
   negative tests state the phase and the error type they expect, flags change
   how a file is run, and files named with `_FIXTURE` are support files rather
-  than tests. Here `expect: reject` plus a diagnostic code plays the role of
+  than tests. Here `expect: change` plus a diagnostic code plays the role of
   the negative phase and type, and `fixtures:` names support modules.
 - The WebAssembly spec testsuite (README of WebAssembly/testsuite and
   `test/core/README`): assertions about traps, invalid modules and
   exhaustion are first-class alongside assertions about results. Here a run
-  states `outcome: trap:<kind>`, `refused:<error>`, `done` or `deadlock`, and
+  states `outcome: trap:<kind>`, `kept:<error>`, `done` or `deadlock`, and
   fuel exhaustion is a trap kind.
 - ACATS (the ACATS overview page and the User's Guide, section 3.1): tests are
   organised by test objective tied to rules of the reference manual. Here

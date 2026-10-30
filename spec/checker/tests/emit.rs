@@ -1,12 +1,20 @@
 //! `rce emit rust|python|js` (spec 10.5): every emitted program is run and its
 //! output compared line for line with the reference evaluator's observations
-//! (`emit::observe`) on all example programs. rustc, python3 and node serve
-//! only as oracles here. When one is missing the test prints why and skips
-//! that target; it never counts a skipped program as passed.
-use rce_spec_check::emit::{Lang, emit, observe, with_probes};
+//! (`emit::observe`) on all example programs; then it is run again with
+//! `--trace --fuel-trace` and compared line for line with
+//! `emit::observe_trace`, the whole trace of every example (each entry of D,
+//! the states, outputs, kept reasons and fuel). rustc, python3, node and
+//! scala-cli serve only as oracles here. The targets a run covers are named
+//! in tests/emit_targets.txt (tests/common/targets.rs): a covered target
+//! whose toolchain does not run fails its test, and a target the file does
+//! not name is reported as not covered, never counted as passed.
+use rce_spec_check::emit::{Lang, emit, observe, observe_trace, with_probes};
 use rce_spec_check::parse::parse;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[path = "common/targets.rs"]
+mod targets;
 
 /// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
 const CORPUS: usize = 62;
@@ -38,12 +46,13 @@ fn tool(lang: Lang) -> String {
         .unwrap_or(def.to_string())
 }
 
-fn have(tool: &str, arg: &str) -> Option<String> {
-    let o = Command::new(tool).arg(arg).output().ok()?;
-    o.status.success().then(|| {
-        String::from_utf8_lossy(&o.stdout).trim().to_string()
-            + String::from_utf8_lossy(&o.stderr).trim()
-    })
+/// The version line of the oracle of `lang`, for a test of that target
+/// alone (`targets::require` fails the test when the run does not cover
+/// `lang` or its oracle does not run).
+fn oracle_version(lang: Lang) -> String {
+    targets::require(lang, tool);
+    let o = Command::new(tool(lang)).arg("--version").output().unwrap();
+    String::from_utf8_lossy(&o.stdout).trim().to_string() + String::from_utf8_lossy(&o.stderr).trim()
 }
 
 fn scratch(lang: Lang) -> PathBuf {
@@ -57,58 +66,85 @@ fn scratch(lang: Lang) -> PathBuf {
     d
 }
 
-/// Run one emitted program; Ok(stdout) or Err(why it did not run).
+/// Run one emitted program with no argument; Ok(stdout) or Err(why it did not run).
 fn run(lang: Lang, dir: &Path, stem: &str, code: &str) -> Result<String, String> {
-    let src = dir.join(format!("{stem}.{}", lang.ext()));
-    std::fs::write(&src, code).unwrap();
-    let out = match lang {
-        Lang::Rust => {
-            let exe = dir.join(stem);
-            let c = Command::new(tool(Lang::Rust))
-                .args(["--edition", "2024", "-O", "-o"])
-                .arg(&exe)
-                .arg(&src)
-                .output()
-                .map_err(|e| e.to_string())?;
-            if !c.status.success() {
-                return Err(format!("rustc: {}", String::from_utf8_lossy(&c.stderr)));
-            }
-            Command::new(&exe).output()
-        }
-        Lang::Python => Command::new(tool(Lang::Python)).arg(&src).output(),
-        Lang::Js => Command::new(tool(Lang::Js)).arg(&src).output(),
-        // Scala 3.10 on the JVM: scala-cli compiles and runs one file
-        Lang::Scala => Command::new(tool(Lang::Scala))
-            .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
-            .arg(&src)
-            .output(),
-
-    }
-    .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "exit {:?}: {}",
-            out.status.code(),
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    Ok(String::from_utf8(out.stdout).unwrap())
+    run_args(lang, dir, stem, code, &[&[]]).map(|mut v| v.remove(0))
 }
 
-/// Emit, run and compare every example; returns (agreeing, refused) and
-/// panics on any disagreement or failed run.
+/// Build one emitted program once and run it once per argument list;
+/// Ok(stdout of each run) or Err(why it did not build or run).
+fn run_args(lang: Lang, dir: &Path, stem: &str, code: &str, runs: &[&[&str]]) -> Result<Vec<String>, String> {
+    let src = dir.join(format!("{stem}.{}", lang.ext()));
+    std::fs::write(&src, code).unwrap();
+    let exe = dir.join(stem);
+    if lang == Lang::Rust {
+        let c = Command::new(tool(Lang::Rust))
+            .args(["--edition", "2024", "-O", "-o"])
+            .arg(&exe)
+            .arg(&src)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !c.status.success() {
+            return Err(format!("rustc: {}", String::from_utf8_lossy(&c.stderr)));
+        }
+    }
+    let mut outs = vec![];
+    for args in runs {
+        let out = match lang {
+            Lang::Rust => Command::new(&exe).args(*args).output(),
+            Lang::Python => Command::new(tool(Lang::Python)).arg(&src).args(*args).output(),
+            Lang::Js => Command::new(tool(Lang::Js)).arg(&src).args(*args).output(),
+            // Scala 3.10 on the JVM: scala-cli compiles and runs one file
+            Lang::Scala => Command::new(tool(Lang::Scala))
+                .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+                .arg(&src)
+                .arg("--")
+                .args(*args)
+                .output(),
+        }
+        .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(format!(
+                "exit {:?} ({args:?}): {}",
+                out.status.code(),
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        outs.push(String::from_utf8(out.stdout).unwrap());
+    }
+    Ok(outs)
+}
+
+/// The arguments of a run that prints the whole trace of every example.
+const TRACE: &[&str] = &["--trace", "--fuel-trace"];
+
+/// The first line where `got` differs from `want`, as a message.
+fn first_diff(stem: &str, mode: &str, want: &[String], got: &str) -> Option<String> {
+    let got: Vec<&str> = got.lines().collect();
+    if got == want {
+        return None;
+    }
+    let i = (0..want.len().max(got.len()))
+        .find(|&i| want.get(i).map(|s| s.as_str()) != got.get(i).copied())
+        .unwrap();
+    Some(format!("{stem} ({mode}): line {}: want {:?}, got {:?}", i + 1, want.get(i), got.get(i)))
+}
+
+/// Emit, run and compare every example, plainly and with its whole trace;
+/// returns (agreeing, the examples it does not yet print) and panics on any disagreement or failed run.
 fn check_all(lang: Lang) -> (usize, Vec<String>) {
     let dir = scratch(lang);
-    let progs: Vec<(String, Vec<String>, Result<String, String>)> = examples()
+    type Prog = (String, (Vec<String>, Vec<String>), Result<String, String>);
+    let progs: Vec<Prog> = examples()
         .iter()
         .map(|p| {
             let stem = p.file_stem().unwrap().to_string_lossy().replace('-', "_");
             let m = with_probes(&parse(&std::fs::read_to_string(p).unwrap()).unwrap());
-            (stem, observe(&m), emit(&m, lang))
+            (stem, (observe(&m), observe_trace(&m)), emit(&m, lang))
         })
         .collect();
     assert_eq!(progs.len(), CORPUS, "the example corpus has {CORPUS} programs");
-    type Ran = (String, Vec<String>, Result<Result<String, String>, String>);
+    type Ran = (String, (Vec<String>, Vec<String>), Result<Result<Vec<String>, String>, String>);
     let results: Vec<Ran> = std::thread::scope(|s| {
         let hs: Vec<_> = progs
             .chunks(progs.len().div_ceil(6))
@@ -120,7 +156,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
                             (
                                 stem.clone(),
                                 want.clone(),
-                                code.clone().map(|c| run(lang, dir, stem, &c)),
+                                code.clone().map(|c| run_args(lang, dir, stem, &c, &[&[], TRACE])),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -129,28 +165,19 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
             .collect();
         hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
     });
-    let (mut ok, mut refused, mut bad) = (0, vec![], vec![]);
+    let (mut ok, mut kept, mut bad) = (0, vec![], vec![]);
     for (stem, want, r) in results {
         match r {
-            Err(why) => refused.push(format!("{stem}: {why}")),
+            Err(why) => kept.push(format!("{stem}: {why}")),
             Ok(Err(why)) => bad.push(format!(
                 "{stem}: did not run: {}",
                 &why[..why.len().min(3000)]
             )),
             Ok(Ok(got)) => {
-                let got: Vec<&str> = got.lines().collect();
-                if got == want {
-                    ok += 1;
-                } else {
-                    let i = (0..want.len().max(got.len()))
-                        .find(|&i| want.get(i).map(|s| s.as_str()) != got.get(i).copied())
-                        .unwrap();
-                    bad.push(format!(
-                        "{stem}: line {}: want {:?}, got {:?}",
-                        i + 1,
-                        want.get(i),
-                        got.get(i)
-                    ));
+                let d = first_diff(&stem, "plain", &want.0, &got[0]).or_else(|| first_diff(&stem, "--trace --fuel-trace", &want.1, &got[1]));
+                match d {
+                    None => ok += 1,
+                    Some(d) => bad.push(d),
                 }
             }
         }
@@ -163,74 +190,75 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
         bad.len(),
         bad.join("\n")
     );
-    let lines: usize = progs.iter().map(|p| p.1.len()).sum();
+    let lines: usize = progs.iter().map(|p| p.1.0.len()).sum();
+    let traced: usize = progs.iter().map(|p| p.1.1.len()).sum();
     let empty: Vec<&str> = progs
         .iter()
-        .filter(|p| p.1.is_empty())
+        .filter(|p| p.1.0.is_empty())
         .map(|p| p.0.as_str())
         .collect();
-    eprintln!("{lang:?}: {lines} observation lines; programs with none: {empty:?}");
+    eprintln!("{lang:?}: {lines} observation lines, {traced} whole-trace lines; programs with none: {empty:?}");
     eprintln!(
-        "{lang:?}: {ok} of {CORPUS} agree with the reference; {} refused: {refused:?}",
-        refused.len()
+        "{lang:?}: {ok} of {CORPUS} agree with the reference; {} kept: {kept:?}",
+        kept.len()
     );
-    (ok, refused)
+    (ok, kept)
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
 fn rust_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Rust), "--version") else {
-        eprintln!(
-            "SKIPPED rust emitter test: {} not found (not a pass)",
-            tool(Lang::Rust)
-        );
-        return;
-    };
+    let v = oracle_version(Lang::Rust);
     eprintln!("rust oracle: {v}");
-    let (ok, refused) = check_all(Lang::Rust);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Rust);
+    assert_eq!(ok + kept.len(), CORPUS);
+}
+
+/// The entries of D that the emitted Rust writes under `--trace` hash a
+/// float in the canonical form of 6.1.1 rule 3: on an exact tie between two
+/// shortest decimals the even one. The product of two f32 values widened to
+/// f64 below is such a tie (799.00299072265625): the reference writes
+/// 799.0029907226562, and Rust's `{:e}` alone writes ...563, which changed
+/// the state hash (found by scripts/bench-determinism.py).
+#[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
+fn rust_emitter_log_floats_tie_to_even() {
+    oracle_version(Lang::Rust);
+    let src = "state Lab\n    x: f64 = 0.0\n\nevent F32Mul(a: f64, b: f64)\n\nstep Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64\n\nexample F32Mul(a: -14.6982, b: -54.3606) -> x == 799.0029907226562\n";
+    let m = with_probes(&parse(src).unwrap());
+    let want = observe_trace(&m);
+    assert!(want.iter().any(|l| l.contains("799.0029907226562")), "{want:?}");
+    let dir = scratch(Lang::Rust);
+    let got = run_args(Lang::Rust, &dir, "float_tie", &emit(&m, Lang::Rust).unwrap(), &[TRACE]).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(first_diff("float_tie", "--trace --fuel-trace", &want, &got[0]), None);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "python"), ignore = "tests/emit_targets.txt does not name python")]
 fn python_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Python), "--version") else {
-        eprintln!(
-            "SKIPPED python emitter test: {} not found (not a pass)",
-            tool(Lang::Python)
-        );
-        return;
-    };
+    let v = oracle_version(Lang::Python);
     eprintln!("python oracle: {v}");
-    let (ok, refused) = check_all(Lang::Python);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Python);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "js"), ignore = "tests/emit_targets.txt does not name js")]
 fn js_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Js), "--version") else {
-        eprintln!(
-            "SKIPPED js emitter test: {} not found (not a pass)",
-            tool(Lang::Js)
-        );
-        return;
-    };
+    let v = oracle_version(Lang::Js);
     eprintln!("node oracle: {v}");
-    let (ok, refused) = check_all(Lang::Js);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Js);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "scala"), ignore = "tests/emit_targets.txt does not name scala")]
 fn scala_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Scala), "--version") else {
-        eprintln!(
-            "SKIPPED scala emitter test: {} not found (not a pass)",
-            tool(Lang::Scala)
-        );
-        return;
-    };
+    let v = oracle_version(Lang::Scala);
     eprintln!("scala oracle: {v}");
-    let (ok, refused) = check_all(Lang::Scala);
-    assert_eq!(ok + refused.len(), CORPUS);
+    let (ok, kept) = check_all(Lang::Scala);
+    assert_eq!(ok + kept.len(), CORPUS);
 }
 
 /// Edge cases beyond the corpus: integer range traps, loop bounds, `&mut`
@@ -256,19 +284,14 @@ fn edge_program_agrees_on_every_available_target() {
     assert!(want.iter().any(|l| l == "fn zkeys = [\"2\", \"-0\", \"1\", \"-0\"]"), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn f32texts = [\"0.000000000000000000000000000000000000000000001\"")), "{want:?}");
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
-        let t = tool(lang);
-        if have(&t, "--version").is_none() {
-            eprintln!("SKIPPED {lang:?} on the edge program: {t} not found (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&targets::ALL, tool) {
         let dir = scratch(lang);
         let got = run(lang, &dir, "edge", &emit(&m, lang).unwrap()).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
         ran += 1;
     }
-    eprintln!("edge program: {ran} of 4 targets ran and agreed");
+    eprintln!("edge program: {ran} covered targets ran and agreed");
 
 }
 
@@ -287,17 +310,49 @@ fn prompt_and_header_contexts_agree_on_every_available_target() {
     assert!(want.iter().any(|l| l.starts_with("fn hcr trap")), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn hlf trap")), "{want:?}");
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
-        let t = tool(lang);
-        if have(&t, "--version").is_none() {
-            eprintln!("SKIPPED {lang:?} on the context program: {t} not found (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&targets::ALL, tool) {
         let dir = scratch(lang);
         let got = run(lang, &dir, "contexts", &emit(&m, lang).unwrap()).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
         ran += 1;
     }
-    eprintln!("context program: {ran} of 4 targets ran and agreed");
+    eprintln!("context program: {ran} covered targets ran and agreed");
+}
+
+/// 6.3 N7 on every target: display writes as `\u{h}` exactly the code points
+/// of `spec/data/display-escape.json`. For each range the program displays
+/// its two ends and the code points just outside them, between letters, so
+/// a runtime whose escape set differs from the data, or that takes it from
+/// its toolchain's Unicode tables, disagrees with the reference here.
+#[test]
+fn display_escape_set_agrees_on_every_available_target() {
+    let mut cps = vec![];
+    for &(lo, hi) in rce_spec_check::interp::display_escaped() {
+        for cp in [lo.wrapping_sub(1), lo, hi, hi + 1] {
+            if char::from_u32(cp).is_some() && !cps.contains(&cp) {
+                cps.push(cp);
+            }
+        }
+    }
+    let mut src = String::new();
+    for (i, ch) in cps.chunks(64).enumerate() {
+        let body: String = ch.iter().map(|cp| format!("\\u{{{cp:x}}}a")).collect();
+        src += &format!("fn esc{i}() -> text = \"a{body}\"\n");
+    }
+    // the trap message of toint names its text as display writes it
+    src += "fn shy_int() -> i64 = \"1\\u{ad}\".toint()\n";
+    let m = with_probes(&parse(&src).unwrap());
+    let want = observe(&m);
+    assert!(want.iter().any(|l| l.contains("a\\u{ad}a")), "{want:?}");
+    assert!(want.iter().any(|l| l.starts_with("fn shy_int trap") && l.contains("\\u{ad}")), "{want:?}");
+    let mut ran = 0;
+    for lang in targets::covered(&targets::ALL, tool) {
+        let dir = scratch(lang);
+        let got = run(lang, &dir, "display_escape", &emit(&m, lang).unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
+        ran += 1;
+    }
+    eprintln!("display escape program: {ran} covered targets ran and agreed");
 }

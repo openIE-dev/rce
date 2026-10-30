@@ -18,7 +18,7 @@ In plain words:
 2. δ is total (T2): every state and every input has an outcome. That outcome is of exactly one of two kinds. It is *applied* when the selected steps compute the next state. It is *kept* when a step's contract holds the state as it was: λ outputs the reason, and D records the input with it. The text today calls the second kind "refused". That word names an act of turning an input away, which the Form never performs. The input is in D, hashed and chained, and the fold continues from the kept state.
 3. Nothing offered to RCE is outside the Form. A text, construct, language, paradigm or fabric that the Form does not yet hold is brought into compliance with it: fitted, lifted, given its named form, bounded, held as a hole, or held at a reserved place until the Form grows to hold it through the gate of CONTRIBUTING rule 1. Every tool answers with the thing's place in the Form, or with the path to that place.
 4. Some records are not the record the Form derives: a forged hash, a log that replay re-derives differently, a stale pin, a stated example that the Form does not give. Such a record is reported at the first position where it differs and is kept exactly as found. That is the Form complying with its own record, and the wording says so.
-5. The language gains no construct. One keyword is renamed, and the reserved list loses a word. On the host, PR #31's `host.Unfit` entry is renamed `host.Held` and also holds offered inputs, and `host.MainInput` gains one field. The tools gain one mode, `rce fmt --fit`. The hash of every δ entry of D is unchanged.
+5. The language gains no construct. One keyword is renamed, and the reserved list loses a word. On the host, PR #31's `host.Kept` entry (named `host.Unfit` while PR #31 was open) also holds offered inputs, HC-21's `host.Refused` is renamed `host.StepKept`, and `host.MainInput` gains one field. The tools gain one mode, `rce fmt --fit`. The hash of every δ entry of D is unchanged.
 6. Today the words fill 6,254 text lines in 950 files of rce main, with 401 more on PR #31 and further lines in the paper, the site and the decks. Section 6 gives the new word for every use, section 8 every behaviour that changes, and section 11 the migration.
 
 ## 1. Definition
@@ -38,7 +38,7 @@ In plain words:
 
 - T-n: the theorems of section 8 of the specification.
 - W-…: the well-formedness rules of section 7 and of Appendices C and F.
-- HC-n, HS-n and HF-n: the host-contract, host-storage and fitting-at-start rules of Appendix E. HF-n are on PR #31.
+- HC-n, HS-n and HD-n: the host-contract, host-storage and delivery-by-declaration rules of Appendix E. HD-n are on PR #31 (named HF-n while it was open).
 - CC-n, XF-n and ONE-n: the rules of `one-commit-change.md`, `one-library-every-fabric.md` and `one-emitter.md`.
 - COMP-n: the rules of this proposal (section 7).
 - S1, E1, N2 to N9, F4, F9, O4, P10, Q16, Q17, Q28 and Q33: labelled items of the specification text.
@@ -304,10 +304,10 @@ A replay that finds a record different from the one the Form derives is not a ru
 Every input offered to a host, or to `rce run` as EVENTS, has exactly one record, of one of three kinds:
 
 1. **The program event it names**, with that event's δ outcome. A payload of the event's shape whose value lies outside a range or a refinement is this kind: the event, kept with the trap of the field it misfits (8.1, C1).
-2. **A declared event bound to it.** `Input(data)` takes a line that names no event when the module declares it, as `rce host serve` does today (`cli.rs:1444-1446`). HC-21 binds `Kept` and HC-25 binds `HttpMalformed` in the same way (E.8).
-3. **`host.Held` {event, why}.** This is PR #31's `host.Unfit` {event, why} under its compliance name, with its use extended to every offered input that no declared event takes. `event` is the whole value as offered: {payload, type} when the input names a type, and {data} when it names none. `data` is the bytes as HC-10a delivers them, up to SIZE_LIMIT; above it, their SHA-256 digest and their length. `why` is the reason. δ maps this entry to the identity (T37). When the module declares `event Held`, the admitter delivers it fitted by name (E.4c), within the descent bound of HC-21.
+2. **A declared event bound to it.** `Input(data)` takes a line that names no event when the module declares it, as `rce host serve` does today (`cli.rs:1444-1446`). HC-21 binds `StepKept` and HC-25 binds `HttpMalformed` in the same way (E.8).
+3. **`host.Kept` {event, why}.** This is PR #31's `host.Kept` {event, why} (named `host.Unfit` while PR #31 was open), with its use extended to every offered input that no declared event takes. `event` is the whole value as offered: {payload, type} when the input names a type, and {data} when it names none. `data` is the bytes as HC-10a delivers them, up to SIZE_LIMIT; above it, their SHA-256 digest and their length. `why` is the reason. δ maps this entry to the identity (T37). When the module declares `event Kept`, the admitter delivers it, matched by field name (E.4c), within the descent bound of HC-21.
 
-The marks of E.2a and HC-10b record how an input came (`late`, `typed`). After a kept entry the host appends `host.Kept` {cause, seq}, and, when the module declares `Kept(seq: u64, cause: text)`, delivers that event (HC-21 with the names of section 6).
+The marks of E.2a and HC-10b record how an input came (`late`, `typed`). After a kept entry the host appends `host.StepKept` {cause, seq}, and, when the module declares `StepKept(seq: u64, cause: text)`, delivers that event (HC-21 with the names of section 6).
 
 ### 4.8 Texts and paths
 
@@ -380,7 +380,7 @@ An effect that λ requests has one result event: delivered, `failed`, timed out 
 |---|---|---|
 | Input to δ | applied; kept(ρ), with cause κ(ρ) | 4.2, 4.3 |
 | Run | done; stopped(ρ); deadlock | 4.6 |
-| Offered input | the program event; a bound declared event; `host.Held` | 4.7 |
+| Offered input | the program event; a bound declared event; `host.Kept` | 4.7 |
 | Text | `ok` (in Form, with notes); `fit`, with paths `rewrite`, `complete`, `lift`, `bound`, `choice` or `gate`; notes of kind `form` or `reserved` | 4.8 |
 | Claim | holds; differs | 4.9 |
 | Record | holds; differs at k | 4.10 |
@@ -509,11 +509,11 @@ Every current term is mapped to its compliance term. A term in backticks is spel
 |---|---|---|---|
 | HC-21 "A refusal is an input" | "A kept outcome is an input" | E.4a (PR #31) | no |
 | E.4a "Refusals and restarts" | "Kept outcomes and restarts" | PR16:465 | no |
-| `host.Refused` {cause, seq} | `host.Kept` {cause, seq} | E.5, PR16:800, `host.rs` on PR #31 | yes |
-| declared event `Refused(seq: u64, cause: text)`; `host.Bind` {"event":"Refused","kind":"host.Refused"} | `Kept(seq: u64, cause: text)`; {"event":"Kept","kind":"host.Kept"} | HC-21, HF-4 (PR #31) | event name no (positional); `host.Bind` payload yes |
-| `host.Unfit` {event, why} (PR #31) | `host.Held` {event, why}, with its use extended to every offered input that no declared event takes (4.7) | E.4c, E.5, PR16:803 | yes |
-| "input refused: …" (serve loop) | "input held: …", and the input's entry in D | `cli.rs:1448` | no |
-| "An input refused before it is logged" (HC-24) | "An input that names no declared event is held (`host.Held`) and logged" | PR16:606 | no |
+| `host.Refused` {cause, seq} | `host.StepKept` {cause, seq} | E.5, PR16:800, `host.rs` on PR #31 | yes |
+| declared event `Refused(seq: u64, cause: text)`; `host.Bind` {"event":"Refused","kind":"host.Refused"} | `StepKept(seq: u64, cause: text)`; {"event":"StepKept","kind":"host.StepKept"} | HC-21, HD-4 (PR #31) | event name no (positional); `host.Bind` payload yes |
+| `host.Kept` {event, why} (PR #31, named `host.Unfit` while it was open) | `host.Kept` {event, why}, with its use extended to every offered input that no declared event takes (4.7) | E.4c, E.5, PR16:803 | yes |
+| "input refused: …" (serve loop) | "input kept: …", and the input's entry in D | `cli.rs:1448` | no |
+| "An input refused before it is logged" (HC-24) | "An input that names no declared event is kept (`host.Kept`) and logged" | PR16:606 | no |
 | `WindowAck.rejected` | `WindowAck.held` | `host.rs:806, 1699` | no |
 | "An input whose tick is not after the last logged step is refused before it is logged" (HC-6) | "… is admitted at the first tick after the last logged step and marked `late`" | 16:117-118 | no |
 | HC-5 "refuses any effect without one" | "answers any effect without one with its `failed` result (HC-3)" | 16:73 | no |
@@ -614,7 +614,7 @@ Every current term is mapped to its compliance term. A term in backticks is spel
 | `REFUSED` (the exit-status constant of `cli.rs`) | `OUTSTANDING` |
 | `class Refuse` (`rt.js`, `rt.py`) | `class Kept` |
 | `interp::Cause` | unchanged: `fail`, `trap`, `fuel`, `size`, `value`, `depth` |
-| 57 functions in `spec/checker/tests` whose names contain the words (54 of them tests), and the HC-21 tests of PR #31 (`tests/host_refused.rs`) | renamed with `kept` or `fit`; `tests/host_refused.rs` becomes `tests/host_kept.rs`; the E.10 table follows, as `host_contract.rs::every_appendix_e_rule_is_cited_by_a_test` requires |
+| 57 functions in `spec/checker/tests` whose names contain the words (54 of them tests), and the HC-21 tests of PR #31 (`tests/host_refused.rs`) | renamed with `kept` or `fit`; `tests/host_refused.rs` becomes `tests/host_step_kept.rs`; the E.10 table follows, as `host_contract.rs::every_appendix_e_rule_is_cited_by_a_test` requires |
 | Lean names | section 13 |
 
 ### 6.9 Kept verbatim
@@ -658,7 +658,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 *Enforced by:* a `traps` key in `spec/data/spec-data.json`, extracted from 6.2 by `rce-spec-data`; and `tests/trap_texts.rs`, which collects the trap texts built in `interp.rs`, `conc.rs`, `host.rs` and `emit/rt.*` and fails on any text outside that key.
 
-**COMP-4 Every offered input has an entry.** An input offered to a host, or to `rce run` as EVENTS, has exactly one record (4.7): the program event it names, with its outcome; a declared event bound to it; or `host.Held` {event, why}, which δ maps to the identity (T37). No input is dropped before D. A payload of the event's shape whose value lies outside a range or a refinement is the program event, kept with the trap of the field it misfits.
+**COMP-4 Every offered input has an entry.** An input offered to a host, or to `rce run` as EVENTS, has exactly one record (4.7): the program event it names, with its outcome; a declared event bound to it; or `host.Kept` {event, why}, which δ maps to the identity (T37). No input is dropped before D. A payload of the event's shape whose value lies outside a range or a refinement is the program event, kept with the trap of the field it misfits.
 
 *Enforced by:* `Host::apply_named` (`host.rs:1094-1106`), the window acknowledgement (`host.rs:1189-1196`, with `WindowAck.rejected` renamed `WindowAck.held`), the serve loop (`cli.rs:1444-1450`) and example construction (`interp.rs:2586-2594, 3236-3240`); `tests/host_contract.rs::every_offered_input_has_an_entry`, which offers malformed, undeclared, late, oversized and out-of-range inputs to each adapter and checks one entry each and that replay equals the live run; `tests/refined.rs`; and `tests/cli.rs::run_records_every_event`.
 
@@ -716,9 +716,9 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 *Enforced by:* `host.rs:1346, 1393-1408, 1775`; `cli.rs:237, 1158, 1486-1489`; `tests/host_contract.rs` (replay, and forged or missing host entries); `tests/v09_manifest.rs`; the chain tests of `ide-receipt`; `tests/cli.rs`.
 
-**COMP-16 Kept outcomes and held inputs are delivered.** HC-21 reads "A kept outcome is an input". The host entry is `host.Kept` {cause, seq}, and the declared event is `Kept(seq: u64, cause: text)`, fitted by name (HF-4). `host.Held` takes the place of PR #31's `host.Unfit`, follows the same binding and the same descent bound, and records the offered inputs of COMP-4. The names are fixed before PR #31 merges.
+**COMP-16 Kept outcomes and kept inputs are delivered.** HC-21 reads "A kept outcome is an input". The host entry is `host.StepKept` {cause, seq}, and the declared event is `StepKept(seq: u64, cause: text)`, matched by field name (HD-4). `host.Kept` {event, why}, PR #31's entry for a delivery the module's declaration cannot take (named `host.Unfit` while PR #31 was open), follows the same binding and the same descent bound, and also records the offered inputs of COMP-4. One name has one meaning (CC-5): `host.Kept` is only the {event, why} entry, and `host.StepKept` only the {cause, seq} entry. The names are fixed before PR #31 merges.
 
-*Enforced by:* the PR #31 `host.rs`; `tests/host_refused.rs`, renamed `tests/host_kept.rs`; `tests/nameless.rs::kept_entries_are_name_free`.
+*Enforced by:* the PR #31 `host.rs`; `tests/host_refused.rs`, renamed `tests/host_step_kept.rs`; `tests/nameless.rs::kept_entries_are_name_free`.
 
 **COMP-17 Exit status by kind.** 10.1 item 4 becomes:
 
@@ -761,15 +761,15 @@ This section covers every case the maps class (ii), and the static rules whose p
 | Case | Today | In compliance | Rule |
 |---|---|---|---|
 | C1. A payload of the event's shape outside a range or refinement | `apply_named` returns before appending (`host.rs:1094-1106`). The window's `rejected` list is "dropped, never in D" (`host.rs:806, 1189-1196, 1699`). The serve loop prints "input refused" (`cli.rs:1448`). An example with such a payload stops (`interp.rs:3236-3240`) or becomes W-INT-1 (`interp.rs:2586-2594`), so `spec/examples/51_refined_input.rce` has no example for its own intent. This contradicts 5.1 (05:86-88) and 6.5 ("no event is dropped silently"). | E is read at shapes: Ê = ⊎ₗ {Eₗ} × ⌊payload(Eₗ)⌋, where ⌊τ⌋ widens every integer type to the Form's int and every refined type to its base. For e ∈ Ê \ E, δ(s, e) = (s, [Kept(trap(m), e)]), where m is the trap text of the first misfitting field. The entry is in D, and an example may state it: `example SetVolume(pct: 101) -> kept: trap("refinement: value is outside Pct")`. This is the check 5.1 and 6.4 item 3 already perform, with its outcome now recorded. | COMP-4 |
-| C1′. An undeclared event name, or a payload of another shape | Printed and dropped. `rce run` prints a `REFUSED` line and exits 1 (`cli.rs:688`, 12:92). | At a host: `Input(data)` when the module declares it, otherwise `host.Held` {event, why}. In `rce run`: the line `k NAME held: WHY`, the state kept, and the run continuing. | COMP-4, COMP-16 |
+| C1′. An undeclared event name, or a payload of another shape | Printed and dropped. `rce run` prints a `REFUSED` line and exits 1 (`cli.rs:688`, 12:92). | At a host: `Input(data)` when the module declares it, otherwise `host.Kept` {event, why}. In `rce run`: the line `k NAME kept: WHY`, the state kept, and the run continuing. | COMP-4, COMP-16 |
 | C2. Runs stop at the first kept event | `rce run` stops and exits 1 (`cli.rs:93, 148-151`). Traces and streams end (`interp.rs:3279`, `cli.rs:485`, pinned by `tests/traces.rs:204`). A kept event before an example's last event fails the example (`interp.rs:2607-2614`; 08:234, "earlier events must be applied"). | Every event is folded (5, the run of the counter). An example states the outcome of its last event; an intermediate outcome is stated by an example of the prefix. By the maps, none of the 13 conformance tests that expect W-INT-1 depends on an earlier kept event. 07:59-60 reads "a kept entry carries the pre-state's hash, and the log continues from it". | COMP-5, COMP-17 |
 | C3. Placement on a fabric this host cannot execute | Reported before anything is logged (`host.rs:1576-1585, 1633-1634`; 16:463). | Run on the CPU reference, which gives the same bits by HC-13, and log `host.Placed` naming `cpu`. The fabric stays a named candidate. The code already falls back this way when a registered fabric errors at run time (`host.rs:1578-1579`). | COMP-11 |
 | C4. A query whose step would change state (HS-8) | "not a query and is refused" (`host.rs:1807-1821`). | A query is evaluated on the current state and never appended. It answers with λ(s, e), and reports that the change δ₁(s, e) ≠ s applies only when the request is offered as an input. | COMP-4 |
 | C5. A late `fn main` input (HC-6) | An input whose tick is not after the last logged step, or that would change a logged step, is not logged (`host.rs:1356-1360, 1433-1446`; 16:117-118). | The input is admitted at the first tick after the last logged step. `host.MainInput` carries `late: true` and the requested tick as `asked`, the pattern of E.2a's `host.Input {late: true}`. Placement after the last logged step cannot change a logged step, so the second condition does not arise. | COMP-4 |
 | C6. A construct an emitter does not translate | `rce emit` exits 2 (`cli.rs:1004-1014`). | `pending FILE: target T does not yet print construct C (line N)`, status 1; the construct is printed from its definition once `one-emitter.md` section 11 covers it. | COMP-14 |
-| HC-24: "An input refused before it is logged" | Printed, never in D (PR16:606). | One record per offered input (4.7): the fitted event, `Input(data)` when declared, or `host.Held`, delivered as `HttpMalformed` where HF-2 says so. | COMP-4 |
+| HC-24: "An input refused before it is logged" | Printed, never in D (PR16:606). | One record per offered input (4.7): the fitted event, `Input(data)` when declared, or `host.Kept`, delivered as `HttpMalformed` where HD-2 says so. | COMP-4 |
 | HC-5, HS-6 | An effect without a capability, and a result that cannot be bound, are not delivered (16:73, 16:528-532). | A `failed` result with the reason (HC-3), logged; the path names the capability or the declaration. | COMP-4 |
-| E.4c, fitting at start (PR #31) | At 96f4538f a module that did not declare the host's shapes was "Refused at start". At a374226b E.4c is "Fitting at start" and HF-2 reads "`--http` serves any module": PR #31 already holds these cases. | `host.Unfit` is named `host.Held` and its use extended (4.7). HF-1 to HF-4 otherwise stand as written on PR #31. | COMP-16 |
+| E.4c, delivery by declaration (PR #31) | At 96f4538f a module that did not declare the host's shapes was "Refused at start". At a374226b E.4c already started on any such module, and its rule now named HD-2 reads "`--http` serves any module": PR #31 already holds these cases. | PR #31 names its entry `host.Kept` (formerly `host.Unfit`) and its rules HD-1 to HD-4 (formerly HF-1 to HF-4); the use of `host.Kept` is extended (4.7). HD-1 to HD-4 otherwise stand as written on PR #31. | COMP-16 |
 | Handler-spec keywords and kinds (15:75) | Unknown keywords are not read; duration defaults apply silently. | Unknown keywords and kinds are held as opaque named declarations, with a note. Each default becomes a recorded path, as 17:13 requires ("never silently ignored"). | COMP-7 |
 | An undeclared endpoint (15:105) | Not admitted. | Held as a hole, as escalation endpoints already are. | COMP-7 |
 | A stale promotion record (15:321) | Not promoted, with no path. | The record carries the staleness and the path (`rce currency --mark`). | COMP-15 |
@@ -1036,7 +1036,7 @@ The ledger row on effect handlers is read the same way. A resumable handler is n
 |---|---|---|
 | `stdlib/lib/num/linalg.rce:737, 1478` | Inputs outside the scaling range answer `Shape`. | Reproduce the rescaling of LAPACK's DGELS and DGEEV. |
 | `stdlib/lib/net/http.rce:7` | obs-fold answers an error. | Replace it with a space, as RFC 9112 section 5.2 permits. |
-| `stdlib/lib/net/http.rce:10`; `stdlib/vectors/SOURCE.md:387` | obs-text bytes answer an error. | Hold the field value as bytes (the UTF-8 carry of PR #31, HF-3). |
+| `stdlib/lib/net/http.rce:10`; `stdlib/vectors/SOURCE.md:387` | obs-text bytes answer an error. | Hold the field value as bytes (the UTF-8 carry of PR #31, HD-3). |
 | `stdlib/lib/enc/enc.rce:277` | CBOR floats answer an error. | A float form for CBOR [RFC 8949] within the finite `f64` of 6.3. |
 | `stdlib/lib/time/time.rce:7, 156` | `23:59:60` answers an error. | A named form for the leap second [ITU-R TF.460-6]; POSIX instants are unchanged. |
 | `stdlib/README.md:22`, and about 40 lines of library error wording | "overflow refused" | "answers `BadInt` on overflow"; each function's declared error is named as its answer (4.11). |
@@ -1058,7 +1058,7 @@ The rows of class (ii) in `research-openie-web/src/content/papers/rce.md` (eight
 
 | Line | Compliant text |
 |---|---|
-| 124 | "Malformed payloads … and undeclared events each have their entry in D: the event kept with its trap, or `host.Held`" |
+| 124 | "Malformed payloads … and undeclared events each have their entry in D: the event kept with its trap, or `host.Kept`" |
 | 256 | "held as reserved, not yet implemented; it enters through the gate (W-RES-1)" |
 | 334 | "one program whose projection the checker reported with its renaming path" |
 | 609 | "the 77 standard-library bricks that Form IR format 1 cannot yet hold for term size" |
@@ -1111,9 +1111,9 @@ The outcome words of δ are derived, so they enter no hash of a program entry. 6
 | The outcome keyword in examples | the program hash (CC-1): unnamed items, examples among them, are hashed by their masked text (`apidiff.rs:180-202`), which contains the keyword (`unparse.rs:534-538`); and the module hash (F.5.3, `manifest.rs:43-47`) | 77 files and 99 example lines on main. Their program hashes, the emitted provenance line (CC-4) and the emit goldens are re-derived in the same commit, and `spec/proposals/compliance-repin.tsv` maps each earlier hash to its new one. No committed file pins a program hash. No module of `stdlib/lib` has an example with the keyword, so `stdlib/lib/MANIFEST.json` and the library hash are unchanged. Because `kept` is contextual (COMP-2), `stdlib/lib/data/cdc.rce` keeps its local `kept`. See open question 1. |
 | Intents and string literals | module and program hashes | Reworded only where they describe an RCE outcome: 46 intent lines (38 in `conformance`, 4 in `spec`, 2 in `programs`, 1 in `book`, 1 in `ide`), `"#refused"` in 2 conformance tests, and `"ack refused"`. They go in the same map. Domain data stays as its author wrote it, for example `rejected: u64` in `apps/chat.rce` and `kid: "refused"` in `stdlib/tests/energy/energy_checks.rce:75-76`. |
 | `host.MainEnd.outcome` `"refused: r"`; `host.Step.what` `"Refused(r)"` | the hash of the host entry, and every hash after it | The writer writes `"stopped: r"` and `"Kept(r)"`. No `.json`, `.jsonl` or `.out` fixture on main holds either entry. A stored D is kept as found: replay compares through a closed table in `host.rs` that reads each earlier spelling as the same kind (COMP-20 (c)). |
-| `host.Refused` {cause, seq}; the `host.Bind` payload {"event":"Refused","kind":"host.Refused"}; the HF-4 shape | host entries (PR #31) | Renamed on the branch before it merges, to `host.Kept`, {"event":"Kept","kind":"host.Kept"} and `Kept(seq: u64, cause: text)`, so that no D written by main carries the earlier names. The cause words `fail`, `trap`, `fuel`, `size`, `value` and `depth` stay. Renaming after the merge would change the hash of every host D with a kept entry, a log-format erratum of the kind of the T7 change. |
-| `host.Unfit` {event, why} | host entries (PR #31) | Named `host.Held` before the merge. |
-| The declared event `Kept(seq, cause)` | its name is not hashed (positional event index); its payload is | HF-4 binds it by name. |
+| `host.Refused` {cause, seq}; the `host.Bind` payload {"event":"Refused","kind":"host.Refused"}; the HD-4 shape | host entries (PR #31) | Renamed on the branch before it merges, to `host.StepKept`, {"event":"StepKept","kind":"host.StepKept"} and `StepKept(seq: u64, cause: text)`, so that no D written by main carries the earlier names. The cause words `fail`, `trap`, `fuel`, `size`, `value` and `depth` stay. Renaming after the merge would change the hash of every host D with a kept entry, a log-format erratum of the kind of the T7 change. |
+| `host.Unfit` {event, why} | host entries (PR #31) | Named `host.Kept` on the branch before the merge; no D written by main carries `host.Unfit`. |
+| The declared event `StepKept(seq, cause)` | its name is not hashed (positional event index); its payload is | HD-4 binds it by name. |
 | Catalog `lowering` | the `rce-catalog/1` hash covers its entries | Becomes `{"pending": r}`, and `spec/checker/tests/brick/catalog.json` is regenerated in the same commit. `refused_files` is outside the hash and becomes `pending_files`. |
 | IDE receipts: the `verdict` tags `refused` and `rejected`; the action `proposal.reject` | BLAKE3 over the canonical body, signed with Ed25519; `verify` re-serialises the body (`ide-receipt/src/lib.rs`) | `Verdict` gains `Fit` and `NotPerformed`, which the writer uses. The two earlier tags stay as variants that serialise to their own bytes, so every stored chain verifies; the writer never produces them. |
 | Conformance clause ids `CHnn-M-<sha256[:8]>` | identity from content (`conformance/tools/extract_clauses.py`) | By the maps, 7 modal clauses contain the words (CH00-M-d5ed1b66, CH02-M-69371f07, CH03-M-8435434a, CH08-M-51f39d7d, CH09-M-82e65964, one in chapter 11 and one in chapter 12). They get new ids; their 409 references are rewritten from `conformance/clause-repin.tsv`; `id_set_sha256` is regenerated. |
@@ -1128,7 +1128,7 @@ Not hashed, but pinned byte for byte, and changed in the same commit as the name
 
 ### 11.1 Order
 
-1. **PR #31, before it merges:** the names of COMP-16 (`host.Kept`, the declared event `Kept`, `host.Held`), with `tests/host_kept.rs`. It adds 401 hit lines over its merge base (spec/checker 250, spec/book 43, the generated `RCE-SPEC.md` 43, conformance 39, book 13, programs 7, tree-sitter 5, proposals 1), and 102 example lines in 80 files, 2 of them in the `trap` form.
+1. **PR #31, before it merges:** the names of COMP-16 (`host.StepKept`, the declared event `StepKept`, `host.Kept`, the last already on the branch), with `tests/host_step_kept.rs`. It adds 401 hit lines over its merge base (spec/checker 250, spec/book 43, the generated `RCE-SPEC.md` 43, conformance 39, book 13, programs 7, tree-sitter 5, proposals 1), and 102 example lines in 80 files, 2 of them in the `trap` form.
 2. **`openIE-dev/rce` main, one commit** (CONTRIBUTING rule 3), with its ledger row and a C.15 row. It carries the outcome words (COMP-1 to COMP-3, COMP-6, COMP-19, COMP-20), every input with its outcome (COMP-4, COMP-5, COMP-16, COMP-17), the paths (COMP-7, COMP-8, COMP-15) with the fixture moves, and the named forms, lifts and reserved constructs (COMP-9 to COMP-14), each with its fixtures, theorem-table rows and programs. Should the commit prove too large to review, it splits along these four groups, each a commit that leaves every check passing.
 3. **`research-openie-web`, one commit**, built from the rce commit.
 4. **The three decks**, one republish each.
@@ -1236,7 +1236,7 @@ CONTRIBUTING rule 2 asks a proposal to show the same program written with existi
 | Every event folded | T3, and δ total (T2) | Nothing |
 | Outcomes of intermediate events in an example | Prefix examples: `example Dec -> kept: Underflow` and `example Dec, Inc -> 1` | Nothing |
 | A payload outside a range or refinement | The trap of 5.1 and 6.4 item 3, with E read at shapes | Nothing: a definitional widening of E |
-| An input that names no event, or has another shape | `Input(data)` (`rce host serve`); HC-21 and HC-25 bindings; PR #31's `host.Unfit`, which already holds the host's whole value and the reason | One extension: `host.Unfit` named `host.Held`, with a `data` alternative for bytes that name no type |
+| An input that names no event, or has another shape | `Input(data)` (`rce host serve`); HC-21 and HC-25 bindings; PR #31's `host.Kept` (formerly `host.Unfit`), which already holds the host's whole value and the reason | One extension: `host.Kept`, with a `data` alternative for bytes that name no type |
 | A late `fn main` input | The `late` mark of E.2a (`host.Input {late: true}`) | One field, `asked`, on `host.MainInput`, beside `late` |
 | Placement fallback | `host.Placed` and the CPU reference (HC-12, HC-13) | Nothing |
 | A query whose step would change state | Queries already append nothing (HS-8) | Nothing |
@@ -1274,7 +1274,7 @@ No theorem changes its content, and no theorem loses its claim for a program tha
 | T12 | The comment "`none` when refused" in `RCE/Linear.lean` reads "`none` when the count has no value (W-LIN-1)". |
 | T16, T28l, T28p, T29, T47, T48 | Gain the "claimed for" scope of COMP-9: T16 for `par` with disjoint footprints, T28l for the linear session form, T28p for the acyclic wait form, T29 for deterministic LVars, T47 for transactional calls, T48 for definitions with a written measure. Each is claimed for the form it was proved or stated for, so none is weakened. |
 | T35 | Restated: "… an event whose payload or resulting state breaks a predicate has the kept outcome, with the state unchanged, and is in D (COMP-4)". New lemma `admit_kept_unchanged`: the checked δ applied to a payload that fails `admit` is the identity. It follows from `checked` as `refine_kept_unchanged` does. |
-| T37 | `host.Kept` and `host.Held` are host entries, and `host_entry_identity` (`RCE/Host.lean:24`) is stated for every host entry, so no new proof is needed. `tests/host_contract.rs` re-folds logs that hold them. |
+| T37 | `host.StepKept` and `host.Kept` are host entries, and `host_entry_identity` (`RCE/Host.lean:24`) is stated for every host entry, so no new proof is needed. `tests/host_contract.rs` re-folds logs that hold them. |
 | T38 to T41 | Wording only (section 9). T38's "cuts" already describes a verdict on a record. |
 | T42 | "including the refusal outcome" reads "including the kept outcome and its reason". |
 | T46 | "otherwise the call's event is refused with the fixed record" reads "otherwise the call's event has the kept outcome, with the fixed contract record". |
@@ -1314,7 +1314,7 @@ The suffix `_no_typing` states what those theorems prove: the typing judgement h
 3. **A name-free derived outcome.** The derived `outcome` and the λ record name a declared error by name. They are not hashed, so T7 holds either way. `rce equiv` and `rce dim --control` already compare a kept outcome by the error's declaration index (10.11). Whether D's derived field carries the index, the name, or both is open: readability favours the name, uniformity with the hashed forms the index.
 4. **Universality for each source language.** The ASM theses give step-for-step simulation for algorithms that satisfy their postulates [Gurevich 2000; Blass and Gurevich 2003], and COMP-12 checks round trips on a corpus. For source constructs that interact without bound inside one step, such as a blocking call inside an expression, it is open whether behavioural equivalence (6.10) holds between the source and its lift, or only equivalence up to the logged answers and the `fuel` outcome. Its general statement, a proof for any one language, and the criterion for when a source language counts as held (agreement of `shape_ctl` with a Form written by hand, as the Go probe shows; replay of the source program's own tests through the lifted Form) are open.
 5. **Claims of named forms not yet proved.** The main case is the multi-shot handler composition of 8.9: T6 for the clones of captured state that each logged resume makes, the ground of the ledger row of 22 October 2026. Until each is proved, the "claimed for" column reads "stated".
-6. **The size of D under adversarial input.** COMP-4 records every offered input. SIZE_LIMIT bounds the size of one `host.Held` entry, but not their number. Whether the held entries of one admission window may be compacted into one entry that carries a Merkle root of their bytes (HS-12), without losing replay equality (T37, T40), is open.
+6. **The size of D under adversarial input.** COMP-4 records every offered input. SIZE_LIMIT bounds the size of one `host.Kept` entry, but not their number. Whether the kept entries of one admission window may be compacted into one entry that carries a Merkle root of their bytes (HS-12), without losing replay equality (T37, T40), is open.
 
 ## References
 

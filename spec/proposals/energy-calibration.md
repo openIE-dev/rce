@@ -59,14 +59,15 @@ A/B pairs per operation class against the idle baseline; each block at
 least 60 s or 10⁹ operations; warm-up discarded; temperature recorded;
 gross and net reported; the meter named (`rapl`, `ina260`, `wall`), with
 its own validation reference; RAPL sampled no faster than 10 ms. An entry
-whose protocol fields are missing is refused by the admitter.
+whose protocol fields are missing is not admitted: the admitter reports
+the missing fields.
 
 Receipts (4.4) gain two fields: `calibration` (the hash of the
 `host.Calibrated` entry used) and `stale_fraction` (the share of the
 step's operations whose class has no calibrated row, priced `unpriced`).
 A total over receipts keeps `unpriced` separate, as now.
 
-## 4. What it refuses
+## 4. What it does not claim
 
 - Joules in C.6. The table stays units.
 - Per-language constants ("Python costs 70× C"): the survey found these

@@ -4,7 +4,7 @@
 //! `turn` (plan, propose, check, accept, escalate, failed), `gears` (gear0..gear4,
 //! each invoking its own child chart), `verdict` (none, done, not_done, reject)
 //! and `budget` (ok, out). Guards read only the configuration: accept needs
-//! `v_done`; escalate needs `v_reject` or `v_not_done`, `budget_ok`, and a gear
+//! `v_done`; escalate needs `v_change` or `v_not_done`, `budget_ok`, and a gear
 //! below 4. Anything else fails the turn. So the agent climbs a gear only on a
 //! checker reject or a not-done decision, and only while joules remain.
 //!

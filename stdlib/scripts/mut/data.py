@@ -3,7 +3,7 @@
 # imports others is tested as a package with the modules it needs
 # (scripts/uses.py reads them from its `use` items).
 # Equivalent mutant removed: the E0 hi bound in utf8_text (a surrogate
-# that gets past it is refused by cp_text). For feed: searching the
+# that gets past it is an error in cp_text). For feed: searching the
 # source history for the target's session from i instead of i + 1 (the
 # entry at i was already checked against the target history). For cdc:
 # the empty transaction id of a non-transactional message (pgoutput and

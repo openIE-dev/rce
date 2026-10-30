@@ -1,0 +1,9 @@
+check (1e39 as f32) as f64 > 0.0
+#--- rce-test
+# id: evaluation-fuel/harvested/f32-overflow-change
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: change
+# diagnostic: W-INT-1
+# provenance: harvested examples/change/admission/f32_overflow.rce
+#---

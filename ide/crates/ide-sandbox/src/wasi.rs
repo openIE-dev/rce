@@ -29,7 +29,7 @@ pub enum SandboxError {
 }
 
 /// A preopened directory the guest can read but never change: opening for
-/// write, create, truncate or exclusive is refused, and every mutating
+/// write, create, truncate or exclusive is not performed, and every mutating
 /// directory call keeps the trait's default "not supported".
 struct ReadOnlyDir(Box<dyn WasiDir>);
 
@@ -129,7 +129,7 @@ pub struct RunReport {
     pub fuel_used: u64,
     /// Bytes moved through the network proxy (in + out).
     pub net_bytes: u64,
-    /// Every proxied or refused request, for the receipt.
+    /// Every proxied or not performed request, for the receipt.
     pub net: Vec<NetEvent>,
 }
 
@@ -326,7 +326,7 @@ impl Sandbox {
     }
 }
 
-/// Map a workspace-relative path into the guest; refuses absolute paths and `..`.
+/// Map a workspace-relative path into the guest; absolute paths and `..` are an error.
 pub fn guest_path(rel: &str) -> Result<String, SandboxError> {
     let p = Path::new(rel);
     if rel.is_empty()

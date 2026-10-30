@@ -1,0 +1,42 @@
+module refloop
+
+intent "a StepKept step that retries an effect whose result step keeps the state, which must not loop through StepKept; and an effect chain that never ends, which a stop must still end"
+    example StepKept(seq: 1, cause: "trap") -> kept_outcomes == 1 and req == 1
+    example Go -> kept: trap("division by zero")
+    example Endless -> endless and req == 1
+    example Endless, RandomDone(req: 1, status: "failed", data: none, err: "no adapter") -> req == 2
+
+struct Random
+    req: u64
+    n: u64
+
+event Go
+event Endless
+event RandomDone(req: u64, status: text, data: text?, err: text)
+event StepKept(seq: u64, cause: text)
+
+state S
+    zero: u64 = 0
+    kept_outcomes: u64 = 0
+    req: u64 = 0
+    endless: bool = false
+
+step S on Go
+    kept_outcomes = kept_outcomes / zero
+
+step S on Endless
+    endless = true
+    req += 1
+    emit Random(req: req, n: 1)
+
+step S on StepKept(seq: _q, cause: _c)
+    kept_outcomes += 1
+    req += 1
+    emit Random(req: req, n: 1)
+
+step S on RandomDone(_, _, _, _)
+    if endless
+        req += 1
+        emit Random(req: req, n: 1)
+    else
+        kept_outcomes = kept_outcomes / zero

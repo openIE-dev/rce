@@ -1,0 +1,19 @@
+kind L
+    Nil
+    Cons(h: i64, t: Box[L])
+
+fn f(x: L) -> i64
+    match x
+        Nil -> return 0
+        Cons(h: h, t: t) -> return g(Cons(h: h, t: Box(x)))
+
+fn g(y: L) -> i64
+    return f(y)
+#--- rce-test
+# id: evaluation-fuel/harvested/bad-grow-change
+# area: evaluation-fuel
+# clauses: [CH08-M-286d2fd4, CH08-M-cbd85cbd, CH09-M-82e65964, CH11-M-7fed7576, W-REC-1]
+# expect: change
+# diagnostic: W-REC-1
+# provenance: harvested checker/tests/mutual/bad_grow.rce
+#---

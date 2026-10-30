@@ -1,7 +1,7 @@
 {
  "format": "rce-clauses/1",
  "book": "spec/book",
- "id_set_sha256": "310e56176dd84e5107bbe38392f1277fa46036acfec6746154903296aa8a90da",
+ "id_set_sha256": "cf87ea723c1a7a4b2544824d11154dedb1a7d4031a3f7d9bba4ee1df4a2a0526",
  "clauses": [
   {
    "id": "CH00-M-61b6ac06",
@@ -37,24 +37,24 @@
    "profile": "tooling"
   },
   {
-   "id": "CH00-M-d5ed1b66",
+   "id": "CH00-M-6e406307",
    "kind": "modal",
    "normative": false,
    "chapter": "00-overview.md",
-   "line": 95,
+   "line": 107,
    "section": "RCE Language Specification, draft 0.7: Overview",
-   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/reject/` to be refused, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/ill_typed/` and the 16 in `spec/examples/inadmissible/` must be ref",
+   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/change/types/` and the 16 in `spec/exam",
    "restated": [],
    "profile": "language"
   },
   {
-   "id": "CH02-M-69371f07",
+   "id": "CH02-M-84a53b7d",
    "kind": "modal",
    "normative": true,
    "chapter": "02-lexical.md",
-   "line": 99,
+   "line": 114,
    "section": "2.6 Layout",
-   "text": "On the first token of a logical line with indentation width w (number of leading spaces): if w > top, push w and emit `INDENT`; if w < top, pop while w < top and emit one `DEDENT` per pop, and w must then equal top (otherwise the text is refused: \"inconsistent dedent\"); if w = top, emit nothing.",
+   "text": "On the first token of a logical line with indentation width w (number of leading spaces): if w > top, push w and emit `INDENT`; if w < top, pop while w < top and emit one `DEDENT` per pop, and w must then equal top (otherwise the text requires change: \"inconsistent dedent\"); if w = top, emit nothing.",
    "restated": [],
    "profile": "language"
   },
@@ -165,7 +165,7 @@
    "chapter": "03-syntax.md",
    "line": 262,
    "section": "3.11 How apparent ambiguities are resolved",
-   "text": "- **R8 variant patterns against bindings.** A `Path` pattern is a unit variant if name resolution finds a variant of that name in scope, otherwise it binds a fresh variable (Rust's rule). W-PAT-1 refuses a binding that shadows a variant name, so a misspelled variant is never silently a binding.",
+   "text": "- **R8 variant patterns against bindings.** A `Path` pattern is a unit variant if name resolution finds a variant of that name in scope, otherwise it binds a fresh variable (Rust's rule). W-PAT-1 reports that a binding which shadows a variant name requires change, so a misspelled variant is never silently a binding.",
    "restated": [],
    "profile": "language"
   },
@@ -192,13 +192,13 @@
    "profile": "language"
   },
   {
-   "id": "CH03-M-8435434a",
+   "id": "CH03-M-9c34cdd5",
    "kind": "modal",
    "normative": false,
    "chapter": "03-syntax.md",
-   "line": 283,
+   "line": 286,
    "section": "3.12 Machine check",
-   "text": "3. parses the 12 programs in `examples/reject/` (tab indent, chained comparison, `if` expression without `else`, `try` in a `then` branch, inconsistent dedent, `class`, assignment inside an expression, empty `kind`, state with no fields, `step` without `on`, example without `->`, unterminated string); all must be refused.",
+   "text": "3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained comparison, `if` expression without `else`, `try` in a `then` branch, inconsistent dedent, `class`, assignment inside an expression, empty `kind`, state with no fields, `step` without `on`, example without `->`, unterminated string); all must be reported as requiring change.",
    "restated": [],
    "profile": "language"
   },
@@ -361,9 +361,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "07-form-evaluation.md",
-   "line": 121,
+   "line": 241,
    "section": "6.2 Evaluation",
-   "text": "- **E1 Fuel exhaustion is uncatchable.** Running out of fuel is not a declared error and not a trap a program can observe: no `catch`, `try` or `try e else X` handles it, it propagates outward through every construct, and it refuses the event exactly as a trap does (T8). The derivation: if a handler could observe exhaustion, a program could return a different value on a larger budget, and a completed result would depend on fuel. The fuel laws require that it does not: more fuel never changes a completed result (`RCE.Core.eval_mono`, `eval_fuel_indep` in `lean/RCE/Core/Fuel.lean`). A conforming",
+   "text": "- **E1 Fuel exhaustion is uncatchable.** Running out of fuel is not a declared error and not a trap a program can observe: no `catch`, `try` or `try e else X` handles it, it propagates outward through every construct, and it keeps the state exactly as a trap does (T8). The derivation: if a handler could observe exhaustion, a program could return a different value on a larger budget, and a completed result would depend on fuel. The fuel laws require that it does not: more fuel never changes a completed result (`RCE.Core.eval_mono`, `eval_fuel_indep` in `lean/RCE/Core/Fuel.lean`). A conforming r",
    "restated": [],
    "profile": "language"
   },
@@ -460,9 +460,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "07-form-evaluation.md",
-   "line": 247,
+   "line": 365,
    "section": "6.3 Edge semantics of primitives (normative, from form/num.rs)",
-   "text": "- **F6 Signed zero is a distinct state.** `-0.0` arises by the standard's sign rules, which are exact, so every target produces it in the same places (vector `Mul(0.0, -1.0)`). It is observable: `as f32` keeps the sign and f32 `tostr` prints `-0`, and the sign decides later results through the same exact rules. The state hash must be injective on observable state (otherwise two states a program can tell apart share a log entry), so canonical JSON keeps the sign and a state holding `-0.0` hashes differently from one holding `0.0`; this is correct, not a defect. `-0.0 == 0.0` is true (IEEE compa",
+   "text": "- **F6 Signed zero is a distinct state.** `-0.0` arises by the standard's sign rules, which are exact, so every target produces it in the same places (vector `Mul(0.0, -1.0)`). It is observable: `tostr` prints `-0` (f64 and f32 alike, so text round-trips), and the sign decides later results through the same exact rules. The state hash must be injective on observable state, so canonical JSON keeps the sign and a state holding `-0.0` hashes differently from one holding `0.0`; the canonical order (6.1) is totalOrder, so they are distinct map keys. `-0.0 == 0.0` is still true: `==` is IEEE compari",
    "restated": [],
    "profile": "language"
   },
@@ -559,9 +559,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "07-form-evaluation.md",
-   "line": 342,
+   "line": 476,
    "section": "6.3 Edge semantics of primitives (normative, from form/num.rs)",
-   "text": "- **N9 Limits.** A list or text built by any operation is at most SIZE_LIMIT = 1,000,000 elements (`trap(\"size limit\")`). A value written to state is at most VALUE_LIMIT = 1,048,576 bytes of canonical JSON (`trap(\"value limit\")`, the event is refused, the value is not recorded).",
+   "text": "- **N9 Limits.** A list or text built by any operation is at most SIZE_LIMIT = 1,000,000 elements (`trap(\"size limit\")`). A value written to state is at most VALUE_LIMIT = 1,048,576 bytes of canonical JSON (`trap(\"value limit\")`, the state is kept, the value is not recorded).",
    "restated": [],
    "profile": "language"
   },
@@ -637,7 +637,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 3,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "This section is the checklist of rules a program must pass to be accepted (*well-formedness*).",
    "restated": [],
    "profile": "language"
@@ -648,7 +648,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 11,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-LEX-1 Not UTF-8, BOM, bare CR, or a tab character.",
    "restated": [],
    "profile": "language"
@@ -659,7 +659,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 12,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-LEX-2 Inconsistent dedent (2.6).",
    "restated": [],
    "profile": "language"
@@ -670,7 +670,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 13,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-LEX-3 A literal outside every possible type range, or an invalid `\\u{}`.",
    "restated": [],
    "profile": "language"
@@ -681,7 +681,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 14,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-SYN-1 Not in the language of section 3.",
    "restated": [],
    "profile": "language"
@@ -691,9 +691,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 15,
-   "section": "7. Well-formedness: what is refused at entry",
-   "text": "- W-VER-1 A first-line `# rce-version:` declaration naming a version other than 0.5, 0.6 or 0.7 (2.7).",
+   "line": 309,
+   "section": "7. Well-formedness: what requires change at entry",
+   "text": "12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1",
    "restated": [],
    "profile": "retired",
    "note": "retired by the one-language change (rce main 4a3dc1f): the version line is a tolerated, ignored release label; its tests were the 12 version mutants, dropped"
@@ -704,7 +704,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 19,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.",
    "restated": [],
    "profile": "language"
@@ -715,7 +715,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 20,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-NAME-2 Duplicate declaration in one scope; shadowing a parameter, field or module-level name inside the same item.",
    "restated": [
     "14-draft06-concurrency.md:108"
@@ -728,7 +728,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 22,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference checker reports a private name reached through `use` as W-VIS-1, which is the same rule.",
    "restated": [],
    "profile": "language"
@@ -739,7 +739,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 22,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference checker reports a private name reached through `use` as W-VIS-1, which is the same rule.",
    "restated": [],
    "profile": "language"
@@ -750,7 +750,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 25,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-MOD-3 An imported name that clashes with a declaration of the importing module or with a name imported from another module (imported names are not renamed).",
    "restated": [],
    "profile": "language"
@@ -760,9 +760,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 28,
-   "section": "7. Well-formedness: what is refused at entry",
-   "text": "- W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`, `static`: refused with \"memory safety is by construction\" (there are no escape hatches in RCE other than the `extern` boundary of 5.11).",
+   "line": 29,
+   "section": "7. Well-formedness: what requires change at entry",
+   "text": "- W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`, `static`: requires change, with \"memory safety is by construction\" (there are no escape hatches in RCE other than the `extern` boundary of 5.11).",
    "restated": [],
    "profile": "language"
   },
@@ -772,7 +772,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 31,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-FFI-1 An `extern` declaration whose ABI is not `\"C\"`, that is comptime or generic, or whose parameter or result types break 5.11; or a foreign function's name used other than as the callee of a direct call.",
    "restated": [],
    "profile": "language"
@@ -783,7 +783,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 36,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TY-1 Any typing rule of section 5 fails.",
    "restated": [
     "14-draft06-concurrency.md:328"
@@ -796,7 +796,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 37,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TY-2 Nested option `τ??`; borrow of a borrow `&&τ`; `[τ]` not behind a borrow; a borrow, region type or `fn` type inside a data type.",
    "restated": [],
    "profile": "language"
@@ -807,7 +807,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 39,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TY-3 Integer/float mixing without `as`; implicit narrowing.",
    "restated": [],
    "profile": "language"
@@ -818,7 +818,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 40,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-PAT-1 A binding pattern whose name equals a variant in scope.",
    "restated": [],
    "profile": "language"
@@ -829,7 +829,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 41,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-MATCH-1 A non-exhaustive `match` (5.3 [Match]); W-MATCH-2 an unreachable arm (subsumed by earlier unguarded arms).",
    "restated": [],
    "profile": "language"
@@ -840,7 +840,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 41,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-MATCH-1 A non-exhaustive `match` (5.3 [Match]); W-MATCH-2 an unreachable arm (subsumed by earlier unguarded arms).",
    "restated": [],
    "profile": "language"
@@ -851,7 +851,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 46,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-OWN-1 Use after move (O1). W-OWN-2 Violating [No-Alias-Write] or [No-Mut-Read]. W-OWN-3 Storing, returning (except R-RET) or capturing a borrow. W-REG-1 A region-typed value escaping its `with arena` block.",
    "restated": [],
    "profile": "language"
@@ -862,7 +862,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 49,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-SPAWN-1 Spawning with a borrow or region-typed argument.",
    "restated": [],
    "profile": "language"
@@ -873,7 +873,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -884,7 +884,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -895,7 +895,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -906,7 +906,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 54,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-STEP-1 A `step` naming an undeclared region or matching an undeclared event. W-STEP-2 **Totality**: an event that no step and no actor handler can ever match. W-STEP-3 The arrow form on a region with more than one field. W-STEP-4 Within one region, two unguarded steps whose patterns overlap (the second is unreachable).",
    "restated": [],
    "profile": "language"
@@ -917,7 +917,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 59,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-EFF-1 `emit`, `spawn`, channel operations or `select` in a pure `fn`; reading another region's fields in a step; calling a foreign function anywhere but `fn main` or a task function.",
    "restated": [],
    "profile": "language"
@@ -928,7 +928,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 62,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-REC-1 A cycle in the call graph, including through trait methods after monomorphization, other than a cycle of plain functions (one function calling itself included) whose calls are done by layered summed measures, or each of whose cycles of calls passes through a function declared with `bound` (6.7); `par` or `for … par` in a function of a cycle with a bounded function; `bound` on an iterator, a foreign function or a trait signature.",
    "restated": [],
    "profile": "language"
@@ -939,7 +939,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 69,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-CT-1 Comptime code that calls a non-comptime-safe function or traps or exceeds fuel.",
    "restated": [],
    "profile": "language"
@@ -950,8 +950,19 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 71,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-INT-1 An `example` or `check` that does not hold.",
+   "restated": [],
+   "profile": "language"
+  },
+  {
+   "id": "W-INT-2",
+   "kind": "rule",
+   "normative": true,
+   "chapter": "09-wellformedness.md",
+   "line": 72,
+   "section": "7. Well-formedness: what requires change at entry",
+   "text": "- W-INT-2 (recommended; never requires change) A module with a step and `example` lines, whose obligations its lookup-table control meets (6.9): `rce check` admits it and prints the recommendation (10.2).",
    "restated": [],
    "profile": "language"
   },
@@ -961,7 +972,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 72,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-SIMD-1 A lane-wise operator on arrays of different lengths, of an unfixed length, or with non-numeric lanes (5.1).",
    "restated": [],
    "profile": "language"
@@ -972,7 +983,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 74,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-LIN-1 A linear value not consumed exactly once on every path, copied, moved inside a loop, or placed in a collection, field, payload, channel or iterator (5.12).",
    "restated": [],
    "profile": "language"
@@ -983,7 +994,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 77,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-DEV-1 A growable value (`List`, `Map`, `Set`, `text`, slice, channel, iterator) bound in a device region, or `emit`, `spawn`, send, `select`, `yield` or a foreign call inside one (5.13).",
    "restated": [],
    "profile": "language"
@@ -994,7 +1005,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 80,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-ITER-1 An iterator function that is not pure or has an arrow body; `yield` outside an iterator function; an `iter τ` value used other than as a `for` operand or `.collect()` receiver (5.14).",
    "restated": [],
    "profile": "language"
@@ -1005,7 +1016,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 83,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-REF-1 A refined type (5.1) that is generic, refines a type other than an integer type, `text` or a collection, or whose predicate is outside the decidable fragment (a term other than `self`, `self.len()` or an integer literal, an operator other than a comparison, `and`, `or`, `not`, or a call other than a text character class).",
    "restated": [],
    "profile": "language"
@@ -1016,7 +1027,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 88,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-LOOP-1 A `LOOP_LIMIT` declaration that is not `const LOOP_LIMIT: u64 = n` with a positive literal n (6.7).",
    "restated": [],
    "profile": "language"
@@ -1027,7 +1038,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1038,7 +1049,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1049,7 +1060,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1060,7 +1071,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 95,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-CTX-1 Context text made other than by `C.lit` of a string literal or `C.encode`; joined with another context or plain text; carried by an event payload; an unknown context.",
    "restated": [],
    "profile": "language"
@@ -1071,7 +1082,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 98,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-SEC-1 An operator or method on a secret other than `==`/`!=`; a secret in an emitted value, a channel, an error payload or a foreign call.",
    "restated": [],
    "profile": "language"
@@ -1082,7 +1093,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 101,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: what requires change at entry",
    "text": "- W-CAP-1 A capability outside an event payload field or a parameter; `Guarded` outside a state field; an authority that is not a declared struct.",
    "restated": [],
    "profile": "language"
@@ -1092,9 +1103,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 104,
-   "section": "7. Well-formedness: what is refused at entry",
-   "text": "- W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16 type or context.)",
+   "line": 105,
+   "section": "7. Well-formedness: what requires change at entry",
+   "text": "- W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without a `Cap[A]` field. (A declaration named after a 5.16 type or context requires change: W-NAME-2.)",
    "restated": [],
    "profile": "language"
   },
@@ -1160,7 +1171,7 @@
    "chapter": "10-theorems.md",
    "line": 34,
    "section": "8. Theorems to prove",
-   "text": "| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |",
+   "text": "| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move require change; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |",
    "restated": [],
    "profile": "language"
   },
@@ -1171,7 +1182,7 @@
    "chapter": "10-theorems.md",
    "line": 35,
    "section": "8. Theorems to prove",
-   "text": "| T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent` |",
+   "text": "| T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is i",
    "restated": [],
    "profile": "language"
   },
@@ -1193,7 +1204,7 @@
    "chapter": "10-theorems.md",
    "line": 37,
    "section": "8. Theorems to prove",
-   "text": "| T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) tested: every target prints the reference trace byte for byte on the edge and seeded events (`tests/form_targets.rs`, `tests/form_joins.rs`). T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset ",
+   "text": "| T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a d",
    "restated": [],
    "profile": "language"
   },
@@ -1204,7 +1215,7 @@
    "chapter": "10-theorems.md",
    "line": 38,
    "section": "8. Theorems to prove",
-   "text": "| T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2 for version 0.6) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |",
+   "text": "| T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |",
    "restated": [],
    "profile": "language"
   },
@@ -1270,7 +1281,7 @@
    "chapter": "10-theorems.md",
    "line": 44,
    "section": "8. Theorems to prove",
-   "text": "| T33 | proved: copy-out on every outcome equals in-place update; copy-out only on success does not | `t33`, `copyOk_differs` |",
+   "text": "| T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |",
    "restated": [],
    "profile": "language"
   },
@@ -1281,7 +1292,7 @@
    "chapter": "10-theorems.md",
    "line": 45,
    "section": "8. Theorems to prove",
-   "text": "| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > \" '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` ",
+   "text": "| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > \" '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept and requires-change cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarde",
    "restated": [],
    "profile": "language"
   },
@@ -1292,7 +1303,7 @@
    "chapter": "10-theorems.md",
    "line": 46,
    "section": "8. Theorems to prove",
-   "text": "| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused",
+   "text": "| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with an event that does not apply leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `r",
    "restated": [],
    "profile": "language"
   },
@@ -1389,9 +1400,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "11-decisions.md",
-   "line": 133,
+   "line": 172,
    "section": "9.1 Changes made while mechanizing (draft 0.1 → 0.2)",
-   "text": "- S1 (6.4) A guard that traps refuses the event. Draft 0.1 did not say; δ was not total on that case.",
+   "text": "- S1 (6.4) A guard that traps keeps the state. Draft 0.1 did not say; δ was not total on that case.",
    "restated": [],
    "profile": "language"
   },
@@ -1451,13 +1462,13 @@
    "profile": "language"
   },
   {
-   "id": "CH12-M-6e12b079",
+   "id": "CH12-M-b922b8eb",
    "kind": "modal",
    "normative": true,
    "chapter": "12-tooling.md",
-   "line": 67,
+   "line": 73,
    "section": "10.3 `rce run FILE [EVENTS]`",
-   "text": "The file must pass `rce check` alone; otherwise one `REFUSED` line is printed and the status is 1.",
+   "text": "The file must pass `rce check` alone; otherwise one `requires change` line is printed and the status is 1.",
    "restated": [],
    "profile": "tooling"
   },
@@ -1765,9 +1776,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "14-draft06-concurrency.md",
-   "line": 477,
+   "line": 586,
    "section": "C.11 Draft 0.6b",
-   "text": "- C.11.11 Placement and supervision. `node N {A, B}` places actors on a node. W-NODE-1: a placed name that is not an actor, or an actor placed twice. `supervisor S strategy k` with k one of `one_for_one`, `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor (W-SUP-2), and W-NAME-2 refuses a duplicate child. Run-time meaning (normative). A supervisor declaration is one static supervisor; it supervises every actor whose type is one of its children, so the set an actor belongs to is fixed by the program, not by spawn order. When a handler of such an actor refuses its message (a ",
+   "text": "- C.11.11 Placement and supervision. `node N {A, B}` places actors on a node. W-NODE-1: a placed name that is not an actor, or an actor placed twice. `supervisor S strategy k` with k one of `one_for_one`, `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor (W-SUP-2), and a duplicate child requires change (W-NAME-2). Run-time meaning (normative). A supervisor declaration is one static supervisor; it supervises every actor whose type is one of its children, so the set an actor belongs to is fixed by the program, not by spawn order. When the step of a handler of such an actor i",
    "restated": [],
    "profile": "language"
   },
@@ -1919,9 +1930,9 @@
    "kind": "theorem",
    "normative": true,
    "chapter": "14-draft06-concurrency.md",
-   "line": 615,
+   "line": 724,
    "section": "C.13 Theorems",
-   "text": "| T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized; the checker's dual and protocol automaton equal the model's on 60 generated protocols along a joint run (enabled actions at each point, and the end); linearity (W-SES-4) is checked by the checker and not mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp`, `SessionVectors.lean`, `checker/tests/lean_session.rs` |",
+   "text": "| T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized; the checker's dual and protocol automaton equal the model's on 60 generated protocols along a joint run (enabled actions at each point, and the end); linearity is T28l | `t28r_preserve`, `t28r_progress`, `enc_comp`, `SessionVectors.lean`, `checker/tests/lean_session.rs` |",
    "restated": [],
    "profile": "language"
   },
@@ -2051,9 +2062,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 283,
+   "line": 290,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L2 Fail closed: a guard the lift cannot read is opaque, and `Lifted::step` refuses to step through it rather than guess.",
+   "text": "- L2 Fail closed: a guard the lift cannot read is opaque, and `Lifted::step` does not step through it, rather than choose a branch it cannot read.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2062,9 +2073,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 285,
+   "line": 292,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L3 Generated code agrees with the lift: code emitted from a lifted machine (`--emit-machine`) steps as `Lifted::step` (tested, `tests/lift_emit.rs`).",
+   "text": "- L3 Generated code agrees with the lift: code emitted from a lifted machine (`--emit-machine`) steps as `Lifted::step`.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2073,9 +2084,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 288,
+   "line": 294,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L4 Evidence, not proof: agreement of the lift with the original program is tested on seeded runs of the original (`tests/brownfield_lift.rs`); its level is tested (8). A lift is an input to a gate, never an authority: what it proposes is admitted only through the checker and the gate, like any other proposal.",
+   "text": "- L4 Evidence, not proof: agreement of the lift with the original program is tested on seeded runs of the original; its level is tested (8). A lift is an input to a gate, never an authority: what it proposes is admitted only through the checker and the gate, like any other proposal.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2117,9 +2128,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 309,
+   "line": 316,
    "section": "D.9 Rules (normative)",
-   "text": "- W-HS-CUR-2 (staleness): at check time `now`, the currency record is stale when it was never checked or `now - last_checked` exceeds `max_age` hours. A stale spec is refused by `rce check --strict` and by the promotion gate when the engine's `enforce_currency` policy is on; otherwise it is reported as a warning naming W-HS-CUR-2.",
+   "text": "- W-HS-CUR-2 (staleness): at check time `now`, the currency record is stale when it was never checked or `now - last_checked` exceeds `max_age` hours. A stale spec is not accepted by `rce check --strict` or by the promotion gate when the engine's `enforce_currency` policy is on; otherwise it is reported as a warning naming W-HS-CUR-2. This is the one rule of the appendix whose verdict depends on a time given as an input (see D.10).",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2194,9 +2205,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 55,
+   "line": 61,
    "section": "E.2 Admission, time and authority (HC-1 to HC-9)",
-   "text": "- **HC-3 Typed output requests.** Each effect requested by λ (a write, a send, a draw, a foreign call) has exactly one result event: delivered, failed, timed out or unreachable. A race inside the adapter (for example a file checked and then opened) is resolved by the adapter; the program sees one atomic outcome.",
+   "text": "- **HC-3 Typed output requests.** Each effect requested by λ (a write, a send, a draw, a foreign call) has exactly one result event: delivered, failed, timed out or unreachable. A result is delivered as the module declares its event, and a result the module declares no event for is recorded in D (E.4c, HD-1). A race inside the adapter (for example a file checked and then opened) is resolved by the adapter; the program sees one atomic outcome. The answer of a model runtime (F.5.6) is delivered only on an event the program declares `extern \"model\" event`, and the host fills no capability for it ",
    "restated": [],
    "profile": "language"
   },
@@ -2216,9 +2227,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 65,
+   "line": 76,
    "section": "E.2 Admission, time and authority (HC-1 to HC-9)",
-   "text": "- **HC-5 Capabilities.** Authority comes only from capabilities minted by logged events (5.16 `Cap[A]` in a version 0.8 module). The host holds no ambient authority on the program's behalf. This is the sandbox, and its contract is independent of any OS: the checker admits only programs whose effects go through granted capabilities, and the deterministic host refuses any effect without one, before any OS layer is involved. The same contract then has enforcement targets underneath the host, entered at start as strictly as the target allows: WASM (the module imports only the granted host function",
+   "text": "- **HC-5 Capabilities.** Authority comes only from capabilities minted by logged events (5.16 `Cap[A]` in a version 0.8 module). The host holds no ambient authority on the program's behalf. This is the sandbox, and its contract is independent of any OS: the checker admits only programs whose effects go through granted capabilities, and the deterministic host does not perform any effect without one, before any OS layer is involved. The same contract then has enforcement targets underneath the host, entered at start as strictly as the target allows: WASM (the module imports only the granted host",
    "restated": [
     "16-host-contract.md:625"
    ],
@@ -2251,9 +2262,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 131,
+   "line": 170,
    "section": "E.2 Admission, time and authority (HC-1 to HC-9)",
-   "text": "- **HC-7a Fuel per input.** A host is event driven, so fuel is charged per admitted input: each input (one application of δ, including constructing its event) starts with the full fuel of 6.7, and no budget is shared across inputs. Every input has its own bound and a session never starves however long it runs. The reference trace (`rce trace`), the host and replay all reset fuel per input, so a refusal for fuel is a function of that input and the state before it, and D is the same on each.",
+   "text": "- **HC-7a Fuel per input.** A host is event driven, so fuel is charged per admitted input: each input (one application of δ, including constructing its event) starts with the full fuel of 6.7, and no budget is shared across inputs. Every input has its own bound and a session never starves however long it runs. The reference trace (`rce trace`), the host and replay all reset fuel per input, so a kept step for fuel is a function of that input and the state before it, and D is the same on each.",
    "restated": [
     "16-host-contract.md:627"
    ],
@@ -2343,9 +2354,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 209,
+   "line": 248,
    "section": "E.2b Replicated D and admitter failover (HC-18 to HC-20)",
-   "text": "- **HC-19 Term fence in D.** A host that won `elect(t)` folds the log it received (HS-4 verification of the whole chain, then HC-8), then appends `host.Term` {leader, term} and makes it durable before admitting any input. `t` must exceed every term already in D. Every `host.Window` carries the term. A request emitted under an older term with no result in D gets one result, `failed` with `interrupted` (HC-3). The term in D is the fence token: an entry of D was appended by the holder of the most recent `host.Term` before it.",
+   "text": "- **HC-19 Term fence in D.** A host that won `elect(t)` folds the log it received (HS-4 verification of the whole chain, then HC-8), then appends `host.Term` {leader, term} and makes it durable before admitting any input. `t` must exceed every term already in D. Every `host.Window` carries the term. The new admitter's adapters are fresh, so it appends `host.Restarted` after `host.Term` (HC-22), and a request emitted under an older term with no result in D gets one result, `failed` with `interrupted` (HC-3). The term in D is the fence token: an entry of D was appended by the holder of the most ",
    "restated": [],
    "profile": "language"
   },
@@ -2354,9 +2365,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 217,
+   "line": 258,
    "section": "E.2b Replicated D and admitter failover (HC-18 to HC-20)",
-   "text": "- **HC-18a Transport.** Replication follows Raft's AppendEntries and RequestVote: an append carries (prev_idx, prev_term) and a follower refuses it unless its log has an entry at prev_idx with that term (log matching), deletes a conflicting suffix and appends what is missing. The current term and the vote are written to stable storage before a candidate asks for votes, before a vote is granted, and before an append is acknowledged. A vote goes only to a candidate whose log is at least as up-to-date by (last term, last index). The leader advances the commit index only over entries of its own te",
+   "text": "- **HC-18a Transport.** Replication follows Raft's AppendEntries and RequestVote: an append carries (prev_idx, prev_term) and a follower does not accept it unless its log has an entry at prev_idx with that term (log matching), deletes a conflicting suffix and appends what is missing. The current term and the vote are written to stable storage before a candidate asks for votes, before a vote is granted, and before an append is acknowledged. A vote goes only to a candidate whose log is at least as up-to-date by (last term, last index). The leader advances the commit index only over entries of it",
    "restated": [],
    "profile": "language"
   },
@@ -2365,9 +2376,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 249,
+   "line": 290,
    "section": "E.2b Replicated D and admitter failover (HC-18 to HC-20)",
-   "text": "- **HC-20 Deposed admitter.** An admitter whose barrier is refused because a higher term was granted has had its role taken. By HS-3 it appends nothing further and acks nothing, so its unacked inputs are retransmitted to the new admitter and HC-16 removes those that did commit. Committed entries are never removed: the new admitter's log contains every entry a quorum had accepted, so D after a failover extends D before it.",
+   "text": "- **HC-20 Deposed admitter.** An admitter whose barrier is not granted because a higher term was granted has had its role taken. By HS-3 it appends nothing further and acks nothing, so its unacked inputs are retransmitted to the new admitter and HC-16 removes those that did commit. Committed entries are never removed: the new admitter's log contains every entry a quorum had accepted, so D after a failover extends D before it.",
    "restated": [],
    "profile": "language"
   },
@@ -2431,9 +2442,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 431,
+   "line": 867,
    "section": "E.6 Fabrics and placement (HC-11 to HC-14)",
-   "text": "- **HC-12 Automatic placement.** The engine places each lane-wise array operation, `for … par` body and reduction itself, from the cost table of C.6.4 extended with per-fabric overhead and throughput (time = overhead + work / throughput), whose calibration results are `host.Calibrated` entries. A program needs no annotation. `with device` (5.13) and device kernels stay hints that never change meaning. Placement is a function of the host entries of D, so it is the same on replay (T37): the host logs each decision as `host.Placed` and replay re-derives it and refuses D when it differs. A fabric ",
+   "text": "- **HC-12 Automatic placement.** The engine places each lane-wise array operation, `for … par` body and reduction itself, from the cost table of C.6.4 extended with per-fabric overhead and throughput (time = overhead + work / throughput), whose calibration results are `host.Calibrated` entries. A program needs no annotation. `with device` (5.13) and device kernels stay hints that never change meaning. Placement is a function of the host entries of D, so it is the same on replay (T37): the host logs each decision as `host.Placed` and replay re-derives it and stops where the derivation differs f",
    "restated": [],
    "profile": "language"
   },
@@ -2497,9 +2508,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "16-host-contract.md",
-   "line": 684,
+   "line": 1127,
    "section": "E.11 Proposed rules (not normative)",
-   "text": "- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically is refused. Relation: a new W-rule in 9 when adopted.",
+   "text": "- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically requires change. Relation: a new W-rule in 9 when adopted.",
    "restated": [],
    "profile": "proposed"
   },
@@ -2673,9 +2684,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "section": "(named)",
-   "text": "W-GRP-3, W-SES-1 to W-SES-4, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
+   "text": "W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
    "restated": [],
    "profile": "language"
   },
@@ -2684,9 +2695,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "section": "(named)",
-   "text": "W-GRP-3, W-SES-1 to W-SES-4, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
+   "text": "W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
    "restated": [],
    "profile": "language"
   },
@@ -2695,9 +2706,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "section": "(named)",
-   "text": "W-GRP-3, W-SES-1 to W-SES-4, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
+   "text": "W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,",
    "restated": [],
    "profile": "language"
   },

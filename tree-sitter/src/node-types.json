@@ -6080,7 +6080,7 @@
           "named": true
         },
         {
-          "type": "outcome_refused",
+          "type": "outcome_kept",
           "named": true
         },
         {
@@ -11679,7 +11679,7 @@
     }
   },
   {
-    "type": "outcome_refused",
+    "type": "outcome_kept",
     "named": true,
     "fields": {},
     "children": {
@@ -11688,6 +11688,10 @@
       "types": [
         {
           "type": "NAME",
+          "named": true
+        },
+        {
+          "type": "STRING",
           "named": true
         }
       ]
@@ -18838,6 +18842,10 @@
     "named": false
   },
   {
+    "type": "kept",
+    "named": false
+  },
+  {
     "type": "kind",
     "named": false
   },
@@ -18930,10 +18938,6 @@
     "named": false
   },
   {
-    "type": "refused",
-    "named": false
-  },
-  {
     "type": "release",
     "named": false
   },
@@ -19007,6 +19011,10 @@
   },
   {
     "type": "trait",
+    "named": false
+  },
+  {
+    "type": "trap",
     "named": false
   },
   {

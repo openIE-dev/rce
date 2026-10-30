@@ -34,8 +34,8 @@ produced by the layout pass (2.6).
 declaration environment (types, kinds, traits, events, errors, regions). "iff"
 means if and only if.
 
-**Conformance.** An implementation (a) refuses every text that is not in the
-language of section 3, or that breaks a rule of section 7, with a diagnostic
+**Conformance.** An implementation (a) reports that a text requires change whenever it is not in the
+language of section 3, or breaks a rule of section 7, with a diagnostic
 naming the rule; (b) for every accepted program, computes δ, λ and the fold of
 section 6 exactly, including every edge in 6.3. Behavior the spec does not
 define does not exist: there is no "undefined behavior" and no
@@ -44,4 +44,4 @@ define does not exist: there is no "undefined behavior" and no
 
 **Read receipt.** In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words?
 
-<!-- body-sha256: c76056a1984c61b4ddce8745feb78c2cff67ef2295e40b3d2082f67e4cbecef4 -->
+<!-- body-sha256: a521503afcfbe33debdf95f67ba7d2b35759e82e0c4f7ec2a5157fa2585874d1 -->

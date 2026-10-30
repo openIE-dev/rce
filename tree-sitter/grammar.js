@@ -9,7 +9,7 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._trap, $._error_sentinel, $._kept],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
@@ -31,9 +31,11 @@ module.exports = grammar({
     event_list: $ => sep1(choice($.event_ref, $.event_call), ','),
     event_ref: $ => $.NAME,
     event_call: $ => seq($.NAME, '(', optional($.args), ')'),
-    _outcome: $ => choice($.outcome_value, $.outcome_refused),
+    _outcome: $ => choice($.outcome_value, $.outcome_kept),
     outcome_value: $ => $._expr,
-    outcome_refused: $ => seq('refused', ':', $.NAME),
+    // section 3 Outcome: a named error, or a trap with its text (`kept: trap("division by zero")`);
+    // `trap` before `(` is its own symbol there (src/scanner.c), elsewhere it is a NAME
+    outcome_kept: $ => seq(alias($._kept, 'kept'), ':', choice($.NAME, seq(alias($._trap, 'trap'), '(', $.STRING, ')'))),
     check_decl: $ => seq('check', $._expr, $._NL),
 
     const_decl: $ => seq('const', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),
@@ -251,7 +253,7 @@ module.exports = grammar({
     member_name: $ => choice($.NAME, 'actor', 'after', 'and', 'arena', 'as', 'bound', 'break', 'catch', 'chan', 'check',
       'comptime', 'const', 'continue', 'default', 'device', 'elif', 'else', 'emit', 'error', 'event', 'example', 'extern', 'fail', 'false',
       'fn', 'for', 'forall', 'from', 'if', 'impl', 'in', 'intent', 'iter', 'kind', 'let', 'linear', 'loop', 'match', 'module',
-      'mut', 'none', 'not', 'on', 'or', 'pass', 'pub', 'recv', 'refused', 'return', 'select', 'self', 'send', 'spawn',
+      'mut', 'none', 'not', 'on', 'or', 'pass', 'pub', 'recv', 'return', 'select', 'self', 'send', 'spawn',
       'state', 'step', 'struct', 'then', 'to', 'trait', 'true', 'try', 'type', 'use', 'var', 'while', 'with', 'yield',
       'par', 'branch', 'nondet', 'budget', 'deadline', 'priority',
       'replicated', 'interrupt', 'session', 'lvar', 'group', 'lanes', 'barrier', 'scope', 'atomic',

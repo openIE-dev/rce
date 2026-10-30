@@ -8,7 +8,7 @@ byte, as in Go, Rust and Zig.
 Gaps in SURFACE.md that this spec decides. Each is one line of rationale;
 each can be reversed independently.
 
-1. **Layout by indentation, spaces only, tabs refused** (Python), with
+1. **Layout by indentation, spaces only, tabs require change** (Python), with
    brackets suspending layout. Keeps SURFACE.md's look; tabs removed to make
    layout unambiguous.
 2. **`#` comments only**, matching the prototype; no block comments.
@@ -21,8 +21,8 @@ each can be reversed independently.
 5. **Totality = every event is handled somewhere; unmatched regions are
    unchanged.** Stricter than "every (region, event) pair", looser than "every
    event in every region"; catches typos without boilerplate.
-6. **Errors refuse the event and leave state unchanged** (`example … ->
-   refused: X`), and are logged and output, never thrown.
+6. **Errors keep the state: the event does not apply** (`example … ->
+   kept: X`), and are logged and output, never thrown.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
@@ -31,7 +31,7 @@ each can be reversed independently.
    falls in layers, including mutual recursion, or the cycle carries a
    declared `bound`; 6.7 says exactly which) and **every loop bounded**
    (default 1,000,000, `bound n` to change), so δ is total by construction.
-   (Originally structural recursion only, with mutual recursion refused.)
+   (Originally structural recursion only, with mutual recursion requiring change.)
 9. **Second-class borrows, no lifetime syntax.** Borrows only in parameters,
    receivers, loop/match operands and short `let`s, plus borrow returns tied to
    a parameter. Simpler than Rust, still no GC and no aliasing of mutable
@@ -88,7 +88,7 @@ each can be reversed independently.
     Lark file, `rce.lark`, now retired.)
 
 30. **Tail values** in block-bodied functions (S5).
-31. **A trapping guard refuses the event** (S1).
+31. **A trapping guard keeps the state** (S1).
 32. **Keywords reserved everywhere except after `.`** (S3).
 33. **`std.text`, `std.collections`, `std.math` are built-in modules** (S4).
 34. **Loop elements of non-Copy type are borrows**; storing one needs
@@ -131,25 +131,25 @@ each can be reversed independently.
     correctly rounded RCE code in the `math` module (F9), so every target
     runs the same algorithm instead of its platform library.
 52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
-    whitespace set is enumerated, so a toolchain upgrade cannot change a
-    result.
+    whitespace set and the display escape set are enumerated, so a
+    toolchain upgrade cannot change a result.
 
 53. **Draft 0.9 is a new release** (label 0.9, never reuse 0.6), because it
-    refuses programs 0.8 accepted and changes `&mut` after a failed call
+    requires change in programs 0.8 accepted and changes `&mut` after a failed call
     (C.15 rule). Superseded in form by decision 64: the label gates nothing.
 54. **A failed call restores its `&mut` arguments** when every effect since
     entry is undoable; a function that could fail after a non-undoable effect
-    is refused (F.4.4).
-55. **Contracts are always enforced** and a violation is one defined refusal
+    requires change (F.4.4).
+55. **Contracts are always enforced** and a violation is one defined kept outcome
     with fixed fields; no switchable contracts (F.2, F.6.2).
-56. **Information flow is checked by labels with a refusal channel and robust
+56. **Information flow is checked by labels with a kept-outcome channel and robust
     declassification**; labels are erased at run time (F.4.2).
 57. **`World` is a borrowed capability**, not a threaded value (F.4.1).
 58. **The definition hash covers everything that affects meaning and nothing
     else** (F.4.3).
 59. **`decreases` is required only where 6.7 does not already admit the
     recursion, and never replaces the loop bound** (F.6.4).
-60. **Unused values, dropped results and shadowing are refused** in 0.9 (F.3).
+60. **Unused values, dropped results and shadowing require change** in 0.9 (F.3).
 61. **The four constructs that would break a theorem are written as
     non-goals**: effect handlers, switchable contracts, mutable aliasing
     across `par`, runtime reflection (F.2).
@@ -161,7 +161,7 @@ each can be reversed independently.
 64. **One language, one text.** The language is the text of one spec commit; `# rce-version:` is a release
     label, tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). No module
     selects older rules; one global reserved list (2.4); a construct that is specified and not
-    implemented is refused as reserved, not implemented (W-RES-1). Derivation: one meaning per construct
+    implemented requires change as reserved, not implemented (W-RES-1). Derivation: one meaning per construct
     (F, principle e) forbids a program meaning two things depending on a comment, and the cost of a
     version-mixed program (C.15 of the earlier text) was exactly such a dependence. The standard library
     was migrated once (`label` to `lbl`, `Json` to `JsonDoc`, `Url` to `UrlParts` and the other renamed names);
@@ -169,7 +169,7 @@ each can be reversed independently.
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
-- S1 (6.4) A guard that traps refuses the event. Draft 0.1 did not say; δ
+- S1 (6.4) A guard that traps keeps the state. Draft 0.1 did not say; δ
   was not total on that case.
 - S2 (5.2) Task functions. Draft 0.1 decision 22 made every function except
   `main` pure, so `spawn f(…)` could never be well-typed; a function with a
@@ -191,7 +191,7 @@ each can be reversed independently.
 
 - The admission gate of 6.9 is implemented: `rce-check` evaluates every
   `example` and `check`, every comptime block and every constant and state
-  initializer, and refuses a program on W-INT-1 or W-CT-1. W-LEX-3 (an
+  initializer, and reports that a program requires change on W-INT-1 or W-CT-1. W-LEX-3 (an
   integer literal outside its type's range) is checked.
 - `rce.lark` tree shapes (the language is unchanged): `T?` now yields an
   `opt_type` node, negative and `true`/`false`/`none` literal patterns, the
@@ -209,7 +209,7 @@ evaluable at comptime.
 ### 9.3 Changes in draft 0.4 (from `spec/LANGUAGE-REVIEW.md`)
 
 - R1 (6.7, W-REC-1) Structural self-recursion is admitted; mutual recursion
-  and every other cycle stay refused. Checker: `structural_violation`, since
+  and every other cycle still require change. Checker: `structural_violation`, since
   replaced by `lex_measure` (6.7: one fixed position, or layers).
   Lean: `RCE/Struct.lean`.
 - R2 (5.11, W-FFI-1, `extern`) A C-ABI foreign function interface: scalar
@@ -276,7 +276,7 @@ they run them on the CPU, which 5.13 allows).
   decidable fragment, checked where the declared integer range is
   checked. Derived from soundness and one meaning per construct
   (`spec/proposals/CORE-PROPERTIES.md`, P2). Closes the replacement-matrix
-  rows "improper input validation" (defined: refused at entry) and
+  rows "improper input validation" (defined: requires change at entry) and
   "dependent specifications" (defined for the decidable fragment;
   undecidable obligations excluded by derivation). An extension for
   every version (C.15).
@@ -285,7 +285,7 @@ they run them on the CPU, which 5.13 allows).
   Rust, Python and JavaScript runtimes. Derived from self-hosting: the
   hash-chained log (6.1) and content-hash ids (6.8) must be computable by
   an RCE program. An extension for every version, since it only admits
-  programs refused before (C.15).
+  programs that required change before (C.15).
 
 ### 9.6 Changes in draft 0.8
 
@@ -308,12 +308,12 @@ Appendix F next to the rule, and every theorem is stated and unproved (F.9).
 - **Tier 0.** Stale text corrected (errata for every version): decisions 8, 11,
   12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1
   (removed: the release label is tolerated and ignored, 2.7, decision 64) and
-  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Version 0.9 refuses
-  unused values, dropped non-unit results and unused stores (F.3.2), and
+  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Under version 0.9,
+  unused values, dropped non-unit results and unused stores require change (F.3.2), and
   adds lexical hygiene: hidden and bidirectional characters, shadowing of any
   enclosing local, qualified variants, longest-token lexing (F.3.3).
 - **Tier 1.** `World` capability for foreign calls (F.4.1); information-flow
-  labels with the refusal channel and robust declassification (F.4.2, T42,
+  labels with the kept-outcome channel and robust declassification (F.4.2, T42,
   T43); definition hashes and `rce api-diff` (F.4.3, T50); transactional
   calls (F.4.4, T47).
 - **Tier 2.** File-system capabilities and caretaker revocation (F.5.1, T51);
@@ -343,10 +343,10 @@ No row rests on taste: where no principle decides, the existing text stays.
 
 | Q | Question | Decision | Derivation |
 |---|---|---|---|
-| 1 | Which effects are undoable for a transactional call | Writes to owned values and `emit` into the pending output are undoable; send, receive, `spawn`, foreign calls, `World` operations, host entries and consuming a linear handle are not; a path from a non-undoable effect to a `fail` is refused (W-TX-1) | (c): a restore must be total and need no handler; (b) T8 |
+| 1 | Which effects are undoable for a transactional call | Writes to owned values and `emit` into the pending output are undoable; send, receive, `spawn`, foreign calls, `World` operations, host entries and consuming a linear handle are not; a path from a non-undoable effect to a `fail` requires change (W-TX-1) | (c): a restore must be total and need no handler; (b) T8 |
 | 2 | Measure for mutual recursion | One lexicographic tuple for the whole group (F.6.4) | (d): one well-founded order for the group, as 6.7 already uses |
 | 3 | Is tool metadata hashed | No. Comments, formatting, declaration order and attributes are not hashed; the version, signature, contracts, measure, ghost clauses, labels and referenced hashes are | (c) and T7: a hash is the meaning, nothing else |
-| 4 | `?` in `par` arms | Refused | T16: `?` leaves the arm early, so an arm is not an expression with one result |
+| 4 | `?` in `par` arms | Requires change | T16: `?` leaves the arm early, so an arm is not an expression with one result |
 | 5 | Advisory format | Canonical JSON object signed with Ed25519 over its SHA-256 | (c): reuse the canonical JSON of 6.1; Ed25519 signatures are deterministic |
 | 6 | Map iteration order | Ascending canonical key order of 7.1 | already 6.7 and the C.15 erratum; (c) |
 | 7 | Half-open slices and inclusive ranges | Unchanged: slices as in 6.3 N8, ranges keep `..` and `..=` | (e): both already have one meaning; no principle favors removing one |
@@ -358,24 +358,24 @@ No row rests on taste: where no principle decides, the existing text stays.
 | 13 | Are doc comments hashed | No doc comments exist (decision 2, `#` comments only), so nothing is hashed | decision 2; (e) |
 | 14 | Maximal-munch token rule | Adopted as a requirement on the lexer, checked in F.11 | (c): the same text must tokenize the same everywhere |
 | 15 | First-class type invariants | A refined type has `R.check(v) -> R?`; no witness clause; no implicit conversion; opaque outside its module | (b) T35: a value of R is only made by a checked path |
-| 16 | Argument labels | Kept (decision 18) and checked: a wrong label is refused | (e): a label that is not checked has two meanings, the written and the real one |
-| 17 | Constant conditions | An `if`, `elif`, `while` or guard on a comptime constant is refused (W-UNUSED-2) | (e): one branch is dead code; P8 |
+| 16 | Argument labels | Kept (decision 18) and checked: a wrong label requires change | (e): a label that is not checked has two meanings, the written and the real one |
+| 17 | Constant conditions | An `if`, `elif`, `while` or guard on a comptime constant requires change (W-UNUSED-2) | (e): one branch is dead code; P8 |
 | 18 | Display trait | `Show` of 5.9; a template field of a non-text type must implement it | (e): one display conversion, explicit; no new trait |
 | 19 | Map equality independent of order | Yes, because the representation is canonical | (c): equality and iteration agree by construction |
 | 20 | User-definable `derive` | Not offered; `derive` is the built-in closed set of 5.9 | T7: a user derive needs reflection |
-| 21 | Literal default type when unconstrained | Unchanged: integer literals default to i64, float literals are f64 (5.3, 5.1) | (c): the default is a fixed rule; refusing adds no safety |
+| 21 | Literal default type when unconstrained | Unchanged: integer literals default to i64, float literals are f64 (5.3, 5.1) | (c): the default is a fixed rule; requiring change adds no safety |
 | 22 | Expression fields and nested quotes in `t"..."` | Not allowed: a field is an identifier or a field path, no quotes inside a field | (e) and S8: a field needing a nested lex has two readings |
 | 23 | Inductive type syntax and its `decreases` rule | No new syntax: a recursive `kind` with `Box`, strictly positive because `fn` types cannot occur in data (W-TY-2) | (d): positivity follows from W-TY-2 |
-| 24 | Is `refuse` the empty enum | No: `refuse` is not a value and has no type | (e): a bottom type brings subtyping, which RCE does not have |
+| 24 | Is the kept outcome the empty enum | No: the kept outcome is not a value and has no type | (e): a bottom type brings subtyping, which RCE does not have |
 | 25 | Fixed-size arrays as value parameter or ghost length | Array length stays a comptime constant `[τ; n]`; contracts may use `len` | (d): no value-indexed types (Q10) |
 | 26 | Spelling of the `Copy` and `Discard` bounds | No new spelling; `Copy` is the built-in of 5.5 and generics stay affine (decision 41); a type parameter is not instantiated by a linear type | (b) T12 |
 | 27 | Canonical form of propositions | A contract is hashed as the canonical parsed tree of its expression; no rewriting or solver normalization | (c): a hash must not depend on a solver |
-| 28 | Source span in the refusal record | No; the record has the rule or clause, the definition hash and the clause index | (c) and T7: a span depends on whitespace |
+| 28 | Source span in the kept record of a contract violation | No; the record has the rule or clause, the definition hash and the clause index | (c) and T7: a span depends on whitespace |
 | 29 | Layout-sensitive vector types | Not adopted; lane-wise fixed arrays only (decision 43) | no principle decides; the existing text stays |
 | 30 | Any foreign boundary in 0.9 | Yes, the C ABI of 5.11 as a `World` operation, declared in the manifest | (a): authority is a value; (c) T32 |
 | 31 | Big integer or ghost mathematical integer | `mathint`, ghost and contract code only; no runtime big integer | (d): an unbounded integer has size-dependent cost, which budgets cannot bound |
 | 32 | Wording for reactive programs | A total step function driven by the host (6.1, Appendix E); no `while true` | (d) |
-| 33 | Unsatisfiable contracts: static or first call | Static in the decidable fragment (W-CON-1); otherwise enforcement refuses every call | (b), (d): decide what is decidable, never succeed vacuously |
+| 33 | Unsatisfiable contracts: static or first call | Static in the decidable fragment (W-CON-1); otherwise enforcement makes every call trap, keeping the state | (b), (d): decide what is decidable, never succeed vacuously |
 | 34 | Comment forms | Only `#` line comments | decision 2; (e) |
 | 35 | Implication spelling in contracts | None; write `not a or b` | (e): `or` short-circuits, so the form is already guarded |
 | 36 | Digit separators in literals | One `_` between digits, as 2.5 already says | (e): one canonical form, already specified |
@@ -395,4 +395,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 2346d053d92fe62068dcec8afd8e1b3608ddfbbe6249ad2cc3ea79da9634ee90 -->
+<!-- body-sha256: f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831 -->

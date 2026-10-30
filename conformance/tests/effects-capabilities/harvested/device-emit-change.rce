@@ -1,0 +1,11 @@
+fn main()
+    with device gpu
+        emit 1
+#--- rce-test
+# id: effects-capabilities/harvested/device-emit-change
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, W-DEV-1]
+# expect: change
+# diagnostic: W-DEV-1
+# provenance: harvested examples/change/types/device_emit.rce
+#---

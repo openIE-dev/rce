@@ -7,7 +7,7 @@
 - [Choices and loops](ch03-control-flow.md)
 - [Checks and examples](ch04-checks-and-examples.md)
 - [State, events and steps](ch05-state-events-steps.md)
-- [Errors and refusals](ch06-errors.md)
+- [Errors and kept outcomes](ch06-errors.md)
 - [Structs, kinds and matching](ch07-structs-kinds.md)
 - [Lists, maps and text](ch08-collections-text.md)
 - [Ownership and borrowing](ch09-ownership.md)
@@ -17,7 +17,7 @@
 - [Recursion and iterators](ch13-recursion-iterators.md)
 - [Tasks and channels](ch14-tasks-channels.md)
 - [The Form and the emitters](ch15-form-emitters.md)
-- [Host tools: RCEdb, media, redacted replay and chat](ch16-host-tools.md)
+- [Host tools: RCEdb, HTTP, media, redacted replay and chat](ch16-host-tools.md)
 - [Media, calls and end-to-end encryption](ch17-media-calls-e2ee.md)
 - [Behaviour, sameness and dimension](ch18-behaviour-dimension.md)
 

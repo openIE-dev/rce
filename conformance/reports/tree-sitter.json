@@ -329,7 +329,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -337,7 +337,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -345,7 +345,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -353,7 +353,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -361,7 +361,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -369,7 +369,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -377,7 +377,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -385,7 +385,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -393,7 +393,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -401,7 +401,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -409,7 +409,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -417,7 +417,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -425,7 +425,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -433,7 +433,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -441,7 +441,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -449,7 +449,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -457,7 +457,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -465,7 +465,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -473,7 +473,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -481,7 +481,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -489,7 +489,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -497,7 +497,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -505,7 +505,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -513,7 +513,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -521,7 +521,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -529,7 +529,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -537,7 +537,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -545,7 +545,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -553,7 +553,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -561,7 +561,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -569,7 +569,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -577,7 +577,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -585,7 +585,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -593,7 +593,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -601,7 +601,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -609,7 +609,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -617,7 +617,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -625,7 +625,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -633,7 +633,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -641,7 +641,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
@@ -845,275 +845,275 @@
    "diagnostic": null
   },
   {
-   "path": "tests/concurrency/harvested/extern-spawn-reject.rce",
+   "path": "tests/concurrency/harvested/extern-spawn-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SPAWN-1"
   },
   {
-   "path": "tests/concurrency/harvested/spawn-borrow-reject.rce",
+   "path": "tests/concurrency/harvested/spawn-borrow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SPAWN-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-reject.rce",
+   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ATOM-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-reject.rce",
+   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CRDT-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-reject.rce",
+   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CRDT-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-dl-1-pure-reject.rce",
+   "path": "tests/concurrency/harvested/w-dl-1-pure-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-DL-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-reject.rce",
+   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-GRP-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-reject.rce",
+   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-GRP-2"
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-reject.rce",
+   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-GRP-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-reject.rce",
+   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-GRP-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-reject.rce",
+   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LVAR-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-reject.rce",
+   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LVAR-2"
   },
   {
-   "path": "tests/concurrency/harvested/w-nd-1-step-reject.rce",
+   "path": "tests/concurrency/harvested/w-nd-1-step-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ND-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-node-1-two-nodes-reject.rce",
+   "path": "tests/concurrency/harvested/w-node-1-two-nodes-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NODE-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-mut-method-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-1-mut-method-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-read-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-1-write-read-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-write-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-1-write-write-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-emit-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-2-emit-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-2"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-return-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-2-return-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-2"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-assign-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-3-assign-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-minus-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-3-minus-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-read-acc-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-3-read-acc-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-break-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-4-break-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-4"
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-emit-reject.rce",
+   "path": "tests/concurrency/harvested/w-par-4-emit-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAR-4"
   },
   {
-   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-reject.rce",
+   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-RT-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-reject.rce",
+   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SCOPE-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-bad-label-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-1-bad-label-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-2-unfinished-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-2-unfinished-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-2"
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-reject.rce",
+   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SES-3"
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-reject.rce",
+   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SUP-1"
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-reject.rce",
+   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SUP-2"
   },
   {
@@ -1125,11 +1125,11 @@
    "diagnostic": null
   },
   {
-   "path": "tests/concurrency/targeted/lex-merge-bitwise-refused.rce",
+   "path": "tests/concurrency/targeted/lex-merge-bitwise-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CRDT-1"
   },
   {
@@ -1161,7 +1161,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ATOM-2"
   },
   {
@@ -1169,7 +1169,7 @@
    "reference_parses": true,
    "tree_sitter_parses": false,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-BUD-1"
   },
   {
@@ -1177,111 +1177,111 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INTR-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/comptime-check-reject.rce",
+   "path": "tests/effects-capabilities/harvested/comptime-check-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CT-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/const-overflow-reject.rce",
+   "path": "tests/effects-capabilities/harvested/const-overflow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CT-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-emit-reject.rce",
+   "path": "tests/effects-capabilities/harvested/device-emit-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-DEV-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-extern-reject.rce",
+   "path": "tests/effects-capabilities/harvested/device-extern-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-DEV-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-list-reject.rce",
+   "path": "tests/effects-capabilities/harvested/device-list-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-DEV-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-abi-reject.rce",
+   "path": "tests/effects-capabilities/harvested/extern-abi-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-FFI-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-in-pure-reject.rce",
+   "path": "tests/effects-capabilities/harvested/extern-in-pure-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-EFF-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-owned-param-reject.rce",
+   "path": "tests/effects-capabilities/harvested/extern-owned-param-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-FFI-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-text-result-reject.rce",
+   "path": "tests/effects-capabilities/harvested/extern-text-result-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-FFI-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/pure-send-reject.rce",
+   "path": "tests/effects-capabilities/harvested/pure-send-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-EFF-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-len-reject.rce",
+   "path": "tests/effects-capabilities/harvested/simd-len-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SIMD-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-text-reject.rce",
+   "path": "tests/effects-capabilities/harvested/simd-text-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SIMD-1"
   },
   {
-   "path": "tests/effects-capabilities/harvested/state-init-overflow-reject.rce",
+   "path": "tests/effects-capabilities/harvested/state-init-overflow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CT-1"
   },
   {
@@ -1297,7 +1297,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CAP-1"
   },
   {
@@ -1305,7 +1305,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CAP-2"
   },
   {
@@ -1313,7 +1313,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-CTX-1"
   },
   {
@@ -1321,7 +1321,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SEC-1"
   },
   {
@@ -1329,7 +1329,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SEC-1"
   },
   {
@@ -1565,147 +1565,147 @@
    "diagnostic": null
   },
   {
-   "path": "tests/evaluation-fuel/harvested/arena-size-limit-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/arena-size-limit-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/assign-let-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/assign-let-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "any"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-grow-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-grow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-iter-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-iter-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-loop-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-loop-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-par-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-par-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-unbounded-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-unbounded-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-vary-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bad-vary-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bslice-boundary-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/bslice-boundary-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/f32-overflow-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/f32-overflow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/false-check-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/false-check-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/guard-trap-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/guard-trap-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-effect-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/iter-effect-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ITER-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-stored-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/iter-stored-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ITER-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-unbounded-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/iter-unbounded-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-bound-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/loop-bound-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-low-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-low-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-type-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-type-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LOOP-1"
   },
   {
@@ -1757,51 +1757,51 @@
    "diagnostic": null
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-not-structural-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/rec-not-structural-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-same-arg-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/rec-same-arg-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/recursion-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/recursion-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/trap-10000-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/trap-10000-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/u64-underflow-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/u64-underflow-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/unexpected-refusal-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/unexpected-kept-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
@@ -1821,27 +1821,27 @@
    "diagnostic": null
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-example-value-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/wrong-example-value-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-refusal-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/wrong-kept-reason-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-INT-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/yield-outside-reject.rce",
+   "path": "tests/evaluation-fuel/harvested/yield-outside-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-ITER-1"
   },
   {
@@ -2853,7 +2853,7 @@
    "diagnostic": null
   },
   {
-   "path": "tests/forms-log/targeted/s1-guard-trap-refuses.rce",
+   "path": "tests/forms-log/targeted/s1-guard-trap-keeps.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": true,
@@ -3025,7 +3025,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3033,7 +3033,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3041,7 +3041,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3049,7 +3049,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3057,7 +3057,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3065,7 +3065,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3073,7 +3073,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3081,7 +3081,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3089,7 +3089,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3097,7 +3097,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3105,7 +3105,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3113,7 +3113,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3121,7 +3121,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3129,7 +3129,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3137,7 +3137,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3145,7 +3145,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3153,7 +3153,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3161,7 +3161,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3169,7 +3169,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3177,7 +3177,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3185,7 +3185,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3193,7 +3193,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3201,7 +3201,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3209,7 +3209,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
@@ -3217,7 +3217,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3225,7 +3225,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3233,7 +3233,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3241,7 +3241,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3249,7 +3249,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3257,7 +3257,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3265,7 +3265,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3273,7 +3273,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3281,7 +3281,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3289,7 +3289,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3297,7 +3297,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3305,7 +3305,7 @@
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3313,7 +3313,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3321,7 +3321,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3329,7 +3329,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3337,7 +3337,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3345,7 +3345,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3353,7 +3353,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3361,7 +3361,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3369,7 +3369,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3377,7 +3377,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3385,7 +3385,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3393,7 +3393,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3401,7 +3401,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3409,7 +3409,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3417,7 +3417,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3425,7 +3425,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3433,7 +3433,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3441,7 +3441,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3449,7 +3449,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
@@ -3457,7 +3457,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3465,7 +3465,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3473,7 +3473,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3481,7 +3481,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3489,7 +3489,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3497,7 +3497,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3505,7 +3505,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3513,7 +3513,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3521,7 +3521,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3529,7 +3529,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3537,7 +3537,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3545,7 +3545,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3553,7 +3553,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3561,7 +3561,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3569,7 +3569,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3577,7 +3577,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3585,7 +3585,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3593,7 +3593,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3601,7 +3601,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3609,7 +3609,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3617,7 +3617,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3625,7 +3625,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
@@ -3633,255 +3633,255 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-barrier-arg-reject.rce",
+   "path": "tests/lexing-parsing/harvested/01-barrier-arg-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-par-no-branch-reject.rce",
+   "path": "tests/lexing-parsing/harvested/01-par-no-branch-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-reject.rce",
+   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-empty-protocol-reject.rce",
+   "path": "tests/lexing-parsing/harvested/02-empty-protocol-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-double-par-reject.rce",
+   "path": "tests/lexing-parsing/harvested/03-double-par-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-send-no-type-reject.rce",
+   "path": "tests/lexing-parsing/harvested/03-send-no-type-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-double-nondet-reject.rce",
+   "path": "tests/lexing-parsing/harvested/04-double-nondet-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-reject.rce",
+   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-reject.rce",
+   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-reject.rce",
+   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-branch-no-name-reject.rce",
+   "path": "tests/lexing-parsing/harvested/06-branch-no-name-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-node-no-braces-reject.rce",
+   "path": "tests/lexing-parsing/harvested/06-node-no-braces-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-reject.rce",
+   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-reject.rce",
+   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-interrupt-state-reject.rce",
+   "path": "tests/lexing-parsing/harvested/08-interrupt-state-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-two-else-reject.rce",
+   "path": "tests/lexing-parsing/harvested/08-two-else-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-reject.rce",
+   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/assign-in-expr-reject.rce",
+   "path": "tests/lexing-parsing/harvested/assign-in-expr-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/bad-dedent-reject.rce",
+   "path": "tests/lexing-parsing/harvested/bad-dedent-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-2"
   },
   {
-   "path": "tests/lexing-parsing/harvested/chained-compare-reject.rce",
+   "path": "tests/lexing-parsing/harvested/chained-compare-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/class-keyword-reject.rce",
+   "path": "tests/lexing-parsing/harvested/class-keyword-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/emit06-reject.rce",
+   "path": "tests/lexing-parsing/harvested/emit06-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/if-expr-no-else-reject.rce",
+   "path": "tests/lexing-parsing/harvested/if-expr-no-else-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/kind-empty-reject.rce",
+   "path": "tests/lexing-parsing/harvested/kind-empty-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/literal-out-of-range-reject.rce",
+   "path": "tests/lexing-parsing/harvested/literal-out-of-range-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-3"
   },
   {
-   "path": "tests/lexing-parsing/harvested/missing-arrow-example-reject.rce",
+   "path": "tests/lexing-parsing/harvested/missing-arrow-example-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/state-no-fields-reject.rce",
+   "path": "tests/lexing-parsing/harvested/state-no-fields-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/step-no-on-reject.rce",
+   "path": "tests/lexing-parsing/harvested/step-no-on-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/tab-indent-reject.rce",
+   "path": "tests/lexing-parsing/harvested/tab-indent-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LEX-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/try-in-then-reject.rce",
+   "path": "tests/lexing-parsing/harvested/try-in-then-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
-   "path": "tests/lexing-parsing/harvested/unterminated-string-reject.rce",
+   "path": "tests/lexing-parsing/harvested/unterminated-string-change.rce",
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3897,7 +3897,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3905,7 +3905,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3921,7 +3921,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3937,7 +3937,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3961,7 +3961,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
@@ -3969,7 +3969,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -3977,7 +3977,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": false,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SYN-1"
   },
   {
@@ -13249,7 +13249,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-3"
   },
   {
@@ -13289,7 +13289,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-3"
   },
   {
@@ -13297,7 +13297,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-3"
   },
   {
@@ -13401,7 +13401,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13409,7 +13409,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13417,7 +13417,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13425,7 +13425,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13433,7 +13433,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13441,7 +13441,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13449,7 +13449,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13457,7 +13457,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13465,7 +13465,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13473,7 +13473,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13481,7 +13481,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13489,7 +13489,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
@@ -13497,7 +13497,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13505,7 +13505,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13513,7 +13513,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13521,7 +13521,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13529,7 +13529,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13537,7 +13537,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13545,7 +13545,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13553,7 +13553,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13561,7 +13561,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13569,7 +13569,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13577,7 +13577,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13585,7 +13585,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -13593,7 +13593,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13601,7 +13601,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13609,7 +13609,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13617,7 +13617,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13625,7 +13625,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13633,7 +13633,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13641,7 +13641,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13649,7 +13649,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13657,7 +13657,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13665,7 +13665,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13673,7 +13673,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
@@ -13681,383 +13681,383 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
-   "path": "tests/types-checking/harvested/14-select-main-reject.rce",
+   "path": "tests/types-checking/harvested/14-select-main-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/15-actor-main-reject.rce",
+   "path": "tests/types-checking/harvested/15-actor-main-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/34-chan-types-main-reject.rce",
+   "path": "tests/types-checking/harvested/34-chan-types-main-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/47-select-fair-main-reject.rce",
+   "path": "tests/types-checking/harvested/47-select-fair-main-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/arena-escape-reject.rce",
+   "path": "tests/types-checking/harvested/arena-escape-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REG-1"
   },
   {
-   "path": "tests/types-checking/harvested/borrow-escape-reject.rce",
+   "path": "tests/types-checking/harvested/borrow-escape-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-OWN-3"
   },
   {
-   "path": "tests/types-checking/harvested/ed25519-rce-reject.rce",
+   "path": "tests/types-checking/harvested/ed25519-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/f32-literal-reject.rce",
+   "path": "tests/types-checking/harvested/f32-literal-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/f32-mixed-reject.rce",
+   "path": "tests/types-checking/harvested/f32-mixed-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/fail-not-error-reject.rce",
+   "path": "tests/types-checking/harvested/fail-not-error-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/framing-rce-reject.rce",
+   "path": "tests/types-checking/harvested/framing-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/group-rce-reject.rce",
+   "path": "tests/types-checking/harvested/group-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/hpke-rce-reject.rce",
+   "path": "tests/types-checking/harvested/hpke-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/int-mismatch-reject.rce",
+   "path": "tests/types-checking/harvested/int-mismatch-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/iter-yield-type-reject.rce",
+   "path": "tests/types-checking/harvested/iter-yield-type-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-copy-reject.rce",
+   "path": "tests/types-checking/harvested/linear-copy-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-field-reject.rce",
+   "path": "tests/types-checking/harvested/linear-field-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-in-list-reject.rce",
+   "path": "tests/types-checking/harvested/linear-in-list-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-loop-reject.rce",
+   "path": "tests/types-checking/harvested/linear-loop-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-one-branch-reject.rce",
+   "path": "tests/types-checking/harvested/linear-one-branch-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/linear-unconsumed-reject.rce",
+   "path": "tests/types-checking/harvested/linear-unconsumed-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-LIN-1"
   },
   {
-   "path": "tests/types-checking/harvested/missing-return-reject.rce",
+   "path": "tests/types-checking/harvested/missing-return-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/mls-rce-reject.rce",
+   "path": "tests/types-checking/harvested/mls-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/modify-while-iterating-reject.rce",
+   "path": "tests/types-checking/harvested/modify-while-iterating-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-OWN-2"
   },
   {
-   "path": "tests/types-checking/harvested/mut-alias-reject.rce",
+   "path": "tests/types-checking/harvested/mut-alias-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-OWN-2"
   },
   {
-   "path": "tests/types-checking/harvested/non-exhaustive-reject.rce",
+   "path": "tests/types-checking/harvested/non-exhaustive-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-MATCH-1"
   },
   {
-   "path": "tests/types-checking/harvested/orphan-impl-reject.rce",
+   "path": "tests/types-checking/harvested/orphan-impl-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TRAIT-2"
   },
   {
-   "path": "tests/types-checking/harvested/pq-rce-reject.rce",
+   "path": "tests/types-checking/harvested/pq-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/protect-rce-reject.rce",
+   "path": "tests/types-checking/harvested/protect-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/select-after-type-reject.rce",
+   "path": "tests/types-checking/harvested/select-after-type-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/state-no-init-reject.rce",
+   "path": "tests/types-checking/harvested/state-no-init-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STATE-2"
   },
   {
-   "path": "tests/types-checking/harvested/text-index-char-reject.rce",
+   "path": "tests/types-checking/harvested/text-index-char-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/treekem-rce-reject.rce",
+   "path": "tests/types-checking/harvested/treekem-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/u64-mixed-reject.rce",
+   "path": "tests/types-checking/harvested/u64-mixed-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/unchecked-union-reject.rce",
+   "path": "tests/types-checking/harvested/unchecked-union-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/unhandled-event-reject.rce",
+   "path": "tests/types-checking/harvested/unhandled-event-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STEP-2"
   },
   {
-   "path": "tests/types-checking/harvested/unknown-name-reject.rce",
+   "path": "tests/types-checking/harvested/unknown-name-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
-   "path": "tests/types-checking/harvested/unreachable-step-reject.rce",
+   "path": "tests/types-checking/harvested/unreachable-step-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STEP-4"
   },
   {
-   "path": "tests/types-checking/harvested/unsafe-name-reject.rce",
+   "path": "tests/types-checking/harvested/unsafe-name-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-SAFE-1"
   },
   {
-   "path": "tests/types-checking/harvested/use-after-move-reject.rce",
+   "path": "tests/types-checking/harvested/use-after-move-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-OWN-1"
   },
   {
-   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-reject.rce",
+   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STEP-2"
   },
   {
-   "path": "tests/types-checking/harvested/w-name-2-dup-branch-reject.rce",
+   "path": "tests/types-checking/harvested/w-name-2-dup-branch-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-2"
   },
   {
-   "path": "tests/types-checking/harvested/w-par-3-bad-slot-reject.rce",
+   "path": "tests/types-checking/harvested/w-par-3-bad-slot-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-budget-text-reject.rce",
+   "path": "tests/types-checking/harvested/w-ty-1-budget-text-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-priority-text-reject.rce",
+   "path": "tests/types-checking/harvested/w-ty-1-priority-text-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-session-payload-reject.rce",
+   "path": "tests/types-checking/harvested/w-ty-1-session-payload-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-1"
   },
   {
-   "path": "tests/types-checking/harvested/welcome-rce-reject.rce",
+   "path": "tests/types-checking/harvested/welcome-rce-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-NAME-1"
   },
   {
@@ -14065,7 +14065,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-2"
   },
   {
@@ -14081,7 +14081,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-MATCH-2"
   },
   {
@@ -14089,7 +14089,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-VIS-1"
   },
   {
@@ -14097,7 +14097,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-MOD-2"
   },
   {
@@ -14105,7 +14105,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-MOD-3"
   },
   {
@@ -14113,7 +14113,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-PAT-1"
   },
   {
@@ -14121,7 +14121,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-REF-1"
   },
   {
@@ -14129,7 +14129,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "any"
   },
   {
@@ -14137,7 +14137,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STATE-3"
   },
   {
@@ -14145,7 +14145,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STEP-1"
   },
   {
@@ -14153,7 +14153,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-STEP-3"
   },
   {
@@ -14161,7 +14161,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TRAIT-1"
   },
   {
@@ -14169,7 +14169,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TRAIT-3"
   },
   {
@@ -14177,7 +14177,7 @@
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "W-TY-2"
   },
   {
@@ -14185,7 +14185,7 @@
    "reference_parses": false,
    "tree_sitter_parses": false,
    "law_parses": null,
-   "expect": "reject",
+   "expect": "change",
    "diagnostic": "any"
   }
  ]

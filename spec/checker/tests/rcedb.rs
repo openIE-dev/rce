@@ -20,7 +20,7 @@ fn rows_edges_queries_as_of_and_reopen() {
     db.insert("msgs", "0001", r#"{"from":"alice","text":"it's on"}"#).unwrap();
     db.link("alice", "follows", "bob").unwrap();
     db.link("alice", "blocks", "carol").unwrap();
-    assert!(db.delete("users", "nobody").is_err(), "refused write");
+    assert!(db.delete("users", "nobody").is_err(), "a write that does not apply");
     let users = db.scan("users", "").unwrap();
     assert_eq!(users.iter().map(|r| r.1.as_str()).collect::<Vec<_>>(), ["alice", "bob"], "canonical order");
     assert_eq!(db.scan("users", "b").unwrap().len(), 1);
@@ -78,7 +78,7 @@ fn emitted_sql_loads_into_sqlite() {
 }
 
 #[test]
-fn typed_schema_refuses_bad_rows_and_index_matches_scan() {
+fn typed_schema_keeps_the_state_on_bad_rows_and_index_matches_scan() {
     let p = tmp("typed");
     let mut db = Db::open(&p).unwrap();
     db.insert("free", "x", "anything").unwrap();
@@ -88,7 +88,7 @@ fn typed_schema_refuses_bad_rows_and_index_matches_scan() {
     db.schema("u", "name:text,age:i64,admin:bool").unwrap();
     for bad in ["Ann\t41", "Ann\tforty\tfalse", "Ann\t041\tfalse", "Ann\t1\tyes", "Ann\t9223372036854775808\tfalse"] {
         let n = db.seq();
-        assert!(db.insert("u", "a", bad).is_err(), "{bad:?} refused");
+        assert!(db.insert("u", "a", bad).is_err(), "{bad:?} not written");
         assert!(db.scan("u", "").unwrap().is_empty());
         let _ = n;
     }
@@ -130,7 +130,7 @@ fn rce_db_cli() {
     assert_eq!(run(&["insert", "u", "b", "Bob\t7"]).0, 0);
     let (c, o) = run(&["insert", "u", "c", "Cy\tseven"]);
     assert_eq!(c, 1, "{o}");
-    assert!(o.starts_with("REFUSED"), "{o}");
+    assert!(o.starts_with("KEPT"), "{o}");
     assert_eq!(run(&["index", "u", "age"]).0, 0);
     assert_eq!(run(&["lookup", "u", "age", "7"]).1, "b\tBob\t7\n");
     assert_eq!(run(&["scan", "u"]).1, "b\tBob\t7\n");

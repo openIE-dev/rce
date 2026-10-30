@@ -30,5 +30,11 @@ step Pts on Add(p: p, tags: t, meta: _mm, note: _no, s: _sh)
 # expect: trace
 # events: Add(p: Point(x: 1.5, y: -2.0), tags: ["a", "b"], meta: {"k": 3}, note: none, s: Circle(r: 2.0))
 # trace_head: 5e4b08302e201cac16f3b692c1af449b0ae6f8bae2ade96b0629bf6c3dcc5418
+# trace_lines:
+#   - 0 (initial) Pts { n = 0, sx = 0, last = "" }
+#   - d applied 5e4b08302e201cac16f3b692c1af449b0ae6f8bae2ade96b0629bf6c3dcc5418 {"event":{"payload":[[1.5,-2.0],["a","b"],[["k",3]],null,[0,[2.0]]],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"f568909777ab174b58730efb03d6721c97c61f48fbc93192546e90a61a22a853"}
+#   - 1 Add(p: Point(x: 1.5, y: -2), tags: ["a", "b"], meta: {"k": 3}, note: none, s: Circle(r: 2)) Pts { n = 1, sx = 1.5, last = "a" }
+#   - trace 5e4b08302e201cac16f3b692c1af449b0ae6f8bae2ade96b0629bf6c3dcc5418
+#   - fuel 37
 # provenance: harvested checker/tests/host/records.rce example@4
 #---

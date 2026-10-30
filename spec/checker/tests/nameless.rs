@@ -56,7 +56,7 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
         assert_eq!(c1, 0, "{file}: {text}");
         let t = tmp(p.file_name().unwrap().to_str().unwrap(), &text);
         let (c2, why) = rce(&["check", &t]);
-        assert_eq!(c2, 0, "{file} nameless refused: {why}\n{text}");
+        assert_eq!(c2, 0, "{file} nameless requires change: {why}\n{text}");
         let (_, a) = rce(&["trace", "--json", &file]);
         let (_, b) = rce(&["trace", "--json", &t]);
         // Same shape of every trace: step count and outcome per step, and the
@@ -72,8 +72,8 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
         let ob = outcomes(&b);
         assert_eq!(oa.len(), ob.len(), "{file}: step count");
         for (x, y) in oa.iter().zip(&ob) {
-            // an outcome names the error on refusal; compare up to the renamed error
-            assert_eq!(x.starts_with("\"outcome\":\"refused"), y.starts_with("\"outcome\":\"refused"), "{file}: {x} vs {y}");
+            // the outcome of a kept step names the error; compare up to the renamed error
+            assert_eq!(x.starts_with("\"outcome\":\"kept"), y.starts_with("\"outcome\":\"kept"), "{file}: {x} vs {y}");
         }
         checked += 1;
     }
@@ -110,6 +110,39 @@ fn state_hashes_are_name_free() {
     assert!(!entry_hashes(&a).is_empty());
 }
 
+/// HC-21 under T7: the host's entries for kept steps name no declaration (the
+/// cause, not the error's name, is in D), so a renamed program run on the
+/// host gives a D with the same hashes, kept steps included.
+#[test]
+fn kept_entries_are_name_free() {
+    use rce_spec_check::ast::Item;
+    use rce_spec_check::host::{Host, MemStore};
+    let src = "state Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
+    let f = tmp("kept_names.rce", src);
+    let (_, projected) = rce(&["fmt", "--nameless", &f]);
+    assert!(!projected.contains("Underflow"), "{projected}");
+    let run = |text: &str| -> (Vec<String>, String) {
+        let m = rce_spec_check::parse::parse(text).unwrap();
+        let names: Vec<String> = m.items.iter().filter_map(|i| if let Item::Event { name, .. } = i { Some(name.clone()) } else { None }).collect();
+        let (inc, dec) = (names[0].clone(), names[1].clone());
+        let mut st = MemStore::default();
+        let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+        let mut causes = vec![];
+        for ev in [&dec, &inc, &dec, &dec] {
+            causes.extend(h.admit_event(ev, vec![]).unwrap().iter().filter_map(|a| a.cause));
+        }
+        assert_eq!(causes, vec!["fail", "fail"]);
+        drop(h);
+        let hashes = st.lines.iter().map(|l| rce_spec_check::host::Entry::parse_line(l).unwrap().hash).collect();
+        (hashes, st.lines.join("\n"))
+    };
+    let (a, da) = run(src);
+    let (b, db) = run(&projected);
+    assert!(da.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.StepKept"}"#), "{da}");
+    assert!(db.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.StepKept"}"#), "{db}");
+    assert_eq!(a, b, "D hashes do not depend on names, entries of kept steps included");
+}
+
 /// 6.6: the concept record is printed by `rce emit form` under `names`,
 /// keyed by declaration index, and is the only place the source names
 /// survive in a nameless projection's Form.
@@ -134,7 +167,7 @@ fn emit_form_carries_the_concept_record() {
 #[test]
 fn a_field_named_like_a_builtin_method_does_not_rename_the_method() {
     // T7 sweep finding (apps/chat.rce, 24 October 2026): a state field `keys`
-    // renamed the Map method `.keys()` and the projection was refused
+    // renamed the Map method `.keys()` and the projection required change
     let src = "intent \"keys\"\n    example Put(k: \"a\") -> n == 1\n\nstate S\n    keys: Map[text, u64] = {}\n    n: usize = 0\n\nevent Put(k: text)\n\nstep S on Put(k)\n    keys[k] = 1\n    n = keys.keys().len()\n";
     let f = tmp("keys_src", src);
     let (st, out) = rce(&["check", &f]);

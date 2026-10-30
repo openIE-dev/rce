@@ -1,0 +1,9 @@
+fn f(a: bool) -> i64 = if a then 1
+#--- rce-test
+# id: lexing-parsing/harvested/if-expr-no-else-change
+# area: lexing-parsing
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: change
+# diagnostic: W-SYN-1
+# provenance: harvested examples/change/syntax/if_expr_no_else.rce
+#---

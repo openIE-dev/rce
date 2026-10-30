@@ -546,7 +546,7 @@ impl<'a> G<'a> {
         match self.lang {
             Lang::Rust => {
                 let mut o = format!("fn sup_tree() -> Vec<&'static str> {{ vec![{}] }}\n", qs(&tree));
-                o += "#[allow(unreachable_patterns)]\nfn event_fields(n: &str) -> Option<Vec<(&'static str, &'static str)>> {\n  match n {\n";
+                o += "#[allow(unreachable_patterns)]\npub fn event_fields(n: &str) -> Option<Vec<(&'static str, &'static str)>> {\n  match n {\n";
                 for (n, fs) in &evs {
                     let f: Vec<String> = fs.iter().map(|(a, b)| format!("({}, {})", q(a), q(b))).collect();
                     o += &format!("    {} => Some(vec![{}]),\n", q(n), f.join(", "));

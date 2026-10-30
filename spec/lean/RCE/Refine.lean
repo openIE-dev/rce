@@ -5,11 +5,11 @@
     classes of text, and/or/not), so `holds` is a total Bool function.
     A refined value is checked at the same boundaries as an integer range
     (6.3 `fit`): event admission, state write-back (6.4 step 3), typed
-    bindings. A failed check refuses the event with the state unchanged.
+    bindings. When a check fails, the step keeps the state.
     Theorems: `holds_total` (the check decides), `fit_sound` (a value that
     passes the boundary satisfies p), `refine_preserved` (every state
     reachable by the checked δ from an initial state satisfying the field
-    predicates satisfies them), `refine_refused_unchanged`. -/
+    predicates satisfies them), `refine_kept_unchanged`. -/
 namespace RCE.Refine
 
 inductive Cmp | lt | le | gt | ge | eq | ne
@@ -78,9 +78,9 @@ def Inv (ps : List Pred) (s : List Obs) : Prop :=
 instance (ps : List Pred) (s : List Obs) : Decidable (Inv ps s) := by
   unfold Inv; infer_instance
 
-/-- δ checked at write-back (6.4 step 3): the raw step `d` may refuse
-    (`none`); a result whose fields fail their predicates is refused too;
-    a refused event leaves the state unchanged (T8). -/
+/-- δ checked at write-back (6.4 step 3): the raw step `d` may not apply
+    (`none`), and neither does a result whose fields fail their predicates;
+    in both cases the state is kept (T8). -/
 def checked {E : Type} (ps : List Pred) (d : List Obs → E → Option (List Obs))
     (s : List Obs) (e : E) : List Obs :=
   match d s e with
@@ -105,13 +105,13 @@ theorem refine_preserved {E : Type} (ps : List Pred) (d : List Obs → E → Opt
   | nil => exact h
   | cons e es ih => exact ih _ (refine_step ps d s0 e h)
 
-theorem refine_refused_unchanged {E : Type} (ps : List Pred)
+theorem refine_kept_unchanged {E : Type} (ps : List Pred)
     (d : List Obs → E → Option (List Obs)) (s s' : List Obs) (e : E)
     (hd : d s e = some s') (hn : ¬ Inv ps s') : checked ps d s e = s := by
   unfold checked; rw [hd]; simp [hn]
 
 /-- Admission (6.1, 6.4): an event whose payload fields fail their
-    predicates is refused before any step runs. -/
+    predicates keeps the state, and no step runs. -/
 def admit (ps : List Pred) (payload : List Obs) : Bool := decide (Inv ps payload)
 
 theorem admit_sound (ps : List Pred) (payload : List Obs) (h : admit ps payload = true) :

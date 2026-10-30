@@ -282,8 +282,8 @@ pub fn proposals(ps: &[Proposal], q: &Queue, w: f32, h: f32) -> ViewNode {
                 12.0,
                 OK,
             ),
-            ProposalStatus::Refused { diagnostics, .. } => text(
-                format!("refused by rce check: {}", diagnostics.join("; ")),
+            ProposalStatus::RequiresChange { diagnostics, .. } => text(
+                format!("requires change (rce check): {}", diagnostics.join("; ")),
                 12.0,
                 ERR,
             ),

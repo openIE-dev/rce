@@ -18,7 +18,7 @@ fn main()
 # id: concurrency/targeted/w-atom-2-two-nodes
 # area: concurrency
 # clauses: [CH09-M-82e65964, T30, W-ATOM-2]
-# expect: reject
+# expect: change
 # diagnostic: W-ATOM-2
 # provenance: targeted.py: expected result read off the clause
 #---

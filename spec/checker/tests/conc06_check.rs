@@ -1,8 +1,8 @@
 //! rce-check conformance for draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.8):
 //! every program in spec/conc06/accept/ is accepted by the reference
-//! checker; every program in spec/conc06/ill_typed/ is refused and the
-//! refusal names the rule in its `# expect: RULE` line (after the version line);
-//! every program in spec/conc06/reject/ is refused by the Rust parser;
+//! checker; every program in spec/conc06/ill_typed/ requires change and the
+//! report names the rule in its `# expect: RULE` line (after the version line);
+//! every program in spec/conc06/change/ requires change in the Rust parser;
 //! and `08_run_main.rce` runs with the meaning of C.4.2 and C.5.2.
 use rce_spec_check::{check_program, cli};
 use std::path::{Path, PathBuf};
@@ -31,7 +31,7 @@ fn accept_programs_check() {
 }
 
 #[test]
-fn ill_typed_programs_refused_by_rule() {
+fn ill_typed_programs_require_change_by_rule() {
     let fs = files(&dir("ill_typed"));
     assert!(fs.len() >= 16);
     for (n, s) in fs {
@@ -45,8 +45,8 @@ fn ill_typed_programs_refused_by_rule() {
 }
 
 #[test]
-fn syntax_rejects_refused_by_parser() {
-    for (n, s) in files(&dir("reject")) {
+fn syntax_fixtures_require_change_by_parser() {
+    for (n, s) in files(&dir("change")) {
         assert!(rce_spec_check::parse::parse(&s).is_err(), "{n} parsed");
     }
 }
@@ -55,7 +55,7 @@ fn syntax_rejects_refused_by_parser() {
 fn par_program_runs_sequential_meaning() {
     let src = std::fs::read_to_string(dir("accept").join("08_run_main.rce")).unwrap();
     let r = cli::run(&src, None).expect("admitted");
-    assert!(!r.refused, "{:?}", r.lines);
+    assert!(!r.kept, "{:?}", r.lines);
     let out = r.lines.join("\n");
     println!("{out}");
     assert!(out.contains("emit 42"), "{out}");

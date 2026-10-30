@@ -69,5 +69,14 @@ step Fs on FileListDone(req: _r, status: s, data: d, err: _e)
 # expect: trace
 # events: Save(path: "a.txt", body: "x"), FileWriteDone(req: 1, status: "delivered", data: none, err: "")
 # trace_head: d3cd749b23fb2751bdb2db0d8ed151c13605f0e3b435beca2a7a928cf63b17c2
+# trace_lines:
+#   - 0 (initial) Fs { next = 0, written = 0, content = "", names = [], errors = 0, last_err = "" }
+#   - d applied 4168d0b06d40633d98c5e8c45edf989f2039fa48282591815e6ac347db93a62b {"event":{"payload":["a.txt","x"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"68f6108a596f3b989042314298fbb3703965f83970b39db11ac3b12e8400a55e"}
+#   - 1 Save(path: "a.txt", body: "x") Fs { next = 1, written = 0, content = "", names = [], errors = 0, last_err = "" }
+#   - "  emit FileWrite(req: 1, path: \"a.txt\", data: \"x\")"
+#   - d applied d3cd749b23fb2751bdb2db0d8ed151c13605f0e3b435beca2a7a928cf63b17c2 {"event":{"payload":[1,"delivered",null,""],"type":3},"prev_hash":"4168d0b06d40633d98c5e8c45edf989f2039fa48282591815e6ac347db93a62b","seq":1,"state_hash":"6daf0b3264dca77570e5c0c3a931e979825d1b7d8b1eefc3db5c1278c81fb135"}
+#   - 2 FileWriteDone(req: 1, status: "delivered", data: none, err: "") Fs { next = 1, written = 1, content = "", names = [], errors = 0, last_err = "" }
+#   - trace d3cd749b23fb2751bdb2db0d8ed151c13605f0e3b435beca2a7a928cf63b17c2
+#   - fuel 29
 # provenance: harvested checker/tests/host/files.rce example@4
 #---

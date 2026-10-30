@@ -7,7 +7,7 @@ step S on E -> n + 1
 # id: types-checking/targeted/w-step-1-undeclared-region
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-STEP-1]
-# expect: reject
+# expect: change
 # diagnostic: W-STEP-1
 # provenance: targeted.py: expected result read off the clause
 #---

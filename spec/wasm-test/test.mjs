@@ -20,7 +20,7 @@ await init({ module_or_path: readFileSync(join(spec, "checker-wasm/pkg/rce_spec_
 let fails = 0, runs = 0;
 const expect = (what, f, ok, want) => {
   runs++;
-  if (ok !== want) { fails++; console.log(`FAIL ${what}: ${f.startsWith(spec) ? f.slice(spec.length + 1) : f} (got ${ok ? "accept" : "refuse"})`); }
+  if (ok !== want) { fails++; console.log(`FAIL ${what}: ${f.startsWith(spec) ? f.slice(spec.length + 1) : f} (got ${ok ? "accept" : "requires change"})`); }
 };
 const parses = (src) => !parser.parse(src).rootNode.hasError;
 const checks = (src) => JSON.parse(check(src)).ok;
@@ -31,15 +31,15 @@ const valid = files("examples");
 // the multi-module package of example 26 parses file by file; it checks as a program (rce check DIR)
 for (const f of files("examples/26_use_module/shop")) expect("ts accept", f, parses(read(f)), true);
 for (const f of valid) { expect("ts accept", f, parses(read(f)), true); expect("check accept", f, checks(read(f)), true); }
-for (const f of files("examples/reject")) { expect("ts refuse", f, parses(read(f)), false); expect("check refuse", f, checks(read(f)), false); }
-for (const d of ["examples/ill_typed", "examples/inadmissible"])
-  for (const f of files(d)) { expect("ts accept", f, parses(read(f)), true); expect("check refuse", f, checks(read(f)), false); }
+for (const f of files("examples/change/syntax")) { expect("ts requires change", f, parses(read(f)), false); expect("check requires change", f, checks(read(f)), false); }
+for (const d of ["examples/change/types", "examples/change/admission"])
+  for (const f of files(d)) { expect("ts accept", f, parses(read(f)), true); expect("check requires change", f, checks(read(f)), false); }
 
 // The concurrency corpora (Appendix C): one language, so they are checked as written (spec 2.7).
 for (const d of ["conc06", "conc06b"]) {
   for (const f of files(`${d}/accept`)) { expect("ts accept", f, parses(read(f)), true); expect("check accept", f, checks(read(f)), true); }
-  for (const f of files(`${d}/reject`)) expect("check refuse", f, stage(read(f)) !== "ok", true);
-  for (const f of files(`${d}/ill_typed`)) expect("check refuse", f, checks(read(f)), false);
+  for (const f of files(`${d}/change`)) expect("check requires change", f, stage(read(f)) !== "ok", true);
+  for (const f of files(`${d}/ill_typed`)) expect("check requires change", f, checks(read(f)), false);
 }
 
 // One language (2.7): the Appendix C words are reserved in every module, and a
@@ -52,7 +52,7 @@ for (const label of ["0.5", "0.6", "0.7", "9.9"]) expect("one language", `label 
 
 // Batteries included (4.1): the standard library resolves by `use` in the browser checker too.
 expect("stdlib", "use enc", checks("module demo\nuse enc\n\nfn main()\n    let b = [104, 105]\n    emit enc.b64_encode(&b, false, true)\n"), true);
-expect("stdlib", "use of an unknown module is refused", checks("module demo\nuse nothere\n\nfn main()\n    emit 1\n"), false);
+expect("stdlib", "use of an unknown module requires change", checks("module demo\nuse nothere\n\nfn main()\n    emit 1\n"), false);
 // `use` is the one way to bring a module in (4.1): crypto's items are reached by its name,
 // and a `#!lib crypto` line is a comment that places nothing in front of the module.
 expect("stdlib", "use crypto", checks("module demo2\nuse crypto\n\nfn main()\n    emit crypto.sha256([97]).len()\n"), true);

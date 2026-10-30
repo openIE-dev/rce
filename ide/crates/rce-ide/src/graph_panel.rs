@@ -693,8 +693,8 @@ pub fn review_badges(receipts: &[ide_receipt::Receipt], files: &crate::graph_edi
     out
 }
 
-/// Apply a graph gesture to the workspace: refused while the editor has
-/// unsaved changes, and refused (nothing written) unless `rce check`
+/// Apply a graph gesture to the workspace: not performed while the editor
+/// has unsaved changes, and not performed (nothing written) unless `rce check`
 /// admits the whole program afterwards. Returns the files written.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn apply_gesture(ide: &mut crate::vm::Ide, op: &crate::graph_edit::GraphOp) -> Result<Vec<String>, String> {
@@ -850,13 +850,13 @@ mod tests {
         assert_eq!(drop_op(&g, idx(&g, "top"), idx(&g, "leaf")), None);
         let after = crate::graph_edit::apply(&files(), &op).unwrap();
         assert!(after["a.rce"].contains("fn other()"));
-        // Moving `top` away from the `leaf` it calls is refused by rce check.
+        // Moving `top` away from the `leaf` it calls requires change under rce check.
         let bad = drop_op(&g, idx(&g, "top"), idx(&g, "other")).unwrap();
         assert!(crate::graph_edit::apply(&files(), &bad).is_err());
         let mut v = v;
         v.style.selected = Some(idx(&g, "leaf"));
         assert_eq!(v.delete_selected(), Some(GraphOp::Delete { name: "leaf".into() }));
-        // Deleting a called function is refused by the checker.
+        // Deleting a called function requires change under the checker.
         assert!(crate::graph_edit::apply(&files(), &v.delete_selected().unwrap()).is_err());
     }
 

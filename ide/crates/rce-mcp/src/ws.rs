@@ -1,7 +1,7 @@
 //! Workspace path policy.
 //!
 //! Every path an agent names is relative to the workspace root. Absolute
-//! paths, `..`, and any symlink on the way are refused, and the resolved
+//! paths, `..`, and any symlink on the way are not followed, and the resolved
 //! parent must canonicalize inside the root. Writes go only to `.rce` source
 //! files outside dot-directories, so an agent cannot plant a git hook, an
 //! editor or agent config, a build script or a package manifest that a
@@ -9,7 +9,7 @@
 use serde_json::{Value, json};
 use std::path::{Component, Path, PathBuf};
 
-/// File names refused for writes even if the extension rule changes later.
+/// File names never written even if the extension rule changes later.
 pub const DENY_NAMES: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
@@ -69,13 +69,13 @@ impl Workspace {
             let name_s = name.to_string_lossy();
             if write && name_s.starts_with('.') {
                 return Err(format!(
-                    "`{rel}`: writes into dot paths (hooks, configs) are refused"
+                    "`{rel}`: writes into dot paths (hooks, configs) are not performed"
                 ));
             }
             cur.push(name);
             match std::fs::symlink_metadata(&cur) {
                 Ok(m) if m.file_type().is_symlink() => {
-                    return Err(format!("`{rel}`: symlink in path refused"));
+                    return Err(format!("`{rel}`: symlink in path: not performed"));
                 }
                 Ok(_) => {}
                 Err(_) if write && i + 1 == comps.len() => {}
@@ -103,7 +103,7 @@ impl Workspace {
                 .unwrap_or_default();
             if DENY_NAMES.contains(&fname.as_str()) {
                 return Err(format!(
-                    "`{rel}`: writes to build, hook or config files are refused"
+                    "`{rel}`: writes to build, hook or config files are not performed"
                 ));
             }
             if cur.extension().and_then(|e| e.to_str()) != Some("rce") {

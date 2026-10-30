@@ -9,6 +9,9 @@ use rce_spec_check::emit::{Lang, emit};
 use rce_spec_check::interp::FUEL_LIMIT;
 use rce_spec_check::parse::parse;
 use std::process::Command;
+
+#[path = "common/targets.rs"]
+mod targets;
 use std::sync::atomic::Ordering::SeqCst;
 
 fn reference(src: &str, fuel: u64) -> Vec<String> {
@@ -19,13 +22,27 @@ fn reference(src: &str, fuel: u64) -> Vec<String> {
     v.push(match r.outcome {
         Outcome::Done => "outcome Done".into(),
         Outcome::Deadlock => "outcome Deadlock".into(),
-        Outcome::Refused(e) => format!("outcome Refused: {e}"),
+        Outcome::Stopped(e) => format!("outcome Stopped: {e}"),
     });
     v
 }
 
 fn tool(var: &str, dflt: &str) -> String {
     std::env::var(var).ok().filter(|v| !v.is_empty()).unwrap_or(dflt.into())
+}
+
+fn python() -> String {
+    tool("RCE_PYTHON_RUN", &tool("RCE_PYTHON", "python3"))
+}
+
+/// The program that runs target `l` here (Scala's fuel run is tests/fuel.rs).
+fn oracle(l: Lang) -> String {
+    match l {
+        Lang::Rust => tool("RCE_RUSTC", "rustc"),
+        Lang::Python => python(),
+        Lang::Js => tool("RCE_NODE", "node"),
+        Lang::Scala => tool("RCE_SCALA", "scala-cli"),
+    }
 }
 
 /// (interpreter or "" for a binary, path)
@@ -38,11 +55,11 @@ fn build(lang: Lang, stem: &str, src: &str) -> Option<(String, std::path::PathBu
     match lang {
         Lang::Rust => {
             let exe = d.join(stem);
-            let c = Command::new(tool("RCE_RUSTC", "rustc")).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output().ok()?;
+            let c = Command::new(tool("RCE_RUSTC", "rustc")).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output().unwrap_or_else(|e| panic!("{stem}: rustc does not run: {e}"));
             assert!(c.status.success(), "{stem}: {}", String::from_utf8_lossy(&c.stderr));
             Some((String::new(), exe))
         }
-        Lang::Python => Some((tool("RCE_PYTHON_RUN", &tool("RCE_PYTHON", "python3")), f)),
+        Lang::Python => Some((python(), f)),
         Lang::Js => Some((tool("RCE_NODE", "node"), f)),
         // the Scala fuel run is tests/fuel.rs (one jar per program)
         Lang::Scala => None,
@@ -96,10 +113,7 @@ fn programs() -> Vec<(String, String)> {
 
 #[test]
 fn concurrent_fuel_matches_the_reference() {
-    let langs: Vec<Lang> = [Lang::Rust, Lang::Python, Lang::Js]
-        .into_iter()
-        .filter(|l| std::env::var("RCE_FUEL_LANGS").map_or(true, |v| v.contains(l.ext())))
-        .collect();
+    let langs = targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle);
     let mut bad = vec![];
     let mut checked = 0;
     for (stem, src) in programs() {
@@ -110,7 +124,7 @@ fn concurrent_fuel_matches_the_reference() {
         // every program ends Done except `lvartrap`, which ends with a trap
         // late in a branch, so the fuel trap must win when the branches'
         // summed fuel runs out before that point (source order, C.6.3)
-        let want = if stem == "lvartrap" { "outcome Refused: trap: division by zero" } else { "outcome Done" };
+        let want = if stem == "lvartrap" { "outcome Stopped: trap: division by zero" } else { "outcome Done" };
         assert_eq!(full.last().unwrap(), want, "{stem}: {full:?}");
         // the smallest limit from which the run equals the unlimited run
         let mut top = 1u64;
@@ -124,10 +138,7 @@ fn concurrent_fuel_matches_the_reference() {
         limits.dedup();
         eprintln!("{stem}: limits 0..={top}, {} change points", limits.len());
         for lang in &langs {
-            let Some(exe) = build(*lang, &stem, &src) else {
-                eprintln!("SKIPPED {lang:?}: compiler not found (not a pass)");
-                continue;
-            };
+            let exe = build(*lang, &stem, &src).expect("rust, python and js build here");
             for &n in &limits {
                 let got = run(&exe, n);
                 checked += 1;

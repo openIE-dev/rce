@@ -1,0 +1,11 @@
+fn f() -> i64
+        let x = 1
+    return x
+#--- rce-test
+# id: lexing-parsing/harvested/bad-dedent-change
+# area: lexing-parsing
+# clauses: [CH02-M-84a53b7d, CH09-M-82e65964, T10, W-LEX-2]
+# expect: change
+# diagnostic: W-LEX-2
+# provenance: harvested examples/change/syntax/bad_dedent.rce
+#---

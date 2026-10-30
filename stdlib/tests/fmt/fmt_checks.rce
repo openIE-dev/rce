@@ -1,8 +1,8 @@
 # Checks for lib/fmt/fmt.rce, part 1 (parts 2-4: the regex grid).
 # CPython is the oracle (scripts/gen/fmt_gen.py, seed 20261015): integer
 # text in radixes 2..36 at the i64 extremes and random values, strict
-# parse refusals, ',' grouping and '0N' padding as in str.format,
-# templates against str.format, regex syntax refusals, and inputs that
+# parse errors, ',' grouping and '0N' padding as in str.format,
+# templates against str.format, regex syntax errors, and inputs that
 # make backtracking regex engines exponential.
 
 fn int_ok(v: i64, b: i64, s: text) -> bool

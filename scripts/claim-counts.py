@@ -40,10 +40,10 @@ def counts():
     ex = spec / "examples"
     c["examples_files"] = len(list(ex.glob("*.rce")))
     c["examples_package_files"] = sum(len(list(d.rglob("*.rce"))) for d in ex.iterdir()
-                                      if d.is_dir() and d.name not in ("reject", "ill_typed", "inadmissible"))
+                                      if d.is_dir() and d.name != "change")
     c["examples_total"] = c["examples_files"] + c["examples_package_files"]
-    for d in ("reject", "ill_typed", "inadmissible"):
-        c["examples_" + d] = len(list((ex / d).glob("*.rce")))
+    for d, sub in (("reject", "syntax"), ("ill_typed", "types"), ("inadmissible", "admission")):
+        c["examples_" + d] = len(list((ex / "change" / sub).glob("*.rce")))
     cli = read("spec/checker/src/cli.rs")
     m = re.search(r'"rust" \| "python" \| "js" \| "scala" =>', cli)
     c["emit_targets"] = re.findall(r'"(\w+)"', m.group(0)) if m else None
@@ -63,8 +63,8 @@ def counts():
     if out:
         g = re.search(r"LALR\(1\) from book/03-syntax.md: (\d+) rules, (\d+) productions, (\d+) states, (\d+) conflicts", out)
         h = re.search(r"section 3 with C\.2: (\d+) rules, (\d+) productions, (\d+) states, (\d+) conflicts", out)
-        a = re.search(r"grammar: accepted (\d+)/(\d+) valid examples, refused (\d+)/(\d+) invalid", out)
-        k = re.search(r"checker: accepted (\d+)/(\d+) examples, refused (\d+)/(\d+) syntax rejects, refused (\d+)/(\d+) ill-typed or inadmissible \((\d+) of them inadmissible", out)
+        a = re.search(r"grammar: accepted (\d+)/(\d+) valid examples, \D*?(\d+)/(\d+)", out)
+        k = re.search(r"checker: accepted (\d+)/(\d+) examples\D*?(\d+)/(\d+)\D*?(\d+)/(\d+)\D*?\((\d+) of them inadmissible", out)
         c["spec_check"] = {
             "all_ok": "ALL OK" in out,
             "grammar05": list(map(int, g.groups())) if g else None,
@@ -97,8 +97,8 @@ def check(c):
         o = re.sub(r"\s+", " ", ov)
         need(f"{sc['grammar067'][0]} rules, {sc['grammar067'][1]} productions, {sc['grammar067'][2]} states" in o, "00-overview: 0.6/0.7 grammar numbers", errs)
         ga, ck = sc["grammar_examples"], sc["checker"]
-        need(f"grammar {ga[0]}/{ga[1]} accepted, {ga[2]}/{ga[3]} refused" in o, "00-overview: grammar accepted/refused", errs)
-        need(f"checker {ck[0]}/{ck[1]} accepted, {ck[2]}/{ck[3]} and {ck[4]}/{ck[5]} refused ({ck[6]} of them inadmissible)" in o, "00-overview: checker line", errs)
+        need(f"grammar {ga[0]}/{ga[1]} accepted, {ga[2]}/{ga[3]} requiring change" in o, "00-overview: grammar accepted/requiring change", errs)
+        need(f"checker {ck[0]}/{ck[1]} accepted, {ck[2]}/{ck[3]} and {ck[4]}/{ck[5]} requiring change ({ck[6]} of them inadmissible)" in o, "00-overview: checker line", errs)
         need(ga[1] == c["examples_total"], "spec-check example count != files counted", errs)
         need(ck[5] == c["examples_ill_typed"] + c["examples_inadmissible"], "ill_typed+inadmissible != 64", errs)
     t = re.sub(r"\s+", " ", tool)

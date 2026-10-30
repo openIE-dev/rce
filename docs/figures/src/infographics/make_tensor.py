@@ -32,7 +32,7 @@ for i,(t,k) in enumerate(ranks):
 ax.text(4.3,6.75,"One canonical value form for numbers and homogeneous data",ha="center",fontsize=11,weight="bold")
 box(8.6,5.0,5.0,1.7,"Records over named axes (where homogeneous)\n{x: f64, y: f64, z: f64}  \u2192  Tensor[f64, [axis: {x, y, z}]]\nheterogeneous records stay records","#dcfce7",9.5)
 # checker
-box(0.4,2.4,4.0,1.5,"Checker: shapes in types\nadd: [m, n] x [m, n] \u2192 [m, n]\nmatmul: [m, k] x [k, n] \u2192 [m, n]\n[m, k] x [j, n], k \u2260 j: refused (shape error)","#fee2e2",9.5)
+box(0.4,2.4,4.0,1.5,"Checker: shapes in types\nadd: [m, n] x [m, n] \u2192 [m, n]\nmatmul: [m, k] x [k, n] \u2192 [m, n]\n[m, k] x [j, n], k \u2260 j: requires change","#fee2e2",9.5)
 box(5.0,2.4,4.0,1.5,"Reductions: fixed order (N-9)\nsum over axis = left fold unless the\nprogram names a fixed tree; thread count\nand fabric never change the bits","#fef3c7",9.5)
 box(9.6,2.4,4.0,1.5,"Placement (HC-12): cost table keyed by\n(pure op, shape, elem)\nCPU, GPU, FPGA chosen by cost;\nresult bits identical on every fabric","#e0f2fe",9.5)
 arr((2.4,4.4),(2.4,3.9)); arr((4.4,3.15),(5.0,3.15)); arr((9.0,3.15),(9.6,3.15))

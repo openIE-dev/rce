@@ -1,9 +1,9 @@
 # A fixed-size ring buffer, the kind used in drivers and logs. Pushing into
-# a full buffer is refused rather than overwriting data.
+# a full buffer keeps the state rather than overwriting data.
 intent "a ring buffer that never loses data silently"
     example Push(v: 1), Push(v: 2), Pop -> head == 1 and count == 1
-    example Pop -> refused: Empty
-    example Push(v: 1), Push(v: 2), Push(v: 3), Push(v: 4), Push(v: 5) -> refused: Full
+    example Pop -> kept: Empty
+    example Push(v: 1), Push(v: 2), Push(v: 3), Push(v: 4), Push(v: 5) -> kept: Full
 
 state Ring
     slots: [i64; 4] = [0; 4]

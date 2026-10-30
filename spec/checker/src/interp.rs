@@ -2,7 +2,8 @@
 //! Evaluates consts, state initializers, `check`s, comptime blocks and the
 //! examples of every intent, following the edge semantics of 6.3: integer
 //! results are checked against their type's range (trap), division by zero
-//! traps, loops trap at their bound, and an event is refused atomically.
+//! traps, loops trap at their bound, and a step whose event does not apply
+//! keeps the whole state (atomically).
 use crate::ast::*;
 use crate::types::{INTS, int_range};
 use std::collections::HashMap;
@@ -153,7 +154,7 @@ impl V {
             V::Int(v, _) => v.to_string(),
             V::F(f) => float_text(*f),
             V::Bool(b) => b.to_string(),
-            V::Text(t) => format!("{t:?}"),
+            V::Text(t) => show_text(t),
             V::Unit => "()".into(),
             V::Tuple(v) => format!(
                 "({})",
@@ -238,6 +239,68 @@ pub fn size_ok(v: V) -> R<V> {
     }
 }
 pub const FUEL: u64 = 50_000_000;
+/// The trap text of fuel exhaustion (6.7, E1).
+pub const TRAP_FUEL: &str = "comptime fuel exhausted";
+
+/// Why δ kept the state on an input (T8), as the host reports it (HC-21): a function
+/// of the state and the input that names no declaration, so it is the same
+/// under the renamings of 10.6 (T7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cause {
+    /// a declared error left the step (`fail`, `try`)
+    Fail,
+    /// any other trap of 6.3 or 6.7
+    Trap,
+    /// fuel ran out (6.7, E1)
+    Fuel,
+    /// N9 SIZE_LIMIT
+    Size,
+    /// N9 VALUE_LIMIT
+    Value,
+    /// the evaluation depth of 6.7
+    Depth,
+}
+
+impl Cause {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Cause::Fail => "fail",
+            Cause::Trap => "trap",
+            Cause::Fuel => "fuel",
+            Cause::Size => "size",
+            Cause::Value => "value",
+            Cause::Depth => "depth",
+        }
+    }
+    pub fn parse(s: &str) -> Option<Cause> {
+        [Cause::Fail, Cause::Trap, Cause::Fuel, Cause::Size, Cause::Value, Cause::Depth].into_iter().find(|c| c.as_str() == s)
+    }
+    /// The cause of a step left by `f`.
+    pub fn of(f: &Flow) -> Cause {
+        match f {
+            Flow::Fail(_) => Cause::Fail,
+            Flow::Trap(t) if t == TRAP_FUEL => Cause::Fuel,
+            Flow::Trap(t) if t == "size limit" => Cause::Size,
+            Flow::Trap(t) if t == "value limit" => Cause::Value,
+            Flow::Trap(t) if t == "evaluation depth" => Cause::Depth,
+            _ => Cause::Trap,
+        }
+    }
+}
+
+/// A kept outcome of δ (T8): its cause and the text the tools print (the
+/// declared error's name, or `trap(..)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeptReason {
+    pub cause: Cause,
+    pub text: String,
+}
+
+impl std::fmt::Display for KeptReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
 /// The fuel each new evaluator starts with (6.7). It is FUEL; the tests of
 /// tests/fuel.rs set it to find the trap step of small programs, and an
 /// emitted program takes the same number from its `--fuel=N` argument (10.5).
@@ -286,6 +349,12 @@ fn int_name(t: &Ty) -> Option<&'static str> {
 }
 
 impl<'a> Interp<'a> {
+    /// Give the next input a fresh fuel budget: each input is one run of δ
+    /// (HC-7a), as `form_json` and the host do before every event.
+    pub fn refuel(&mut self) {
+        self.fuel = fuel_limit();
+    }
+
     pub fn new(m: &'a Module) -> Self {
         let mut it = Interp {
             m,
@@ -435,7 +504,7 @@ impl<'a> Interp<'a> {
     }
     pub(crate) fn tick(&mut self) -> R<()> {
         if self.fuel == 0 {
-            return trap("comptime fuel exhausted");
+            return trap(TRAP_FUEL);
         }
         self.fuel -= 1;
         Ok(())
@@ -516,6 +585,55 @@ pub(crate) fn wide_mul(x: i128, y: i128) -> String {
 pub const WHITE_SPACE: [char; 25] = ['\t', '\n', '\u{0b}', '\u{0c}', '\r', ' ', '\u{85}', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}'];
 pub fn is_ws(c: char) -> bool {
     WHITE_SPACE.contains(&c)
+}
+
+/// 6.3 N7 and one-emitter.md ONE-18: the code points display writes as
+/// `\u{h}`, read from `spec/data/display-escape.json`, so that no display
+/// depends on the Unicode tables of a toolchain. The list is the set that
+/// the Debug form of a str escapes in Rust 1.98.1, whose tables are of
+/// Unicode 17.0.0, enumerated once; `tests/unicode_pin.rs` compares it with
+/// the toolchain, the runtime written in the core reads the same list, and
+/// the emitter writes it into each emitted runtime (`emit::base`).
+pub const DISPLAY_ESCAPE_JSON: &str = include_str!("../../data/display-escape.json");
+
+/// The ranges of [`DISPLAY_ESCAPE_JSON`], ascending and disjoint.
+pub fn display_escaped() -> &'static [(u32, u32)] {
+    static R: std::sync::OnceLock<Vec<(u32, u32)>> = std::sync::OnceLock::new();
+    R.get_or_init(|| {
+        let d: serde_json::Value = serde_json::from_str(DISPLAY_ESCAPE_JSON).expect("display-escape.json is JSON");
+        let cp = |x: &serde_json::Value| u32::from_str_radix(x.as_str().expect("a code point in hexadecimal"), 16).expect("a code point in hexadecimal");
+        d["ranges"].as_array().expect("the ranges").iter().map(|r| (cp(&r[0]), cp(&r[1]))).collect()
+    })
+}
+
+/// Whether display writes code point c as `\u{h}`.
+pub fn display_escapes(c: char) -> bool {
+    let (cp, rs) = (c as u32, display_escaped());
+    let i = rs.partition_point(|(_, hi)| *hi < cp);
+    i < rs.len() && rs[i].0 <= cp
+}
+
+/// Text as display shows it: in double quotes, with U+0000, TAB, LF, CR,
+/// `"` and `\` as `\0 \t \n \r \" \\`, each code point of the display
+/// escape set as `\u{h}` (h in lower-case hexadecimal, no leading zeros),
+/// and every other code point as itself.
+pub fn show_text(t: &str) -> String {
+    let mut o = String::with_capacity(t.len() + 2);
+    o.push('"');
+    for c in t.chars() {
+        match c {
+            '\0' => o.push_str("\\0"),
+            '\t' => o.push_str("\\t"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if display_escapes(c) => o.push_str(&format!("\\u{{{:x}}}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
 }
 
 /// 6.1.1 rule 3: the digits of a float. The shortest round-trip digit count n
@@ -1906,7 +2024,7 @@ impl<'a> Interp<'a> {
             (Text(s), "toint") => s
                 .trim_matches(is_ws)
                 .parse::<i128>()
-                .map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))
+                .map_err(|_| Flow::Trap(format!("not an integer: {}", show_text(&s))))
                 .and_then(|v| chk(v, "i64")),
             (Text(s), "join") => match &a[0] {
                 List(xs) => Ok(Text(
@@ -2343,7 +2461,7 @@ impl<'a> Interp<'a> {
                 }
             }
             Stmt::Check(Expr::Call(f, a, _, _)) if a.len() == 2 && matches!(&**f, Expr::Name(n, _) if n == "@contract") => {
-                // F.6.2: the fixed refusal record of a violated contract clause
+                // F.6.2: the fixed record of a violated contract clause (the step keeps the state)
                 let v = self.eval(&a[1].e)?;
                 if !self.truthy(v)? {
                     let rec = if let Expr::Str(s, _) = &a[0].e { s.clone() } else { String::new() };
@@ -2393,7 +2511,7 @@ impl<'a> Interp<'a> {
         &mut self,
         r: &Region,
         ev: &V,
-    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, String> {
+    ) -> Result<Option<(Vec<(String, V, Ty)>, Vec<V>)>, KeptReason> {
         let m = self.m;
         for it in &m.items {
             let Item::Step {
@@ -2414,21 +2532,25 @@ impl<'a> Interp<'a> {
                 HashMap::new(),
             ];
             self.outputs.clear();
-            let refuse = |f: Flow| match f {
-                Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
-                Flow::Trap(t) => format!("trap({t})"),
-                other => format!("trap({other:?})"),
+            let reason_of = |f: Flow| {
+                let cause = Cause::of(&f);
+                let text = match f {
+                    Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
+                    Flow::Trap(t) => format!("trap({t})"),
+                    other => format!("trap({other:?})"),
+                };
+                KeptReason { cause, text }
             };
             match self.pmatch(pat, ev) {
                 Ok(true) => {}
                 Ok(false) => continue,
-                Err(f) => return Err(refuse(f)),
+                Err(f) => return Err(reason_of(f)),
             }
             if let Some(g) = guard {
                 match self.eval(g).and_then(|v| self.truthy(v)) {
                     Ok(true) => {}
                     Ok(false) => continue,
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 } // S1
             }
             let res = match body {
@@ -2439,14 +2561,14 @@ impl<'a> Interp<'a> {
                 Body::Block(b) => self.exec_block(b),
             };
             if let Err(f) = res {
-                return Err(refuse(f));
+                return Err(reason_of(f));
             }
             let mut out = vec![];
             for (n, _, t) in &r.1 {
                 let v = self.scopes[0][n].clone();
                 match self.fit(v, t) {
                     Ok(v) => out.push((n.clone(), v, t.clone())),
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 }
             }
             return Ok(Some((out, std::mem::take(&mut self.outputs))));
@@ -2454,8 +2576,13 @@ impl<'a> Interp<'a> {
         Ok(None)
     }
 
-    /// δ (6.4): every region on the pre-state; first refusal in declaration order refuses the event atomically.
+    /// δ (6.4): every region on the pre-state; the first region in declaration order that keeps the state keeps it for the whole event (atomically).
     pub fn delta(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), String> {
+        self.delta_r(s, ev).map_err(|r| r.text)
+    }
+
+    /// δ with the cause of a kept outcome (HC-21).
+    pub fn delta_r(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), KeptReason> {
         let mut next = vec![];
         let mut outs = vec![];
         for r in s {
@@ -2597,18 +2724,18 @@ pub fn admit(m: &Module) -> Vec<String> {
                 };
                 match it.delta(&s, &ev) {
                     Ok((s2, _)) => {
-                        if k + 1 == n && x.refused.is_some() {
+                        if k + 1 == n && x.kept.is_some() {
                             bad = Some(format!(
-                                "expected refused: {}, but {evn} was applied",
-                                x.refused.clone().unwrap()
+                                "expected kept: {}, but {evn} was applied",
+                                x.kept.clone().unwrap()
                             ));
                         }
                         s = s2;
                     }
                     Err(r) => {
-                        if k + 1 == n && x.refused.as_deref() == Some(r.as_str()) {
+                        if k + 1 == n && x.kept.as_deref() == Some(r.as_str()) {
                         } else {
-                            bad = Some(format!("event {} ({evn}) refused: {r}", k + 1));
+                            bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
                         }
                         break;
                     }
@@ -3241,7 +3368,7 @@ pub fn form_json(m: &Module) -> String {
                 };
                 let evj = event_json(evn, &ev, m);
                 let evp = event_pos_json(evn, &ev, m);
-                let (outcome, out, refused) = match it.delta(&s, &ev) {
+                let (outcome, out, kept) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
                         let o = outs
@@ -3251,11 +3378,11 @@ pub fn form_json(m: &Module) -> String {
                             .join(",");
                         ("\"applied\"".to_string(), o, false)
                     }
-                    // T8: a refused event leaves the state unchanged.
+                    // T8: a kept step leaves the state unchanged.
                     Err(r) => (
-                        format!("{{\"refused\":{}}}", jstr(&r)),
+                        format!("{{\"kept\":{}}}", jstr(&r)),
                         format!(
-                            "{{\"Refused\":{{\"error\":{},\"payload\":{}}}}}",
+                            "{{\"Kept\":{{\"error\":{},\"payload\":{}}}}}",
                             jstr(&r),
                             form_value(&ev, m).json()
                         ),
@@ -3276,7 +3403,7 @@ pub fn form_json(m: &Module) -> String {
                     "{{\"event\":{evj},\"hash\":\"{h}\",\"hashed\":{{\"event\":{evp},\"state\":{stp}}},\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
                 ));
                 prev = h;
-                if refused {
+                if kept {
                     break;
                 }
             }

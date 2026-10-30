@@ -25,5 +25,12 @@ step Page on Comment(body: b)
 # expect: trace
 # events: Comment(body: "O'Brien")
 # trace_head: ec28f44d2b70c51245677c60f80932eb44b13c855fff1ef9f274d0789eaf31d3
+# trace_lines:
+#   - 0 (initial) Page { html = "<p></p>", query = "", link = "/" }
+#   - d applied ec28f44d2b70c51245677c60f80932eb44b13c855fff1ef9f274d0789eaf31d3 {"event":{"payload":["O'Brien"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"d218749ef90e8ad581edd9a6ad66e250233b32915fc41df9bd8809971a9ca423"}
+#   - 1 Comment(body: "O'Brien") Page { html = "<p>O&#39;Brien</p>", query = "SELECT id FROM users WHERE name = 'O''Brien'", link = "/search?q=O%27Brien" }
+#   - "  emit \"<p>O&#39;Brien</p>\""
+#   - trace ec28f44d2b70c51245677c60f80932eb44b13c855fff1ef9f274d0789eaf31d3
+#   - fuel 33
 # provenance: harvested examples/52_context_text.rce example@6
 #---

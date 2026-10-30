@@ -8,6 +8,9 @@
 use rce_spec_check::{check_program, emit, link, parse::parse};
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn lib(v: &str) -> String {
     format!(
         "# rce-version: {v}\nmodule costs.lib\n\npub fn sorted(n: i64) -> i64\n    var xs: List[i64] = [5, 3, 9, 1, 7, 2, 8, 4]\n    xs.sort()\n    return n\n"
@@ -31,7 +34,7 @@ fn reference_ok(main: &str, libsrc: &str) -> bool {
     match &r[0].1 {
         Ok(()) => true,
         Err(e) => {
-            assert!(e.contains("budget"), "unexpected refusal: {e}");
+            assert!(e.contains("budget"), "requires change for a reason other than the budget: {e}");
             false
         }
     }
@@ -65,7 +68,7 @@ fn run_target(m: &rce_spec_check::ast::Module, target: &str, stem: &str) -> Opti
         "js" => ("mjs", "node"),
         _ => ("rs", "rustc"),
     };
-    if Command::new(tool).arg("--version").output().is_err() {
+    if !targets::covers(target, tool) {
         return None;
     }
     let d = std::env::temp_dir().join(format!("rce-csc-{}", std::process::id()));

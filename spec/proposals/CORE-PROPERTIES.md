@@ -49,31 +49,31 @@ independent of it and of each other, which gives five core properties.
     Incorrect policy (863/269) becomes a declared policy, checked as written. That is the residue of
     the specification, the same as for any verified system.
   - `secret τ` is a label lattice {public ⊑ secret}. Secret values come only from event fields
-    declared `secret`. A secret literal is refused (W-SEC-1: hard-coded credentials). `emit` and
+    declared `secret`. A secret literal requires change (W-SEC-1: hard-coded credentials). `emit` and
     sends need public. `declassify(x, reason)` is a named effect, allowed only in contexts the
     effect table permits, and logged as `Declassify(reason, hash(x))`. Implicit flows: a branch on a
     secret raises the pc label (W-SEC-2). Result: SECRET is **EXCLUDED** (no literal credential, no
     unlabelled exposure). Lean-first: `RCE/Label.lean` theorem `noninterference` (states that agree
     on public inputs give equal public outputs) before the checker change.
-- Version. The rules refuse programs that 0.7 accepts (string concat into emit is still fine,
+- Version. Under the rules, programs that 0.7 accepts can require change (string concat into emit is still fine,
   since emit is plain; but `secret` and `cap` are new keywords and could collide with identifiers).
   New keywords change meaning, so **0.8 with gate** (C.15 rule). In ≤0.7 modules everything stays
   as it is.
 
 ### P2. Declared predicates: refinements decided at entry, carried as facts
 - Derivation. **S**: validation that the type does not record can be skipped. **D**: a
-  predicate that is checked once at admission has one outcome, refused or applied. **M**: the type
+  predicate that is checked once at admission has one outcome: the state is kept or the step applies. **M**: the type
   `{x: u32 | x <= 100}` has one meaning everywhere it appears.
 - Rules. `type Pct = u32 where 0 <= self and self <= 100`. Predicates come from a decidable
   fragment: linear integer (Presburger) comparisons, `len()` bounds, character-class membership,
   and conjunction/disjunction. Event payload fields with refinement types are checked when the event
-  is admitted, and a failure is `Refused(Invalid(field, pred), payload)` with the state unchanged
+  is admitted, and a failure is `Kept(Invalid(field, pred), payload)` with the state unchanged
   (T8 shape), i.e. **DEFINED**. Inside the program, assigning to a refined type needs a fact the
   checker derives from guards and arithmetic in the fragment (interval plus difference-bound
   reasoning, with no SMT in the trusted base). Otherwise it needs the explicit `refine(e)` form,
   which returns `Pct?`. W-REF-1.
 - Results: INPUTV is **DEFINED**. DEPTYPE is **DEFINED** for the decidable fragment: obligations are
-  discharged or refused, never silent. Full dependent types stay out (**S**/**D**: an undecidable
+  discharged, or the program requires change; never silent. Full dependent types stay out (**S**/**D**: an undecidable
   check would make acceptance non-deterministic in time and energy), and that is recorded as an
   exclusion by derivation.
 - Lean-first: `RCE/Refine.lean`, `refine_admit_sound` (every admitted state satisfies the
@@ -88,11 +88,11 @@ independent of it and of each other, which gives five core properties.
   canonical ABI. Arguments are copied into the component's linear memory and results copied out
   (no shared borrow). The instance gets no imports beyond the ones the declaration lists (WASI
   denied by default). A trap or fuel exhaustion in the instance is `Foreign(f, args, Trap(kind))`
-  and is logged. Fuel is metered (**E**). `extern "C"` stays legal in ≤0.7. In 0.8 it is refused
+  and is logged. Fuel is metered (**E**). `extern "C"` stays legal in ≤0.7. In 0.8 it requires change
   unless the module declares `trust extern "C"`, which is a named, auditable exception.
 - Result: FFI is **DEFINED** (deterministic trap, logged) for `extern "wasm"`. The T6 assumption
   becomes a theorem about the canonical ABI copy (`RCE/Foreign.lean`, `foreign_isolated`).
-- Version: refusing a bare `extern "C"` changes acceptance, so **0.8 gate**. `extern "wasm"` is an
+- Version: requiring change for a bare `extern "C"` changes acceptance, so **0.8 gate**. `extern "wasm"` is an
   extension.
 
 ### P4. Environment failure is an event
@@ -103,7 +103,7 @@ independent of it and of each other, which gives five core properties.
   Each send ends as `Delivered`, `TimedOut` or `Unreachable(node)`. The outcome is an input event of
   the sender, logged like a foreign result (T21 shape). A partition is a sequence of such events,
   and replicated state merges only through a declared merge function that must be commutative,
-  associative and idempotent (checked by the existing trait-law machinery or refused). Inbound
+  associative and idempotent (checked by the existing trait-law machinery, or the program requires change). Inbound
   network traffic (servers, HTTP) is events of E, and replies are sends that need the cap.
 - Result: PARTITION is **DEFINED**. Network servers and web services are expressible with no
   ambient I/O. The host adapter maps sockets to events.
@@ -116,7 +116,7 @@ independent of it and of each other, which gives five core properties.
 - Rules. Every emitter (Rust, Python, JS, WASM, and the new PTX emitter for device regions 5.13 and
   C.7 kernels) produces a trace in the 10.9 format. `rce run --target T --validate` compares it
   with the reference trace and logs the first divergence as `TargetMismatch(T, step)`. That outcome
-  is defined: the run is refused and the reference result stands (translation validation). Device
+  is defined: the target's result is not used and the reference result stands (translation validation). Device
   regions lower to PTX only for the fixed-size pure fragment that W-DEV-1 already enforces, and
   float reductions use the fixed T18 tree, so results match bit for bit.
 - Result: GPUREAL and EXTRACT are **DEFINED**. GPU, PTX and ML-lowering domains depend on the PTX

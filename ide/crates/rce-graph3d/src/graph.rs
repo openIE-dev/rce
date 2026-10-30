@@ -102,8 +102,8 @@ pub enum EdgeKind {
     Writes,
     /// A step can raise an error (step -> error).
     Raises,
-    /// The checker refused the file this item lives in (error node -> item).
-    Refuses,
+    /// The file this item lives in requires change (error node -> item).
+    RequiresChange,
     /// Hardware containment (package -> core, core -> cache).
     Contains,
     /// Hardware link (memory bus, PCIe, network), labelled with bandwidth when probed.
@@ -170,9 +170,9 @@ pub struct Node {
     pub file: Option<String>,
     /// 1-based line of the definition.
     pub line: Option<usize>,
-    /// The checker refused this node's file.
+    /// This node's file requires change.
     #[serde(default)]
-    pub refused: bool,
+    pub requires_change: bool,
     /// Rank (PageRank for code), drives the node radius.
     #[serde(default)]
     pub rank: f64,
@@ -293,7 +293,7 @@ pub struct DefIn<'a> {
 }
 
 /// Build the code graph from defs, refs `(from, to, call)` and per-file
-/// checker verdicts (`Some(refusal)` when refused).
+/// checker verdicts (`Some(report)` when the file requires change).
 pub fn from_defs(
     defs: &[DefIn],
     refs: &[(usize, usize, bool)],
@@ -305,7 +305,7 @@ pub fn from_defs(
         ..Default::default()
     };
     for d in defs {
-        let refused = matches!(verdicts.get(d.file), Some(Some(_)));
+        let requires_change = matches!(verdicts.get(d.file), Some(Some(_)));
         let label = match d.name.strip_prefix("step ") {
             Some(s) => format!("step {}", s.split('@').next().unwrap_or(s)),
             None => d.name.to_string(),
@@ -316,7 +316,7 @@ pub fn from_defs(
             kind: Kind::of_def(d.kind),
             file: Some(d.file.into()),
             line: Some(d.line),
-            refused,
+            requires_change,
             rank: d.rank,
             energy: Energy::default(),
             live: None,
@@ -331,7 +331,7 @@ pub fn from_defs(
         let (a, b) = if rev { (t, f) } else { (f, t) };
         g.link(a, b, k, 1.0, "");
     }
-    // A refused file gets an error node naming the refusal, linked to its items.
+    // A file that requires change gets an error node naming the report, linked to its items.
     for (file, v) in verdicts {
         if let Some(msg) = v {
             let members: Vec<usize> = (0..g.nodes.len())
@@ -340,18 +340,18 @@ pub fn from_defs(
             let first = msg.lines().next().unwrap_or(msg);
             let e = g.add(Node {
                 id: format!("check:{file}"),
-                label: format!("refused: {}", trunc(first, 48)),
+                label: format!("requires change: {}", trunc(first, 48)),
                 kind: Kind::Error,
                 file: Some(file.clone()),
                 line: parse_line(msg),
-                refused: true,
+                requires_change: true,
                 rank: 0.0,
                 energy: Energy::default(),
                 live: None,
                 detail: msg.clone(),
             });
             for m in members {
-                g.link(e, m, EdgeKind::Refuses, 1.0, "");
+                g.link(e, m, EdgeKind::RequiresChange, 1.0, "");
             }
         }
     }

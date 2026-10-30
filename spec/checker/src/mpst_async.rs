@@ -5,7 +5,7 @@
 //! by `tests/lean_session_async.rs`. `explore` runs the asynchronous
 //! semantics (`SessionAsync.AStep`) from a configuration and reports the
 //! first reachable configuration that is neither final nor able to step, or
-//! whose receiver refuses its queue head; `SessionAsync.deadlock_free` says
+//! whose receiver cannot take its queue head; `SessionAsync.deadlock_free` says
 //! there is none when every role projects.
 use std::collections::{HashSet, VecDeque};
 
@@ -132,7 +132,7 @@ pub fn is_final(k: &Cfg) -> bool {
 }
 
 /// a receiver whose queue head it does not offer
-pub fn refuses(k: &Cfg) -> bool {
+pub fn is_stuck(k: &Cfg) -> bool {
     k.c.iter().enumerate().any(|(r, l)| match l {
         L::Rcv(p, ha, hb, ..) => k.q[*p][r].front().is_some_and(|&d| !pick(d, *ha, *hb)),
         _ => false,
@@ -140,7 +140,8 @@ pub fn refuses(k: &Cfg) -> bool {
 }
 
 /// explores every reachable configuration (up to `limit` of them); returns
-/// the number explored, or the first stuck or refusing configuration
+/// the number explored, or the first configuration that is stuck or whose
+/// receiver cannot take its queue head
 pub fn explore(start: Cfg, limit: usize) -> Result<usize, Cfg> {
     let mut seen = HashSet::new();
     let mut todo = vec![start];
@@ -149,7 +150,7 @@ pub fn explore(start: Cfg, limit: usize) -> Result<usize, Cfg> {
             continue;
         }
         let next = steps(&k);
-        if (next.is_empty() && !is_final(&k)) || refuses(&k) {
+        if (next.is_empty() && !is_final(&k)) || is_stuck(&k) {
             return Err(k);
         }
         if seen.len() >= limit {

@@ -1,0 +1,14 @@
+# rce-version: 0.6
+# expect: W-PAR-2
+fn main()
+    par
+        branch x
+            emit 1
+#--- rce-test
+# id: concurrency/harvested/w-par-2-emit-change
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-2]
+# expect: change
+# diagnostic: W-PAR-2
+# provenance: harvested conc06/ill_typed/W-PAR-2_emit.rce
+#---

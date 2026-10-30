@@ -1,0 +1,12 @@
+fn f()
+    var xs: List[i64] = [1, 2]
+    for x in xs
+        xs.append(x)
+#--- rce-test
+# id: types-checking/harvested/modify-while-iterating-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: harvested examples/change/types/modify_while_iterating.rce
+#---

@@ -4,7 +4,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the refused third event with exit status 1.
+and stops at the third event, whose step keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -26,8 +26,8 @@ and stops at the refused third event with exit status 1.
    language server all use the same parser, type checker and admission gate
    (6.9) as the reference checker `rce-check`. A file accepted by one is
    accepted by all.
-4. **Exit status.** 0 means success. 1 means a program was refused, an
-   example or check failed, a run reached a refused event, or `fmt --check`
+4. **Exit status.** 0 means success. 1 means a program requires change, an
+   example or check failed, a run reached a kept step, or `fmt --check`
    found a file to change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
    construct an emitter does not translate (10.5).
@@ -62,15 +62,15 @@ the order given, one line is printed:
 
 ```
 ok FILE
-REFUSED FILE: line N: RULE message[; line M: RULE message ...]
+requires change FILE: line N: RULE message[; line M: RULE message ...]
 ```
 
-Every refusal names its rule from section 7. Exit status 1 if any file is
-refused, else 0.
+Every `requires change` report names its rule from section 7. Exit status 1 if any file
+requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
-The file must pass `rce check` alone; otherwise one `REFUSED` line is
+The file must pass `rce check` alone; otherwise one `requires change` line is
 printed and the status is 1.
 
 **With EVENTS.** EVENTS is written exactly as the event list of an
@@ -86,10 +86,10 @@ where δ is the step function of 6.4 and oₖ is the sequence of values the
 step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
-regions separated by `; `, in declaration order. If δ refuses eₖ, the line
-is `k EVENT refused: ERROR`, no later event is applied, and the status is
+regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
+is `k EVENT kept: ERROR`, no later event is applied, and the status is
 1. Otherwise the status is 0. An event name that is not declared is a usage
-of a wrong event list: one `REFUSED` line, status 1.
+of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
@@ -100,13 +100,13 @@ $ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
 parameters. The command evaluates its body by the rules of section 6 and
 prints `emit VALUE` for each value emitted, in order. If the body traps or
-fails, the last line is `refused: REASON` and the status is 1. Calls to
+fails, the last line is `kept: REASON` and the status is 1. Calls to
 foreign functions (5.11) are not executed by the reference evaluator and
 trap. If there is no `fn main()`, the command says so and the status is 1.
 
@@ -133,11 +133,15 @@ program (section 7).
 
 ### 10.5 `rce emit TARGET FILE`
 
-TARGET names an output. The file must pass `rce check` on its own.
+TARGET names an output. The file must pass `rce check` on its own; for
+`core` it may instead be a core module, a JSON object whose `format` is
+`rce-core/1`, which is read only if it is well formed (rules W1 to W6 of
+the proposal `spec/proposals/one-emitter.md`, ONE-3).
 
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
+| `core` | the core module of FILE, format `rce-core/1` (the module lowered once, or the core module read), as one line of canonical JSON (6.1.1), then a line end (informative: the core is the proposal `one-emitter.md`, ONE-1) |
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
@@ -147,11 +151,13 @@ The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
 The four program targets are the ones this checker emits. The language
-places no bound on targets: every language is both an output of the Form
-(a target, printed from the Form IR through a per-language table) and an
-input (a lift, the reverse map, from the language's grammar and a
-semantics table), and every target passes the same gate, the reference
-trace of every example program byte for byte (T9). The registry of targets
+places no bound on targets, and it is designed so that every language is
+both an output of the Form (a target, printed through a per-language
+table) and an input (a lift, the reverse map, from the language's grammar
+and a semantics table), each passing the same gate, the reference trace of
+every example program byte for byte (T9). That design
+(`spec/proposals/rce-form.md`, informative) is not built; of the four
+program targets, `rust`, `python` and `js` pass the gate today. The registry of targets
 and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 (informative); a target that the table cannot pin to 6.3 is observation-only,
 never a projection.
@@ -174,7 +180,7 @@ evaluator's `assign` does.
 
 The Rust output follows the shape of the verified emitter of T9
 (`spec/lean/RCE/Emit.lean`): one value type, `Result` with `?` for traps
-and refusals, and i128 arithmetic checked against each integer type's
+and kept steps, and i128 arithmetic checked against each integer type's
 range. The theorem of T9 is about the Lean model of that emitter. The
 emitter in `rce` is tested against the reference evaluator; it is not
 proved.
@@ -191,10 +197,29 @@ with a 2 GiB stack.
 **What an emitted program does.** Run it, and it prints the module's
 *observations*: one line per constant, per `check`, per function without
 parameters (other than `main`), per event of each example (the state after
-it, its outputs, or the refusal), and finally the outputs and result of
+it, its outputs, or the kept record), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
+
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
 
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
@@ -213,16 +238,23 @@ closures and float display. The Scala target has its own test in the same
 file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
-refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
-When `rustc`, `python3` or `node` is missing,
-its test prints `SKIPPED` and the reason; a skipped target is never
-counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
+not printed, 361 observation lines, and the edge program agrees on all four
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger conformance suite (`conformance/`), a run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, which compared each trace by its head only, passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter; the Scala emitter has not yet been run with the whole-trace comparison of the emit baseline (`conformance/README.md`).
+The targets a test run covers are named as data,
+one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
+`python`, `js`, `scala`), never by an environment variable or a flag. Every
+test that runs emitted programs runs them on each covered target it uses
+and fails when a covered target's toolchain does not start; a target the
+file does not name is reported as not covered by the run, never counted as
+a pass, and a test of that target alone is reported as ignored. The file
+names `rust`, `python` and `js`, the toolchains of the continuous
+integration runs; Scala is covered by adding its word. The
+oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
 M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
-26.11.1: 51 of 51 agree on each of the three targets, 0 refused, 0
+26.11.1: 51 of 51 agree on each of the three targets, 0 not printed, 0
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
 
@@ -238,6 +270,21 @@ starts a new evaluator for each, and running out traps with the message
 used. These two arguments exist for the test below; the default program
 takes no argument.
 
+**The log D.** With the argument `--trace`, an emitted program also prints
+the log D (6.1) of each example. Before the line of each event that δ
+applied or kept comes its entry, `d applied HASH BODY` or `d kept HASH
+BODY`, where BODY is the canonical JSON of `{event, prev_hash, seq,
+state_hash}` over the positional forms and HASH is its SHA-256; after the
+example's last event comes `trace HEAD`, the hash of the last entry (64
+zeros when there is none). `emit::observe_trace` computes the same lines
+with the reference evaluator, the fuel lines of `--fuel-trace` included.
+The head commits to the events and the state hashes only. The state shown
+after each event, the outputs, the reason an event was kept and the fuel
+are not hashed, so a trace is compared whole: every line of an example's
+block, the entries of D included. The emit adapters of `conformance/`
+answer a trace with that block, and the harness compares it line for line
+with the block `rce-conform` prints for the same program and events.
+
 `spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
 the 50 programs of the emitter tests (with probes) against
 `emit::observe_fuel` of the reference evaluator, in all three targets. It
@@ -250,7 +297,7 @@ arguments before entering a call; the trap observation and the total are
 what the test fixes. The Scala target is in the same test (the emitted
 file is packaged once into a jar and run with `java -jar`); on 2026-10-14
 it agreed on all 54 programs of that corpus and at all 1,366 swept limits
-(`RCE_FUEL_LANGS=scala`).
+(a run that covered Scala alone).
 
 
 **Running `fn main`.** Run with the argument `--run`, an emitted program
@@ -259,7 +306,7 @@ instead evaluates `fn main` with tasks, channels, `select`, actors and
 JavaScript), and one scheduler admits their moves tick by tick in the
 order of `conc::run_main`, the reference of `rce run` without EVENTS. It
 prints `emit VALUE` per output and the line `outcome Done`,
-`outcome Deadlock` or `outcome Refused: REASON`. A module without
+`outcome Deadlock` or `outcome Stopped: REASON`. A module without
 `fn main()` prints the reference's message ("nothing to run") on standard
 error and exits with status 1, as `rce run` does. Fuel follows the reference's
 pools: each task has its own, starting full (its first ticks are the call
@@ -310,18 +357,20 @@ outcome.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
   of `let`, `var`, an assignment, `return`, `emit` or `fail`. Elsewhere,
-  `rce emit` refuses the program with status 2 and names the construct. No
-  example program is refused.
+  `rce emit` does not yet print the program: it exits with status 2 and names
+  the construct. Every example program is printed.
 - When a function whose result is a union fails, its `&mut` arguments are
   not written back. The reference evaluator writes them back.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
-- The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
-  available on this target and exits with status 2. A `par` runs its
-  branches in source order on one thread (by restart when they wait on
-  lvars), as the JavaScript output does when a local cannot go to a worker.
+- The Scala output has been checked with Scala 3.10.0 only, on OpenJDK 27
+  (the examples corpus) and OpenJDK 21 (the conformance suite). With
+  `--run` it runs `fn main` through its task runtime, the same tick
+  scheduler as the other targets, and prints that there is nothing to run
+  when no `fn main()` is declared. A `par` runs its branches in source
+  order on one thread (by restart when they wait on lvars), as the
+  JavaScript output does when a local cannot go to a worker.
 
 
 For an unknown target, or a program that one of these emitters does not
@@ -336,7 +385,7 @@ numbers dropped. The formatter is a function fmt on texts with:
 
 1. **Meaning preserved.** tok(fmt(t)) = tok(t). The formatter checks this
    equality on every file before writing it; if it would fail, the file is
-   left unchanged, a `REFUSED` line is printed and the status is 1.
+   left unchanged, a `requires change` line is printed and the status is 1.
 2. **Canonical layout.** In fmt(t): a block that is k levels deep starts its
    lines with exactly 4k spaces; no line has trailing spaces; there are no
    blank lines before the first line, no two blank lines in a row, and the
@@ -346,9 +395,9 @@ numbers dropped. The formatter is a function fmt on texts with:
 3. **Idempotence.** fmt(fmt(t)) = fmt(t). This is tested on every program
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
-A text the lexer refuses (2.6, W-LEX-1, W-LEX-2) is refused by `fmt` with
-the same reason. `fmt` does not type check: a file that is refused by
-`rce check` can still be formatted. With `--check`, no file is written;
+A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
+under `fmt` with the same reason. `fmt` does not type check: a file that requires
+change under `rce check` can still be formatted. With `--check`, no file is written;
 each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
@@ -384,7 +433,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or refused |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -394,8 +443,8 @@ the full text of each open document; it does not read other files.
 | any other request | error -32601, method not found |
 
 **Diagnostics.** For a document with text t, the published diagnostics are
-exactly the refusals `rce check` gives for t, one per refusal, with severity
-Error and source `rce`. A refusal `line N: ...` covers line N − 1 in the
+exactly the reports `rce check` gives for t that the text requires change, one per
+report, with severity Error and source `rce`. A report `line N: ...` covers line N − 1 in the
 protocol's 0-based numbering, from column 0 to the start of the next line.
 `use` resolves among the module paths of all open documents.
 
@@ -461,8 +510,8 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   each module whose text differs from its pin (status 1); while such a
   difference exists, `rce manifest` writes no `stdlib` pin and
   `rce manifest-check` accepts none. The broker contract (F.7), the provenance
-  record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
-  not exist yet. Results are
+  record and the build cache of F.5.3, and the emitter messages of F.5.4 for a
+  construct not yet printed do not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
@@ -480,7 +529,7 @@ line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
 carrying their number; with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
-event list. A module that is refused, or a trace of EVENTS that yields no
+event list. A module that requires change, or a trace of EVENTS that yields no
 step, is status 1. The output is one JSON object (format `rce-trace/2`;
 `rce-trace/1` differed in hashing the named forms, before the T7
 resolution of C.15), compact, with sorted keys:
@@ -496,10 +545,10 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
 | `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} with the positional form of the event |
-| `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+| `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A refused event is the last step of its trace, with the unchanged state's
+A kept step is the last step of its trace, with the unchanged state's
 hash (T8). A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
@@ -525,16 +574,16 @@ object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
 A `use` item names a module given with the files or one of the built-in
-library (4.1), and a file is refused in the catalog exactly when
-`rce check` refuses it.
+library (4.1), and a file is listed as requiring change in the catalog exactly when
+`rce check` reports that it requires change.
 An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 (name and type), `ret`, `key` (the type with generic parameters renamed
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
 module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
-`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`refused_files` maps each refused file to its diagnostics. With
+`pending_files` maps each file that requires change to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -581,7 +630,7 @@ shape_ctl           sha256:…                   [--control]
 A region's redundancy is computed from the projection of the explored
 graph onto that region's fields. `--control` computes the control quotient
 of 6.10 on the same explored graph: each step is labelled by its control
-outcome only (the refusal's error, by declaration index; else the
+outcome only (the kept step's error, by declaration index; else the
 constructors of what was emitted, by declaration index or type class) and
 never by a value, a name or a state change, so the quotient is a coarser
 output function on the same deterministic machine and dim_c ≤ dim holds by
@@ -594,9 +643,10 @@ and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
-emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `refuses` reported separately, since a refusal is the rejection
-of an input and an emitted value is the program's answer), and how many
+emitted value, or the record of a kept step (`has_output` in the JSON, with
+`emits` and `keeps` reported separately, since a kept step and an emitted
+value are two kinds of the program's answer: a kept step leaves the state as
+it was and records why, an emitted value is an output), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
 definition, so its redundancy is its whole state: the state is in D and
@@ -604,14 +654,14 @@ readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
+sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
 `rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
 behaviour (6.10): it explores both from their initial states over the same
 event instances, compares every step by its name-free output (emitted
-values in their positional form, a refusal by its error's declaration
+values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
 bisimilarity). Status 0 and `equivalent` when they do; otherwise status 1
@@ -636,6 +686,19 @@ program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
+### 10.12 `rce run-core FILE`: the core evaluator (informative)
+
+`rce run-core FILE` lowers FILE to its core module, as `rce emit core`
+does (FILE is an RCE module or an `rce-core/1` core module, read only if
+it is well formed), runs that module with the core evaluator of the
+proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
+core evaluator is an implementation under test, compared with the
+reference evaluator like any target: the expected bytes of every
+comparison are the reference trace (10.9), never this output. Exit status
+0 when the run ends; 1 when the checker reports that FILE requires change, when a core module
+is not well formed, or when the run halts; 2 when FILE uses a construct
+the lowering does not cover, or on an internal error.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 2329b271394658198556ea9212b768a29e9262303f060d485b904051b71305f8 -->
+<!-- body-sha256: 422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90 -->

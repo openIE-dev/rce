@@ -637,3 +637,47 @@ The stack recipe is about 800 lines and needs one theorem, "every record the gat
 8. **Declared energy budgets**: whether a source's declared budget may become a `with budget` in cost units, which would be meaning.
 9. **Where compiled targets' realization runs happen, and how often.**
 10. **A deterministic collector in a language's runtime library**, for long-running lifted Go and Java programs, run at points that are a function of the Form, which would be meaning chosen per table.
+
+**Decisions (30 October 2026).** The RCE project settled the ten questions
+by two tests: a decision may state no fact that is not true and may let
+nothing outside the Form change meaning (logic), and a cost is counted on the
+machine, measured where it can be (physics).
+
+1. **Home**: this separate proposal, cited from `rce-form.md`. The meaning
+   additions of §4 move into `rce-form.md`, because a choice that changes a
+   key is meaning.
+2. **Go's depth**: `null`. Go bounds its stack in bytes (1 GB by default),
+   not in frames, so a frame count would rest on a frame shape that no source
+   states.
+3. **Committed and priced records**: admissible as committed files. HW8
+   checks them exactly as derived ones, and a committed record makes a run
+   repeatable. Prices stay labelled `est`.
+4. **Printed `unsafe`**: not admitted for now. Emitted Rust stays free of
+   `unsafe`, and a `checks.none` row on Rust requires change. A bounds check is one
+   compare and one predicted branch, while the determinism-cost bench
+   measured emitted Rust 388 times slower than hand-written Rust, so the cost
+   lies in copies and representation, not in checks. The question reopens if,
+   after moves stop copying, bounds checks measure above 5% of run time.
+5. **Host exhaustion**: a D entry `host.Exhausted` that replay reproduces.
+   Every machine is finite, and an emitted program that stops where the Form
+   applies the event is a divergence that D must record. It is a host fault
+   beside `Refused` and `Restarted`, not step meaning. Risk 4 above is
+   resolved by this entry once it is built.
+6. **Lane-wise and tree entries**: derived facts, with no re-key. A fact
+   computed from the Form cannot drift from it.
+7. **A third certificate**: not now. Each kind of certificate adds proof
+   obligations; the corpus is first measured for how many checks a dominating
+   test would remove.
+8. **Energy budgets**: not meaning. Energy depends on the machine as well as
+   the program, and meaning may not. A budget may be declared in `rce-res/1`
+   work counts in the realization record, as a resource choice. Joules are
+   `est`, or metered on hardware with a meter.
+9. **Where realization runs happen**: on the CI parity matrix (Linux x86-64
+   and aarch64, macOS, Windows, s390x, wasm32) for every change to an
+   emitter, and every compiled target nightly. Energy is reported only from
+   metered hardware.
+10. **A deterministic collector**: not now. Ownership and moves free storage
+    at points the Form fixes, and a tracing collector needs about two to five
+    times the live heap to run cheaply. Lifted Go or Java with cycles
+    requires change, naming its reason, until the corpus shows a measured need; collection
+    then runs at points the Form fixes, chosen per table.

@@ -2,11 +2,14 @@
 //! `RCE/Mutual.lean`, `bump_slack`, `bound_dec`). The programs in
 //! tests/bound/: `ok_*` are admitted (their `check` items hold at
 //! admission) and every emitted target prints the reference's observations,
-//! including the `recursion bound` trap of the probes; `bad_*` are refused
-//! with W-REC-1.
+//! including the `recursion bound` trap of the probes; `bad_*` require
+//! change under W-REC-1.
 use rce_spec_check::emit::{Lang, emit, observe};
 use rce_spec_check::parse::parse;
 use std::process::Command;
+
+#[path = "common/targets.rs"]
+mod targets;
 
 fn progs(prefix: &str) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = std::fs::read_dir("tests/bound")
@@ -25,7 +28,7 @@ fn verdict(src: &str) -> Result<(), String> {
 }
 
 #[test]
-fn admitted_and_refused() {
+fn admitted_or_requires_change() {
     let ok = progs("ok_");
     let bad = progs("bad_");
     assert!(ok.len() >= 2 && bad.len() >= 3);
@@ -46,33 +49,33 @@ fn emitted_targets_agree() {
         assert!(!want.is_empty(), "{n}");
         let d = std::env::temp_dir().join(format!("rce-bound-{}", std::process::id()));
         std::fs::create_dir_all(&d).unwrap();
-        for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
+        for lang in targets::covered(&targets::ALL, targets::oracle) {
             let code = emit(&m, lang).unwrap_or_else(|e| panic!("{n} {lang:?}: {e}"));
             let f = d.join(format!("{n}.{}", lang.ext()));
             std::fs::write(&f, code).unwrap();
             let out = match lang {
                 Lang::Rust => {
                     let exe = d.join(&n);
-                    let c = Command::new(std::env::var("RCE_RUSTC").unwrap_or("rustc".into())).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output();
-                    let Ok(c) = c else { eprintln!("SKIPPED rustc (not a pass)"); continue };
+                    let c = Command::new(targets::oracle(Lang::Rust)).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output();
+                    let c = c.unwrap_or_else(|e| panic!("{n}: rustc does not run: {e}"));
                     assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
                     Command::new(&exe).output().unwrap()
                 }
-                Lang::Python => match Command::new(std::env::var("RCE_PYTHON").unwrap_or("python3".into())).arg(&f).output() {
+                Lang::Python => match Command::new(targets::oracle(Lang::Python)).arg(&f).output() {
                     Ok(o) => o,
-                    Err(_) => { eprintln!("SKIPPED python (not a pass)"); continue }
+                    Err(e) => panic!("{n}: python does not run: {e}"),
                 },
-                Lang::Js => match Command::new(std::env::var("RCE_NODE").unwrap_or("node".into())).arg(&f).output() {
+                Lang::Js => match Command::new(targets::oracle(Lang::Js)).arg(&f).output() {
                     Ok(o) => o,
-                    Err(_) => { eprintln!("SKIPPED node (not a pass)"); continue }
+                    Err(e) => panic!("{n}: node does not run: {e}"),
                 },
-                Lang::Scala => match Command::new(std::env::var("RCE_SCALA").unwrap_or("scala-cli".into()))
+                Lang::Scala => match Command::new(targets::oracle(Lang::Scala))
                     .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
                     .arg(&f)
                     .output()
                 {
                     Ok(o) => o,
-                    Err(_) => { eprintln!("SKIPPED scala-cli (not a pass)"); continue }
+                    Err(e) => panic!("{n}: scala-cli does not run: {e}"),
                 },
             };
             let got: Vec<String> = String::from_utf8(out.stdout).unwrap().lines().map(String::from).collect();

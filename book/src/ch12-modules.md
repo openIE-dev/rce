@@ -24,7 +24,7 @@ $ rce check shop/pricing.rce shop/orders.rce
 {{#include ../listings/ch12/check_both.out}}
 ```
 
-Checked alone, `orders.rce` is refused, because the module it uses is not
+Checked alone, `orders.rce` requires change, because the module it uses is not
 part of the program:
 
 ```text
@@ -47,15 +47,15 @@ $ rce test shop/pricing.rce shop/checkout.rce
 ```
 
 Only `pub` items can be reached this way. `round_down` in `shop.pricing`
-has no `pub`, so a call to it from another module is refused:
+has no `pub`, so a call to it from another module requires change:
 
 ```rce
-{{#include ../listings/ch12/refused/private_call.rce}}
+{{#include ../listings/ch12/change/private_call.rce}}
 ```
 
 ```text
 $ rce check ../shop/pricing.rce private_call.rce
-{{#include ../listings/ch12/refused/private_call.out}}
+{{#include ../listings/ch12/change/private_call.out}}
 ```
 
 The modules `std.text`, `std.collections` and `std.math` are built in and

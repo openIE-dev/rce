@@ -3,15 +3,15 @@ module rcedb_v1
 intent "RCEdb v1: tables of keyed rows and a labelled edge set, written in RCE over D; scans in canonical key order; the durable mark moves only on a bound Synced; a table may carry a typed schema that every row must match, and secondary indexes that are folds of D"
     example Insert(table: "t", key: "b", row: "{}"), Insert(table: "t", key: "a", row: "{}"), Synced(upto: 3) -> durable == 3
     example Insert(table: "t", key: "k", row: "{}"), Delete(table: "t", key: "k") -> rows.len() == 0
-    example Delete(table: "t", key: "x") -> refused: Missing
+    example Delete(table: "t", key: "x") -> kept: Missing
     example Link(src: "a", lbl: "knows", dst: "b"), Unlink(src: "a", lbl: "knows", dst: "b") -> edges.len() == 0
     example Schema(table: "u", cols: "name:text,age:i64,admin:bool"), Insert(table: "u", key: "a", row: "Ann\t41\tfalse") -> rows.len() == 1
-    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\tforty") -> refused: BadRow
-    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann") -> refused: BadRow
-    example Schema(table: "u", cols: "name:float") -> refused: BadSchema
-    example Insert(table: "u", key: "a", row: "x"), Schema(table: "u", cols: "name:text") -> refused: Exists
+    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\tforty") -> kept: BadRow
+    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann") -> kept: BadRow
+    example Schema(table: "u", cols: "name:float") -> kept: BadSchema
+    example Insert(table: "u", key: "a", row: "x"), Schema(table: "u", cols: "name:text") -> kept: Exists
     example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\t41"), Index(table: "u", col: "age"), Insert(table: "u", key: "a", row: "Ann\t42") -> idx.len() == 1
-    example Schema(table: "u", cols: "name:text"), Index(table: "u", col: "age") -> refused: NoColumn
+    example Schema(table: "u", cols: "name:text"), Index(table: "u", col: "age") -> kept: NoColumn
     example Schema(table: "u", cols: "name:text"), Index(table: "u", col: "name"), Insert(table: "u", key: "a", row: "Ann"), Delete(table: "u", key: "a") -> idx.len() == 0
 
 state Db

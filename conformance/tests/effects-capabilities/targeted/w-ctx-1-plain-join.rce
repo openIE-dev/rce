@@ -8,7 +8,7 @@ step P on C(body: b)
 # id: effects-capabilities/targeted/w-ctx-1-plain-join
 # area: effects-capabilities
 # clauses: [CH09-M-82e65964, T36, W-CTX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-CTX-1
 # provenance: targeted.py: expected result read off the clause
 #---

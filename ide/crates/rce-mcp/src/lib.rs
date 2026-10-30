@@ -57,12 +57,12 @@ fn tool_specs() -> Value {
           "required": ["path", "edits"]}},
         {"name": "rce_check", "description": "rce check over the workspace program.", "inputSchema": {"type": "object", "properties": {"paths": paths}}},
         {"name": "rce_test", "description": "rce test: check every file and count its examples and checks.", "inputSchema": {"type": "object", "properties": {"paths": paths}}},
-        {"name": "graph_query", "description": "Query the Form code graph: callers NAME | callees NAME | reach NAME | path A B | kind KIND [joules > J] [divergence > D] | refused | uses-hw NAME. Returns nodes with file, line, kind and energy.",
+        {"name": "graph_query", "description": "Query the Form code graph: callers NAME | callees NAME | reach NAME | path A B | kind KIND [joules > J] [divergence > D] | change | uses-hw NAME. Returns nodes with file, line, kind and energy.",
          "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
         {"name": "graph_scip", "description": "Export the Form code graph as a SCIP index (definitions and call references), base64 protobuf, for code-intelligence tools.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "emit", "description": "rce emit TARGET FILE. Targets: form, python, js. The reference checker implements form; python and js return its refusal until the emitters land.",
-         "inputSchema": {"type": "object", "properties": {"path": path, "target": {"type": "string", "enum": ["form", "python", "js"]}}, "required": ["path", "target"]}},
+        {"name": "emit", "description": "rce emit TARGET FILE. Targets: form, rust, python, js and scala.",
+         "inputSchema": {"type": "object", "properties": {"path": path, "target": {"type": "string", "enum": ["form", "rust", "python", "js", "scala"]}}, "required": ["path", "target"]}},
     ])
 }
 
@@ -330,17 +330,17 @@ impl Server {
         prog.push((rel_key.clone(), new.clone()));
         prog.sort();
         let verdicts = check_program(&prog, false);
-        let refusals: Vec<String> = verdicts
+        let changes_required: Vec<String> = verdicts
             .iter()
             .filter_map(|(f, v)| v.as_ref().err().map(|e| format!("{f}: {e}")))
             .collect();
         let f = feats(form_nodes(&new), prog.len() as u64);
-        if !refusals.is_empty() {
+        if !changes_required.is_empty() {
             return Out {
-                payload: json!({"applied": false, "path": rel, "diagnostics": refusals}),
+                payload: json!({"applied": false, "path": rel, "diagnostics": changes_required}),
                 is_error: true,
-                verdict: Verdict::Refused {
-                    diagnostics: refusals,
+                verdict: Verdict::RequiresChange {
+                    diagnostics: changes_required,
                 },
                 feats: f,
             };
@@ -375,7 +375,7 @@ impl Server {
         }
         let verdicts = check_program(&prog, false);
         let mut rows = vec![];
-        let mut refusals = vec![];
+        let mut changes_required = vec![];
         let (mut pass, mut fail, mut nodes) = (0u64, 0u64, 0u64);
         for ((f, v), (_, src)) in verdicts.iter().zip(&prog) {
             if want.as_ref().is_some_and(|w| !w.contains(f)) {
@@ -397,7 +397,7 @@ impl Server {
                 }
                 Err(e) => {
                     fail += 1;
-                    refusals.push(format!("{f}: {e}"));
+                    changes_required.push(format!("{f}: {e}"));
                     rows.push(json!({"path": f, "ok": false, "diagnostic": e}));
                 }
             }
@@ -408,8 +408,8 @@ impl Server {
             verdict: if fail == 0 {
                 Verdict::Pass
             } else {
-                Verdict::Refused {
-                    diagnostics: refusals,
+                Verdict::RequiresChange {
+                    diagnostics: changes_required,
                 }
             },
             feats: feats(nodes, prog.len() as u64),
@@ -427,7 +427,7 @@ impl Server {
                 let nodes: Vec<Value> = v.iter().map(|&i| {
                     let n = &g.nodes[i];
                     json!({"label": n.label, "kind": n.kind.as_str(), "file": n.file, "line": n.line,
-                           "joules": n.energy.joules, "refused": n.refused})
+                           "joules": n.energy.joules, "requires_change": n.requires_change})
                 }).collect();
                 Out { payload: json!({"query": q, "nodes": nodes}), is_error: false, verdict: Verdict::Pass,
                       feats: feats(g.nodes.len() as u64, 0) }
@@ -475,7 +475,7 @@ impl Server {
                 let v = if e.contains("not implemented") || e.contains("unknown emit target") {
                     Verdict::Rejected { reason: e.clone() }
                 } else {
-                    Verdict::Refused {
+                    Verdict::RequiresChange {
                         diagnostics: vec![e.clone()],
                     }
                 };

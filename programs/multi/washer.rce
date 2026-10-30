@@ -1,9 +1,9 @@
 # A washing machine: the cycle advances on each tick and the door is locked
-# while the cycle runs. Opening a locked door is refused.
+# while the cycle runs. Opening a locked door keeps the state.
 intent "a door that stays locked from start to finish"
     example Start, Tick, Tick, Tick -> phase == Idle and locked == false
-    example Start, Open -> refused: DoorLocked
-    example Start, Start -> refused: Running
+    example Start, Open -> kept: DoorLocked
+    example Start, Start -> kept: Running
 
 kind Phase
     Idle

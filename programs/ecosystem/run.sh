@@ -27,7 +27,7 @@ r32() { printf "%0.s$1" $(seq 32); }
 hpke() {
   "$RCE" test "$here/hpke.rce" >/dev/null
   "$RCE" host run "$here/hpke.rce" --log "$tmp/hpke" 'KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037"), PubR, Seal(ske: "52c4a758a802cd8b936eceea314432798d5baf2d7e9235dc084ab1b9cfa2f736", info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", pt: "4265617574792069732074727574682c20747275746820626561757479", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d31", seq: 0)' > "$tmp/hpke.out" 2>&1
-  # RFC 9180 A.1 base mode, sequence 0; the second Open uses another AAD (additional authenticated data) and is refused
+  # RFC 9180 A.1 base mode, sequence 0; the second Open uses another AAD (additional authenticated data), so it fails and is counted
   want hpke "$tmp/hpke.out" \
     'pkr = "3948cfe0ad1ddb695d780e59077195da6c56506b027329794ab02bca80815c4d"' \
     'sealed = "37fda3567bdbd628e88668c3c8d7e97d1d1253b6d4ea6d44c150f741f1bf4431.f938558b5d72f1a23810b4be2ab4f84331acc02fc97babc53a52ae8218a355a96d8770ac83d07bea87e13c512a"' \

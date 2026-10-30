@@ -9,9 +9,9 @@
 //! 2. requires every program in spec/examples/ to stay accepted when the
 //!    six new keywords are reserved (backward compatibility);
 //! 3. requires every program in spec/conc06/accept/ to be accepted and
-//!    every program in spec/conc06/reject/ to be refused;
-//! 4. requires the unpatched draft 0.5 grammar to refuse every program in
-//!    spec/conc06/accept/ (so the tests exercise the new rules).
+//!    every program in spec/conc06/change/ to require change;
+//! 4. requires every program in spec/conc06/accept/ to require change under
+//!    the unpatched draft 0.5 grammar (so the tests exercise the new rules).
 //!
 //! Only the grammar is tested here; the typing rules W-PAR-*, W-ND-1,
 //! W-BUD-1 and W-DL-1 are not implemented in rce-check yet.
@@ -191,9 +191,9 @@ fn conc06_examples_still_parse() {
     let ex = files(&spec_dir().join("examples"));
     assert!(ex.len() >= 51);
     for (n, s) in &ex {
-        assert!(accepts(&l, s, true), "draft 0.5 example {n} refused by 0.6 grammar");
+        assert!(accepts(&l, s, true), "draft 0.5 example {n} does not parse with the 0.6 grammar");
     }
-    for (n, s) in files(&spec_dir().join("examples/reject")) {
+    for (n, s) in files(&spec_dir().join("examples/change/syntax")) {
         assert!(!accepts(&l, &s, true), "reject {n} accepted by 0.6 grammar");
     }
 }
@@ -206,15 +206,15 @@ fn conc06_accept_and_reject() {
     }
     let l = Lalr::build(book_grammar(&patched_grammar_md()).unwrap());
     let acc = files(&spec_dir().join("conc06/accept"));
-    let rej = files(&spec_dir().join("conc06/reject"));
+    let rej = files(&spec_dir().join("conc06/change"));
     assert!(!acc.is_empty() && !rej.is_empty());
     for (n, s) in &acc {
-        assert!(accepts(&l, s, true), "conc06/accept/{n} refused");
+        assert!(accepts(&l, s, true), "conc06/accept/{n} does not parse");
     }
     for (n, s) in &rej {
-        assert!(!accepts(&l, s, true), "conc06/reject/{n} accepted");
+        assert!(!accepts(&l, s, true), "conc06/change/{n} accepted");
     }
-    println!("conc06: {} accepted, {} refused", acc.len(), rej.len());
+    println!("conc06: {} accepted, {} require change", acc.len(), rej.len());
 }
 
 #[test]
@@ -249,19 +249,19 @@ fn conc06b_grammar_is_lalr1_and_conforms() {
     let kw = ext_kw();
     let acc = |s: &str| tokens_kw(&l, s, &kw).is_some_and(|t| l.accepts_ids(&t));
     for (n, s) in files(&spec_dir().join("examples")) {
-        assert!(acc(&s), "draft 0.5 example {n} refused by 0.6b grammar");
+        assert!(acc(&s), "draft 0.5 example {n} does not parse with the 0.6b grammar");
     }
-    for (n, s) in files(&spec_dir().join("examples/reject")) {
+    for (n, s) in files(&spec_dir().join("examples/change/syntax")) {
         assert!(!acc(&s), "reject {n} accepted by 0.6b grammar");
     }
     for d in ["conc06/accept", "conc06b/accept"] {
         for (n, s) in files(&spec_dir().join(d)) {
-            assert!(acc(&s), "{d}/{n} refused by 0.6b grammar");
+            assert!(acc(&s), "{d}/{n} does not parse with the 0.6b grammar");
         }
     }
-    let rej = files(&spec_dir().join("conc06b/reject"));
+    let rej = files(&spec_dir().join("conc06b/change"));
     for (n, s) in &rej {
-        assert!(!acc(s), "conc06b/reject/{n} accepted");
+        assert!(!acc(s), "conc06b/change/{n} accepted");
     }
     // the 0.6b programs need the 0.6b rules
     let core = Lalr::build(book_grammar(&patched_grammar_md()).unwrap());
@@ -271,5 +271,5 @@ fn conc06b_grammar_is_lalr1_and_conforms() {
             "conc06b/accept/{n} already parses under core 0.6"
         );
     }
-    println!("conc06b: {} reject programs refused", rej.len());
+    println!("conc06b: {} programs in reject/ require change", rej.len());
 }

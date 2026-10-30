@@ -6,7 +6,7 @@ use std::process::{Child, Command, Output};
 #[derive(Debug, thiserror::Error)]
 pub enum JailError {
     /// The platform cannot enforce the policy. Nothing was run.
-    #[error("jail unavailable, refusing to run: {0}")]
+    #[error("jail unavailable, not run: {0}")]
     Unavailable(String),
     #[error("spawn: {0}")]
     Spawn(std::io::Error),
@@ -24,7 +24,7 @@ pub struct JailPolicy {
     /// With `allow_net` false: TCP ports the process may connect to
     /// (Landlock `ConnectTcp` rules; no bind anywhere). Seccomp then allows
     /// only AF_INET/AF_INET6 stream sockets, so UDP, raw and Unix sockets
-    /// stay refused. Landlock filters by port, not host: host restriction is
+    /// stay denied. Landlock filters by port, not host: host restriction is
     /// the proxy's job (point the declared port at the proxy).
     pub tcp_connect: Vec<u16>,
 }
@@ -70,7 +70,7 @@ pub trait Jail {
     fn spawn(&self, cmd: Command, policy: &JailPolicy) -> Result<Child, JailError>;
 }
 
-/// A platform with no jail backend: always refuses.
+/// A platform with no jail backend: never runs anything.
 pub struct NoJail;
 impl Jail for NoJail {
     fn name(&self) -> &'static str {
@@ -119,7 +119,7 @@ pub fn platform_jail() -> Box<dyn Jail> {
 #[cfg(target_os = "linux")]
 pub mod linux {
     //! Landlock ABI v4 (filesystem plus TCP bind/connect) as a hard
-    //! requirement, then a seccomp filter that refuses socket creation,
+    //! requirement, then a seccomp filter that denies socket creation,
     //! io_uring, ptrace, bpf, mounts, namespaces, keyrings and module loading.
     use super::*;
     use landlock::{
@@ -134,7 +134,7 @@ pub mod linux {
 
     pub const ABI_REQUIRED: ABI = ABI::V4;
 
-    /// Syscalls refused with EPERM. Socket creation is always refused when
+    /// Syscalls denied with EPERM. Socket creation is always denied when
     /// `allow_net` is false; the rest always.
     pub fn denied_syscalls(allow_net: bool) -> Vec<i64> {
         denied(allow_net, false)
@@ -170,7 +170,7 @@ pub mod linux {
         v
     }
 
-    /// `socket()` refused unless the domain is AF_INET or AF_INET6 and
+    /// `socket()` denied unless the domain is AF_INET or AF_INET6 and
     /// `type & 0xf` is SOCK_STREAM (flags like SOCK_CLOEXEC are allowed).
     fn tcp_only_socket_rules() -> Result<Vec<SeccompRule>, JailError> {
         let e = |e: seccompiler::BackendError| JailError::Unavailable(format!("seccomp rule: {e}"));
@@ -223,7 +223,7 @@ pub mod linux {
             .handle_access(AccessFs::from_all(ABI_REQUIRED))
             .map_err(u)?;
         if !p.allow_net {
-            // Handled with no allow rules: every TCP bind and connect is refused.
+            // Handled with no allow rules: every TCP bind and connect is denied.
             r = r
                 .handle_access(AccessNet::from_all(ABI_REQUIRED))
                 .map_err(u)?;

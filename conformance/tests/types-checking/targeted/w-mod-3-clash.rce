@@ -5,7 +5,7 @@ fn helper() -> i64 = 2
 # id: types-checking/targeted/w-mod-3-clash
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-MOD-3]
-# expect: reject
+# expect: change
 # diagnostic: W-MOD-3
 # provenance: targeted.py: expected result read off the clause
 # fixtures: [lib-c_FIXTURE.rce]

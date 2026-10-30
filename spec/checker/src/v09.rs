@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 pub const RESERVED_GATED: &[&str] = &["declassify", "law"];
 
 /// Reserved words whose construct is implemented: a use that the parser did
-/// not consume as that construct is refused as a name (W-NAME-2).
+/// not consume as that construct requires change as a name (W-NAME-2).
 pub const RESERVED_LIVE: &[&str] = &["label", "release", "endorse", "ct", "requires", "ensures", "ghost", "decreases"];
 
 /// W-NAME-2: a live reserved word used as a name.
@@ -38,7 +38,7 @@ pub const TYPES_GATED: &[&str] = &["Template", "mathint"];
 
 fn gate_msg(line: usize, w: &str) -> String {
     if w == "declassify" {
-        return format!("line {line}: W-RES-1 `declassify` is reserved and is always refused: a labeled value leaves its label only by `release` with a held capability (F.4.2)");
+        return format!("line {line}: W-RES-1 `declassify` is reserved and is never admitted: a labeled value leaves its label only by `release` with a held capability (F.4.2)");
     }
     format!(
         "line {line}: W-RES-1 `{w}` is reserved and its construct (Appendix F) is specified but not implemented by this checker, so it is reserved, not implemented"
@@ -73,7 +73,7 @@ pub fn gate(toks: &[(crate::parse::Tok, usize)]) -> Result<(), String> {
 
 // ---------------------------------------------------------------- S8 lexical
 
-/// Characters W-LEX-4 refuses inside a string or comment: bidirectional
+/// Characters that W-LEX-4 does not admit inside a string or comment: bidirectional
 /// controls, zero-width and invisible format characters, C0 and C1 controls
 /// (other than the line feed that ends a line), Unicode noncharacters and the
 /// tag block. `\u{...}` in a string is the one way to write them.
@@ -92,15 +92,15 @@ pub fn w_lex_4_class(c: char) -> Option<&'static str> {
     })
 }
 
-/// W-LEX-4 over the whole source text: a refused character anywhere in a
-/// string or a comment. (Outside both, the lexer already refuses every
-/// non-ASCII character, 2.3.) A leading U+FEFF is already W-LEX-1.
+/// W-LEX-4 over the whole source text: a character it does not admit
+/// anywhere in a string or a comment. (Outside both, the lexer already
+/// reports every non-ASCII character, 2.3.) A leading U+FEFF is already W-LEX-1.
 pub fn lexical(src: &str) -> Result<(), String> {
     let mut errs = vec![];
     for (n, ln) in src.split('\n').enumerate() {
         for c in ln.chars() {
             if let Some(k) = w_lex_4_class(c) {
-                // the tab and BOM have their own W-LEX-1 refusals in the lexer
+                // the tab and BOM have their own W-LEX-1 reports in the lexer
                 if c == '\t' || (c == '\u{feff}' && n == 0) || c == '\r' {
                     continue;
                 }
@@ -575,7 +575,7 @@ fn mentions(s: &Stmt, x: &str) -> bool {
 }
 
 /// Whether a statement or expression names `x` anywhere (a conservative
-/// over-approximation of "reads x": it makes W-ASSIGN-1 refuse less).
+/// over-approximation of "reads x": it makes W-ASSIGN-1 report less).
 struct Mention<'a> {
     x: &'a str,
     hit: bool,
@@ -1655,7 +1655,7 @@ pub(crate) fn fn_decls(m: &Module) -> Vec<(&FnDecl, bool)> {
 }
 
 /// A version 0.9 construct that the emitters and the Lean elaboration do not
-/// translate: the reference evaluator runs it, every other target refuses it
+/// translate: the reference evaluator runs it, every other target reports it
 /// as not implemented (never a different meaning). `None` when the module has none.
 pub fn unemittable(m: &Module) -> Option<String> {
     unemittable_for(m, false)
@@ -1706,7 +1706,7 @@ pub fn unemittable_for(m: &Module, lean: bool) -> Option<String> {
 
 /// Whether a module has a function that can fail after taking a `&mut`
 /// argument, so that F.4.4's restore changes its meaning (the emitters do not
-/// implement the restore, so they refuse such a module).
+/// implement the restore, so they do not yet print such a module).
 pub fn needs_restore(m: &Module) -> bool {
     fn fails(ss: &[Stmt]) -> bool {
         ss.iter().any(|s| {
@@ -1803,16 +1803,16 @@ pub const IMPLEMENTED: &[(&str, &str)] = &[
     ("W-NAME-2", "label, release, endorse, ct, requires, ensures, ghost and decreases used as ordinary names in a 0.9 module"),
     ("W-CAP-3", "path-taking foreign functions need Cap[DirRead|DirWrite]; DirRead and DirWrite are structs with `root: text`; narrow only extends a relative path"),
     ("W-CAP-1 (closures)", "a closure capturing &World or a capability, by declared type (labeled data is W-IFC-1)"),
-    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: refusal record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
+    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: record of a kept use, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
     ("W-LEN-1", "`len` on text in a 0.9 module; `len_bytes` and `len_chars` name the unit"),
-    ("S3 contexts", "ShellArg, Prompt, Header (CR and LF refused, F.5.7) and Shell.cmd as typed output"),
+    ("S3 contexts", "ShellArg, Prompt, Header (CR and LF trap, F.5.7) and Shell.cmd as typed output"),
     ("W-BUD-1 (model)", "a call to an `extern \"model\"` function outside `with budget`"),
     ("W-CTX-2", "a text parameter of an `extern \"model\"` function that is not `&Text[Prompt]`; an untrusted argument of a model call outside that parameter (label analysis, F.5.6)"),
     ("W-IFC-7", "a field of an `extern \"model\" event`, or a model function result, declared without `untrusted`; a `Cap` or `Guarded` field on such an event; `extern` events of another ABI (F.5.6)"),
     ("W-CTX-3", "a model call control dependent on untrusted data (branch, loop, early exit) or with a Text[Prompt] argument steered outside Prompt.encode (label analysis, F.5.6)"),
     ("W-TRI-1", "by W-IFC-1 and W-IFC-5, with no separate check (F.7.1)"),
     ("W-CTFN-1", "a secret-labeled value deciding control flow, an index, a shift amount, a divisor or a non-ct call argument inside a ct fn"),
-    ("W-CTFN-2", "emitters and the Lean elaboration refuse a module with a ct fn"),
+    ("W-CTFN-2", "emitters and the Lean elaboration do not yet translate a module with a ct fn"),
     ("W-CON-1", "requires clauses false in the literal and integer-bound fragment"),
     ("W-CON-2", "contract clause position, `result`, purity of a clause"),
     ("W-DEC-1", "decreases: linear measures over unsigned parameters, lexicographic decrease at every call of the recursive group"),
@@ -1825,25 +1825,25 @@ pub const IMPLEMENTED: &[(&str, &str)] = &[
 ];
 
 pub const UNIMPLEMENTED: &[(&str, &str)] = &[
-    ("F.3.3 qualified variants", "variants are still written unqualified (W-PAT-1 refusal stays); not enforced"),
-    ("F.3.3 W-LEX-4 unassigned scalars", "only noncharacters, the tag block and planes 4 to 13 are refused; no Unicode general-category table is vendored"),
+    ("F.3.3 qualified variants", "variants are still written unqualified (W-PAT-1 still applies); not enforced"),
+    ("F.3.3 W-LEX-4 unassigned scalars", "only noncharacters, the tag block and planes 4 to 13 require change; no Unicode general-category table is vendored"),
     ("F.3.3 tokenizer check (C-F2)", "the longest-token rule is not checked against the reference lexer"),
-    ("F.3.4 arithmetic additions", "distinct bounded integer types, div_floor/div_trunc/div_euclid/div_exact and named int/float conversions are not implemented (an unknown method is refused by name); check C-F1 not done"),
-    ("F.3.2 W-UNUSED-2 beyond literals", "only literal boolean conditions are refused, not named comptime constants"),
-    ("F.3.2 W-ASSIGN-1 beyond one block", "only an overwrite later in the same block with no mention between is refused"),
+    ("F.3.4 arithmetic additions", "distinct bounded integer types, div_floor/div_trunc/div_euclid/div_exact and named int/float conversions are not implemented (a call of an unknown method requires change, naming the method); check C-F1 not done"),
+    ("F.3.2 W-UNUSED-2 beyond literals", "only literal boolean conditions require change, not named comptime constants"),
+    ("F.3.2 W-ASSIGN-1 beyond one block", "only an overwrite later in the same block with no mention between requires change"),
     ("F.4.1 World in event payloads", "a &World is a parameter of main, task functions and externs only"),
     ("F.4.2 declassify and label polymorphism (S1)", "`declassify` is reserved, not implemented; labels are not generic parameters; Secret[T] keeps its 0.8 rules (W-SEC-1); labels are not yet part of the definition hash"),
     ("F.4.3 contracts, measures, ghost and labels in the hash", "those constructs do not exist yet; module hash and manifest (F.5.3) are not implemented"),
     ("F.4.3 api-diff rows for requires/ensures and escaping closures", "no contracts or escaping-closure marker exist yet"),
     ("F.4.4 linear consumption", "W-TX-1 does not track a consumed linear value (the value is consumed on failure either way)"),
-    ("F.4.4 emitters and Lean elaboration", "refuse a 0.9 module with a function that can fail after taking a &mut argument (W-RES-1)"),
+    ("F.4.4 emitters and Lean elaboration", "do not yet translate a 0.9 module with a function that can fail after taking a &mut argument (W-RES-1)"),
     ("F.5.1 host.revoke, closures capturing labeled or capability values found by inference", "host.revoke is reserved, not implemented; capture is checked by declared type"),
     ("F.5.2 strict parsing, migrations, R.check", "not implemented"),
     ("F.5.5 manifest-declared `model`, decreases-based counter elision, allocation bound", "`extern \"model\"` stands for the manifest declaration; no counter elision; Appendix F states no allocation bound"),
     ("F.5.3 provenance, cache rule, advisory key distribution", "no SLSA provenance record, no artifact cache and no way to publish advisory keys; the manifest is checked by `rce manifest-check`, not by `rce check`"),
     ("F.5.4 ct fn beyond declared labels", "W-CTFN-1 is a label analysis: a value that is secret but not labeled `secret` is not seen; no processor-level claim (T45 unproved)"),
     ("F.6.1 Template values", "`Template[t]` and a template that is not rendered at once are reserved, not implemented; `text.t\"..\"` and `C.t\"..\"` are implemented"),
-    ("F.6.2 contracts (P2)", "R.check, opaque invariant types, static use of callee contracts and contracts on function values are not implemented; emitters refuse a contract (W-RES-1)"),
+    ("F.6.2 contracts (P2)", "R.check, opaque invariant types, static use of callee contracts and contracts on function values are not implemented; emitters do not yet print a contract (W-RES-1)"),
     ("F.6.3 ghost (P3)", "`ghost` parameters, `mathint` and quantifiers are reserved, not implemented"),
     ("F.6.4 decreases (P4)", "measures on `for` and `loop`, structural and mathint measures are not implemented (a `decreases` there is reserved, not implemented); a `while` measure is decided over a straight-line body"),
     ("F.6.5 if let chains", "`and let P = e` is reserved, not implemented; the single `if let P = e [and c]... else` is implemented"),

@@ -166,7 +166,7 @@ fn auth_origin_accept_session_and_version_are_enforced() {
         c.raw("POST", &base(wrong), init.as_bytes()).unwrap().status,
         401
     );
-    // A foreign Origin (DNS rebinding) is refused; the allowed one passes.
+    // A request with a foreign Origin (DNS rebinding) is not performed; the allowed one passes.
     let mut h = base(g);
     h.push(("Origin", "http://evil.example"));
     assert_eq!(c.raw("POST", &h, init.as_bytes()).unwrap().status, 403);
@@ -275,7 +275,7 @@ fn an_idle_connection_does_not_block_other_clients() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn http_mode_jails_itself_and_refuses_undeclared_hosts() {
+fn http_mode_jails_itself_and_does_not_reach_undeclared_hosts() {
     let t = tempfile::tempdir().unwrap();
     let root = t.path().join("ws");
     std::fs::create_dir_all(&root).unwrap();

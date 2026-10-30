@@ -1,10 +1,13 @@
 //! Version 0.8 indexed values (spec 5.16; CORE-PROPERTIES.md P1; Lean
 //! RCE/Label.lean): the encoders agree across the reference evaluator and
-//! the Rust, Python and JavaScript runtimes; W-CTX-1, W-SEC-1, W-CAP-1,
-//! W-CAP-2 and the reserved names refuse; and the gate: none of it exists
+//! the Rust, Python and JavaScript runtimes; a program that breaks W-CTX-1,
+//! W-SEC-1, W-CAP-1 or W-CAP-2, or uses a reserved name, requires change; and the gate: none of it exists
 //! in a 0.5, 0.6 or 0.7 module, whose meaning is unchanged.
 use rce_spec_check::cli;
 use std::process::Command;
+
+#[path = "common/targets.rs"]
+mod targets;
 
 const ENC: &str = "# rce-version: 0.8
 fn main()
@@ -64,7 +67,7 @@ fn reference_and_every_runtime_agree_on_the_encoders() {
     let reference = emits(&o);
     assert_eq!(reference.len(), 4, "{o}");
     for (target, ext, tool) in [("rust", "rs", "rustc"), ("python", "py", "python3"), ("js", "mjs", "node")] {
-        if Command::new(tool).arg("--version").output().is_err() {
+        if !targets::covers(target, tool) {
             continue;
         }
         let (c, out, err) = run(&["emit", target, f.to_str().unwrap()]);
@@ -84,7 +87,7 @@ fn reference_and_every_runtime_agree_on_the_encoders() {
     }
 }
 
-fn refuses(src: &str, rule: &str) {
+fn requires_change(src: &str, rule: &str) {
     let f = dir().join("bad.rce");
     std::fs::write(&f, format!("# rce-version: 0.8\n{src}")).unwrap();
     let (c, o, e) = run(&["check", f.to_str().unwrap()]);
@@ -93,25 +96,25 @@ fn refuses(src: &str, rule: &str) {
 }
 
 #[test]
-fn injection_secrets_and_missing_authority_are_refused() {
+fn injection_secrets_and_missing_authority_require_change() {
     let sql = "state P\n    q: Text[Sql] = Sql.lit(\"\")\nevent E(b: text)\n";
-    refuses(&format!("{sql}step P on E(b: x) -> Sql.lit(\"x = \") + x\n"), "W-CTX-1");
-    refuses(&format!("{sql}step P on E(b: x) -> Sql.lit(x)\n"), "W-CTX-1");
-    refuses(&format!("{sql}step P on E(b: x) -> Html.encode(x)\n"), "W-TY-1");
-    refuses("state P\n    q: Text[Html] = Html.lit(\"\")\nevent E(b: Text[Html])\nstep P on E(b: x) -> x\n", "W-CTX-1");
-    refuses("state P\n    q: Text[Css] = Html.lit(\"\")\nevent E(b: text)\nstep P on E(b: _) -> q\n", "W-CTX-1");
+    requires_change(&format!("{sql}step P on E(b: x) -> Sql.lit(\"x = \") + x\n"), "W-CTX-1");
+    requires_change(&format!("{sql}step P on E(b: x) -> Sql.lit(x)\n"), "W-CTX-1");
+    requires_change(&format!("{sql}step P on E(b: x) -> Html.encode(x)\n"), "W-TY-1");
+    requires_change("state P\n    q: Text[Html] = Html.lit(\"\")\nevent E(b: Text[Html])\nstep P on E(b: x) -> x\n", "W-CTX-1");
+    requires_change("state P\n    q: Text[Css] = Html.lit(\"\")\nevent E(b: text)\nstep P on E(b: _) -> q\n", "W-CTX-1");
     let sec = "state V\n    n: u32 = 0\nevent E(p: Secret[text])\n";
-    refuses(&format!("{sec}step V on E(p: p)\n    emit p\n"), "W-SEC-1");
-    refuses(&format!("{sec}step V on E(p: p)\n    if p == \"hunter2\"\n        n += 1\n"), "W-TY-1");
-    refuses(&format!("{sec}step V on E(p: p)\n    n = p.len()\n"), "W-SEC-1");
-    refuses("struct S\n    p: Secret[text]?\nstate V\n    n: u32 = 0\nevent E(p: Secret[text])\nstep V on E(p: p)\n    emit S(p: some(p))\n", "W-SEC-1");
-    refuses("error Leak(p: Secret[text])\nstate V\n    n: u32 = 0\nevent E\nstep V on E -> n\n", "W-SEC-1");
+    requires_change(&format!("{sec}step V on E(p: p)\n    emit p\n"), "W-SEC-1");
+    requires_change(&format!("{sec}step V on E(p: p)\n    if p == \"hunter2\"\n        n += 1\n"), "W-TY-1");
+    requires_change(&format!("{sec}step V on E(p: p)\n    n = p.len()\n"), "W-SEC-1");
+    requires_change("struct S\n    p: Secret[text]?\nstate V\n    n: u32 = 0\nevent E(p: Secret[text])\nstep V on E(p: p)\n    emit S(p: some(p))\n", "W-SEC-1");
+    requires_change("error Leak(p: Secret[text])\nstate V\n    n: u32 = 0\nevent E\nstep V on E -> n\n", "W-SEC-1");
     let cap = "struct Root\nstate P\n    limit: Guarded[u32, Root] = 1\n";
-    refuses(&format!("{cap}event E(n: u32)\nstep P on E(n: n) -> n\n"), "W-CAP-2");
-    refuses(&format!("{cap}event E(c: Cap[Root], n: u32)\nevent F(n: u32)\nstep P on E(c: _, n: n) | F(n: n) -> n\n"), "W-CAP-2");
-    refuses("struct Root\nstate P\n    c: Cap[Root]? = none\nevent E\nstep P on E -> none\n", "W-CAP-1");
-    refuses("state P\n    c: Cap[Nope]? = none\nevent E\nstep P on E -> none\n", "W-CAP-1");
-    refuses("struct Html\n    a: u32\nfn main()\n    emit 1\n", "W-NAME-2");
+    requires_change(&format!("{cap}event E(n: u32)\nstep P on E(n: n) -> n\n"), "W-CAP-2");
+    requires_change(&format!("{cap}event E(c: Cap[Root], n: u32)\nevent F(n: u32)\nstep P on E(c: _, n: n) | F(n: n) -> n\n"), "W-CAP-2");
+    requires_change("struct Root\nstate P\n    c: Cap[Root]? = none\nevent E\nstep P on E -> none\n", "W-CAP-1");
+    requires_change("state P\n    c: Cap[Nope]? = none\nevent E\nstep P on E -> none\n", "W-CAP-1");
+    requires_change("struct Html\n    a: u32\nfn main()\n    emit 1\n", "W-NAME-2");
 }
 
 #[test]

@@ -109,7 +109,7 @@ fn remember_recall_forget_repo_map_in_process() {
     let r = call(&mut s, "forget", json!({"id": id}));
     assert_eq!(r["isError"], false, "{r}");
     let r = call(&mut s, "forget", json!({"id": id}));
-    assert_eq!(r["isError"], true, "second forget refused");
+    assert_eq!(r["isError"], true, "second forget not performed");
     let r = call(
         &mut s,
         "remember",
@@ -122,7 +122,7 @@ fn remember_recall_forget_repo_map_in_process() {
         "remember",
         json!({"subject": "AGENTS", "predicate": "", "object": "o", "note": true}),
     );
-    assert_eq!(r["isError"], true, "empty predicate refused");
+    assert_eq!(r["isError"], true, "empty predicate not performed");
     assert!(!t.path().join("AGENTS.md").exists() && !t.path().join("notes/agents.md").exists());
     let r = call(&mut s, "memory_sync", json!({}));
     assert_eq!(r["structuredContent"]["unchanged"], 1, "{r}");

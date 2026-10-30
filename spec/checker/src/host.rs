@@ -23,13 +23,19 @@
 //!   [`Host::resume`] opens a log handed over by the replicated log.
 //! - HS-6 bindings: `host.Bind` at start, then `host.Synced` after each
 //!   barrier and the bound program event `Synced(upto)` when declared.
+//! - HC-10b typed inputs: an input from the input stream that names an
+//!   event the host delivers is admitted after `host.Typed`.
+//! - E.4c delivery by declaration (HD-1 to HD-4): every delivery is
+//!   built into the module's declaration, matched by field name
+//!   ([`Host::delivery_notes`] says how at start), and `host.Kept` records
+//!   in D what was not delivered and why.
 //!
 //! The entry format is exactly the 6.1 chain of `form_json`: `state_hash` is
 //! SHA-256 of the canonical state JSON, `hash` is SHA-256 of
 //! `{"event":..,"prev_hash":..,"seq":..,"state_hash":..}`. Each line of the
 //! file is `{"event":E,"hash":H,"prev_hash":P,"seq":N,"state_hash":S}`.
 use crate::ast::{Arg, Expr, Item, Module, Ty};
-use crate::interp::{D_GENESIS, Interp, Region, V, d_sha, event_json, event_pos_json, state_pos_json, why};
+use crate::interp::{Cause, D_GENESIS, Interp, Region, V, d_sha, event_json, event_pos_json, state_pos_json, why};
 use crate::parse::parse;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -279,12 +285,152 @@ impl Store for MemStore {
 pub struct Admitted {
     pub seq: u64,
     pub event: String,
-    /// `Ok(outputs)` (each output's display text) or `Err(refusal)` (T8: state unchanged).
+    /// `Ok(outputs)` (each output's display text) or `Err(reason)` (T8: the step keeps the state).
     pub outcome: Result<Vec<String>, String>,
     /// Display sink (λ output only): the `data` of each emitted `Display(data: text)`.
     pub display: Vec<String>,
     /// The step emitted `Exit`: the host loop ends after this input.
     pub exit: bool,
+    /// HC-21: why the step kept the state (`fuel`, `size`, `value`, `depth`,
+    /// `fail` or `trap`), `None` when the input was applied.
+    pub cause: Option<&'static str>,
+}
+
+/// How an input reached δ. It decides the descent of HC-21 and which
+/// request a result answers. The live host knows it from the path that
+/// appended the entry; replay derives it from the entries around it, so
+/// both agree (HC-10b, HC-21).
+#[derive(Clone, Debug, PartialEq)]
+enum How {
+    /// an input with no mark: a result event `KDone` with a `req` is
+    /// matched to the request (K, req) it answers
+    Input,
+    /// an input read from the input stream (HC-10b); when its name is one
+    /// the host delivers, `host.Typed` precedes it. It answers no request
+    /// and starts no descent.
+    Typed,
+    /// an input of a window, announced by `host.Input` (E.2a); as `Typed`
+    Sourced,
+    /// the `StepKept` the host delivers after `host.StepKept` (HC-21)
+    Root,
+    /// the result the host delivers for the request (K, req) (HC-3)
+    Answers(String, u64),
+    /// another delivery of the host (`Restarted`, `Synced`, `WallTime`,
+    /// an HTTP input)
+    Delivery,
+    /// replay only: a host entry D owed (`host.Kept` after `host.StepKept`
+    /// or `host.Restarted`), already checked
+    Owed,
+}
+
+/// An entry D owes after the one just folded (HC-10b, HC-21, HC-22):
+/// replay requires it next, and a D that ends without it is completed on
+/// open, except a typed input, which the host had not appended.
+#[derive(Clone, Debug)]
+enum Next {
+    /// `host.StepKept` {cause, seq} after the entry of the kept step at seq;
+    /// `bind`: the module declares `StepKept` and the kept step does not descend
+    /// from a delivered `StepKept`, so the delivery of `StepKept` follows
+    HostKept { seq: u64, cause: Cause, bind: bool },
+    /// `host.Kept` with exactly this event JSON (E.4c)
+    Kept(String),
+    /// the program event `name` the host delivers, with these arguments
+    Deliver { name: String, args: Vec<Arg>, how: How },
+    /// the typed input `host.Typed` announced at seq
+    Typed { seq: u64 },
+}
+
+/// The `req` field of a request or of a result event.
+fn req_of(fs: &[(String, V)]) -> Option<u64> {
+    fs.iter().find_map(|(f, v)| match (f.as_str(), v) {
+        ("req", V::Int(i, _)) => u64::try_from(*i).ok(),
+        _ => None,
+    })
+}
+
+/// The request (K, req) the input `name` (value `ev`) answers: the one the
+/// host delivered it for, or, for an input with no mark, `KDone` by its
+/// `req`. A typed input answers none (HC-10b).
+fn answered(how: &How, name: &str, ev: &V) -> Option<(String, u64)> {
+    match how {
+        How::Answers(k, r) => Some((k.clone(), *r)),
+        How::Input => {
+            let k = name.strip_suffix("Done")?;
+            let V::Rec(_, fs) = ev else { return None };
+            Some((k.to_string(), req_of(fs)?))
+        }
+        _ => None,
+    }
+}
+
+fn kept_payload(cause: Cause, seq: u64) -> String {
+    format!("{{\"cause\":\"{}\",\"seq\":{seq}}}", cause.as_str())
+}
+
+fn kept_map(cause: Cause, seq: u64) -> serde_json::Map<String, Value> {
+    let mut p = serde_json::Map::new();
+    p.insert("cause".into(), Value::String(cause.as_str().into()));
+    p.insert("seq".into(), Value::from(seq));
+    p
+}
+
+fn restarted_map(below: u64) -> serde_json::Map<String, Value> {
+    one_field("below", below)
+}
+
+fn one_field(k: &str, n: u64) -> serde_json::Map<String, Value> {
+    let mut p = serde_json::Map::new();
+    p.insert(k.into(), Value::from(n));
+    p
+}
+
+/// The program events the host delivers, each with the host kind it is
+/// bound to (E.5 `host.Bind`), in the order the bindings are appended at
+/// start: `Synced`, `WallTime`, `StepKept`, `Restarted`, the HTTP inputs
+/// under `--http`, then the result `KDone` of each kind K performed. Only
+/// events the module declares are bound.
+fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = vec![];
+    for n in ["Synced", "WallTime", "StepKept", "Restarted"] {
+        v.push((n.to_string(), format!("host.{n}")));
+    }
+    if http {
+        for n in ["HttpRequest", "HttpMalformed"] {
+            v.push((n.to_string(), format!("host.{n}")));
+        }
+    }
+    for k in bound {
+        v.push((format!("{k}Done"), format!("host.{k}")));
+    }
+    v.retain(|(e, _)| declares_event(m, e));
+    v
+}
+
+/// HC-10b: the program events a typed input is marked for: every event
+/// some host delivers to this module, whatever adapters this run was
+/// granted, so the mark is a function of the module and D alone. They are
+/// the host inputs `Synced`, `WallTime`, `StepKept` and `Restarted`, the
+/// HTTP inputs `HttpRequest` and `HttpMalformed`, and the result `KDone`
+/// of every struct K the module declares, each when the module declares it.
+fn host_named(m: &Module) -> Vec<String> {
+    let mut v: Vec<String> = ["Synced", "WallTime", "StepKept", "Restarted", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
+    for i in &m.items {
+        if let Item::Struct { name, .. } = i {
+            v.push(format!("{name}Done"));
+        }
+    }
+    v.retain(|e| declares_event(m, e));
+    v
+}
+
+/// What replay re-derived (HC-8, HC-21).
+#[derive(Debug)]
+pub struct Replayed {
+    pub entries: u64,
+    pub state_hash: String,
+    pub state: Vec<Region>,
+    /// Every kept step: (seq, cause, the text of why it was kept, re-derived by replay).
+    pub kept_outcomes: Vec<(u64, &'static str, String)>,
 }
 
 /// The fabric record of E.7 (HC-11) as canonical JSON (keys sorted): the CPU
@@ -480,27 +626,266 @@ impl EffectResult {
 pub trait Adapter {
     fn kind(&self) -> &'static str;
     fn perform(&mut self, request: &Value) -> EffectResult;
-}
-
-/// The result event's required shape; `Err` names what does not fit.
-fn result_event_fits(m: &Module, kind: &str) -> Result<(), String> {
-    let ev = format!("{kind}Done");
-    let Some(p) = m.items.iter().find_map(|i| match i {
-        Item::Event { name, payload, .. } if *name == ev => Some(payload),
-        _ => None,
-    }) else {
-        return Err(format!("W-HOST-1 effect `{kind}` is emitted but `event {ev}(req: u64, status: text, data: T?, err: text)` is not declared"));
-    };
-    let ty = |n: &str| p.iter().find(|(k, _)| k == n).map(|(_, t)| t.clone());
-    let path = |t: Option<Ty>, want: &str| matches!(t, Some(Ty::Path(ref x, _)) if x.len() == 1 && x[0] == want);
-    if !path(ty("req"), "u64") || !path(ty("status"), "text") || !path(ty("err"), "text") || !matches!(ty("data"), Some(Ty::Opt(_))) || p.len() != 4 {
-        return Err(format!("W-HOST-1 `event {ev}` must be ({ev}(req: u64, status: text, data: T?, err: text))"));
-    }
-    Ok(())
+    /// HC-22: the host restarted at entry `floor` (the seq of its
+    /// `host.Restarted`). An adapter that issues resource ids issues them
+    /// from `floor` upward, so no id issued before is reused within D.
+    fn restart(&mut self, _floor: u64) {}
+    /// HD-3: the module takes this kind's received bytes as `text`. An
+    /// adapter that receives bytes then keeps a UTF-8 character that a read
+    /// ends inside for the next read, so no character is split; the host
+    /// delivers the rest as text when it is UTF-8.
+    fn text(&mut self) {}
 }
 
 fn declares_struct(m: &Module, name: &str) -> bool {
     m.items.iter().any(|i| matches!(i, Item::Struct { name: n, .. } if n == name))
+}
+
+/// The declared payload of `event name`, if the module declares it.
+fn event_payload<'m>(m: &'m Module, name: &str) -> Option<&'m [(String, Ty)]> {
+    m.items.iter().find_map(|i| match i {
+        Item::Event { name: n, payload, .. } if n == name => Some(payload.as_slice()),
+        _ => None,
+    })
+}
+
+/// The fields of host values that hold bytes received from outside
+/// (HC-10a): delivered exactly as `List[i64]`, or as `text` only when they
+/// are UTF-8 (HD-3). A line of the input stream held as `Input(data)`
+/// (HC-24) is such bytes too.
+const BYTES_FIELDS: [(&str, &str); 3] = [("HttpRequest", "body"), ("NetRecvDone", "data"), ("Input", "data")];
+
+fn bytes_field(event: &str, field: &str) -> bool {
+    BYTES_FIELDS.contains(&(event, field))
+}
+
+/// A declared type with every `type` alias it names followed.
+fn unalias<'m>(mut t: &'m Ty, m: &'m Module) -> &'m Ty {
+    for _ in 0..32 {
+        let Ty::Path(p, g) = t else { return t };
+        let next = (p.len() == 1 && g.is_empty())
+            .then(|| m.items.iter().find_map(|i| match i {
+                Item::TypeAlias { name, ty, generics, .. } if *name == p[0] && generics.is_empty() => Some(ty),
+                _ => None,
+            }))
+            .flatten();
+        match next {
+            Some(n) => t = n,
+            None => return t,
+        }
+    }
+    t
+}
+
+/// A declared type with its aliases followed and one `?` removed: the type
+/// of the value a field holds when it holds one.
+fn held_type<'m>(t: &'m Ty, m: &'m Module) -> &'m Ty {
+    match unalias(t, m) {
+        Ty::Opt(x) => unalias(x, m),
+        x => x,
+    }
+}
+
+/// Whether a declared type holds text (HD-3), through aliases and `?`.
+fn takes_text(t: &Ty, m: &Module) -> bool {
+    matches!(held_type(t, m), Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "text")
+}
+
+/// Whether a declared type holds an integer, through aliases and `?`.
+fn takes_int(t: &Ty, m: &Module) -> bool {
+    matches!(held_type(t, m), Ty::Path(p, g) if p.len() == 1 && g.is_empty() && crate::types::INTS.contains(&p[0].as_str()))
+}
+
+/// What a JSON value is, for a reason text.
+fn json_kind(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "no value",
+        Value::Bool(_) => "a boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "text",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "a record",
+    }
+}
+
+/// Received bytes as text, when they are UTF-8 (HD-3); otherwise why not,
+/// with the offset of the first byte that is not.
+pub(crate) fn utf8_text(b: &[u8]) -> Result<String, String> {
+    match std::str::from_utf8(b) {
+        Ok(s) => Ok(s.to_string()),
+        Err(e) if e.error_len().is_none() => Err(format!("incomplete UTF-8 character at offset {}", e.valid_up_to())),
+        Err(e) => Err(format!("not UTF-8 at offset {}", e.valid_up_to())),
+    }
+}
+
+/// The host's value `v` of one field as an argument of the declared type
+/// `ty`, when it converts exactly (E.4c); otherwise why not. `bytes`: the
+/// value is bytes received from outside, which become `text` only when
+/// they are UTF-8 (HD-3).
+fn convert(v: &Value, ty: &Ty, bytes: bool, m: &Module) -> Result<Expr, String> {
+    let ty = unalias(ty, m);
+    let mismatch = || format!("{} where {} is declared", json_kind(v), ty_text(ty));
+    match ty {
+        Ty::Opt(t) => {
+            if v.is_null() {
+                return Ok(Expr::None(0));
+            }
+            let inner = convert(v, t, bytes, m)?;
+            Ok(Expr::Call(Box::new(Expr::Name("some".into(), 0)), vec![Arg { label: None, e: inner }], 0, false))
+        }
+        Ty::Path(p, g) if p.len() == 1 && g.is_empty() && crate::types::INTS.contains(&p[0].as_str()) => {
+            let n = v.as_i64().map(i128::from).or_else(|| v.as_u64().map(i128::from)).ok_or_else(mismatch)?;
+            let (lo, hi) = crate::types::int_range(&p[0]);
+            if n < lo || n > hi {
+                return Err(format!("{n} is outside {}", p[0]));
+            }
+            Ok(Expr::Int(n, 0))
+        }
+        Ty::Path(p, g) if p.len() == 1 && g.is_empty() && (p[0] == "f64" || p[0] == "f32") => Ok(Expr::Float(v.as_f64().ok_or_else(mismatch)?, 0)),
+        Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "bool" => Ok(Expr::Bool(v.as_bool().ok_or_else(mismatch)?, 0)),
+        Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "text" => match v {
+            Value::String(s) => Ok(Expr::Str(s.clone(), 0)),
+            Value::Array(xs) if bytes => {
+                let b: Vec<u8> = xs.iter().map(|x| x.as_u64().filter(|b| *b <= 255).map(|b| b as u8)).collect::<Option<_>>().ok_or("a byte outside 0..255")?;
+                utf8_text(&b).map(|s| Expr::Str(s, 0))
+            }
+            _ => Err(mismatch()),
+        },
+        Ty::Path(p, g) if p.len() == 1 && p[0] == "List" && g.len() == 1 => match v {
+            Value::Array(xs) => Ok(Expr::List(xs.iter().map(|x| convert(x, &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
+            // received bytes the host holds as text (a UTF-8 line, HC-24)
+            // are exactly the bytes of that text
+            Value::String(t) if bytes => Ok(Expr::List(t.bytes().map(|b| convert(&Value::from(b), &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
+            _ => Err(mismatch()),
+        },
+        _ => json_expr(v, Some(ty), m),
+    }
+}
+
+/// What the module's declaration of its event makes of a host value (E.4c).
+enum Build {
+    /// the arguments, and the host fields with a value the event does not declare
+    Built(Vec<Arg>, Vec<String>),
+    /// the event is declared and this value cannot be built: why, and the
+    /// host field whose value has no exact conversion, if that is the reason
+    Unbuildable(String, Option<String>),
+    /// the module does not declare the event
+    Undeclared,
+}
+
+/// What the admitter appends for one delivery (E.4c): `host.Kept` with
+/// the reason, when the delivery is not the host's whole value and no
+/// host entry before it holds that value, then the program event, when it
+/// can be built.
+#[derive(Clone, Debug, Default)]
+struct Plan {
+    kept: Option<String>,
+    deliver: Option<(String, Vec<Arg>)>,
+}
+
+/// Whether a host value is the result of a request (HC-3): `KDone` with
+/// the four fields every result has.
+fn is_result(name: &str, p: &serde_json::Map<String, Value>) -> bool {
+    name.ends_with("Done") && ["req", "status", "data", "err"].iter().all(|k| p.contains_key(*k))
+}
+
+/// The entry `host.Kept` {event, why}: the host's whole value of a
+/// delivery, as an event JSON, and why the delivery is not exactly it.
+fn kept_event(name: &str, p: &serde_json::Map<String, Value>, why: &str) -> String {
+    let v = serde_json::json!({"event": {"payload": p, "type": name}, "why": why});
+    host_event("Kept", &v.to_string())
+}
+
+/// The value of a result as the host makes it (HC-3).
+fn result_payload(req: u64, r: &EffectResult) -> serde_json::Map<String, Value> {
+    let mut p = serde_json::Map::new();
+    p.insert("data".into(), r.data.clone().unwrap_or(Value::Null));
+    p.insert("err".into(), Value::String(r.error.clone()));
+    p.insert("req".into(), Value::from(req));
+    p.insert("status".into(), Value::String(r.status.as_str().into()));
+    p
+}
+
+/// The host's fields of each event it delivers, with their types, for the
+/// lines printed at start (E.4c). The data of a result has the type of
+/// its kind; only received bytes (HC-10a) are known here.
+fn host_fields(event: &str) -> Vec<(&'static str, &'static str)> {
+    match event {
+        "StepKept" => vec![("seq", "u64"), ("cause", "text")],
+        "Restarted" => vec![("below", "u64")],
+        "Synced" => vec![("upto", "u64")],
+        "WallTime" => vec![("ns", "u64")],
+        "HttpRequest" => vec![("id", "u64"), ("method", "text"), ("target", "text"), ("version", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")],
+        "HttpMalformed" => vec![("id", "u64"), ("status", "u64"), ("why", "text")],
+        "NetRecvDone" => vec![("req", "u64"), ("status", "text"), ("data", "List[i64]?"), ("err", "text")],
+        _ => vec![("req", "u64"), ("status", "text"), ("data", "?"), ("err", "text")],
+    }
+}
+
+/// The line printed at start for one event the host delivers, when the
+/// module's declaration is not exactly the host's value (E.4c): what the
+/// host will deliver and record. `held`: a host entry before each delivery
+/// holds the whole value. `None` when the declaration is exactly the host's.
+fn delivery_note(m: &Module, event: &str, held: bool) -> Option<String> {
+    let decl = event_payload(m, event)?;
+    let host = host_fields(event);
+    let mut says: Vec<String> = vec![];
+    let mut never = false;
+    for (i, (k, ty)) in decl.iter().enumerate() {
+        let t = unalias(ty, m);
+        let (opt, inner) = match t {
+            Ty::Opt(x) => (true, ty_text(unalias(x, m))),
+            x => (false, ty_text(x)),
+        };
+        match host.iter().find(|(h, _)| h == k) {
+            None if opt => says.push(format!("{k} is always none (the host has no value for it)")),
+            None => {
+                says.push(format!("field {} ({k}) has no value from the host", i + 1));
+                never = true;
+            }
+            Some((_, h)) => {
+                // "?": the data of a result, whose type is its kind's
+                let (hopt, hinner) = match h.strip_suffix('?') {
+                    Some(x) if !x.is_empty() => (true, x),
+                    _ => (false, *h),
+                };
+                if hinner == "?" {
+                    if !opt {
+                        says.push(format!("{k} is not optional, so a result without data (failed, timed out, unreachable) is not delivered"));
+                    }
+                } else if inner == "text" && hinner == "List[i64]" && bytes_field(event, k) {
+                    let otherwise = if event == "HttpRequest" { "the request is delivered as HttpMalformed with status 415, with the offset" } else { "the result is delivered as failed, with the offset" };
+                    says.push(format!("{k} is text: received bytes are delivered as text when they are UTF-8, and otherwise {otherwise}"));
+                } else if inner != hinner {
+                    if *k == "data" && is_result_name(event) {
+                        says.push(format!("{k} is {inner}, the host's is {hinner}: each result is delivered as failed"));
+                    } else {
+                        says.push(format!("{k} is {}, the host's is {hinner}: no delivery can be built", ty_text(t)));
+                        never = true;
+                    }
+                } else if hopt && !opt {
+                    says.push(format!("{k} is not optional, so a value without it is not delivered"));
+                }
+            }
+        }
+    }
+    let lost: Vec<&str> = host.iter().map(|(h, _)| *h).filter(|h| !decl.iter().any(|(k, _)| k == h)).collect();
+    if !lost.is_empty() && !held && !never {
+        says.push(format!("the host's {} {} not delivered, and host.Kept keeps {} in D before each delivery", lost.join(", "), if lost.len() == 1 { "is" } else { "are" }, if lost.len() == 1 { "it" } else { "them" }));
+    }
+    if says.is_empty() {
+        return None;
+    }
+    let tail = match (never, event) {
+        (false, _) => "",
+        (true, "HttpRequest") => "; so no request is delivered as HttpRequest: each is recorded in D as host.Kept and delivered as HttpMalformed with status 501, or answered 501 by the host",
+        (true, _) => "; so it is never delivered, and each value is recorded in D as host.Kept with the reason",
+    };
+    Some(format!("event {event}: {}{tail}", says.join("; ")))
+}
+
+fn is_result_name(event: &str) -> bool {
+    !matches!(event, "StepKept" | "Restarted" | "Synced" | "WallTime" | "HttpRequest" | "HttpMalformed") && event.ends_with("Done")
 }
 
 /// The admitter and the program state it folds (one per program instance, HC-1).
@@ -515,6 +900,11 @@ pub struct Host<'a> {
     stopped: bool,
     /// Entries appended since the last successful barrier.
     pending: usize,
+    /// Of those, the ones that are not the confirmation of a barrier
+    /// (`host.Synced` and its bound `Synced`): a barrier is taken for these.
+    pending_real: usize,
+    /// While the entries confirming a barrier are appended.
+    confirming: bool,
     /// The last seq made durable.
     pub durable: Option<u64>,
     /// The seq of the snapshot this host was opened from, if one was used (HS-5).
@@ -522,8 +912,19 @@ pub struct Host<'a> {
     adapters: Vec<Box<dyn Adapter + 'a>>,
     /// Effect kinds bound at start (HS-6), in adapter order.
     bound: Vec<&'static str>,
-    /// Requests emitted and not yet answered: (kind, req, request JSON), in emit order (E-x).
-    queue: std::collections::VecDeque<(String, u64, Value)>,
+    /// Requests emitted and not yet answered, in emit order (E-x).
+    queue: std::collections::VecDeque<Queued>,
+    /// HC-21: the requests (`K` with a `req`, `KDone` declared) emitted by
+    /// steps that descend from a `StepKept` entry and not yet answered by a
+    /// `KDone` with their req: (K, req, the `StepKept` entry's seq), in emit
+    /// order. Derived from D alone, so live and replay agree.
+    descends: std::collections::VecDeque<(String, u64, u64)>,
+    /// The most queued requests one call of [`Host::drain`] performs
+    /// (unbounded unless the host loop bounds it, HC-24).
+    drain_max: usize,
+    /// The last seq covered by a successful barrier (on every store; on a
+    /// volatile one nothing is reported durable, E.3).
+    synced: Option<u64>,
     /// E.2a: per source, the highest seq whose input is in D (dedupe key).
     admitted: std::collections::BTreeMap<String, u64>,
     /// E.2a: the id of the next admission window, and the tick the last one closed at.
@@ -542,6 +943,179 @@ pub struct Host<'a> {
     /// (fabric, class) pairs admitted by a matching probe, folded from D.
     calib: std::collections::BTreeMap<(String, String), (f64, f64)>,
     exacts: std::collections::BTreeSet<(String, String)>,
+    /// HC-10b, HC-21, HC-22: the entries the last folded entry requires next.
+    owe: std::collections::VecDeque<Next>,
+    /// HC-10b: the program events a typed input is marked for ([`host_named`]).
+    delivered: Vec<String>,
+    /// E.4c: one line for each declaration that is not exactly what the
+    /// host delivers, saying what the host will deliver and record.
+    notes: Vec<String>,
+    /// HC-21: the kept steps replay re-derived: (seq, cause, text).
+    kept_outcomes: Vec<(u64, &'static str, String)>,
+    /// HC-22: the n of the last `Tick(n)` in D, so the host loop continues it.
+    last_tick: u64,
+    /// When set, replay records each program entry's outputs (Form JSON).
+    outputs: Option<Vec<(u64, Vec<Value>)>>,
+}
+
+/// A request emitted and not yet answered.
+#[derive(Clone, Debug)]
+struct Queued {
+    kind: String,
+    req: u64,
+    /// the request as Form JSON
+    json: Value,
+    /// the seq of the entry that requested it
+    at: u64,
+}
+
+/// A declared type as written (`u64`, `List[text]`, `u64?`).
+fn ty_text(t: &Ty) -> String {
+    match t {
+        Ty::Path(p, g) if g.is_empty() => p.join("."),
+        Ty::Path(p, g) => format!("{}[{}]", p.join("."), g.iter().map(ty_text).collect::<Vec<_>>().join(", ")),
+        Ty::Opt(x) => format!("{}?", ty_text(x)),
+        other => format!("{other:?}"),
+    }
+}
+
+/// HD-2: the status the host gives a request it cannot deliver as
+/// `HttpRequest`, from the reason: 415 Unsupported Media Type when the
+/// body is not UTF-8 and the module takes it as text (RFC 9110 15.5.16, the
+/// content inspected directly), 501 Not Implemented otherwise (RFC 9110
+/// 15.6.2: the program does not support what the request needs).
+fn http_fallback_status(why: &str) -> u64 {
+    if why.starts_with("body: ") && why.contains("UTF-8") { 415 } else { 501 }
+}
+
+/// How the host admitted one HTTP input (HC-24, HD-2).
+#[derive(Debug)]
+pub struct HttpAdmit {
+    /// the id: the seq of the entry that delivers the input, or, when
+    /// `host.Kept` records it first, of the entry after that one
+    pub id: u64,
+    pub admitted: Vec<Admitted>,
+    /// the response's framing (HC-26): a HEAD request, and whether the
+    /// connection closes after the response
+    pub head: bool,
+    pub close: bool,
+    /// the status the host answers with itself, after the batch barrier,
+    /// when the program cannot answer: the input was not delivered, it
+    /// was delivered without its id, or the module declares no
+    /// `HttpRespond` with `req` and `status` (HD-2)
+    pub answer: Option<u64>,
+}
+
+/// HD-2: whether the program can answer an HTTP input: the module
+/// declares `struct HttpRespond` with `req` and `status` of integer types
+/// (any other field is read by name, HC-26).
+fn responds(m: &Module) -> bool {
+    m.items.iter().any(|i| match i {
+        Item::Struct { name, fields, .. } if name == "HttpRespond" => ["req", "status"].iter().all(|k| fields.iter().any(|f| f.name == *k && takes_int(&f.ty, m))),
+        _ => false,
+    })
+}
+
+/// The integer argument `k` of a delivery, also when it is held in a `?`.
+fn int_arg(args: &[Arg], k: &str) -> Option<u64> {
+    args.iter().find_map(|a| match (&a.label, &a.e) {
+        (Some(l), Expr::Int(n, _)) if l == k => u64::try_from(*n).ok(),
+        (Some(l), Expr::Call(f, xs, _, _)) if l == k && matches!(&**f, Expr::Name(s, _) if s == "some") => match xs.first().map(|x| &x.e) {
+            Some(Expr::Int(n, _)) => u64::try_from(*n).ok(),
+            _ => None,
+        },
+        _ => None,
+    })
+}
+
+/// HC-26, HD-2: the response to one HTTP input, from the host's whole
+/// value `p` of the input `name` (its id included), the plan of its
+/// delivery and `at`, the seq of the entry that delivers it: whether the
+/// request is HEAD, whether the connection closes after the response, and
+/// the status the host answers with itself, `None` when the program
+/// answers. The program answers only an input delivered with its id, the
+/// seq of that entry, to a module that can answer (`responds`); every
+/// other input is answered by the host with the host's status of it: 501
+/// for a request delivered as `HttpRequest`, the status of
+/// [`http_fallback_status`] for one that is not, and the status of a
+/// malformed request.
+fn http_terms(m: &Module, name: &str, p: &serde_json::Map<String, Value>, plan: &Plan, at: u64) -> (bool, bool, Option<u64>) {
+    let answers = responds(m) && plan.deliver.as_ref().is_some_and(|(_, args)| int_arg(args, "id") == Some(at));
+    let delivered = plan.deliver.as_ref().map(|(n, _)| n.as_str());
+    if !answers {
+        // the host's own response has no body and closes the connection
+        let status = match (name, delivered) {
+            ("HttpRequest", Some("HttpRequest")) => 501,
+            ("HttpRequest", _) => http_fallback_status(plan.kept.as_deref().unwrap_or("")),
+            _ => p.get("status").and_then(Value::as_u64).unwrap_or(400),
+        };
+        return (false, true, Some(status));
+    }
+    if name == "HttpRequest" && delivered == Some("HttpRequest") {
+        let texts = |k: &str| -> Vec<String> { p.get(k).and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect() };
+        let close = crate::adapters::http::closes(p.get("version").and_then(Value::as_str).unwrap_or(""), &texts("names"), &texts("values"));
+        return (p.get("method").and_then(Value::as_str) == Some("HEAD"), close, None);
+    }
+    // a malformed request, delivered as HttpMalformed: the connection closes
+    (false, true, None)
+}
+
+/// One HTTP input of D, and how its response is made (HC-26).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HttpOfD {
+    /// the id: the seq of the entry that delivers the input (or would)
+    pub id: u64,
+    /// a HEAD request: the response carries no body
+    pub head: bool,
+    /// the connection closes after the response
+    pub close: bool,
+    /// the status of the response the host makes itself (HD-2), with no
+    /// fields and no body; `None` when the program answers with the
+    /// `HttpRespond` of the step at `id`
+    pub answer: Option<u64>,
+}
+
+/// HC-26, HD-2: every HTTP input the host admitted into D, in order, with
+/// the framing of its response and who makes it, read from the host's
+/// whole value of the input (its entry, or the `host.Kept` that records it
+/// first) and the module, the way the live host decided them
+/// ([`Host::http_input`]). A typed input (HC-10b) is not an HTTP input. With
+/// the `HttpRespond` requests replay re-derives ([`replay_outputs`]) and
+/// `http::response_bytes`, every byte the host writes for a request, and
+/// whether the connection closes after it, is a function of D.
+pub fn http_inputs(m: &Module, text: &str) -> Result<Vec<HttpOfD>, String> {
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    let mut out = vec![];
+    // the entry that is no HTTP input of its own: the typed input after
+    // `host.Typed`, or the delivery after the `host.Kept` that holds it
+    let mut skip: Option<u64> = None;
+    for l in text.split_terminator('\n') {
+        let e = Entry::parse_line(l).ok_or("D: a line that is not an entry")?;
+        if skip == Some(e.seq) {
+            continue;
+        }
+        let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+        let (ev, at) = match e.kind().as_str() {
+            "host.Typed" => {
+                skip = Some(e.seq + 1);
+                continue;
+            }
+            "host.Kept" => (v["payload"]["event"].clone(), e.seq + 1),
+            "HttpRequest" | "HttpMalformed" => (v, e.seq),
+            _ => continue,
+        };
+        let (Some(name), Some(p)) = (ev["type"].as_str(), ev["payload"].as_object()) else { continue };
+        if name != "HttpRequest" && name != "HttpMalformed" {
+            continue;
+        }
+        let plan = h.plan(name, p, false);
+        if at > e.seq && plan.deliver.is_some() {
+            skip = Some(at);
+        }
+        let (head, close, answer) = http_terms(m, name, p, &plan, at);
+        out.push(HttpOfD { id: p.get("id").and_then(Value::as_u64).unwrap_or(at), head, close, answer });
+    }
+    Ok(out)
 }
 
 /// HC-6: a live `fn main` task. Its state is a function of D: the start
@@ -822,30 +1396,68 @@ impl<'a> Host<'a> {
 
     fn fresh(m: &'a Module, store: Box<dyn Store + 'a>, adapters: Vec<Box<dyn Adapter + 'a>>) -> Result<Host<'a>, String> {
         let mut bound = vec![];
-        for a in &adapters {
+        let mut adapters = adapters;
+        // E.4c: every request struct of a kind the host performs is bound;
+        // its result is delivered as declared, or recorded in D
+        for a in adapters.iter_mut() {
             if declares_struct(m, a.kind()) {
-                result_event_fits(m, a.kind())?;
                 bound.push(a.kind());
+                // HD-3: received bytes taken as text carry a character that
+                // a read ends inside to the next read
+                let ev = format!("{}Done", a.kind());
+                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && takes_text(t, m));
+                if text {
+                    a.text();
+                }
+            }
+        }
+        let http = adapters.iter().any(|a| a.kind() == "HttpRespond");
+        let delivered = host_named(m);
+        let mut notes = vec![];
+        for (e, held) in [("Synced", true), ("WallTime", true), ("StepKept", true), ("Restarted", true)] {
+            notes.extend(delivery_note(m, e, held));
+        }
+        if http {
+            match event_payload(m, "HttpRequest") {
+                None => notes.push(format!("--http: event HttpRequest is not declared, so each request is recorded in D as host.Kept and {}", if declares_event(m, "HttpMalformed") { "delivered as HttpMalformed with status 501" } else { "answered 501 Not Implemented by the host" })),
+                Some(_) => notes.extend(delivery_note(m, "HttpRequest", false)),
+            }
+            match event_payload(m, "HttpMalformed") {
+                None => notes.push("--http: event HttpMalformed is not declared, so a request that breaks the syntax, a limit or a deadline is recorded in D as host.Kept and answered by the host with its status".to_string()),
+                Some(_) => notes.extend(delivery_note(m, "HttpMalformed", false)),
+            }
+            if !declares_struct(m, "HttpRespond") {
+                notes.push("--http: struct HttpRespond is not declared, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
+            } else if !responds(m) {
+                notes.push("--http: struct HttpRespond does not declare req and status as integers, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
+            }
+            for e in ["HttpRequest", "HttpMalformed"] {
+                if responds(m) && event_payload(m, e).is_some_and(|p| !p.iter().any(|(k, t)| k == "id" && takes_int(t, m))) {
+                    notes.push(format!("--http: event {e} does not take id as an integer, so the program cannot answer it, and the host answers each with its status"));
+                }
+            }
+        }
+        for k in &bound {
+            let e = format!("{k}Done");
+            if declares_event(m, &e) {
+                notes.extend(delivery_note(m, &e, false));
+            } else {
+                notes.push(format!("struct {k}: event {e} is not declared, so each request is performed and its result is recorded in D as host.Kept, not delivered"));
             }
         }
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default() })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
         let caps = self.store.caps();
         self.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         self.append(host_event("FabricCaps", &fabric_caps()))?;
-        if declares_event(self.m, "Synced") {
-            self.append(host_event("Bind", "{\"event\":\"Synced\",\"kind\":\"host.Synced\"}"))?;
-        }
-        if declares_event(self.m, "WallTime") {
-            self.append(host_event("Bind", "{\"event\":\"WallTime\",\"kind\":\"host.WallTime\"}"))?;
-        }
-        for k in self.bound.clone() {
-            self.append(host_event("Bind", &format!("{{\"event\":\"{k}Done\",\"kind\":\"host.{k}\"}}")))?;
+        let http = self.adapters.iter().any(|a| a.kind() == "HttpRespond");
+        for (e, k) in binds(self.m, &self.bound, http) {
+            self.append(host_event("Bind", &format!("{{\"event\":\"{e}\",\"kind\":\"{k}\"}}")))?;
         }
         self.confirm()
     }
@@ -868,9 +1480,23 @@ impl<'a> Host<'a> {
     /// (see [`Host::load_snapshot`]), else it is discarded and D is refolded
     /// from genesis. Either way the meaning is the same.
     pub fn open_file_snap(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, snap: Option<&Snapshot>) -> Result<Host<'a>, String> {
+        Host::open_inner(m, path, adapters, snap, usize::MAX)
+    }
+
+    /// `open_file_with` for the host loop: every drain, the one at open
+    /// among them, performs at most `drain_max` requests (HC-24), so the
+    /// requests the restart's results make never keep the loop from
+    /// starting and reading its stop.
+    pub fn open_file_bounded(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, drain_max: usize) -> Result<Host<'a>, String> {
+        Host::open_inner(m, path, adapters, None, drain_max)
+    }
+
+    fn open_inner(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, snap: Option<&Snapshot>, drain_max: usize) -> Result<Host<'a>, String> {
         let (mut fs, text) = FileStore::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
         if text.is_empty() {
-            return Host::start_with(m, Box::new(fs), adapters);
+            let mut h = Host::start_with(m, Box::new(fs), adapters)?;
+            h.bound_drains(drain_max);
+            return Ok(h);
         }
         let lines: Vec<&str> = text.split_terminator('\n').collect();
         let keep = verify_prefix(&lines, m);
@@ -881,30 +1507,69 @@ impl<'a> Host<'a> {
         }
         let entries: Vec<Entry> = lines[..keep].iter().map(|l| Entry::parse_line(l).unwrap()).collect();
         let mut h = Host::fresh(m, Box::new(fs), adapters)?;
+        h.bound_drains(drain_max);
         let from = match snap {
             Some(sn) if h.load_snapshot(sn, &entries) => sn.seq as usize + 1,
             _ => 0,
         };
         h.refold(&entries[from..])?;
+        // HC-21: a D that ends after the entry of a kept step, or after its
+        // `host.StepKept`, is completed before anything else is appended
+        h.complete_owed()?;
         let caps = h.store.caps();
         if dropped > 0 {
             h.append(host_event("Truncated", &format!("{{\"dropped\":{dropped}}}")))?;
         }
         h.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         h.append(host_event("FabricCaps", &fabric_caps()))?;
-        while let Some((k, req, _)) = h.queue.pop_front() {
-            h.answer(&k, req, EffectResult::failed("interrupted"))?;
-        }
+        h.restarted()?;
         h.drain()?;
         h.confirm()?;
         Ok(h)
+    }
+
+    /// HC-22: the adapter resources of the process that wrote D are gone.
+    /// Append `host.Restarted` {below}, below being that entry's own seq;
+    /// let every adapter issue ids from below upward; admit the bound
+    /// `Restarted(below)` when declared; then give every request that was
+    /// outstanding in D one result, `failed` with `interrupted` (HC-3). The
+    /// requests the `Restarted` step makes are not among them.
+    fn restarted(&mut self) -> Result<(), String> {
+        let lost = std::mem::take(&mut self.queue);
+        let below = self.seq;
+        self.append(host_event("Restarted", &format!("{{\"below\":{below}}}")))?;
+        for a in self.adapters.iter_mut() {
+            a.restart(below);
+        }
+        let p = restarted_map(below);
+        let plan = self.plan("Restarted", &p, true);
+        self.deliver_plan("Restarted", &p, plan, How::Delivery)?;
+        for q in lost {
+            self.answer(&q.kind, q.req, EffectResult::failed("interrupted"))?;
+        }
+        Ok(())
+    }
+
+    /// The n of the last `Tick(n)` in D (0 when none), so a host loop
+    /// started on an existing D continues the count (HC-22).
+    pub fn last_tick(&self) -> u64 {
+        self.last_tick
+    }
+
+    fn note_tick(&mut self, name: &str, ev: &V) {
+        if name == "Tick"
+            && let V::Rec(_, fs) = ev
+            && let Some((_, V::Int(n, _))) = fs.iter().find(|(f, _)| f == "n")
+        {
+            self.last_tick = (*n).max(0) as u64;
+        }
     }
 
     /// A snapshot of the state after the last entry (HS-5). Taken only
     /// between batches, when no effect request is outstanding, so the
     /// entries after it rebuild every request that matters.
     pub fn snapshot(&self) -> Option<Snapshot> {
-        if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() {
+        if !self.queue.is_empty() || !self.descends.is_empty() || self.seq == 0 || self.task.is_some() || !self.owe.is_empty() {
             return None;
         }
         Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_pos_json(&self.state, self.m) })
@@ -950,16 +1615,51 @@ impl<'a> Host<'a> {
         // program entry it announces follows it (a cut between them admits nothing).
         let mut announced: Option<(String, u64)> = None;
         for e in entries {
+            // HC-10b, HC-21, HC-22: the entry the previous one requires
+            let mut how = self.meet(e)?;
             if e.is_host() {
                 announced = None;
                 self.fold_admission(e, &mut announced);
                 self.fold_sched(e).map_err(|x| format!("host fault: seq {}: {x}", e.seq))?;
+                let at = |k: &str| serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"][k].as_u64());
+                match e.kind().as_str() {
+                    "host.Restarted" => {
+                        // HC-22: below is the entry's own seq, and the bound
+                        // Restarted with the same payload follows when declared
+                        if at("below") != Some(e.seq) {
+                            return Err(format!("host fault: seq {}: host.Restarted must have below {}", e.seq, e.seq));
+                        }
+                        let p = restarted_map(e.seq);
+                        let plan = self.plan("Restarted", &p, true);
+                        let nexts = self.nexts("Restarted", &p, plan, How::Delivery);
+                        self.owe.extend(nexts);
+                    }
+                    // E.4c: a host.Kept no entry before it owed records a
+                    // delivery replay plans again from the value it holds
+                    "host.Kept" if how != Some(How::Owed) => self.fold_kept(e)?,
+                    "host.Typed" => {
+                        // HC-10b: seq is the typed input's, the entry after this one
+                        if at("seq") != Some(e.seq + 1) {
+                            return Err(format!("host fault: seq {}: host.Typed must have seq {}", e.seq, e.seq + 1));
+                        }
+                        self.owe.push_back(Next::Typed { seq: e.seq + 1 });
+                    }
+                    _ => {}
+                }
                 self.rehash();
             } else if let Some((src, q)) = announced.take() {
                 self.admitted.insert(src, q);
+                how = Some(How::Sourced);
             }
             if !e.is_host() {
                 let (name, args) = decode_event(&e.event, self.m)?;
+                let how = how.unwrap_or(How::Input);
+                // HC-21, HC-22: the host delivers `StepKept` and `Restarted`
+                // only after their host entries; one that is neither that
+                // delivery, typed nor announced is not a fact of the run
+                if how == How::Input && (name == "StepKept" || name == "Restarted") {
+                    return Err(format!("host fault: seq {}: {name} is delivered only after host.{name}, and this one is neither that delivery nor typed (host.Typed)", e.seq));
+                }
                 self.it.scopes = vec![HashMap::new()];
         self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
                 let ev = match self.it.construct(&name, &args) {
@@ -971,14 +1671,31 @@ impl<'a> Host<'a> {
                 if ej != e.event {
                     return Err(format!("seq {}: event re-encodes as {ej}, log has {}", e.seq, e.event));
                 }
-                if let Some(k) = name.strip_suffix("Done").filter(|k| self.bound.contains(k)) {
-                    let req = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["req"].as_u64());
-                    self.queue.retain(|(qk, qr, _)| !(qk == k && Some(*qr) == req));
+                // HC-3: the request this result answers is no longer outstanding
+                let ans = answered(&how, &name, &ev);
+                if let Some((k, r)) = &ans
+                    && let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r)
+                {
+                    self.queue.remove(i);
                 }
-                if let Ok((s2, outs)) = self.it.delta(&self.state, &ev) {
-                    self.state = s2;
-                    self.rehash();
-                    self.enqueue(&outs);
+                let under = self.descent(&how, e.seq, ans);
+                self.note_tick(&name, &ev);
+                match self.it.delta_r(&self.state, &ev) {
+                    Ok((s2, outs)) => {
+                        self.state = s2;
+                        self.rehash();
+                        self.enqueue(&outs, e.seq);
+                        self.note_descent(&outs, under);
+                        if let Some(o) = &mut self.outputs {
+                            o.push((e.seq, outs.iter().map(|x| serde_json::from_str(&crate::interp::form_value(x, self.m).json()).unwrap_or(Value::Null)).collect()));
+                        }
+                    }
+                    Err(r) => {
+                        // HC-21: replay re-derives the kept step and its cause
+                        let bind = under.is_none() && declares_event(self.m, "StepKept");
+                        self.owe.push_back(Next::HostKept { seq: e.seq, cause: r.cause, bind });
+                        self.kept_outcomes.push((e.seq, r.cause.as_str(), r.text));
+                    }
                 }
             }
             if e.state_hash != self.state_hash {
@@ -988,6 +1705,7 @@ impl<'a> Host<'a> {
             self.seq = e.seq + 1;
         }
         self.durable = self.seq.checked_sub(1);
+        self.synced = self.durable;
         Ok(())
     }
 
@@ -1003,12 +1721,25 @@ impl<'a> Host<'a> {
         self.prev = e.hash.clone();
         self.seq += 1;
         self.pending += 1;
+        if !self.confirming {
+            self.pending_real += 1;
+        }
         Ok(e)
     }
 
-    /// The barrier for everything pending; on success log `host.Synced` and
-    /// the bound `Synced` event (HS-6). A failure stops the admitter (HS-3).
+    /// The barrier for everything pending, when something other than the
+    /// confirmation of the last barrier is pending (so a batch that admitted
+    /// nothing appends nothing); on success log `host.Synced` and the bound
+    /// `Synced` event (HS-6). A failure stops the admitter (HS-3).
     fn confirm(&mut self) -> Result<(), String> {
+        if self.pending_real == 0 {
+            return Ok(());
+        }
+        self.barrier()
+    }
+
+    /// The barrier for every pending entry (HS-2 before an effect).
+    fn barrier(&mut self) -> Result<(), String> {
         if self.pending == 0 {
             return Ok(());
         }
@@ -1017,20 +1748,60 @@ impl<'a> Host<'a> {
             return Err(format!("host.StorageFault: seq {}: {x}", self.seq - 1));
         }
         self.pending = 0;
+        self.pending_real = 0;
         let upto = self.seq - 1;
+        self.synced = Some(upto);
         if self.store.caps() == "volatile" {
             return Ok(()); // E.3: no entry of a volatile store is reported durable
         }
         self.durable = Some(upto);
-        self.append(host_event("Synced", &format!("{{\"upto\":{upto}}}")))?;
-        if declares_event(self.m, "Synced") {
-            self.apply_named("Synced", vec![Arg { label: Some("upto".into()), e: Expr::Int(upto as i128, 0) }])?;
-        }
-        Ok(())
+        self.confirming = true;
+        let r = self.append(host_event("Synced", &format!("{{\"upto\":{upto}}}"))).and_then(|_| {
+            if declares_event(self.m, "Synced") {
+                let p = one_field("upto", upto);
+                let plan = self.plan("Synced", &p, true);
+                self.deliver_plan("Synced", &p, plan, How::Delivery)?;
+            }
+            Ok(())
+        });
+        self.confirming = false;
+        r
     }
 
-    /// Queue the effect requests among a step's outputs, in emit order.
-    fn enqueue(&mut self, outs: &[V]) {
+    /// HC-21: the delivered `StepKept` entry the input at `seq` descends
+    /// from: itself when it is that delivery (`Root`); for the result of a
+    /// request (K, req), the one the earliest request K with that req in
+    /// `descends` descends from, which it answers (taken off); else none.
+    /// A typed input descends from nothing.
+    fn descent(&mut self, how: &How, seq: u64, ans: Option<(String, u64)>) -> Option<u64> {
+        match how {
+            How::Root => Some(seq),
+            How::Typed | How::Sourced | How::Delivery | How::Owed => None,
+            How::Input | How::Answers(..) => {
+                let (k, r) = ans?;
+                let i = self.descends.iter().position(|(qk, qr, _)| *qk == k && *qr == r)?;
+                self.descends.remove(i).map(|x| x.2)
+            }
+        }
+    }
+
+    /// HC-21: note the requests among the outputs of a step that descends
+    /// from the `StepKept` entry `under`.
+    fn note_descent(&mut self, outs: &[V], under: Option<u64>) {
+        let Some(r) = under else { return };
+        for o in outs {
+            if let V::Rec(n, fs) = o
+                && let Some(req) = req_of(fs)
+                && declares_event(self.m, &format!("{n}Done"))
+            {
+                self.descends.push_back((n.clone(), req, r));
+            }
+        }
+    }
+
+    /// Queue the effect requests among a step's outputs, in emit order;
+    /// `at` is the seq of the entry that requested them.
+    fn enqueue(&mut self, outs: &[V], at: u64) {
         for o in outs {
             if let V::Rec(n, fs) = o
                 && let Some(k) = self.bound.iter().find(|k| **k == n.as_str())
@@ -1040,48 +1811,241 @@ impl<'a> Host<'a> {
                     _ => None,
                 });
                 let j: Value = serde_json::from_str(&crate::interp::form_value(o, self.m).json()).unwrap_or(Value::Null);
-                self.queue.push_back((k.to_string(), req.unwrap_or(0), j));
+                self.queue.push_back(Queued { kind: k.to_string(), req: req.unwrap_or(0), json: j, at });
             }
         }
     }
 
-    /// Admit the result event of one request (HC-3).
-    fn answer(&mut self, kind: &str, req: u64, r: EffectResult) -> Result<Admitted, String> {
+    /// Admit the result of one request (HC-3), as the module declares
+    /// `KDone` (HD-1): delivered as declared, or recorded in
+    /// D as `host.Kept` when it is not delivered whole.
+    fn answer(&mut self, kind: &str, req: u64, r: EffectResult) -> Result<Vec<Admitted>, String> {
         let ev = format!("{kind}Done");
-        let dty = self.m.items.iter().find_map(|i| match i {
-            Item::Event { name, payload, .. } if *name == ev => payload.iter().find(|(k, _)| k == "data").map(|(_, t)| t.clone()),
-            _ => None,
-        });
-        let (status, data, error) = match r.data.as_ref().map(|d| json_expr(d, dty.as_ref(), self.m)) {
-            Some(Err(e)) => ("failed", Expr::None(0), format!("result does not fit the declared type: {e}")),
-            Some(Ok(x)) => (r.status.as_str(), x, r.error.clone()),
-            None => (r.status.as_str(), Expr::None(0), r.error.clone()),
-        };
-        let lab = |l: &str, e: Expr| Arg { label: Some(l.into()), e };
-        let args = vec![lab("req", Expr::Int(req as i128, 0)), lab("status", Expr::Str(status.into(), 0)), lab("data", data), lab("err", Expr::Str(error, 0))];
-        self.apply_named(&ev, args)
+        let p = result_payload(req, &r);
+        let plan = self.plan(&ev, &p, false);
+        self.deliver_plan(&ev, &p, plan, How::Answers(kind.to_string(), req))
     }
 
-    /// Perform every queued request with its adapter and admit its result;
-    /// a result's step may request more effects, which are performed in turn.
+    /// Build the host value `p` of the event `name` into the module's
+    /// declaration of it (E.4c).
+    fn build(&mut self, name: &str, p: &serde_json::Map<String, Value>) -> Build {
+        let Some(decl) = event_payload(self.m, name) else { return Build::Undeclared };
+        let mut args = vec![];
+        for (i, (k, ty)) in decl.iter().enumerate() {
+            let lab = |e: Expr| Arg { label: Some(k.clone()), e };
+            match p.get(k).filter(|v| !v.is_null()) {
+                Some(v) => match convert(v, ty, bytes_field(name, k), self.m) {
+                    Ok(e) => args.push(lab(e)),
+                    Err(w) => return Build::Unbuildable(format!("{k}: {w}"), Some(k.clone())),
+                },
+                None if matches!(unalias(ty, self.m), Ty::Opt(_)) => args.push(lab(Expr::None(0))),
+                None if p.contains_key(k) => return Build::Unbuildable(format!("{k} has no value and is not optional"), Some(k.clone())),
+                None => return Build::Unbuildable(format!("field {} has no value from the host", i + 1), None),
+            }
+        }
+        // a refined type (5.1) decides here
+        self.it.scopes = vec![HashMap::new()];
+        self.it.fuel = crate::interp::fuel_limit();
+        if let Err(f) = self.it.construct(name, &args) {
+            return Build::Unbuildable(why(f), None);
+        }
+        let lost = p.iter().filter(|(k, v)| !v.is_null() && !decl.iter().any(|(d, _)| d == *k)).map(|(k, _)| k.clone()).collect();
+        Build::Built(args, lost)
+    }
+
+    /// The plan of one delivery (E.4c). `held`: the host entry before it
+    /// (`host.StepKept`, `host.Restarted`, `host.Synced`, `host.WallTime`)
+    /// holds the whole value, so a field the event does not take is not
+    /// recorded again and an event the module does not declare is not
+    /// recorded at all. A result whose data has no exact conversion is
+    /// delivered as `failed` with the reason (HC-3), and `host.Kept` keeps
+    /// the data. A result whose req is not delivered as an integer is
+    /// recorded too: replay matches an unrecorded result to its request by
+    /// that integer (HC-3, HC-21), and the `host.Kept` before it by the
+    /// req it holds.
+    fn plan(&mut self, name: &str, p: &serde_json::Map<String, Value>, held: bool) -> Plan {
+        match self.build(name, p) {
+            Build::Built(args, lost) => {
+                let mut why: Vec<String> = vec![];
+                if !lost.is_empty() && !held {
+                    why.push(format!("not declared: {}", lost.join(", ")));
+                }
+                let plain = args.iter().any(|a| a.label.as_deref() == Some("req") && matches!(a.e, Expr::Int(r, _) if Some(r) == p.get("req").and_then(Value::as_u64).map(i128::from)));
+                if is_result(name, p) && !held && !plain && !lost.iter().any(|k| k == "req") {
+                    why.push("req: not delivered as an integer".to_string());
+                }
+                Plan { kept: (!why.is_empty()).then(|| why.join("; ")), deliver: Some((name.to_string(), args)) }
+            }
+            Build::Undeclared if name == "HttpRequest" => self.http_fallback(name, p, held, "not declared".to_string()),
+            Build::Undeclared => Plan { kept: (!held).then(|| "not declared".to_string()), deliver: None },
+            Build::Unbuildable(why, field) => {
+                if is_result(name, p) && field.as_deref() == Some("data") && p.get("data").is_some_and(|d| !d.is_null()) {
+                    let w = why.strip_prefix("data: ").unwrap_or(&why).to_string();
+                    let mut failed = p.clone();
+                    failed.insert("status".into(), Value::String("failed".into()));
+                    failed.insert("data".into(), Value::Null);
+                    failed.insert("err".into(), Value::String(format!("result cannot be built into the declared type: {w}")));
+                    let inner = self.plan(name, &failed, held);
+                    let kept = Some(match inner.kept {
+                        Some(u) => format!("{why}; {u}"),
+                        None => why,
+                    });
+                    return Plan { kept, deliver: inner.deliver };
+                }
+                self.http_fallback(name, p, held, why)
+            }
+        }
+    }
+
+    /// HD-2: an `HttpRequest` that is not delivered is delivered as
+    /// `HttpMalformed` {id, status, why} when that can be built, with the
+    /// status of [`http_fallback_status`]; `host.Kept` keeps the request.
+    fn http_fallback(&mut self, name: &str, p: &serde_json::Map<String, Value>, held: bool, why: String) -> Plan {
+        if name != "HttpRequest" {
+            return Plan { kept: Some(why), deliver: None };
+        }
+        let mut mal = serde_json::Map::new();
+        mal.insert("id".into(), p.get("id").cloned().unwrap_or(Value::Null));
+        mal.insert("status".into(), Value::from(http_fallback_status(&why)));
+        mal.insert("why".into(), Value::String(format!("HttpRequest: {why}")));
+        let deliver = match self.build("HttpMalformed", &mal) {
+            Build::Built(args, _) => Some(("HttpMalformed".to_string(), args)),
+            _ => None,
+        };
+        let _ = held;
+        Plan { kept: Some(why), deliver }
+    }
+
+    /// The entries a plan appends, as owed entries for replay.
+    fn nexts(&mut self, name: &str, p: &serde_json::Map<String, Value>, plan: Plan, how: How) -> Vec<Next> {
+        let mut v = vec![];
+        if let Some(why) = &plan.kept {
+            v.push(Next::Kept(kept_event(name, p, why)));
+        }
+        if let Some((n, args)) = plan.deliver {
+            v.push(Next::Deliver { name: n, args, how });
+        }
+        v
+    }
+
+    /// Append what a plan says: `host.Kept`, then the delivery. A result
+    /// that is not delivered still answers its request (HC-3, HC-21).
+    fn deliver_plan(&mut self, name: &str, p: &serde_json::Map<String, Value>, plan: Plan, how: How) -> Result<Vec<Admitted>, String> {
+        if let Some(why) = &plan.kept {
+            self.append(kept_event(name, p, why))?;
+        }
+        match plan.deliver {
+            Some((n, args)) => self.apply(&n, args, how),
+            None => {
+                if let How::Answers(k, r) = &how {
+                    self.descent(&how, 0, Some((k.clone(), *r)));
+                }
+                Ok(vec![])
+            }
+        }
+    }
+
+    /// Replay of a `host.Kept` that no entry before it owed (a result, E.4c):
+    /// plan the delivery again from the value it holds, require the same
+    /// reason, and owe the delivery when there is one. A result that is not
+    /// delivered answers its request here.
+    fn fold_kept(&mut self, e: &Entry) -> Result<(), String> {
+        let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+        let ev = &v["payload"]["event"];
+        let (Some(name), Some(p), Some(why)) = (ev["type"].as_str(), ev["payload"].as_object(), v["payload"]["why"].as_str()) else {
+            return Err(format!("host fault: seq {}: host.Kept without event and why", e.seq));
+        };
+        let plan = self.plan(name, p, false);
+        if plan.kept.as_deref() != Some(why) {
+            return Err(format!("host fault: seq {}: host.Kept says `{why}`, and the module gives {:?}", e.seq, plan.kept));
+        }
+        let how = match (is_result(name, p), p.get("req").and_then(Value::as_u64)) {
+            (true, Some(r)) => How::Answers(name.trim_end_matches("Done").to_string(), r),
+            _ => How::Delivery,
+        };
+        if plan.deliver.is_none()
+            && let How::Answers(k, r) = &how
+        {
+            if let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r) {
+                self.queue.remove(i);
+            }
+            self.descent(&how, 0, Some((k.clone(), *r)));
+        }
+        let nexts = self.nexts(name, p, Plan { kept: None, deliver: plan.deliver }, how);
+        self.owe.extend(nexts);
+        Ok(())
+    }
+
+    /// HC-24: a line of the input stream that the host could not admit as
+    /// events of the module (it is not UTF-8, does not parse as events,
+    /// names no event of the module, or an event cannot be built) is held:
+    /// it is delivered as `Input(data)`, data being the bytes of the line
+    /// with its line end, built into the declaration like any delivery
+    /// (E.4c): as `List[i64]`, or as `text` when they are UTF-8 (HD-3). When the
+    /// module declares no `Input`, or the line cannot be built into it,
+    /// `host.Kept` records the line in D, as text when it is UTF-8 and as
+    /// its bytes otherwise. Part of the input batch; no barrier.
+    pub fn line_input(&mut self, line: &[u8]) -> Result<Vec<Admitted>, String> {
+        let mut p = serde_json::Map::new();
+        let data = match std::str::from_utf8(line) {
+            Ok(t) => Value::String(t.to_string()),
+            Err(_) => Value::from(line.to_vec()),
+        };
+        p.insert("data".into(), data);
+        let plan = self.plan("Input", &p, false);
+        self.deliver_plan("Input", &p, plan, How::Typed)
+    }
+
+    /// E.4c: the lines that say, for each declaration that is not exactly
+    /// what the host delivers, what the host will deliver and record. The
+    /// host loop prints them at start.
+    pub fn delivery_notes(&self) -> &[String] {
+        &self.notes
+    }
+
+    /// Perform queued requests with their adapters and admit their results;
+    /// a result's step may request more effects, which are performed in
+    /// turn, up to `drain_max` requests in all (HC-24: the host loop then
+    /// reads its stop and its inputs before it performs the rest).
     fn drain(&mut self) -> Result<Vec<Admitted>, String> {
         let mut out = vec![];
-        while let Some((k, req, j)) = self.queue.pop_front() {
+        let mut done = 0;
+        while done < self.drain_max
+            && let Some(q) = self.queue.pop_front()
+        {
+            done += 1;
             // HS-2: an effect is an output, so the entry that requested it
-            // is made durable before the effect is performed.
-            if self.pending > 0 {
-                self.confirm()?;
+            // is made durable before the effect is performed. One barrier
+            // covers every effect requested by the entries it made durable.
+            if self.pending > 0 && self.synced.is_none_or(|s| s < q.at) {
+                self.barrier()?;
             }
-            let r = match self.adapters.iter_mut().find(|a| a.kind() == k) {
-                Some(a) => a.perform(&j),
+            let r = match self.adapters.iter_mut().find(|a| a.kind() == q.kind) {
+                Some(a) => a.perform(&q.json),
                 None => EffectResult { status: Status::Unreachable, data: None, error: "no adapter".into() },
             };
-            out.push(self.answer(&k, req, r)?);
+            out.extend(self.answer(&q.kind, q.req, r)?);
         }
         Ok(out)
     }
 
-    fn apply_named(&mut self, name: &str, args: Vec<Arg>) -> Result<Admitted, String> {
+    /// Bound every later [`Host::drain`] to `n` requests (HC-24): the host
+    /// loop performs the rest in its next round, after it has read a stop.
+    pub fn bound_drains(&mut self, n: usize) {
+        self.drain_max = n.max(1);
+    }
+
+    /// The number of requests emitted and not yet performed.
+    pub fn queued(&self) -> usize {
+        self.queue.len()
+    }
+
+    /// Append one input and apply δ to it (HC-1). The first element is the
+    /// input; a kept step adds the entries of HC-21 after it. A typed input
+    /// whose name is one the host delivers is preceded by `host.Typed`
+    /// {seq} (HC-10b), appended only once the input is known to be an
+    /// event of the module.
+    fn apply(&mut self, name: &str, args: Vec<Arg>, how: How) -> Result<Vec<Admitted>, String> {
         if self.stopped {
             return Err("host.StorageFault: admitter stopped after a failed barrier".into());
         }
@@ -1094,67 +2058,238 @@ impl<'a> Host<'a> {
         };
         let ej = event_json(name, &ev, self.m);
         // δ runs on the input, but the entry is appended before any output
-        // is released (HC-1); a refusal leaves the state unchanged (T8).
-        let (outcome, next) = match self.it.delta(&self.state, &ev) {
+        // is released (HC-1); a kept step leaves the state unchanged (T8).
+        let (outcome, next) = match self.it.delta_r(&self.state, &ev) {
             Ok((s2, outs)) => (Ok(outs), Some(s2)),
             Err(r) => (Err(r), None),
         };
+        // HC-10b: only a typed input of a name the host delivers is marked,
+        // and replay sees any other input as unmarked, so treat it so here
+        let how = match how {
+            How::Typed if !self.delivered.iter().any(|d| d == name) => How::Input,
+            how => how,
+        };
+        if how == How::Typed {
+            self.append(host_event("Typed", &format!("{{\"seq\":{}}}", self.seq + 1)))?;
+        }
         let (old_state, old_hash) = (self.state.clone(), self.state_hash.clone());
         if let Some(s2) = next {
             self.state = s2;
             self.rehash();
         }
-        match self.append(ej.clone()) {
-            Ok(e) => {
-                let (mut display, mut exit) = (vec![], false);
-                if let Ok(outs) = &outcome {
-                    self.enqueue(outs);
-                    for o in outs {
-                        match o {
-                            V::Rec(n, fs) if n == "Display" => {
-                                if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
-                                    display.push(t.to_string());
-                                }
-                            }
-                            V::Rec(n, _) if n == "Exit" => exit = true,
-                            _ => {}
-                        }
-                    }
-                }
-                let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect());
-                Ok(Admitted { seq: e.seq, event: ev.show(), outcome, display, exit })
-            }
+        let e = match self.append(ej) {
+            Ok(e) => e,
             Err(x) => {
                 self.state = old_state;
                 self.state_hash = old_hash;
-                Err(x)
+                return Err(x);
+            }
+        };
+        self.note_tick(name, &ev);
+        let ans = answered(&how, name, &ev);
+        let under = self.descent(&how, e.seq, ans);
+        let (mut display, mut exit) = (vec![], false);
+        if let Ok(outs) = &outcome {
+            self.enqueue(outs, e.seq);
+            self.note_descent(outs, under);
+            for o in outs {
+                match o {
+                    V::Rec(n, fs) if n == "Display" => {
+                        if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
+                            display.push(t.to_string());
+                        }
+                    }
+                    V::Rec(n, _) if n == "Exit" => exit = true,
+                    _ => {}
+                }
             }
         }
+        let kept = outcome.as_ref().err().map(|r| r.cause);
+        let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
+        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: kept.map(Cause::as_str) }];
+        if let Some(cause) = kept {
+            let bind = under.is_none() && declares_event(self.m, "StepKept");
+            out.extend(self.kept(e.seq, cause, bind)?);
+        }
+        Ok(out)
+    }
+
+    /// HC-21: after the entry of the kept step at `seq`, `host.StepKept` {cause, seq},
+    /// then (`bind`) the delivery of `StepKept`, as the module declares it
+    /// (HD-4). Delivery is bounded: a kept step that descends from a
+    /// delivered `StepKept` ([`Host::descent`]) is recorded as `host.StepKept`
+    /// only and not redelivered, so no `StepKept` leads to another.
+    fn kept(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
+        self.append(host_event("StepKept", &kept_payload(cause, seq)))?;
+        if !bind {
+            return Ok(vec![]);
+        }
+        let p = kept_map(cause, seq);
+        let plan = self.plan("StepKept", &p, true);
+        self.deliver_plan("StepKept", &p, plan, How::Root)
+    }
+
+    /// The canonical event JSON of a host-delivered input, as the live path appends it.
+    fn bound_json(&mut self, name: &str, args: &[Arg]) -> Result<String, String> {
+        self.it.scopes = vec![HashMap::new()];
+        self.it.fuel = crate::interp::fuel_limit();
+        match self.it.construct(name, args) {
+            Ok(Some(v)) => Ok(event_json(name, &v, self.m)),
+            Ok(None) => Err(format!("`{name}` is not an event")),
+            Err(f) => Err(why(f)),
+        }
+    }
+
+    /// Replay (HC-10b, HC-21, HC-22): `e` must be the entry the previous
+    /// entries require, if any. Returns how the input `e` reached δ when
+    /// that is decided by what precedes it: a delivery or a typed input.
+    fn meet(&mut self, e: &Entry) -> Result<Option<How>, String> {
+        let Some(o) = self.owe.pop_front() else {
+            if e.kind() == "host.StepKept" {
+                return Err(format!("host fault: seq {}: host.StepKept follows an entry that replay applies", e.seq));
+            }
+            return Ok(None);
+        };
+        let (want, how) = match o {
+            Next::HostKept { seq, cause, bind } => {
+                if bind {
+                    let p = kept_map(cause, seq);
+                    let plan = self.plan("StepKept", &p, true);
+                    for n in self.nexts("StepKept", &p, plan, How::Root).into_iter().rev() {
+                        self.owe.push_front(n);
+                    }
+                }
+                (host_event("StepKept", &kept_payload(cause, seq)), None)
+            }
+            Next::Kept(want) => (want, Some(How::Owed)),
+            Next::Deliver { name, args, how } => (self.bound_json(&name, &args)?, Some(how)),
+            // the host stopped after `host.Typed` and before the typed
+            // input: nothing was admitted, and nothing is owed
+            Next::Typed { seq } if e.is_host() || e.seq != seq => return self.meet(e),
+            Next::Typed { .. } => return Ok(Some(How::Typed)),
+        };
+        if e.event != want {
+            return Err(format!("host fault: seq {}: D has {} where {want} must follow", e.seq, e.event));
+        }
+        Ok(how)
+    }
+
+    /// Complete the entries D owes at its end (HC-21, HC-22): a host
+    /// stopped after appending the entry of a kept step, or a `host.StepKept` or
+    /// `host.Restarted` without the delivery that follows it. A typed input
+    /// announced by `host.Typed` and not appended is not completed: it was
+    /// never admitted (HC-10b).
+    fn complete_owed(&mut self) -> Result<Vec<Admitted>, String> {
+        let mut out = vec![];
+        while let Some(n) = self.owe.pop_front() {
+            match n {
+                Next::HostKept { seq, cause, bind } => out.extend(self.kept(seq, cause, bind)?),
+                Next::Kept(event) => {
+                    self.append(event)?;
+                }
+                Next::Deliver { name, args, how } => {
+                    // HC-3: the result completed here answers its request,
+                    // which a restart must not interrupt again (the live
+                    // path took it off the queue before performing it)
+                    if let How::Answers(k, r) = &how
+                        && let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r)
+                    {
+                        self.queue.remove(i);
+                    }
+                    out.extend(self.apply(&name, args, how)?)
+                }
+                Next::Typed { .. } => {}
+            }
+        }
+        Ok(out)
     }
 
     /// Admit one batch of inputs written in example syntax (`Put(key: "a",
     /// val: "1"), Scan(start: "")`), then one barrier for the batch (D-2).
+    /// These are typed inputs (HC-10b): any event of the module is admitted,
+    /// one the host delivers (`StepKept`, a result `KDone`, ...) included,
+    /// and D marks the latter with `host.Typed`. When one of the events
+    /// cannot be built, nothing is appended and the error is returned, so
+    /// the caller holds the whole line ([`Host::line_input`]).
     pub fn admit(&mut self, src: &str, events: &str) -> Result<Vec<Admitted>, String> {
         let probe = parse(&format!("{src}\nexample {events} -> 0\n")).map_err(|e| format!("events: {e}"))?;
         let Some(Item::Example(x)) = probe.items.last() else {
             return Err("events: not an event list".into());
         };
+        // HC-24: a line is admitted whole or held whole, so every event is
+        // built before any is appended; building reads only the module
+        for (name, args) in &x.events {
+            self.bound_json(name, args)?;
+        }
         let mut out = vec![];
         for (name, args) in x.events.clone() {
-            out.push(self.apply_named(&name, args)?);
+            out.extend(self.apply(&name, args, How::Typed)?);
             out.extend(self.drain()?);
         }
         self.confirm()?;
         Ok(out)
     }
 
-    /// Admit one input given as an event name and arguments (adapters and
-    /// the host loop), its effects, then the batch barrier.
+    /// Admit one input given as an event name and arguments (the host
+    /// loop's `Tick` and `Input`, and embedders), its effects, then the
+    /// batch barrier. It is a typed input (HC-10b).
     pub fn admit_event(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
-        let mut out = vec![self.apply_named(name, args)?];
+        let mut out = self.apply(name, args, How::Typed)?;
         out.extend(self.drain()?);
         self.confirm()?;
         Ok(out)
+    }
+
+    /// Admit one input of a batch (group commit, D-2): append its entry, run
+    /// δ and queue its effects, without a barrier. [`Host::settle`] ends the
+    /// batch.
+    pub fn apply_input(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
+        self.apply(name, args, How::Typed)
+    }
+
+    /// HC-24, HD-2: admit one input the HTTP adapter framed (`HttpRequest`
+    /// or `HttpMalformed`, its fields in `p` without the id) as one input of
+    /// the batch, without a barrier, as the module declares it. The id is the
+    /// seq of the entry that delivers it: its own entry when it is
+    /// delivered exactly, else the entry after the `host.Kept` that
+    /// records it first. The framing and who answers are those
+    /// [`http_inputs`] reads from D.
+    pub fn http_input(&mut self, name: &str, p: serde_json::Map<String, Value>) -> Result<HttpAdmit, String> {
+        let mut q = p;
+        q.insert("id".into(), Value::from(self.seq));
+        let mut plan = self.plan(name, &q, false);
+        if plan.kept.is_some() || plan.deliver.is_none() {
+            q.insert("id".into(), Value::from(self.seq + 1));
+            plan = self.plan(name, &q, false);
+        }
+        let id = q["id"].as_u64().unwrap_or(0);
+        // the entry that delivers it; a delivery whose id is not that
+        // entry's seq (a refined id type, 5.1) is one the program cannot
+        // answer, so the host answers it and no two open requests share an id
+        let at = self.seq + u64::from(plan.kept.is_some());
+        let (head, close, answer) = http_terms(self.m, name, &q, &plan, at);
+        let admitted = self.deliver_plan(name, &q, plan, How::Delivery)?;
+        Ok(HttpAdmit { id, admitted, head, close, answer })
+    }
+
+    /// End a batch: perform the queued effects (each after a barrier that
+    /// covers the entry that requested it, HS-2) and take the batch barrier.
+    pub fn settle(&mut self) -> Result<Vec<Admitted>, String> {
+        let out = self.drain()?;
+        self.confirm()?;
+        Ok(out)
+    }
+
+    /// HC-24: `host.HttpListen` {addr and the limits of HC-25, or addr and
+    /// the bind error}.
+    pub fn http_listen(&mut self, payload: &str) -> Result<(), String> {
+        self.append(host_event("HttpListen", payload))?;
+        self.confirm()
+    }
+
+    /// Whether the store reported its last barrier failed (HS-3).
+    pub fn is_storage_fault(e: &str) -> bool {
+        e.starts_with("host.StorageFault")
     }
 
     /// The priority of an input (HC-9, T25): `interrupt event E priority p`
@@ -1178,7 +2313,7 @@ impl<'a> Host<'a> {
         ord.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         let mut out = vec![];
         for (_, _, name, args) in ord {
-            out.push(self.apply_named(&name, args)?);
+            out.extend(self.apply(&name, args, How::Typed)?);
             out.extend(self.drain()?);
         }
         self.confirm()?;
@@ -1301,7 +2436,7 @@ impl<'a> Host<'a> {
     fn outcome_text(o: &crate::conc::Outcome) -> String {
         match o {
             crate::conc::Outcome::Done => "done".into(),
-            crate::conc::Outcome::Refused(r) => format!("refused: {r}"),
+            crate::conc::Outcome::Stopped(r) => format!("stopped: {r}"),
             crate::conc::Outcome::Deadlock => "deadlock".into(),
         }
     }
@@ -1343,7 +2478,8 @@ impl<'a> Host<'a> {
 
     /// HC-6: the transition of the live task on one host entry, shared by
     /// the live path (before the entry is appended) and by replay. Anything
-    /// the scheduler re-derives that differs from D refuses the entry.
+    /// the scheduler re-derives that differs from D is reported, and the entry
+    /// is not applied.
     fn apply_main(&mut self, kind: &str, p: &Value) -> Result<(), String> {
         match kind {
             "host.MainStart" => {
@@ -1432,7 +2568,7 @@ impl<'a> Host<'a> {
     }
 
     /// HC-6: log a link change for the live task (`host.MainInput`). It is
-    /// refused unless its tick is after the last logged step, so the input
+    /// not logged unless its tick is after the last logged step, so the input
     /// cannot rewrite steps D already holds.
     pub fn main_input(&mut self, tick: u64, partition: bool, a: &str, b: &str) -> Result<(), String> {
         self.main_entry("MainInput", serde_json::json!({"a": a, "b": b, "partition": partition, "tick": tick}))
@@ -1441,7 +2577,7 @@ impl<'a> Host<'a> {
     /// HC-6: feed a program event to the live task (`host.MainInput`
     /// {event, tick}): at its tick the scheduler logs it as `Input(..)` and
     /// delivers it to every actor that handles it (`conc::RunCfg.events`).
-    /// Refused like a link input when late or when it would change a step
+    /// StepKept like a link input when late or when it would change a step
     /// already in D.
     pub fn main_event(&mut self, tick: u64, name: &str, args: Vec<Arg>) -> Result<(), String> {
         self.it.scopes = vec![HashMap::new()];
@@ -1575,7 +2711,7 @@ impl<'a> Host<'a> {
     /// HC-12 placement executor for the reduction class `sum.f64`: choose
     /// the fabric from D's host entries, log `host.Placed`, and run the
     /// fixed tree of T18 on it. A placement on a fabric this host cannot
-    /// execute is refused before anything is logged. A registered fabric
+    /// execute is not performed, and nothing is logged. A registered fabric
     /// that errors at run time is replaced by the CPU reference, which by
     /// HC-13 gives the same bits.
     pub fn place_sum(&mut self, op: &str, xs: &[f64]) -> Result<(String, f64), String> {
@@ -1630,8 +2766,8 @@ impl<'a> Host<'a> {
     /// is the fixed tree, so the result is the same on `cpu` and
     /// `cpu.threads` for any combine, including non-associative ones. The
     /// class is `par.<class>`. Bodies are host closures, so only CPU
-    /// fabrics can execute them; a placement elsewhere is refused before
-    /// it is logged.
+    /// fabrics can execute them; a placement elsewhere is not performed and
+    /// not logged.
     pub fn place_par<T: Clone + Send + Sync>(
         &mut self,
         op_id: &str,
@@ -1758,9 +2894,9 @@ impl<'a> Host<'a> {
             let src = serde_json::to_string(&x.source).unwrap();
             let late = if prev_upto.is_some_and(|u| x.tick <= u) { "\"late\":true," } else { "" };
             self.append(host_event("Input", &format!("{{{late}\"seq\":{},\"source\":{src},\"window\":{id}}}", x.seq)))?;
-            let a = self.apply_named(&x.name, x.args)?;
+            let a = self.apply(&x.name, x.args, How::Sourced)?;
             self.admitted.insert(x.source.clone(), x.seq);
-            ack.admitted.push(a);
+            ack.admitted.extend(a);
             ack.admitted.extend(self.drain()?);
             acks.push((x.source, x.seq));
         }
@@ -1772,19 +2908,22 @@ impl<'a> Host<'a> {
     /// E.2b: take the admitter role for `term`. The term is a fence token:
     /// `host.Term` is appended (and made durable through the replicated log)
     /// before any input of the new term, every later `host.Window` carries
-    /// it, and a lower or equal term is refused. Requests emitted under the
+    /// it, and a lower or equal term is not taken. Requests emitted under the
     /// previous term with no result in D get `failed`/`interrupted` (HC-3).
     pub fn take_role(&mut self, term: u64, leader: &str) -> Result<(), String> {
         if term <= self.term {
             return Err(format!("host.Term: term {term} is not above the current term {}", self.term));
         }
+        // HC-21: a kept step the previous admitter logged without its
+        // `host.StepKept` (or bound `StepKept`) is completed first; it belongs
+        // to the input of the previous term
+        self.complete_owed()?;
         self.term = term;
         self.offered.clear();
         let l = serde_json::to_string(leader).unwrap();
         self.append(host_event("Term", &format!("{{\"leader\":{l},\"term\":{term}}}")))?;
-        while let Some((k, req, _)) = self.queue.pop_front() {
-            self.answer(&k, req, EffectResult::failed("interrupted"))?;
-        }
+        // HC-22: the new admitter's adapters are fresh
+        self.restarted()?;
         self.drain()?;
         self.confirm()
     }
@@ -1806,7 +2945,7 @@ impl<'a> Host<'a> {
 
     /// Evaluate a query (HS-8): a step that reads state and emits its result
     /// rows, run on the current state without appending to D. A step that
-    /// would change state is not a query and is refused.
+    /// would change state is not a query and is not performed.
     pub fn query(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<V>, String> {
         self.it.scopes = vec![HashMap::new()];
         self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
@@ -1820,6 +2959,46 @@ impl<'a> Host<'a> {
             return Err(format!("`{name}` changes state; a query only reads"));
         }
         Ok(outs)
+    }
+
+    /// HC-2, HD-4: the host's value of frame tick `n`: {n}, matched by field
+    /// name like any delivery; a `Tick` declared with no field carries no
+    /// count.
+    fn tick_value(&self, n: u64) -> serde_json::Map<String, Value> {
+        let mut p = serde_json::Map::new();
+        if self.event_fields("Tick").is_some_and(|f| !f.is_empty()) {
+            p.insert("n".into(), Value::from(n));
+        }
+        p
+    }
+
+    /// HD-4: frame tick `n` built into the module's `Tick`, or why it
+    /// cannot be built (the host loop checks tick 1 at start).
+    pub fn tick_args(&mut self, n: u64) -> Result<Vec<Arg>, String> {
+        let p = self.tick_value(n);
+        match self.build("Tick", &p) {
+            Build::Built(args, _) => Ok(args),
+            Build::Unbuildable(why, _) => Err(why),
+            Build::Undeclared => Err("not declared".into()),
+        }
+    }
+
+    /// HC-2, HD-4: deliver frame tick `n` (the host loop's `Tick`) as the
+    /// module declares it, perform its effects and take the batch barrier.
+    /// `Ok(None)` when tick `n` cannot be built: `host.Kept` records it
+    /// with the reason, and the host loop delivers no later tick, since a
+    /// count that no longer converts (`Tick(n: u8)` past 255) does not
+    /// convert again.
+    pub fn tick(&mut self, n: u64) -> Result<Option<Vec<Admitted>>, String> {
+        let p = self.tick_value(n);
+        let plan = self.plan("Tick", &p, false);
+        let built = plan.deliver.is_some();
+        let mut out = self.deliver_plan("Tick", &p, plan, How::Delivery)?;
+        if built {
+            out.extend(self.drain()?);
+        }
+        self.confirm()?;
+        Ok(built.then_some(out))
     }
 
     /// Whether the module declares this event, and its payload field names.
@@ -1849,7 +3028,9 @@ impl<'a> Host<'a> {
     pub fn wall_time(&mut self, ns: u64) -> Result<(), String> {
         self.append(host_event("WallTime", &format!("{{\"ns\":{ns}}}")))?;
         if declares_event(self.m, "WallTime") {
-            self.apply_named("WallTime", vec![Arg { label: Some("ns".into()), e: Expr::Int(ns as i128, 0) }])?;
+            let p = one_field("ns", ns);
+            let plan = self.plan("WallTime", &p, true);
+            self.deliver_plan("WallTime", &p, plan, How::Delivery)?;
             self.drain()?;
         }
         self.confirm()
@@ -1875,6 +3056,12 @@ impl<'a> Host<'a> {
 /// Replay (HC-8, T37): verify D and re-derive every state hash with every
 /// adapter disconnected. Returns (entries, final state hash, final state).
 pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), String> {
+    replay_report(m, text).map(|r| (r.entries, r.state_hash, r.state))
+}
+
+/// [`replay`] with the kept steps it re-derived (HC-21): each kept step's
+/// seq, cause and text. The text is not in D; replay derives it.
+pub fn replay_report(m: &Module, text: &str) -> Result<Replayed, String> {
     let lines: Vec<&str> = text.split_terminator('\n').collect();
     let keep = verify_prefix(&lines, m);
     if keep < lines.len() {
@@ -1883,7 +3070,23 @@ pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), Stri
     let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
     let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
     h.refold(&entries)?;
-    Ok((h.seq, h.state_hash.clone(), h.state.clone()))
+    Ok(Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), kept_outcomes: std::mem::take(&mut h.kept_outcomes) })
+}
+
+/// The outputs δ gives on replay, for each program entry it applies: (seq,
+/// each output as Form JSON). Every effect request, and so every byte an
+/// adapter writes (HC-26), is a function of D: this is that function.
+pub fn replay_outputs(m: &Module, text: &str) -> Result<Vec<(u64, Vec<Value>)>, String> {
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let keep = verify_prefix(&lines, m);
+    if keep < lines.len() {
+        return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
+    }
+    let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    h.outputs = Some(vec![]);
+    h.refold(&entries)?;
+    Ok(h.outputs.take().unwrap_or_default())
 }
 
 /// The host as of entry k (HS-9): the fold of the first k entries of a

@@ -1,0 +1,80 @@
+module kept_outcomes
+
+intent "a kept step is followed by host.StepKept and, when the program declares it, by the input StepKept(seq, cause), so the program is told that the step did not happen and why"
+    example Ok -> applied == 1 and kept_outcomes == 0
+    example Fail -> kept: Bad
+    example StepKept(seq: 4, cause: "fail") -> kept_outcomes == 1 and last_seq == 4 and last_cause == "fail" and applied == 0
+    example Busy(n: 10), StepKept(seq: 7, cause: "fuel") -> work_done == 10
+
+error Bad(why: text)
+
+event Ok
+event Fail
+event Divide
+event Burn
+event Big
+event Deep
+event Spin(n: u64)
+event Busy(n: u64)
+event Poison
+event StepKept(seq: u64, cause: text)
+
+state S
+    applied: u64 = 0
+    zero: u64 = 0
+    kept_outcomes: u64 = 0
+    last_seq: u64 = 0
+    last_cause: text = ""
+    poisoned: bool = false
+    work: u64 = 0
+    work_done: u64 = 0
+
+fn down(n: i64) -> i64 bound 100000000
+    if n <= 0
+        return 0
+    return 1 + down(n - 1)
+
+fn spin(n: u64) -> u64
+    var s: u64 = 0
+    for _i in 0..n
+        s += 1
+    return s
+
+step S on Ok
+    applied += 1
+
+step S on Fail
+    fail Bad(why: "kept on purpose")
+
+step S on Divide
+    applied = applied / zero
+
+step S on Burn
+    for _i in 0..1000000
+        applied += spin(1000000)
+
+step S on Big
+    var t = "x"
+    for _i in 0..21
+        t = t + t
+    applied += t.len_bytes() as u64
+
+step S on Deep
+    applied += down(30000) as u64
+
+step S on Spin(n: n)
+    applied += spin(n)
+
+step S on Busy(n: n)
+    work = n
+
+step S on Poison
+    poisoned = true
+
+step S on StepKept(seq: q, cause: c)
+    if poisoned
+        applied = applied / zero
+    kept_outcomes += 1
+    last_seq = q
+    last_cause = copy(c)
+    work_done += spin(work)

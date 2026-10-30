@@ -1,6 +1,6 @@
 module refined
 
-intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+intent "input validation is a declared predicate: an event whose payload is outside its refined type has the kept outcome, state unchanged"
     example SetVolume(pct: 40) -> level == 40
     example Rename(name: "ok") -> name == "ok"
     example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
@@ -32,8 +32,8 @@ fn paren_zz() -> i64
 #--- rce-test
 # id: lexing-parsing/generated/mut-paren-51-refined-input-accept
 # area: lexing-parsing
-# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
-# expect: reject
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: change
 # diagnostic: W-SYN-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `paren` of 51-refined-input-accept

@@ -113,10 +113,12 @@ pub fn outstanding(p: &Pending) -> usize = p.reqs.len()
 pub fn is_outstanding(p: &Pending, req: u64) -> bool = find_req(p, req) >= 0
 
 # ---------------- line reader ----------------
-# Chunks (FileRead data, NetRecv or PtyRead text) arrive split anywhere;
-# feed returns the lines they complete, without "\n" and without one "\r"
+# Chunks (FileRead data, PtyRead text) arrive split anywhere; feed
+# returns the lines they complete, without "\n" and without one "\r"
 # before it, and keeps the rest. finish ends the stream (eof): the rest,
-# when not empty, is the last line; later feeds return nothing.
+# when not empty, is the last line; later feeds return nothing. NetRecv
+# delivers bytes (List[i64], HC-10a), which may end inside a character:
+# keep them as bytes and decode complete text with text.utf8 first.
 
 pub struct LineReader
     rest: text
@@ -209,7 +211,7 @@ pub fn next_chunk(w: &mut Writer) -> text?
     return some(o)
 
 # A delivered write of n bytes of the chunk in flight. n beyond the chunk
-# is refused. A partial count must end on a character boundary, since the
+# is an error. A partial count must end on a character boundary, since the
 # rest is resent as text. Returns the bytes sent so far.
 pub fn ack(w: &mut Writer, n: u64) -> u64 ! BadWrite
     if w.flight == 0
@@ -238,9 +240,9 @@ fn char_boundary(s: &text, k: usize) -> bool
 # ---------------- file paths ----------------
 # The file adapter's rule (least privilege, HC-5): a path is relative, not
 # empty (FileList alone may name the root with ""), and made of normal
-# names and "." only; ".." anywhere is refused. Empty segments ("a//b",
+# names and "." only; ".." anywhere is an error. Empty segments ("a//b",
 # "a/") are allowed, as the host's path split skips them. Symlinks leaving
-# the root are refused by the host, which only it can see.
+# the root are not followed by the host, which only it can see.
 
 pub fn path_ok(p: &text, list: bool) -> bool
     if p == ""

@@ -76,7 +76,7 @@ polls 10
 # ann edits her first message and deletes her second (only the author may)
 ann 'Do(op: "edit", conv: "acme/general\u{1f}launch\u{1f}000000000002\u{1f}ann", topic: "", body: "ship it today?")'
 ann 'Do(op: "delete", conv: "acme/general\u{1f}launch\u{1f}000000000003\u{1f}ann", topic: "", body: "")'
-# bob tries to edit ann's message: refused by the author rule
+# bob tries to edit ann's message: the author rule leaves it unchanged
 bob 'Do(op: "edit", conv: "acme/general\u{1f}launch\u{1f}000000000002\u{1f}ann", topic: "", body: "hijacked")'
 bob 'Do(op: "post", conv: "acme/general", topic: "launch", body: "tagging v1.0 now")'
 # an end-to-end encrypted DM: key agreement and ratchet run as queued jobs, one per Poll
@@ -96,7 +96,7 @@ echo "ann's unread counts:"; grep 'unread$' "$work/a.out"
 echo "ann's DM thread (decrypted on her replica with .utf8()):"; grep -m1 vault "$work/a.out"
 n=$(grep -c 'the release key is in the vault' "$work/a.log" || true)
 echo "plaintext of the DM in ann's log D: $n occurrences (only ratchet headers and ciphertext crossed the wire)"
-grep -q hijacked "$work/a.out" "$work/b.out" && { echo "FAIL: a non-author edit was applied"; exit 1; } || echo "bob's edit of ann's message: refused (author rule)"
+grep -q hijacked "$work/a.out" "$work/b.out" && { echo "FAIL: a non-author edit was applied"; exit 1; } || echo "bob's edit of ann's message: not applied (author rule)"
 
 say "3. crash: kill -9 bob's host mid-session"
 kill -9 "$bpid" 2>/dev/null || true

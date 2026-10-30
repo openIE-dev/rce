@@ -125,12 +125,12 @@ fn platform_fabric_is_used_only_after_an_exact_probe() {
     assert!(h.probe("gpu.good", "par.dot", "x", "x").unwrap());
     let n = h.len();
     assert!(h.place_par("p", "dot", 10, &|i| i as f64, &0.0, &|x, y| x + y).is_err());
-    assert_eq!(h.len(), n, "a refused placement logs nothing");
+    assert_eq!(h.len(), n, "a placement that is not performed logs nothing");
     drop(h);
     let text = st.lines.join("\n") + "\n";
     // Replay re-derives placements from D alone; it needs no executor.
     replay(&m, &text).expect("replay without the fabric");
-    // A host that lacks the executor refuses the placement before logging.
+    // A host that lacks the executor does not perform the placement, and logs nothing.
     let mut st2 = MemStore::default();
     let mut h2 = Host::resume(&m, &text, Box::new(&mut st2)).unwrap();
     h2.take_role(1, "h2").unwrap();

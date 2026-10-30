@@ -1,0 +1,20 @@
+state C
+    n: u64 = 0
+
+event Inc
+
+step C on Inc -> n + 1
+#--- rce-test
+# id: tooling/int-2-no-examples
+# area: tooling
+# clauses: [W-INT-2]
+# expect: cli
+# argv: ["check", "main.rce"]
+# status: 0
+# output_has:
+#   - ok main.rce
+# output_lacks:
+#   - W-INT-2
+#   - recommended
+# provenance: targeted: 6.9 and 10.2, the control: a module with no example line has no W-INT-2 recommendation
+#---

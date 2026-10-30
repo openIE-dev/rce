@@ -45,7 +45,7 @@
   "answer_sha256": "0252f2267a51cae080a28c2d1b98206c943cfb05fcbbf0d4e024976b6a5413b8"
  },
  "09-wellformedness.md": {
-  "question": "Which rule refuses two unguarded steps in one region whose patterns overlap?",
+  "question": "Under which rule does a region with two unguarded steps whose patterns overlap require change?",
   "salt": "2dd7dbd4f2f70c81ef7893507c07c069",
   "answer_sha256": "b34f36dc818f7202eaed46edb40c8a8d9b5804115d36baa12c73ad8b41fd7f49"
  },

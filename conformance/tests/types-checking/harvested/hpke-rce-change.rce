@@ -1,0 +1,31 @@
+event Derive(ikm: text)
+event Seal(pkr: text, ske: text, info: text, aad: text, pt: text, seq: i64)
+event Open(skr: text, enc: text, info: text, aad: text, ctext: text, seq: i64)
+event Dwl(sk: text, lbl: text, context: text, kem: text, ctext: text)
+event Ewl(pk: text, ske: text, lbl: text, context: text, pt: text)
+
+state S
+    out: List[text] = []
+
+step S on Derive(ikm: i)
+    out.push(hp_derive_sk(i))
+
+step S on Seal(pkr: p, ske: e, info: i, aad: a, pt: t, seq: n)
+    out.push(hpke_seal(p, e, i, a, t, n))
+
+step S on Open(skr: k, enc: e, info: i, aad: a, ctext: c, seq: n)
+    out.push(hpke_open(k, e, i, a, c, n))
+
+step S on Dwl(sk: k, lbl: l, context: c, kem: e, ctext: t)
+    out.push(decrypt_with_label(k, l, c, e, t))
+
+step S on Ewl(pk: p, ske: e, lbl: l, context: c, pt: t)
+    out.push(encrypt_with_label(p, e, l, c, t))
+#--- rce-test
+# id: types-checking/harvested/hpke-rce-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: change
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/hpke_rce.rs#0
+#---

@@ -1,6 +1,6 @@
 module refined
 
-intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+intent "input validation is a declared predicate: an event whose payload is outside its refined type has the kept outcome, state unchanged"
     example SetVolume(pct: 40) -> level == 40
     example Rename(name: "ok") -> name == "ok"
     example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
@@ -33,5 +33,11 @@ step Profile on Rename(name: n) -> n
 # expect: trace
 # events: Rename(name: "ok")
 # trace_head: 00a95c0d6c4ca89d3e8081b3bc518ed5fbbebca0fe8e005351bbe2f3d8affa36
+# trace_lines:
+#   - 0 (initial) Volume { level = 0 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - d applied 00a95c0d6c4ca89d3e8081b3bc518ed5fbbebca0fe8e005351bbe2f3d8affa36 {"event":{"payload":["ok"],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"915a4d05341c41933e36abc4615384eedd3bdb2d40ff3cbfa7a116f4afc2eb03"}
+#   - 1 Rename(name: "ok") Volume { level = 0 }; Codes { accepted = 0 }; Profile { name = "ok" }
+#   - trace 00a95c0d6c4ca89d3e8081b3bc518ed5fbbebca0fe8e005351bbe2f3d8affa36
+#   - fuel 5
 # provenance: golden spec/traces/51_refined_input.json
 #---

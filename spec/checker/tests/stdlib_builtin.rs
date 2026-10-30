@@ -62,17 +62,17 @@ fn a_lib_line_is_a_comment() {
 
 #[test]
 fn no_library_name_is_known_to_a_module_that_does_not_use_its_module() {
-    // Why the retired `#!lib NAME` line is a comment and not refused: it
+    // Why the retired `#!lib NAME` line is a comment and requires no change: it
     // placed a library module's functions, constants and types in front of
     // a module. Each such name is unknown to a module that does not `use`
-    // the library, so a program that still relies on the line is refused
+    // the library, so a program that still relies on the line requires change
     // (W-NAME-1) and none is accepted with another meaning. A variant or
     // error name in a pattern becomes a binding instead, but such a pattern
     // matched only a value of a library type, which nothing in the module
     // can produce once the library's names are unknown.
     use rce_spec_check::ast::Item;
     let none = std::collections::HashSet::new();
-    let refused_as = |src: String, what: &str, n: &str| {
+    let requires_change_as = |src: String, what: &str, n: &str| {
         let errs = cli::diagnostics(&src, &none);
         let want = format!("W-NAME-1 unknown {what} `{n}`");
         assert!(errs.iter().any(|(_, e)| e.contains(&want)), "`{n}` is known without its module: {errs:?}");
@@ -91,12 +91,12 @@ fn no_library_name_is_known_to_a_module_that_does_not_use_its_module() {
             };
             for v in std::iter::once(n).chain(vs) {
                 // as a value and as a call: a built-in function is known only when called
-                refused_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}\n    0\n"), "name", v);
-                refused_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}()\n    0\n"), "name", v);
+                requires_change_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}\n    0\n"), "name", v);
+                requires_change_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}()\n    0\n"), "name", v);
                 names += 1;
             }
             if ty {
-                refused_as(format!("module probe\n\nfn probe(_x: {n}) -> i64 = 0\n"), "type", n);
+                requires_change_as(format!("module probe\n\nfn probe(_x: {n}) -> i64 = 0\n"), "type", n);
             }
         }
     }
@@ -104,7 +104,7 @@ fn no_library_name_is_known_to_a_module_that_does_not_use_its_module() {
 }
 
 #[test]
-fn an_unknown_module_is_still_refused() {
+fn an_unknown_module_still_requires_change() {
     let f = tmp("unknown", "module demo3\nuse nothere\n\nfn main()\n    emit 1\n");
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 1, "{out}");

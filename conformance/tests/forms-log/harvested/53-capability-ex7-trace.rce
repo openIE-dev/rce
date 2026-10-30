@@ -26,5 +26,11 @@ step Ledger on Spend(amount: a) -> spent + a
 # expect: trace
 # events: Spend(amount: 5)
 # trace_head: d7abbea0eb77d9bec226df6d706f038fd7e3c0a66ed0abfbec5a624827f3b6d5
+# trace_lines:
+#   - 0 (initial) Policy { limit = 100 }; Ledger { spent = 0 }
+#   - d applied d7abbea0eb77d9bec226df6d706f038fd7e3c0a66ed0abfbec5a624827f3b6d5 {"event":{"payload":[5],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"c7926c0514a1d78a127f1f85351bbc1e9a3a003de739f5e129f8c00bcf5ff02c"}
+#   - 1 Spend(amount: 5) Policy { limit = 100 }; Ledger { spent = 5 }
+#   - trace d7abbea0eb77d9bec226df6d706f038fd7e3c0a66ed0abfbec5a624827f3b6d5
+#   - fuel 6
 # provenance: harvested examples/53_capability.rce example@7
 #---

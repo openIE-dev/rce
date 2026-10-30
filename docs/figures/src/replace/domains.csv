@@ -13,7 +13,7 @@ C++,game and simulation state,crates/rce/spec/examples/30_state_machine_guarded.
 C++,bit manipulation,crates/rce/spec/examples/27_bitops.rce,RUNS,bitwise ops
 Rust,ownership-checked systems code,crates/rce/spec/examples/12_borrow.rce,RUNS,second-class borrows
 Rust,arena allocation,crates/rce/spec/examples/41_arena_bound_wrapping.rce,RUNS,arenas with bound R3
-Rust,compilers and parsers (self-hosting),,GAP,W-REC-1 refuses mutual recursion; no file input as events; roadmap W1
+Rust,compilers and parsers (self-hosting),,GAP,mutual recursion requires change (W-REC-1); no file input as events; roadmap W1
 Rust,cryptography and hashing,rce-replace/examples/sha256_chain.rce,RUNS,sha256 text method (this change)
 Zig,comptime metaprogramming,crates/rce/spec/examples/32_comptime_block.rce,RUNS,comptime 5.10
 Zig,fixed-width unsigned arithmetic,crates/rce/spec/examples/46_u64.rce,RUNS,full-range u64 N2

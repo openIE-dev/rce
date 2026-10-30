@@ -11,7 +11,7 @@
 expression form must always have an `else`, because it has to produce a
 value either way.
 
-Comparisons cannot be chained: `0 < x < 10` is refused by the grammar.
+Comparisons cannot be chained: `0 < x < 10` requires change under the grammar.
 Write `x in 0..10` instead.
 
 ## Three loops, each with a limit
@@ -35,16 +35,16 @@ Reaching the limit is not a hang. It is a trap with the message
 `loop bound`:
 
 ```rce
-{{#include ../listings/ch03/refused/spin.rce}}
+{{#include ../listings/ch03/change/spin.rce}}
 ```
 
 ```text
 $ rce check spin.rce
-{{#include ../listings/ch03/refused/spin.out}}
+{{#include ../listings/ch03/change/spin.out}}
 ```
 
 The loop condition is always `true`, so the eleventh repetition traps, the
-check cannot be evaluated, and the program is refused.
+check cannot be evaluated, and the program requires change.
 
 ## `var` and assignment
 

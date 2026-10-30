@@ -39,7 +39,7 @@ none
 | clause | kind | chapter | tests | reference |
 |---|---|---|---|---|
 | CH00-M-61b6ac06 | modal | 00-overview.md:3 | 1344 | {'pass': 1344} |
-| CH02-M-69371f07 | modal | 02-lexical.md:99 | 53 | {'pass': 53} |
+| CH02-M-84a53b7d | modal | 02-lexical.md:99 | 53 | {'pass': 53} |
 | R1 | rule | 03-syntax.md:242 | 1 | {'pass': 1} |
 | R2 | rule | 03-syntax.md:245 | 1 | {'pass': 1} |
 | R3 | rule | 03-syntax.md:249 | 2 | {'pass': 2} |

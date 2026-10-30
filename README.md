@@ -29,17 +29,22 @@ not hold), the checker names the place and the part of the shape it lacks.
 This is what makes autonomous coding deterministic. A proposal, whether a
 person, a search over existing Forms or a model produced it, is read by
 the checker alone, with the same result on every machine.
-Once accepted, the Form replays identically everywhere, projects to any
-target language without changing meaning, and is reused as a whole. Every
-language is both an output and an input of the Form: `rce emit` prints a
-Form as a program in a target language, and the lift, the reverse map,
-brings a program written in that language into the Form. Targets are rows
-of the emit registry (`spec/proposals/emit-targets.md`): one emitter over
-the Form IR and one table per language, with the same gate for every row
-(the reference trace of every example program, byte for byte). The
-reference checker emits Rust, Python, JavaScript and Scala today; the
-registry lists the languages that follow, including the new entrants of
-2024 to 2026. No model is needed to decide what a program means, whether a change
+Once accepted, the Form replays identically wherever the reference runs,
+is designed to project to any target language without changing meaning,
+and is reused as a whole. RCE is designed so that every language is both
+an output and an input of the Form (`spec/proposals/rce-form.md`): a print
+table emits a language from the Form, and a lift table, the reverse map,
+brings a program written in that language into the Form, each accepted at
+a level by exact comparison with the language's own implementation. That
+layer is not built yet. Today `rce emit` translates a checked program, not
+the Form, to Rust, Python, JavaScript and Scala through four hand-written
+emitters, all four of which agree with the reference on the conformance
+suite (1,459 tests pass, 0 fail, for each). The lifts are
+the probe `spec/lift/go/lift_go.py`, for one Go pattern, and
+`spec/lift/python/lift_py.py`, for a subset of Python 3.13, which carries
+6 of the 92 cases of the pinned Python corpus (`lang/README.md`). The registry
+(`spec/proposals/emit-targets.md`) lists the languages that follow,
+including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
 non-deterministic part of AI coding is taken out of the loop. The aim is
 the lowest cost and lowest energy per correct program.
@@ -75,7 +80,7 @@ same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` projects the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table); a host runs it on a compute fabric.*
+*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` translates the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table is the design); a host runs it on a compute fabric.*
 
 ## Try it
 
@@ -107,7 +112,7 @@ Save this as `counter.rce`:
 ```
 intent "a counter that never goes below zero"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0
@@ -132,11 +137,11 @@ $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
-5 Dec refused: Underflow
+5 Dec kept: Underflow
 ```
 
 The `example` lines are part of the program: if one did not hold, the
-checker would refuse the file.
+file would require change under W-INT-1.
 
 ## Commands
 
@@ -146,7 +151,7 @@ checker would refuse the file.
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
-| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js`, `scala` today; the emit registry lists the rest |
+| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |
@@ -163,7 +168,7 @@ Section 10 of the specification defines each command.
 | `spec/checker/` | the reference parser, type checker, interpreter, emitters, formatter, language server and host runtime (Rust); also `rce-spec-check`, `rce-book`, `rce-spec-data` and `rce-fuzz` |
 | `spec/checker-wasm/` | the checker compiled to WebAssembly; `spec/wasm-test/` tests the package against the examples |
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8); `scripts/lean-audit.sh` checks the axioms |
-| `spec/examples/` | programs the checker must accept, and in `reject/`, `ill_typed/` and `inadmissible/`, programs it must refuse |
+| `spec/examples/` | programs the checker must accept, and in `change/syntax/`, `change/types/` and `change/admission/`, programs that must require change |
 | `spec/traces/` | reference traces of the example corpus |
 | `spec/data/` | the specification as data (grammar tables, rules, method and cost tables) |
 | `spec/proposals/` | design proposals and the decision ledger (`LEDGER.md`) |
@@ -178,7 +183,7 @@ Section 10 of the specification defines each command.
 | `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media, multi) and the ecosystem programs |
 | `examples/` | Form, surface and ingest examples |
 | `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports |
-| `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; no lifter of these corpora yet (`lang/README.md`) |
+| `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; the Python lift `spec/lift/python` carries 6 of the 92 Python cases (`lang/README.md`) |
 | `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` |
 | `docs/figures/` | figures with captions, scripts and data |
 | `scripts/` | repository scripts: proofs and Lean audit, cross-architecture hashes and determinism streams, the Form corpus generator, claim counts, demos |
@@ -194,8 +199,8 @@ cargo test --release
 
 `rce-spec-check` reads the grammar from `spec/book/03-syntax.md`, builds
 LALR(1) tables and fails on any conflict, parses every example with two
-parsers that must agree, runs the checker over all accepted and refused
-examples, and checks that `RCE-SPEC.md` matches the chapters. With
+parsers that must agree, runs the checker over all accepted examples and
+all that require change, and checks that `RCE-SPEC.md` matches the chapters. With
 `--features tree-sitter` (needs a C compiler and the
 [tree-sitter CLI](https://tree-sitter.github.io/)) it also regenerates the
 tree-sitter parser and uses it as a third parser. The emitter tests need

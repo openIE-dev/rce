@@ -1,6 +1,6 @@
 intent "a counter that never goes negative"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0
@@ -19,5 +19,15 @@ step Counter on Dec -> try n.checked_sub(1) else Underflow
 # expect: trace
 # events: Inc, Inc, Dec
 # trace_head: 889e65598130b4034cb95afb4a80628291433e7089139e54478e0b0b2b343bdb
+# trace_lines:
+#   - 0 (initial) Counter { n = 0 }
+#   - d applied 16ec075c0865aec98a67b14c2a42302d34ff5a694a31055d3ee1b6847478cf84 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"043f347c2cdc0d8ce70c38775d24e556c0290acf6d0c87a3a52aa85471cb8d02"}
+#   - 1 Inc Counter { n = 1 }
+#   - d applied 8911401820cf55e5fb432c9759efc78c60a54fb3fa8f6e3cc2647fc6f288a3e2 {"event":{"payload":[],"type":0},"prev_hash":"16ec075c0865aec98a67b14c2a42302d34ff5a694a31055d3ee1b6847478cf84","seq":1,"state_hash":"24227028f5989317de063afa979c6b34bfd191537b8fd2ed796a820bf47b2024"}
+#   - 2 Inc Counter { n = 2 }
+#   - d applied 889e65598130b4034cb95afb4a80628291433e7089139e54478e0b0b2b343bdb {"event":{"payload":[],"type":1},"prev_hash":"8911401820cf55e5fb432c9759efc78c60a54fb3fa8f6e3cc2647fc6f288a3e2","seq":2,"state_hash":"043f347c2cdc0d8ce70c38775d24e556c0290acf6d0c87a3a52aa85471cb8d02"}
+#   - 3 Dec Counter { n = 1 }
+#   - trace 889e65598130b4034cb95afb4a80628291433e7089139e54478e0b0b2b343bdb
+#   - fuel 11
 # provenance: golden spec/traces/01_counter.json
 #---

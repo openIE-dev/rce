@@ -6,8 +6,8 @@ fn main()
 #--- rce-test
 # id: lexing-parsing/targeted/s3-keyword-as-member
 # area: lexing-parsing
-# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, S3, T10]
-# expect: reject
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, S3, T10]
+# expect: change
 # diagnostic: W-SYN-1
 # provenance: targeted.py: expected result read off the clause
 # note: S3: a keyword is a member name only after `.`, so a field cannot be declared with it

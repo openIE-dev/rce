@@ -256,8 +256,9 @@ renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.
 Needs spec: a generic function cannot take a borrowed option (`&T?`
 does not unify with `&text?` in rce 0.1.3), so `result_ok` and
 `delivered` take the data by value; a library cannot declare the
-request structs and `<Kind>Done` events (W-HOST-1 looks for them in the
-program), so each program repeats them; the file adapter reports a
+request structs and `<Kind>Done` events (the host delivers each result as
+the program's own declaration takes it, Appendix E.4c HD-1), so each program
+repeats them; the file adapter reports a
 missing file and a refused path both as `failed` with free text, so a
 program cannot tell them apart without parsing `err`; no adapter yet
 reads a file in chunks, so the line reader is exercised over one
@@ -302,18 +303,22 @@ recorded handler is a library value, not an engine fit; the engine's
 canonical JSON is not RFC 8785 (key order, integer range), and the two
 are not reconciled in the spec. Handlers in the Koka/OCaml sense
 (resumable effects) are not expressible: effects are fixed by context,
-so this module offers effects as data instead. W-HOST-1 result events
-must be declared by the program (see io).
+so this module offers effects as data instead. Result events are
+declared by the program (see io); a result the program does not declare
+is recorded in D and not delivered (Appendix E.4c HD-1).
 
 ## net (`lib/net/url.rce`, `lib/net/idna.rce`, `lib/net/http.rce`, `lib/net/dns.rce`)
 
 Pure codecs only (survey M25). Anything that moves bytes needs a host
 binding and is not here: there is no UDP adapter in rce 0.1.3 (DNS
 resolution), the TCP adapter (`NetConnect`/`NetSend`/`NetRecv`) is used
-through the io request/result pattern by the program, and TLS is the
-host's (`--tls`). Connection management (keep-alive, pipelining,
-timeouts) is program state over those events and is left to a later
-module once the bindings are specified.
+through the io request/result pattern by the program, with `NetRecv`
+delivering the bytes received as `List[i64]` (Appendix E HC-10a), and TLS is the
+host's (`--tls`). An HTTP server needs no socket code: the HTTP event
+host (`rce host serve --http`, Appendix E HC-24 to HC-26) frames requests
+with the same rules as `parse_message` (one Host field included), applies
+keep-alive, pipelining, limits and timeouts, and delivers each request as
+one logged input.
 
 - **net.url, official:** `vectors/net/urltestdata.json`, web-platform-tests/wpt
   at c48d58747e1f211527fb695fd60548a997fae617 (2026-09-19),

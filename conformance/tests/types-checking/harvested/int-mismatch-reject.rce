@@ -1,9 +1,0 @@
-fn f(a: u8, b: i64) -> i64 = a + b
-#--- rce-test
-# id: types-checking/harvested/int-mismatch-reject
-# area: types-checking
-# clauses: [CH09-M-82e65964, W-TY-1]
-# expect: reject
-# diagnostic: W-TY-1
-# provenance: harvested examples/ill_typed/int_mismatch.rce
-#---

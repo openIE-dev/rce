@@ -93,14 +93,14 @@ $ rce dim door.rce
 ```
 
 Three states, not four: a door cannot be open and locked at once, because
-`Lock` is refused while open and `Open` is refused while locked. Three
+`Lock` keeps the state while open and `Open` keeps it while locked. Three
 behaviours, no redundancy. This program's state is exactly its behaviour.
 
 ## State nobody can see
 
 The traffic light of chapter 5 has three states and, by this measure, one
-behaviour: it never emits and never refuses, so no sequence of events gets
-a different answer from any state. Its examples check `light == Yellow`,
+behaviour: it never emits and no step of it keeps the state, so no
+sequence of events gets a different answer from any state. Its examples check `light == Yellow`,
 but an example reads the state from inside; the Form's behaviour is what
 comes out. `rce dim` on that program reports 3 states, 1 behaviour and 1.58
 bits of redundancy, and it is right: as written, the light's colour is in
@@ -114,8 +114,8 @@ turned out to be of this kind.
 
 `rce dim --control` asks a coarser question: not what the program emits,
 but which steps fire. Two states are control-equivalent when every event
-sequence makes the same steps fire, refuse or emit the same kinds of thing
-from both. The count is never larger than the behaviour count, and its
+sequence makes the same steps fire, keep the state or emit the same kinds
+of thing from both. The count is never larger than the behaviour count, and its
 canonical form is hashed as `shape_ctl`, a key that does not change when
 you rename anything:
 

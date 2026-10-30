@@ -51,5 +51,11 @@ step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
 # expect: trace
 # events: Div(a: 1.0, b: 3.0)
 # trace_head: 4d5883c66741f14f472a45b9ca2986e4586022f4b38fb7e1a12d63d7122a04fc
+# trace_lines:
+#   - 0 (initial) Lab { x = 0 }
+#   - d applied 4d5883c66741f14f472a45b9ca2986e4586022f4b38fb7e1a12d63d7122a04fc {"event":{"payload":[1.0,3.0],"type":3},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"a803e09186431c772cbe72082fc3c7a700e20f0e968554af5a47d32ec44e61b8"}
+#   - 1 Div(a: 1, b: 3) Lab { x = 0.3333333333333333 }
+#   - trace 4d5883c66741f14f472a45b9ca2986e4586022f4b38fb7e1a12d63d7122a04fc
+#   - fuel 6
 # provenance: harvested examples/57_float_vectors.rce example@10
 #---

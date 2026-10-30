@@ -1,4 +1,4 @@
-intent "bytes become text only when they are well-formed UTF-8; anything else refuses the event, never substitutes"
+intent "bytes become text only when they are well-formed UTF-8; anything else keeps the state, never substitutes"
     example Dec(b: [104, 105]) -> t == "hi"
     example Dec(b: [226, 130, 172]) -> t == "€"
     example Dec(b: [240, 159, 152, 128]) -> t.len_bytes() == 4
@@ -27,5 +27,11 @@ fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len_bytes()
 # expect: trace
 # events: Dec(b: [104, 105])
 # trace_head: d0f6097bb0f6de42e22bc47e62d1a09f5c84aa0da4fde7d19a1e87b1f86c68bc
+# trace_lines:
+#   - 0 (initial) S { t = "" }
+#   - d applied d0f6097bb0f6de42e22bc47e62d1a09f5c84aa0da4fde7d19a1e87b1f86c68bc {"event":{"payload":[[104,105]],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"60d3ee96e2bae87cef5a7498a3bc2e52b3e48f18a6b79de9a9b368bdb2c0f0fb"}
+#   - 1 Dec(b: [104, 105]) S { t = "hi" }
+#   - trace d0f6097bb0f6de42e22bc47e62d1a09f5c84aa0da4fde7d19a1e87b1f86c68bc
+#   - fuel 6
 # provenance: golden spec/traces/56_utf8.json
 #---

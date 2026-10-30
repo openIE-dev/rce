@@ -1,6 +1,6 @@
 intent "a counter that never goes negative"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0
@@ -19,5 +19,11 @@ step Counter on Dec -> try n.checked_sub(1) else Underflow
 # expect: trace
 # events: Dec
 # trace_head: 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c
+# trace_lines:
+#   - 0 (initial) Counter { n = 0 }
+#   - d kept 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c {"event":{"payload":[],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387"}
+#   - 1 Dec kept: Underflow
+#   - trace 07ad897ce740329566c1740b942501d6ccf683d3b86e9de3a42c3b06c238e47c
+#   - fuel 6
 # provenance: golden spec/traces/01_counter.json
 #---

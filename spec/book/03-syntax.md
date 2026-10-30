@@ -31,7 +31,7 @@ IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT 
 IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
-Outcome     = Expr | "refused" ":" ( NAME | "trap" "(" STRING ")" ) .
+Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
 ```
 
@@ -261,8 +261,8 @@ declaration and no conflict to resolve at parse time.
   key is the variable `a` (write `{"a": 1}` for a text key).
 - **R8 variant patterns against bindings.** A `Path` pattern is a unit variant
   if name resolution finds a variant of that name in scope, otherwise it binds
-  a fresh variable (Rust's rule). W-PAT-1 refuses a binding that shadows a
-  variant name, so a misspelled variant is never silently a binding.
+  a fresh variable (Rust's rule). W-PAT-1 reports that a binding which shadows a
+  variant name requires change, so a misspelled variant is never silently a binding.
 - **R9 send.** `<-` after an expression at statement level is a send;
   in prefix position it is a receive. The two never meet: `a <- <- b` is
   "send the value received from b to a".
@@ -283,11 +283,11 @@ declaration and no conflict to resolve at parse time.
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/reject/` (tab indent, chained
+3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
-   unterminated string); all must be refused.
+   unterminated string); all must be reported as requiring change.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
@@ -299,19 +299,19 @@ layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
 lexical-stress mutants (a random token jammed in or a space deleted) with
-Lark and tree-sitter and required that both refuse, or both accept with identical
+Lark and tree-sitter and required that both report the input as requiring change, or both accept with identical
 trees (rule names, nesting, kept tokens and their text). Results: 81 examples
 plus 10,000 programs (seed 7, SOUP=2): 69,323 inputs, 15,205 accepted by both
-with identical trees, 54,118 refused by both, 0 disagreements; 10,000
+with identical trees, 54,118 requiring change in both, 0 disagreements; 10,000
 programs (seed 11, SOUP=10): 149,365 inputs, 35,837 identical trees, 113,528
-refused by both, 0 disagreements.
+requiring change in both, 0 disagreements.
 Draft 0.4 grammar (with `extern` and arena `bound`): 91 examples plus 2,000
 programs (seed 7, SOUP=2): 13,983 inputs, 3,060 identical trees, 10,923
-refused by both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
+requiring change in both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
 `yield`, `device`, no `lalr`): 127 examples plus 2,000 programs (seed 7,
-SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
+SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 requiring change in both,
 0 disagreements.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2 -->
+<!-- body-sha256: 341fe96ee16fb89234a62e7a4375f3b1530503840641f456230253255a6b6d4c -->

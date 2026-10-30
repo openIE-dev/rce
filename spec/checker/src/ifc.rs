@@ -238,12 +238,12 @@ impl<'a> A<'a> {
     fn trap_site(&mut self, line: usize, what: &str, operands: &[&L]) {
         if !self.ctx.public() {
             let c = self.ctx.show();
-            self.err(line, "W-IFC-4", format!("{what} can trap in a control context labeled {c}: the refusal is observable; use a checked form that returns an Option"));
+            self.err(line, "W-IFC-4", format!("{what} can trap in a control context labeled {c}: the kept step is observable; use a checked form that returns an Option"));
         }
         for o in operands {
             if !o.public() {
                 let c = o.show();
-                self.err(line, "W-IFC-4", format!("{what} can trap and an operand that decides it is labeled {c}: the refusal is observable; use a checked form that returns an Option"));
+                self.err(line, "W-IFC-4", format!("{what} can trap and an operand that decides it is labeled {c}: the kept step is observable; use a checked form that returns an Option"));
             }
         }
     }
@@ -423,7 +423,7 @@ impl<'a> A<'a> {
         {
             all.sealed = all.untrusted.is_some();
         }
-        // F.5.7: `Header.encode` refuses CR and LF at run time (a trap)
+        // F.5.7: `Header.encode` traps on CR and LF at run time
         if let Expr::Member(o, m, _) = f
             && m == "encode"
             && matches!(&**o, Expr::Name(c, _) if c == "Header")
@@ -647,7 +647,7 @@ impl<'a> A<'a> {
                 self.note_exit();
                 if !self.ctx.public() {
                     let c = self.ctx.show();
-                    self.err(line, "W-IFC-4", format!("`fail` in a control context labeled {c}: the refusal is observable"));
+                    self.err(line, "W-IFC-4", format!("`fail` in a control context labeled {c}: the kept step is observable"));
                 }
                 if !l.public() {
                     let c = l.show();

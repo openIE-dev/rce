@@ -94,7 +94,8 @@ Intent with examples
 
 intent "a counter"
     example Inc, Inc -> 2
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
+    example Div -> kept: trap("division by zero")
 
 ---
 
@@ -113,5 +114,11 @@ intent "a counter"
       (event_list
         (event_ref
           (NAME)))
-      (outcome_refused
-        (NAME)))))
+      (outcome_kept
+        (NAME)))
+    (example_decl
+      (event_list
+        (event_ref
+          (NAME)))
+      (outcome_kept
+        (STRING)))))

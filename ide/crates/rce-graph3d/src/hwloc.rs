@@ -79,7 +79,7 @@ pub fn import(xml: &str) -> Result<Graph, Error> {
                 if let Some(c) = a.get("cpuset") { detail.push(format!("cpuset {c}")) }
                 let n = g.add(Node {
                     id: format!("hw:hwloc:{gp}"), label: name.unwrap_or(format!("{what}{os}")), kind: k,
-                    file: None, line: None, refused: false, rank: 0.0, energy: Default::default(), live: None,
+                    file: None, line: None, requires_change: false, rank: 0.0, energy: Default::default(), live: None,
                     detail: detail.join(", "),
                 });
                 if let Some(p) = parent { g.link(p, n, EdgeKind::Contains, 1.0, "") }

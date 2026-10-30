@@ -1,0 +1,10 @@
+fn f(a: u64, b: i64) -> u64
+    return a + b
+#--- rce-test
+# id: types-checking/harvested/u64-mixed-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: change
+# diagnostic: W-TY-1
+# provenance: harvested examples/change/types/u64_mixed.rce
+#---

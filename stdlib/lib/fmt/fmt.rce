@@ -4,7 +4,7 @@ module fmt
 # part 1). No locale, no host call: the same input gives the same text on
 # every host.
 # - Integers: any radix 2..36, sign, zero/space padding, digit grouping;
-#   strict parsing that refuses overflow, empty digits and stray bytes
+#   strict parsing that fails on overflow, empty digits and stray bytes
 #   (like C++ from_chars: no whitespace, no "0x", lowercase or uppercase
 #   digits).
 # - Templates: "{}" takes the next argument, "{N}" argument N, "{{" and
@@ -56,7 +56,7 @@ fn digit_val(c: i64) -> i64
     return 99
 
 # Strict parse in radix r: optional "+" or "-", then one or more digits,
-# nothing else. Overflow of i64 is refused (BadInt at the digit).
+# nothing else. Overflow of i64 is an error (BadInt at the digit).
 pub fn int_parse(s: &text, r: i64) -> i64 ! BadInt
     let n = s.len_bytes()
     if n == 0

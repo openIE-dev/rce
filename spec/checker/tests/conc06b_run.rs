@@ -256,7 +256,7 @@ fn t26_structured_spawn() {
     assert!(o[2].contains("TaskFailed"), "{o:?}");
     assert_eq!(o[3], "100");
     assert_eq!(o.len(), 4, "101 must not be emitted: {o:?}");
-    assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("TaskFailed")));
+    assert!(matches!(&r.outcome, Outcome::Stopped(e) if e.contains("TaskFailed")));
     // every task spawned before an `emit 99` finished before it
     let emit99 = r.log.iter().position(|e| e.what == "Emit(99)").unwrap();
     let spawned: Vec<String> = r.log[..emit99]
@@ -282,7 +282,7 @@ fn t27_linearizable_actor() {
 }
 
 /// T28: a well-typed session runs to the end without deadlock. (A bounded
-/// `loop bound n` around the server's offer is refused with W-SES-1: it can
+/// `loop bound n` around the server's offer requires change (W-SES-1): it can
 /// exit with the protocol unfinished.)
 #[test]
 fn t28_session_fidelity() {
@@ -376,7 +376,7 @@ fn t29_lvar_determinism() {
     let mut g = Rng(9);
     for cfg in modes(&mut g) {
         let r = run_cfg(conflict, &cfg);
-        assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("lvar conflict")), "{:?}", r.outcome);
+        assert!(matches!(&r.outcome, Outcome::Stopped(e) if e.contains("lvar conflict")), "{:?}", r.outcome);
     }
 }
 
@@ -453,7 +453,7 @@ fn main()
     let r2 = run(src);
     let show = |l: &[rce_spec_check::conc::Entry]| l.iter().map(|e| format!("{} {} {:?}", e.tick, e.what, e.vc)).collect::<Vec<_>>();
     assert_eq!(show(&r.log), show(&r2.log));
-    assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("supervisor Root stopped")));
+    assert!(matches!(&r.outcome, Outcome::Stopped(e) if e.contains("supervisor Root stopped")));
 }
 
 /// T31: with partitions, every node's state is a fold of a prefix of one
@@ -568,7 +568,7 @@ fn main()
     let free = run(&src(9));
     assert_eq!(free.outcome, Outcome::Done, "the new policy alone would not stop");
     let r = replay(&src(9), rec.restarts.clone());
-    assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("supervisor Root stopped")), "{:?}", r.outcome);
+    assert!(matches!(&r.outcome, Outcome::Stopped(e) if e.contains("supervisor Root stopped")), "{:?}", r.outcome);
     // a decision is applied as logged: no reset keeps n
     let mut keep = rec.restarts.clone();
     keep[0].reset.clear();
@@ -587,7 +587,7 @@ fn main()
     let mut bad = rec.restarts.clone();
     bad[0].id = "nobody".into();
     let r = replay(&src(2), bad);
-    assert!(matches!(&r.outcome, Outcome::Refused(e) if e == "replay diverged"), "{:?}", r.outcome);
+    assert!(matches!(&r.outcome, Outcome::Stopped(e) if e == "replay diverged"), "{:?}", r.outcome);
 }
 
 /// HC-6: program events feed the running task. An event at tick t enters

@@ -65,7 +65,7 @@ fn non_overlapping_different_object_is_not_a_contradiction() {
 }
 
 #[test]
-fn invalid_requests_are_refused() {
+fn invalid_requests_change_nothing() {
     let mut e = MemEngine::default();
     let mut n = nf("x", "p", "1", 10);
     n.valid_to = Some(10);
@@ -75,7 +75,7 @@ fn invalid_requests_are_refused() {
     assert!(e.forget(id, Some(5), 2).is_err(), "end before start");
     assert!(
         e.fetch(id).unwrap().live(),
-        "refused forget changed nothing"
+        "forget not performed changed nothing"
     );
 }
 

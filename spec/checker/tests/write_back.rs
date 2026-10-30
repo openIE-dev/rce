@@ -7,6 +7,9 @@
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn rce(args: &[String]) -> (i32, String, String) {
     let (mut out, mut err) = (vec![], vec![]);
     let code = cli::main(args, &mut &b""[..], &mut out, &mut err);
@@ -39,7 +42,7 @@ fn file(stem: &str, src: &str) -> String {
     f.to_string_lossy().into_owned()
 }
 
-/// stdout of the emitted program, or None when its toolchain is missing
+/// stdout of the emitted program, or None when this run does not cover the target
 fn run_target(f: &str, t: &str) -> Option<String> {
     let (code, out, err) = rce(&["emit".into(), t.into(), f.into()]);
     assert_eq!(code, 0, "{t}: {err}");
@@ -48,7 +51,7 @@ fn run_target(f: &str, t: &str) -> Option<String> {
         "js" => ("mjs", "node"),
         _ => ("rs", "rustc"),
     };
-    if Command::new(tool).arg("--version").output().is_err() {
+    if !targets::covers(t, tool) {
         return None;
     }
     let p = format!("{}_{t}.{ext}", f.trim_end_matches(".rce"));
@@ -65,7 +68,7 @@ fn run_target(f: &str, t: &str) -> Option<String> {
     let s = String::from_utf8(o.stdout).unwrap();
     Some(
         s.lines()
-            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Refused: ").map(|r| format!("refused: {r}")) })
+            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Stopped: ").map(|r| format!("stopped: {r}")) })
             .map(|l| format!("{l}\n"))
             .collect(),
     )
@@ -171,9 +174,9 @@ fn nested_write_back_budget_traps_at_the_same_point_on_every_target() {
 }
 
 /// Conditional positions are not flattened (that would evaluate a
-/// branch eagerly); a write-back call there is still refused.
+/// branch eagerly); a write-back call there still requires change.
 #[test]
-fn a_write_back_call_in_a_conditional_position_is_refused() {
+fn a_write_back_call_in_a_conditional_position_requires_change() {
     let src = PROG.replace("let v = wrap(&mut n) catch -1", "let v = n > 0 and (wrap(&mut n) catch -1) > 0");
     let f = file("wbcond", &src);
     for t in ["rust", "python", "js"] {

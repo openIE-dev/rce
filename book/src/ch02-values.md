@@ -39,19 +39,19 @@ it into an `i64` with `as` first, as `widen` does.
 ## When a result does not fit
 
 What is `200 + 100` as a `u8`? The true answer, 300, is not a `u8`. Many
-languages quietly wrap it around to 44. RCE does not guess. The addition
-*traps*: it stops with an error. Because the check below needs that addition,
-the program is refused:
+languages quietly wrap it around to 44. RCE does not pick a value. The
+addition *traps*: it stops with an error. Because the check below needs that
+addition, the program requires change:
 
 ```rce
-{{#include ../listings/ch02/refused/overflow.rce}}
+{{#include ../listings/ch02/change/overflow.rce}}
 ```
 
 `rce check` says:
 
 ```text
 $ rce check overflow.rce
-{{#include ../listings/ch02/refused/overflow.out}}
+{{#include ../listings/ch02/change/overflow.out}}
 ```
 
 `W-INT-1` is the name of the rule in the specification: every check and
@@ -60,15 +60,15 @@ as `sizes.rce` does: `wrapping_add` wraps around, `saturating_add` stops at
 the largest value, and `checked_add` gives an *option* that is empty when
 the result does not fit. (Options come back in chapter 7.)
 
-Mixing types without `as` is refused too, by the type rule `W-TY-1`:
+Mixing types without `as` requires change too, under the type rule `W-TY-1`:
 
 ```rce
-{{#include ../listings/ch02/refused/mixed_types.rce}}
+{{#include ../listings/ch02/change/mixed_types.rce}}
 ```
 
 ```text
 $ rce check mixed_types.rce
-{{#include ../listings/ch02/refused/mixed_types.out}}
+{{#include ../listings/ch02/change/mixed_types.out}}
 ```
 
 ## Other basic types

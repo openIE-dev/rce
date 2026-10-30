@@ -18,7 +18,7 @@ not a better surface than L and does not claim to be.
 | Holonomy | beh(π_L(F)) = beh(p) on the corpus's traces to length k, and hash(λ_L(π_L(F))) = hash(F) | both hold | T59, the lens law |
 | Entropy to author | cost-of-pass (joules and dollars) for a model to reach a gate-passing program from the same intent, in F and in L | cost(F) ≤ cost(L) | the ladder, section 6 |
 
-**What it refuses to claim.** Expressiveness: a Form cannot say more than p
+**What it does not claim.** Expressiveness: a Form cannot say more than p
 (U2) and the surface language is one chart among many. Readability: that
 is a property of a projection, and projections are free. Adoption: the
 market does not prune (CONTRIBUTING rule 6).

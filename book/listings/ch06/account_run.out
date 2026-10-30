@@ -2,5 +2,5 @@
 1 Deposit(amount: 50) Account { balance = 50 }
 2 Withdraw(amount: 20) Account { balance = 30 }
   emit Withdrawn(amount: 20)
-3 Withdraw(amount: 40) refused: Insufficient
+3 Withdraw(amount: 40) kept: Insufficient
 exit status: 1

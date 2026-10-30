@@ -537,7 +537,7 @@ impl<'a> G<'a> {
 
     /// A call: (value expression, write-back). The write-back is set when
     /// the call may write back its receiver or `&mut` arguments; when `stmt`
-    /// is false such a call is refused (Ok(None)).
+    /// is false the emitter does not yet print such a call (Ok(None)).
     pub fn call_expr(
         &mut self,
         f: &Expr,

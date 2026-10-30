@@ -5,7 +5,7 @@ intent "a crossing whose walk phase lasts one tick after a press"
     example Press, Tick -> walking == true
     example Press, Tick, Tick -> walking == false
     example Tick, Tick, Tick -> walking == false
-    example Press, Press -> refused: AlreadyWaiting
+    example Press, Press -> kept: AlreadyWaiting
 
 kind Light
     Green

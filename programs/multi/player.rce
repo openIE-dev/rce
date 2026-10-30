@@ -3,7 +3,7 @@
 intent "a player whose output is the track it plays"
     example Play, Next -> track == 1
     example Next, Next, Next -> track == 0
-    example VolUp, VolUp, VolUp -> refused: Loudest
+    example VolUp, VolUp, VolUp -> kept: Loudest
 
 state Transport
     playing: bool = false

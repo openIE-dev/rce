@@ -1,6 +1,6 @@
 //! Version 0.9 Tier 2 (Appendix F.5): typed output (S3), directory
-//! capabilities (S2), `ct fn` (S4), declared budgets (S6). The accepted and
-//! refused examples are in `tests/v09_examples.rs`; these tests pin behaviour
+//! capabilities (S2), `ct fn` (S4), declared budgets (S6). The accepted examples
+//! and those that require change are in `tests/v09_examples.rs`; these tests pin behaviour
 //! that an example cannot show.
 use rce_spec_check::index08;
 
@@ -39,7 +39,7 @@ fn len_bytes_and_len_chars_name_their_unit() {
 }
 
 #[test]
-fn emitters_refuse_what_only_the_evaluator_runs() {
+fn emitters_do_not_yet_print_what_only_the_evaluator_runs() {
     for f in ["ok/07_dir_caps.rce", "ok/08_typed_output.rce"] {
         let src = std::fs::read_to_string(format!("../examples-0.9/{f}")).unwrap();
         for t in ["python", "js", "rust"] {
@@ -57,7 +57,7 @@ fn ct_choose_evaluates_both_values_and_ct_fn_runs_with_ordinary_semantics() {
 }
 
 #[test]
-fn every_emitter_refuses_ct_fn_with_the_fixed_message() {
+fn every_emitter_holds_ct_fn_with_the_fixed_message() {
     let src = std::fs::read_to_string("../examples-0.9/ok/10_ct_fn.rce").unwrap();
     for t in ["python", "js", "rust"] {
         let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
@@ -67,7 +67,7 @@ fn every_emitter_refuses_ct_fn_with_the_fixed_message() {
 
 
 #[test]
-fn labels_are_erased_so_every_emitter_translates_them_and_the_refusal_names_no_version() {
+fn labels_are_erased_so_every_emitter_translates_them_and_the_report_names_no_version() {
     for f in ["ok/05_ifc_labels.rce", "ok/06_ifc_release_endorse.rce"] {
         let src = std::fs::read_to_string(format!("../examples-0.9/{f}")).unwrap();
         for t in ["python", "js", "rust"] {

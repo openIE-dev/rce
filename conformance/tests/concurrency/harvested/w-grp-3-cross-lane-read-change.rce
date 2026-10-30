@@ -1,0 +1,18 @@
+# rce-version: 0.6
+# expect: W-GRP-3
+fn f(x: [f64; 4]) -> f64
+    var t: f64 = 0.0
+    with device d bound 64
+        with group g lanes 4
+            var tile: [f64; 4] = [0.0; 4]
+            tile[g.lane] = x[g.lane]
+            t += tile[3]
+    t
+#--- rce-test
+# id: concurrency/harvested/w-grp-3-cross-lane-read-change
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-GRP-3]
+# expect: change
+# diagnostic: W-GRP-3
+# provenance: harvested conc06b/ill_typed/W-GRP-3_cross_lane_read.rce
+#---

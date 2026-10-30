@@ -1,0 +1,12 @@
+intent "counter"
+    example Dec -> kept: Other
+
+state Counter
+    n: u64 = 0
+
+event Dec
+
+error Underflow
+error Other
+
+step Counter on Dec -> try n.checked_sub(1) else Underflow

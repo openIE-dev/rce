@@ -12,7 +12,7 @@ use ide_sandbox::jail::JailPolicy;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
-/// Refuse a bind address that is not a declared host.
+/// An error for a bind address that is not a declared host.
 pub fn check_bind(addr: &str, allowed_hosts: &[String]) -> Result<(), String> {
     let host = addr.rsplit_once(':').map(|(h, _)| h.trim_matches(['[', ']'])).unwrap_or(addr);
     if allowed_hosts.iter().any(|h| h == host) {

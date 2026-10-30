@@ -9,7 +9,7 @@ check (16777217 as f32) as i64 == 16777216
 # id: lexing-parsing/generated/mut-cr-42-f32-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: change
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `cr` of 42-f32-accept

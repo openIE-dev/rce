@@ -1,0 +1,10 @@
+fn f(x: f32, y: f64) -> f32
+    return x + y
+#--- rce-test
+# id: types-checking/harvested/f32-mixed-change
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: change
+# diagnostic: W-TY-1
+# provenance: harvested examples/change/types/f32_mixed.rce
+#---

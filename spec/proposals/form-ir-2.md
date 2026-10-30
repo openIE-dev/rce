@@ -8,8 +8,8 @@ from a stated property of the Form, not from a target language.
 
 **Problem.** Format 1 terms have no names. A call is lowered by copying the callee's term into
 the caller, so a term grows with the number of call sites times the callee size, and a
-recursive function has no finite term at all. 77 of the 188 refused stdlib bricks are refused
-for size or depth alone.
+recursive function has no finite term at all. Of the 188 stdlib bricks not yet lowered, 77
+are held back by size or depth alone.
 
 **Derivation.** A term is a value of the Form (it is hashed into rule ids and the log). The
 smallest change that keeps every term a finite value with one meaning is a table of
@@ -36,7 +36,7 @@ targets is identical to evaluating the body in place; the node attributes the ca
 **Well-formedness (checked when a program is read).** (a) every key equals the digest of its
 body; (b) every `ref` in `main` or in a body names a key of the table. Since a body's digest
 covers the keys it refers to, (a) makes the reference graph acyclic: a cycle would need a
-fixed point of SHA-256. A program that fails (a) or (b) is refused, never evaluated. Recursion
+fixed point of SHA-256. A program that fails (a) or (b) requires change and is never evaluated. Recursion
 therefore stays outside format 2: it needs a decreasing measure (6.7), which a later `fix`
 construct with an explicit bound will carry; format 2 removes the size cause, not that one.
 

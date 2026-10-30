@@ -1,7 +1,7 @@
 intent "a door that locks only when closed"
     "the door starts closed and unlocked"
     example Open, Close, Lock -> locked
-    example Open, Lock -> refused: DoorOpen
+    example Open, Lock -> kept: DoorOpen
 
 state Door
     open: bool = false
@@ -34,5 +34,15 @@ step Door on Unlock
 # expect: trace
 # events: Open, Close, Lock
 # trace_head: 8eeb0b2a1d0ac56a594d4e69826a3c182069005c2cc3fda5ef340445788dc368
+# trace_lines:
+#   - 0 (initial) Door { open = false, locked = false }
+#   - d applied 0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e"}
+#   - 1 Open Door { open = true, locked = false }
+#   - d applied f931e42151cb71d5771f14dcd20f3720d2d370620738c443f561c6435b88ee87 {"event":{"payload":[],"type":1},"prev_hash":"0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8","seq":1,"state_hash":"5174b5e56b59b7df11afde63f375d9ab06230377a93bf9dd178ee7bf3e85d4c0"}
+#   - 2 Close Door { open = false, locked = false }
+#   - d applied 8eeb0b2a1d0ac56a594d4e69826a3c182069005c2cc3fda5ef340445788dc368 {"event":{"payload":[],"type":2},"prev_hash":"f931e42151cb71d5771f14dcd20f3720d2d370620738c443f561c6435b88ee87","seq":2,"state_hash":"268c053082fe2ad56e329fc510de581db164e01114ce9b32cbffdf45a04ca99d"}
+#   - 3 Lock Door { open = false, locked = true }
+#   - trace 8eeb0b2a1d0ac56a594d4e69826a3c182069005c2cc3fda5ef340445788dc368
+#   - fuel 13
 # provenance: harvested examples/30_state_machine_guarded.rce example@3
 #---

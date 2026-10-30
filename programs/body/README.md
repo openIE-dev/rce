@@ -1,8 +1,8 @@
 # Body: control and sensing
 
 Programs that read sensors and decide what a device should do. Each
-reading is an event, and an impossible reading is refused instead of being
-acted on.
+reading is an event, and an impossible reading keeps the state instead of
+being acted on.
 
 | Program | What it shows |
 |---|---|

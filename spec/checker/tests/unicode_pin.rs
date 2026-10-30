@@ -3,8 +3,10 @@
 //! (version-independent); case and class operations are ASCII; the
 //! whitespace of `strip`, `words` and `toint` is the White_Space set of
 //! Unicode 18.0.0, enumerated in `interp::WHITE_SPACE` and in the emitted
-//! runtimes. A Rust or Python upgrade with new Unicode tables therefore
-//! cannot change a result.
+//! runtimes. Display writes as `\u{h}` exactly the code points listed in
+//! `spec/data/display-escape.json` (`interp::display_escaped`), the set
+//! Rust 1.98.1's `{:?}` escapes, enumerated once. A Rust or Python upgrade
+//! with new Unicode tables therefore cannot change a result.
 use std::process::Command;
 
 fn run(src: &str, name: &str) -> String {
@@ -68,5 +70,51 @@ fn runtime_sources_call_no_unicode_table() {
             }
         }
     }
+    // the emitted Rust runtime writes text by `rdebug` from the data, never
+    // by `{:?}` of a str; `{:?}` of a float is digits, and `dbg_v` and
+    // `dbg_flow` mirror the reference's derived Debug of the reason of a kept step
+    let rt = std::fs::read_to_string("src/emit/rt.rs").unwrap();
+    let mut in_dbg = false;
+    for (n, line) in rt.lines().enumerate() {
+        if line.starts_with("pub fn dbg_v(") || line.starts_with("pub fn dbg_flow(") {
+            in_dbg = true;
+        } else if line.starts_with('}') {
+            in_dbg = false;
+        }
+        let code = line.split("//").next().unwrap();
+        if !in_dbg && code.replace("{f:?}", "").contains(":?}") {
+            bad.push(format!("src/emit/rt.rs:{}: `:?}}`: {}", n + 1, line.trim()));
+        }
+    }
     assert!(bad.is_empty(), "calls that read the toolchain's Unicode tables:\n{}", bad.join("\n"));
+}
+
+/// The display escape set is data: `spec/data/display-escape.json`, read by
+/// `interp::show_text` and by the runtime written in the core. It was
+/// enumerated from the `{:?}` of a str of the pinned toolchain, and on that
+/// toolchain display of every code point, alone and between two letters,
+/// is that `{:?}` byte for byte, so no trace changed when the set became
+/// data. A toolchain whose tables differ fails here instead of changing a
+/// display: moving the pin is a change of the specification (6.3 N7).
+#[test]
+fn display_escape_set_is_the_pinned_data() {
+    let rs = rce_spec_check::interp::display_escaped();
+    assert_eq!(rs.len(), 911);
+    for w in rs.windows(2) {
+        assert!(w[0].0 <= w[0].1 && w[0].1 < w[1].0, "ranges ascending and disjoint: {w:?}");
+    }
+    let d: serde_json::Value = serde_json::from_str(rce_spec_check::interp::DISPLAY_ESCAPE_JSON).unwrap();
+    assert_eq!(d["format"], "rce-display-escape/1");
+    assert_eq!(d["unicode"], "17.0.0");
+    let mut differ = vec![];
+    for cp in 0..0x110000u32 {
+        let Some(c) = char::from_u32(cp) else { continue };
+        for t in [c.to_string(), format!("a{c}b")] {
+            let (got, want) = (rce_spec_check::interp::show_text(&t), format!("{t:?}"));
+            if got != want && differ.len() < 10 {
+                differ.push(format!("U+{cp:04X}: data {got}, toolchain {want}"));
+            }
+        }
+    }
+    assert!(differ.is_empty(), "display differs from the pinned toolchain's {{:?}}:\n{}", differ.join("\n"));
 }

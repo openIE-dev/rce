@@ -1,7 +1,7 @@
 intent "a door that locks only when closed"
     "the door starts closed and unlocked"
     example Open, Close, Lock -> locked
-    example Open, Lock -> refused: DoorOpen
+    example Open, Lock -> kept: DoorOpen
 
 state Door
     open: bool = false
@@ -34,5 +34,13 @@ step Door on Unlock
 # expect: trace
 # events: Open, Lock
 # trace_head: 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32
+# trace_lines:
+#   - 0 (initial) Door { open = false, locked = false }
+#   - d applied 0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e"}
+#   - 1 Open Door { open = true, locked = false }
+#   - d kept 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32 {"event":{"payload":[],"type":2},"prev_hash":"0e9f617014c95c64f7965de13e4372726bc69798cf0718e1f1eddfed95d5c1c8","seq":1,"state_hash":"2d0a85e8f4243b3182be50f87d343dfb2f04270add595686acb05a402153003e"}
+#   - 2 Lock kept: DoorOpen
+#   - trace 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32
+#   - fuel 9
 # provenance: harvested examples/30_state_machine_guarded.rce example@4
 #---

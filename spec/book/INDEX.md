@@ -5,25 +5,25 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 | File | Body SHA-256 | Read-receipt question |
 |---|---|---|
-| `00-overview.md` | `fda0152e7116bacf059e6e350c3dee069cb183d82b3ea21dd913fd317b193658` | In the overview's tiny example, what is the name of the event? |
-| `01-notation.md` | `c76056a1984c61b4ddce8745feb78c2cff67ef2295e40b3d2082f67e4cbecef4` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
-| `02-lexical.md` | `4eeab6a05c17dd46d9db462dc4c801fcde4ded882648bafd843fde43777a4dd4` | Which code point is the horizontal tab, as written in this section? |
-| `03-syntax.md` | `9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
-| `04-programs.md` | `c7a94eb7c4ad0ad0643dd4815a99397eae5b442b81d8e726a0a58e74ab21285b` | What is the outermost scope called? (one word) |
-| `05-types-ownership.md` | `02ac9d12d4e0e96656f200f8328965028a511328a7affa24d233988588eef3b4` | What is the name of the example kind used to illustrate error sets? |
-| `06-regions-effects-extensions.md` | `94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918` | What kind of channel does a capacity of 0 give? (one word) |
-| `07-form-evaluation.md` | `44118c5facf9237f3d0de65dedf3eea86fc64fd352ad9c3907e642ddcffed259` | Which JavaScript function is named for rounding to binary32? |
-| `08-steps-loops-concurrency.md` | `075fa38adc30b3add818021a4bb6df49e95aa6a25addafc0223ea201eeccb208` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
-| `10-theorems.md` | `cd5569c71a7b7d3190501d6db96b1e06364798b8bae4d5c89ba86389e0a94e18` | What is the deep embedding of the emitted Rust subset called? |
-| `11-decisions.md` | `2346d053d92fe62068dcec8afd8e1b3608ddfbbe6249ad2cc3ea79da9634ee90` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `2329b271394658198556ea9212b768a29e9262303f060d485b904051b71305f8` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `00-overview.md` | `8964928ff50dae3e6973daf085b0dbf7fa17ca001d9453226c984fba4a5681d3` | In the overview's tiny example, what is the name of the event? |
+| `01-notation.md` | `a521503afcfbe33debdf95f67ba7d2b35759e82e0c4f7ec2a5157fa2585874d1` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
+| `02-lexical.md` | `b48794be4b4fba7520cbc7764d17fc9bf7ce3a2979375ed708f18ef63dd502fe` | Which code point is the horizontal tab, as written in this section? |
+| `03-syntax.md` | `341fe96ee16fb89234a62e7a4375f3b1530503840641f456230253255a6b6d4c` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
+| `04-programs.md` | `f176cdbdab83223bd6e746a60ee394053648bbe43bb5f1afe1fec87c22fbb3ff` | What is the outermost scope called? (one word) |
+| `05-types-ownership.md` | `9bf4da7ffa7afa6304e34a4b9a523bad2c22f667eabfe0dcc63d66a6514199aa` | What is the name of the example kind used to illustrate error sets? |
+| `06-regions-effects-extensions.md` | `7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb` | What kind of channel does a capacity of 0 give? (one word) |
+| `07-form-evaluation.md` | `0dc0c2af67c908c2000eb760a3f14aa6dabf408b6729723fe42b4fcd39f788a8` | Which JavaScript function is named for rounding to binary32? |
+| `08-steps-loops-concurrency.md` | `3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811` | Name-free hashing uses indices named after which logician? (two words) |
+| `09-wellformedness.md` | `515463b2081ca4bbf0514f709572c0de1e3ddfa3a5e2c92a952035a4fe9058ff` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
+| `10-theorems.md` | `86c527f15354073e564232027b6775535873033fe643ebc8f86c43e51f4fc626` | What is the deep embedding of the emitted Rust subset called? |
+| `11-decisions.md` | `f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831` | The decisions list says it decides gaps in which file? |
+| `12-tooling.md` | `422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `731558e20966c95c1c100bd469f1587cd5ee034ff64d8ee8836d68f217782aba` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
-| `15-handler-spec-profile.md` | `375c3aa0d3316d41bda6c6f4b3b948717cd752f06a5a96302f4e15d45b00038f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `63f298c4a2a6a2ae68fe4952a7291ca6967060775df100848b8ff0d487170c5e` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `8b35e0fcce44bf4929bfc6736dc04859fe42b50516a69a6e14ca308c87a53fa5` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
+| `14-draft06-concurrency.md` | `49e483f0feaec3fa0e01ead23f929e43e21bd2a464145581692bce29366aac48` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
+| `15-handler-spec-profile.md` | `aae630976deb0a9785fa66664bfaa6b662998b4d70aa6cb978085e45c087dc5f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
+| `16-host-contract.md` | `326a259e956a6dfee8f627f329e4cf12754c82dbd4264894bacc7be347cb6592` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `17-draft09.md` | `d758122e6b3bc467c6c7cc553e72dc63cb7c3a6ae67ecb968045950837b14b53` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 721d99d393a47fe4141fa7600cca54582746e8ff5a0aa6ee7c815eef8a2a9eda -->
+<!-- body-sha256: bc30894c20c4831c35b87f6a960ac8406b9d493c57acad1592609f752c4fb462 -->

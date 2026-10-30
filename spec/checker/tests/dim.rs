@@ -97,7 +97,7 @@ fn tmp(name: &str, text: &str) -> String {
     p.to_string_lossy().into_owned()
 }
 
-const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> refused: Underflow\n\nstate Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
+const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> kept: Underflow\n\nstate Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
 
 #[test]
 fn equiv_is_name_free() {
@@ -116,7 +116,7 @@ fn equiv_finds_the_shortest_distinguishing_sequence() {
     let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
     assert_eq!(status, 1, "{out}");
     assert!(out.contains("after               Inc(), Dec()"), "{out}");
-    assert!(out.contains("A                 silent") && out.contains("B                 refused: Underflow"), "{out}");
+    assert!(out.contains("A                 silent") && out.contains("B                 kept: Underflow"), "{out}");
     let (_, json) = rce(&["equiv", "--json", "--fuel", "500", &a, &b]);
     let v: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
     assert_eq!(v["format"], "rce-equiv/1");
@@ -139,4 +139,61 @@ fn change_classifies_erratum_and_meaning_change() {
     let (status, out) = rce(&["change", "--fuel", "500", &a, &same_beh]);
     assert_eq!(status, 0, "{out}");
     assert!(out.contains("verdict             erratum"), "{out}");
+}
+
+fn fingerprint(depth: &str, file: &str) -> String {
+    let (status, out) = rce(&["fingerprint", "--json", "--depth", depth, "--fuel", "500", file]);
+    assert_eq!(status, 0, "{out}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(v["format"], "rce-fingerprint/1");
+    v["fingerprint"].as_str().unwrap().to_string()
+}
+
+#[test]
+fn fingerprint_is_shared_by_equivalent_programs_of_another_shape() {
+    // BF-1: a renaming keeps the program hash and a reshaping (`1 + n` for
+    // `n + 1`) changes it; both have the original's behaviour, so both have
+    // its fingerprint
+    let a = tmp("fa", COUNTER);
+    let (_, nameless) = rce(&["fmt", "--nameless", &a]);
+    let b = tmp("fb", &nameless);
+    let c = tmp("fc", &COUNTER.replace("-> n + 1", "-> 1 + n"));
+    let (_, ha) = rce(&["hash", &a]);
+    let (_, hc) = rce(&["hash", &c]);
+    assert_ne!(ha.lines().last(), hc.lines().last(), "the reshaping has another program hash");
+    for d in ["1", "4", "8"] {
+        let fa = fingerprint(d, &a);
+        assert_eq!(fa, fingerprint(d, &b), "renaming, depth {d}");
+        assert_eq!(fa, fingerprint(d, &c), "reshaping, depth {d}");
+        assert_eq!(fa.len(), "sha256:".len() + 64);
+    }
+    assert_ne!(fingerprint("4", &a), fingerprint("8", &a), "the depth is part of the fingerprint");
+}
+
+#[test]
+fn fingerprint_collision_at_a_short_depth_is_resolved_by_a_longer_one() {
+    // checked_sub(2) differs only after Inc, Dec (a sequence of length 2)
+    let a = tmp("fd", COUNTER);
+    let b = tmp("fe", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
+    assert_eq!(fingerprint("1", &a), fingerprint("1", &b), "every sequence of length 1 has the same output");
+    assert_ne!(fingerprint("2", &a), fingerprint("2", &b));
+    let (status, _) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    assert_eq!(status, 1, "rce equiv resolves the depth-1 collision");
+}
+
+#[test]
+fn fingerprint_reports_fuel_and_lists_many_files() {
+    let a = tmp("ff", COUNTER);
+    let (status, out) = rce(&["fingerprint", "--depth", "8", "--fuel", "3", &a]);
+    assert_eq!(status, 1, "{out}");
+    assert!(out.contains("not fingerprinted") && out.contains("fuel reached before depth 8"), "{out}");
+    let (status, out) = rce(&["fingerprint", "--depth", "3", &a, &a]);
+    assert_eq!(status, 0, "{out}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0], lines[1]);
+    assert!(lines[0].starts_with("sha256:"));
+    let (status, out) = rce(&["fingerprint", "--depth", "3", &a]);
+    assert_eq!(status, 0);
+    assert!(out.contains("event sequences of length 1 to 3 (14 sequences)"), "{out}");
 }

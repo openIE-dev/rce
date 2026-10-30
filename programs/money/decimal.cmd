@@ -1,1 +1,1 @@
-check refused/decimal.rce
+check change/decimal.rce

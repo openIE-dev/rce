@@ -1,6 +1,6 @@
 //! The standard library table of 5.15 and the cost table of C.6.4 are the
 //! reference evaluator's, and every emitted runtime charges the same
-//! costs. A method outside the closed library is refused at check time.
+//! costs. A method outside the closed library requires change at check time.
 use rce_spec_check::{cli, conc};
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
@@ -66,7 +66,7 @@ fn cost_table_is_the_evaluators_and_every_runtimes() {
 }
 
 #[test]
-fn a_method_outside_the_library_is_refused_at_check_time() {
+fn a_method_outside_the_library_requires_change_at_check_time() {
     let d = std::env::temp_dir().join(format!("rce-stdlib-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     let p = d.join("m.rce");

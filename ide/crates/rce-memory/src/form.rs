@@ -66,7 +66,7 @@ pub struct FormIndex {
     pub form_hash: String,
     pub defs: Vec<Def>,
     pub refs: Vec<Ref>,
-    /// Per file: `None` when `rce check` admitted it, else the refusal.
+    /// Per file: `None` when `rce check` admitted it, else the "requires change" report.
     pub verdicts: BTreeMap<String, Option<String>>,
     /// PageRank score per def (uniform personalization).
     pub rank: Vec<f64>,
@@ -366,7 +366,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
                     n.names.push((ev.clone(), false));
                     n.args(a);
                 }
-                if let Some(r) = &e.refused {
+                if let Some(r) = &e.kept {
                     n.names.push((r.clone(), false));
                 }
             }
@@ -546,7 +546,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
 
 impl FormIndex {
     /// Parse and check `program` with the reference checker and derive the
-    /// index. Files that do not parse contribute nothing but their refusal.
+    /// index. Files that do not parse contribute nothing but their report.
     pub fn build(program: &[(String, String)]) -> FormIndex {
         let mut files: Vec<(String, String)> = program.to_vec();
         files.sort();

@@ -240,7 +240,7 @@ fn has(xs: &List[i64], v: i64) -> bool
 # A SuccessExitStatus=-style value: words separated by whitespace, each an
 # exit status (name or number) or else a signal; words that are neither
 # are skipped (systemd logs and ignores them). Quotes and backslashes are
-# refused (systemd's word splitter would unquote them).
+# an error (systemd's word splitter would unquote them).
 pub fn status_set_parse(v: &text) -> StatusSet ! BadSvc
     if v.contains("\"") or v.contains("'") or v.contains("\\")
         fail BadSvc(why: "quoted words are not supported")

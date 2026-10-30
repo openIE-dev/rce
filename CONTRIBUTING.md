@@ -30,15 +30,14 @@ cargo run --release --bin rce-spec-check
 The grammar is the EBNF in `spec/book/03-syntax.md`. Changing it changes
 the language for every tool, so a grammar change also needs:
 
-- an accepted example in `spec/examples/` or a refused one in
-  `spec/examples/reject/`;
+- an accepted example in `spec/examples/`, or one in
+  `spec/examples/change/syntax/` that requires change;
 - the matching change to `tree-sitter/grammar.js`, regenerated with
   `tree-sitter generate --js-runtime native` in `tree-sitter/`;
 - a passing `cargo run --release --features tree-sitter --bin rce-spec-check`.
 
-A new rule that refuses programs needs a program in
-`spec/examples/ill_typed/` or `spec/examples/inadmissible/` that the rule
-refuses.
+A new rule needs a program in `spec/examples/change/types/` or
+`spec/examples/change/admission/` that requires change under that rule.
 
 ## Working on the checker
 
@@ -62,18 +61,19 @@ with hundreds of papers a year and nothing ever removed). Each rule names
 the artefact that enforces it.
 
 1. **Admission is a mechanical check, not a vote.** A construct enters the
-   normative grammar only with: an accepted and a refused example; a Lean
+   normative grammar only with: an accepted example and one that requires change; a Lean
    statement of the theorem it relies on, linked to the checker by a
    generated rule table or by vectors; and 0 LALR(1) conflicts. A construct
    with any of these missing is a proposal in `spec/proposals/` or a
-   reserved word refused with W-RES-1, never a production.
+   reserved word (a text that uses it requires change under W-RES-1),
+   never a production.
 2. **Composition before addition.** Before a proposal adds a construct, it
    shows the same program written with existing constructs, or shows that
    none exists. A second spelling of something the Form already says is
    declined on that ground alone (principle (e) of Appendix F). The
    incompatibility cost of composing by library instead of by syntax is
    paid outside the gate and recorded in the proposal.
-3. **The language changes as the project learns.** RCE is in development,
+3. **The language changes as better forms are found.** RCE is in development,
    so any construct can be added, changed, generalised, replaced or removed
    when a better form is found. The change and every program, example and
    library module of the repository that it touches move together in one

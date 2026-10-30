@@ -1,0 +1,11 @@
+0 (initial) Ledger { bal = {}, fees = 0 }; Audit { applied = 0 }; Reply { served = 0 }
+1 Open(id: 1) Ledger { bal = {1: 0}, fees = 0 }; Audit { applied = 0 }; Reply { served = 1 }
+  emit Display(data: "ok\n")
+2 Open(id: 2) Ledger { bal = {1: 0, 2: 0}, fees = 0 }; Audit { applied = 0 }; Reply { served = 2 }
+  emit Display(data: "ok\n")
+3 Deposit(id: 1, cents: 500) Ledger { bal = {1: 500, 2: 0}, fees = 0 }; Audit { applied = 0 }; Reply { served = 3 }
+  emit Display(data: "ok\n")
+4 Deposit(id: 2, cents: 999900) Ledger { bal = {1: 500, 2: 999900}, fees = 0 }; Audit { applied = 0 }; Reply { served = 4 }
+  emit Display(data: "ok\n")
+5 Transfer(src: 1, dst: 2, cents: 200) kept: OverCap
+exit status: 1

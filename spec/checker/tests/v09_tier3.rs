@@ -1,5 +1,5 @@
 //! Version 0.9 Tier 3 (Appendix F.6): contracts (P2) and `ghost` (P3).
-//! Accepted and refused examples are in `tests/v09_examples.rs`.
+//! Accepted examples and those that require change are in `tests/v09_examples.rs`.
 use rce_spec_check::apidiff;
 
 fn run(src: &str) -> String {
@@ -54,13 +54,13 @@ fn the_contract_is_part_of_the_definition_hash() {
 #[test]
 fn ghost_code_not_named_by_a_clause_is_erased() {
     // `n` is only used by another ghost value that no clause names: unused in
-    // the run, so W-UNUSED-1 refuses it before it could matter
+    // the run, so W-UNUSED-1 reports it before it could matter
     let src = "# rce-version: 0.9\nghost fn unused_g(x: i64) -> i64 = x\n\nfn main()\n    emit \"ok\"\n";
     assert!(run(src).contains("emit \"ok\""), "{}", run(src));
 }
 
 #[test]
-fn emitters_refuse_a_contract() {
+fn emitters_do_not_yet_print_a_contract() {
     let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap();
     for t in ["python", "js", "rust"] {
         let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
@@ -111,7 +111,7 @@ fn if_let_else_may_change_what_the_scrutinee_read() {
 }
 
 #[test]
-fn an_irrefutable_if_let_is_refused() {
+fn an_irrefutable_if_let_requires_change() {
     let src = "# rce-version: 0.9\nfn main()\n    if let x = 3\n        emit x.tostr()\n";
     let e = rce_spec_check::check_one(src).unwrap_err();
     assert!(e.contains("W-MATCH-2"), "{e}");

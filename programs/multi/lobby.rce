@@ -2,8 +2,8 @@
 # least two of them and nobody joins or leaves while it runs.
 intent "a match that starts with two players and holds them until it ends"
     example Join, Join, Start -> running == true
-    example Join, Start -> refused: NotEnough
-    example Join, Join, Start, Join -> refused: InMatch
+    example Join, Start -> kept: NotEnough
+    example Join, Join, Start, Join -> kept: InMatch
     example Join, Join, Start, End, Leave -> players == 1
 
 state Lobby

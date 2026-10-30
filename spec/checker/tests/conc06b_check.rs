@@ -1,6 +1,6 @@
 //! Draft 0.6b static rules (Appendix C, book/14-draft06-concurrency.md C.11): every program in
-//! `spec/conc06b/accept/` is admitted, every one in `ill_typed/` is refused
-//! with the rule named on its `# expect:` line, and `reject/` does not parse.
+//! `spec/conc06b/accept/` is admitted, every one in `ill_typed/` requires
+//! change, with the rule named on its `# expect:` line, and `reject/` does not parse.
 use rce_spec_check::check_program;
 use std::path::{Path, PathBuf};
 
@@ -30,7 +30,7 @@ fn accept_programs_check() {
 }
 
 #[test]
-fn ill_typed_programs_refused_by_rule() {
+fn ill_typed_programs_require_change_by_rule() {
     let fs = files(&dir("ill_typed"));
     assert!(fs.len() >= 21);
     let mut rules = std::collections::BTreeSet::new();
@@ -52,14 +52,14 @@ fn ill_typed_programs_refused_by_rule() {
 }
 
 #[test]
-fn syntax_rejects_refused_by_parser() {
-    for (n, s) in files(&dir("reject")) {
+fn syntax_fixtures_require_change_by_parser() {
+    for (n, s) in files(&dir("change")) {
         assert!(rce_spec_check::parse::parse(&s).is_err(), "{n} parsed");
     }
 }
 
 /// a componentwise merge discharges the Merge laws (MergeLaws.prodSL);
-/// lvar_freeze.rs covers the refused forms
+/// lvar_freeze.rs covers the forms that require change
 #[test]
 fn lawful_merge_is_admitted() {
     let src = "struct Hi

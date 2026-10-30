@@ -183,9 +183,9 @@ def main():
         if g is None: continue
         src, outs, outcome, cl = g
         r = ref.run(src)
-        if r.get("verdict") == "reject":
-            # the generator wrote something the checker refuses: a generator bug or a finding
-            findings.append({"case": src, "reference": r.get("diagnostics"), "oracle": [outs, outcome], "kind": "refused-at-entry"})
+        if r.get("verdict") == "change":
+            # the generator wrote a program that requires change: a generator bug or a finding
+            findings.append({"case": src, "reference": r.get("diagnostics"), "oracle": [outs, outcome], "kind": "requires-change-at-entry"})
             continue
         got = (r.get("outputs"), r.get("outcome"))
         if got != (outs, outcome):

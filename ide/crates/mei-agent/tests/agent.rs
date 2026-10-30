@@ -189,7 +189,7 @@ fn climbs_to_g4_only_on_reject_or_not_done() {
             200,
             json!({"model": "kev-latest", "answers": {"done": {"noul": 0.08, "confidence": 0.9}}, "usage": {"input_tokens": 120, "output_tokens": 0}}),
         ),
-        // G3 proposes a step on an undeclared event: the checker refuses it.
+        // G3 proposes a step on an undeclared event: the checker reports that it requires change.
         (
             "/local/v1/chat/completions",
             200,
@@ -297,10 +297,10 @@ fn climbs_to_g4_only_on_reject_or_not_done() {
     assert_eq!(local[0].body.draft.e_meas, None);
     assert_eq!(local[0].body.draft.e_sim_j, None);
     assert!((o.charged_j - 11.6).abs() < 1e-9);
-    // Exactly one checker refusal (G3) on the way up.
+    // Exactly one "requires change" from the checker (G3) on the way up.
     assert_eq!(
         rs.iter()
-            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::Refused { .. }))
+            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::RequiresChange { .. }))
             .count(),
         1
     );
@@ -373,7 +373,7 @@ fn chart_guards() {
     assert!(
         b.send("start")
             && b.send("proposed")
-            && b.send("set_reject")
+            && b.send("set_change")
             && b.send("budget_spent")
             && b.send("decide")
     );
@@ -384,7 +384,7 @@ fn chart_guards() {
     for g in 0..4 {
         assert!(
             c.send("proposed")
-                && c.send("set_reject")
+                && c.send("set_change")
                 && c.send("decide")
                 && c.is_active("escalate")
         );

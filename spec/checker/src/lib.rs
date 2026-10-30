@@ -21,6 +21,8 @@ pub mod core_elab;
 pub mod core_rules;
 pub mod dim;
 pub mod nameless;
+pub mod one;
+pub mod form;
 pub mod emit;
 pub mod host;
 pub mod ifc;
@@ -48,6 +50,7 @@ pub mod stdlib;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
+pub mod typed;
 pub mod types;
 pub mod unparse;
 pub mod v09;
@@ -56,7 +59,7 @@ use std::collections::HashSet;
 
 /// Check `files` (name, source) as one program, as `rce-check` does: every
 /// file is parsed, `use` resolves among them, then each is type checked and
-/// admitted. Returns one verdict per file, in order: Ok or the refusal.
+/// admitted. Returns one verdict per file, in order: Ok or what requires change.
 pub fn check_program(
     files: &[(String, String)],
     parse_only: bool,

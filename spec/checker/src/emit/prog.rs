@@ -508,20 +508,24 @@ impl<'a> G<'a> {
         match l {
             Lang::Rust => {
                 self.out.push(RT_RS.to_string());
+                self.line(display_escape_decl(Lang::Rust));
                 self.line(format!("const LOOP_LIMIT: i128 = {loop_limit};"));
             }
             Lang::Python => {
                 self.out.push(RT_PY.to_string());
+                self.line(display_escape_decl(Lang::Python));
                 self.line(format!("LOOP_LIMIT = {loop_limit}"));
             }
             Lang::Js => {
                 self.out.push(RT_JS.to_string());
+                self.line(display_escape_decl(Lang::Js));
                 self.line(format!(
                     "const LOOP_LIMIT = {loop_limit};\nconst KC = {{}};"
                 ));
             }
             Lang::Scala => {
                 self.out.push(RT_SCALA.to_string());
+                self.line(display_escape_decl(Lang::Scala));
                 self.line(format!("val LOOP_LIMIT: BigInt = BigInt(\"{loop_limit}\")"));
             }
         }
@@ -592,7 +596,7 @@ impl<'a> G<'a> {
     fn initial(&mut self, states: &[(String, Vec<Field>)]) -> Result<(), String> {
         let l = self.lang;
         match l {
-            Lang::Rust => self.open("fn initial_state() -> R<State>"),
+            Lang::Rust => self.open("pub fn initial_state() -> R<State>"),
             Lang::Python => self.open("def initial_state()"),
             Lang::Js => self.open("function initialState()"),
             Lang::Scala => self.open("def initial_state(): Vector[Any] ="),
@@ -794,7 +798,7 @@ impl<'a> G<'a> {
             Lang::Js => self.open("function observe()"),
             Lang::Scala => self.open("def observe(): Unit ="),
         }
-        // `--run` without `fn main()` refuses as `conc::run_main` does (10.3)
+        // `--run` without `fn main()` reports it as `conc::run_main` does (10.3)
         let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
         let run = |r: &str, py: bool| -> String {
             match (l, has_main) {
@@ -807,7 +811,7 @@ impl<'a> G<'a> {
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
             self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
-            self.line("observe_all(&|| {".to_string());
+            self.line("observe_all(&|| {");
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -863,19 +867,21 @@ impl<'a> G<'a> {
             });
         }
         if l == Lang::Rust {
-            self.line("});".to_string());
+            self.line("});");
         }
         self.close();
         match l {
             Lang::Rust => {}
             Lang::Python => {
                 let r = run("run_tasks(\"main\")", true);
-                self.line(format!("if \"--run\" in sys.argv: {r}\nelse: observe_all(observe)"))
+                // run only as a script: a host that imports the module (10.5,
+                // E.9) calls initial_state and delta itself
+                self.line(format!("if __name__ == \"__main__\":\n    if \"--run\" in sys.argv: {r}\n    else: observe_all(observe)"))
             }
             Lang::Js => {
                 let r = run("runTasks(\"main\");", false);
                 self.line(format!(
-                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
+                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (!RCE_ENTRY) {{}}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}\nexport {{ initialState, delta, showState, show, construct, fuelReset, chk, Kept, Int, F, Rec, Lst, Mp, Opt, EVENT_FIELDS, formValue, fvJson }};"
                 ))
             }
             Lang::Scala => {

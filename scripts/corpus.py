@@ -9,7 +9,7 @@ openie-research-experiments/rce/bench/form-space/PREREG.json. Negatives are
 the conformance tests that must be rejected (with their diagnostic code) and
 checker-verified mutants of the accepted programs under a fixed seed: three
 whitespace-token mutants and two of each typed operator (rename, operator,
-literal, guard, type), each classified as refused (with its diagnostic),
+literal, guard, type), each classified as requiring change (with its diagnostic),
 caught by the program's own example lines (W-INT-1), accepted with the same
 shape, accepted and equivalent (same trace heads), or accepted with a
 behaviour change the examples did not catch.
@@ -110,7 +110,7 @@ def conformance(expect_accept):
             continue
         exp = str(meta.get("expect"))
         is_accept = exp == "accept"
-        is_reject = exp == "reject" or exp.startswith("W-")
+        is_reject = exp == "change" or exp.startswith("W-")
         if (expect_accept and is_accept) or (not expect_accept and is_reject):
             if meta.get("fixtures"):
                 continue  # a package, not a standalone program
@@ -269,7 +269,7 @@ def main():
 
     cands = [(p, lic, origin, None) for p, lic, origin in population()]
     cands += [(p, "MIT OR Apache-2.0", "conformance-accept", src) for p, src, _ in conformance(True)]
-    rows, refused = [], []
+    rows, kept = [], []
     tmpdir = out / ".tmp"
     tmpdir.mkdir(exist_ok=True)
     for p, lic, origin, src in cands:
@@ -284,11 +284,11 @@ def main():
         r = rce.run("check", file)
         check_s = round(time.time() - t0, 4)
         if r.returncode != 0:
-            refused.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
+            kept.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
             continue
         nameless = rce.run("fmt", "--nameless", file).stdout
         if not nameless.strip():
-            refused.append({"path": rel, "origin": origin, "why": "no nameless projection"})
+            kept.append({"path": rel, "origin": origin, "why": "no nameless projection"})
             continue
         row = {
             "format": "rce-corpus/1", "commit": commit, "path": rel, "origin": origin, "licence": lic,
@@ -360,7 +360,7 @@ def main():
     # negatives: conformance rejects, and token mutants of the accepted programs
     negs = []
     for p, src, meta in conformance(False):
-        negs.append({"format": "rce-corpus/1", "commit": commit, "path": p.relative_to(ROOT).as_posix(), "origin": "conformance-reject",
+        negs.append({"format": "rce-corpus/1", "commit": commit, "path": p.relative_to(ROOT).as_posix(), "origin": "conformance-change",
                      "licence": "MIT OR Apache-2.0", "source": src, "source_sha256": sha(src), "verdict": "reject",
                      "diagnostic": meta.get("diagnostic"), "clauses": meta.get("clauses"), "kind": "conformance"})
     rng = Rng(SEED)
@@ -377,7 +377,7 @@ def main():
             msg = (c.stdout + c.stderr).strip()
             code = first_code(msg)
             row.update(verdict="reject", diagnostic=code, message=msg[:300],
-                       outcome="caught_by_examples" if code == "W-INT-1" else "refused")
+                       outcome="caught_by_examples" if code == "W-INT-1" else "requires_change")
             mut_stats["reject"] += 1
             if code == "W-INT-1":
                 mut_stats["caught_by_examples"] += 1
@@ -450,7 +450,7 @@ def main():
         return {"n": n, "median": q(0.5), "q1": q(0.25), "q3": q(0.75), "min": xs[0], "max": xs[-1]}
 
     summary = {
-        "commit": commit, "seed": hex(SEED), "candidates": len(cands), "accepted": len(rows), "refused": len(refused),
+        "commit": commit, "seed": hex(SEED), "candidates": len(cands), "accepted": len(rows), "kept": len(kept),
         "unique_shapes": len(uniq), "duplicates": len(rows) - len(uniq),
         "by_origin": {o: sum(1 for r in uniq if r["origin"] == o) for o in sorted({r["origin"] for r in uniq})},
         "with_intent": sum(1 for r in uniq if r["intent"]),
@@ -466,10 +466,10 @@ def main():
         "intent_mutation_score": {"programs": len(scores), "median": (sorted(x["score"] for x in scores)[len(scores) // 2] if scores else None),
                                   "pooled_caught": sum(x["caught"] for x in scores), "pooled_uncaught": sum(x["uncaught"] for x in scores), "rows": scores},
         "check_s": med_iqr([r["check_s"] for r in uniq]),
-        "refused_rows": refused, "rce_cpu_s": round(rce.cpu, 1),
+        "change_rows": kept, "rce_cpu_s": round(rce.cpu, 1),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
-    print(json.dumps({k: v for k, v in summary.items() if k != "refused_rows"}, indent=1))
+    print(json.dumps({k: v for k, v in summary.items() if k != "change_rows"}, indent=1))
 
 
 if __name__ == "__main__":

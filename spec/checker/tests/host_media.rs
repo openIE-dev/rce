@@ -1,7 +1,7 @@
 //! W1i media: capture and playback adapters. Frames are blobs addressed by
 //! digest; D holds only (track, seq, digest) and the frame's Tick, so replay
 //! with every adapter disconnected reaches the same state without
-//! re-capturing (HC-3, HC-8, HC-10), and the playback sink refuses a frame
+//! re-capturing (HC-3, HC-8, HC-10), and the playback sink does not append a frame
 //! whose bytes do not match its digest.
 use rce_spec_check::adapters::media::media_adapters;
 use rce_spec_check::host::{Adapter, Host, MemStore, replay};
@@ -71,7 +71,7 @@ fn pattern_source_is_deterministic_and_bad_requests_fail() {
 }
 
 #[test]
-fn playback_refuses_a_frame_that_does_not_match_its_digest() {
+fn playback_stops_at_a_frame_that_does_not_match_its_digest() {
     let (src, root) = setup("bad");
     let (_, _, s) = run(&src, &root, r#"Open(source: "pattern:1"), Tick(n: 1)"#);
     let d = s.split("/1/").nth(1).unwrap()[..64].to_string();

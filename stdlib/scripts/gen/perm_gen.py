@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as d:
         os.mkdir(f) if isdir else open(f, 'w').close()
         os.chmod(f, start)
         st0 = os.stat(f).st_mode
-        if st0 & 0o7777 != start: os.chmod(f, 0o700); continue  # kernel refused a start bit
+        if st0 & 0o7777 != start: os.chmod(f, 0o700); continue  # kernel did not set a start bit
         dash = e.startswith('-') and not e.startswith('--') and R.random() < .7  # as an option: GNU diagnoses umask surprises
         cmd = 'umask %o; chmod "$1" "$2"' if dash else 'umask %o; chmod -- "$1" "$2"'
         r = subprocess.run(['sh', '-c', cmd % um, 'sh', e, f], capture_output=True, text=True)
