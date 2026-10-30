@@ -1,0 +1,8 @@
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn bad()
+    var n: i64 = 0
+    let a = &mut n
+    n = 5
+    bump(a)

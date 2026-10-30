@@ -78,7 +78,9 @@ pub fn emit(m: &Module, lang: Lang) -> Result<String, String> {
         crate::GIT_COMMIT,
     );
     // one shared, order-preserving lowering for all three emitters (6.2)
-    let m = crate::anf::lower(m);
+    // a `let &mut` borrow names its place (5.6), the same rewrite the reference evaluator makes
+    let m = crate::borrow::lower_module(m);
+    let m = crate::anf::lower(&m);
     let body = base::G::new(&m, lang).program()?;
     Ok(format!("{provenance}\n{body}"))
 }

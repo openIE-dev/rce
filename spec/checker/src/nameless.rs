@@ -182,12 +182,42 @@ pub fn nameless(src: &str) -> Result<String, String> {
                 i += 1;
             }
             out.push_str(&src[start..i]);
+        } else if c.is_ascii_digit() {
+            // a numeric literal is copied verbatim: its letters (an exponent
+            // `e`, a radix prefix or digit) are not names, so `1.5e-3` keeps
+            // its `e` even when the program declares a name `e`
+            let start = i;
+            while i < b.len() {
+                let x = b[i];
+                let exp_sign = (x == b'+' || x == b'-')
+                    && matches!(b[i - 1], b'e' | b'E')
+                    && i + 1 < b.len()
+                    && b[i + 1].is_ascii_digit()
+                    && !src[start..i].starts_with("0x");
+                if x.is_ascii_alphanumeric()
+                    || x == b'_'
+                    || (x == b'.' && i + 1 < b.len() && b[i + 1].is_ascii_digit())
+                    || exp_sign
+                {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            out.push_str(&src[start..i]);
         } else if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
             while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
                 i += 1;
             }
             let word = &src[start..i];
+            // a `use` line names modules by path, and a module path is not a
+            // declaration of this program, so it keeps its names
+            let line_start = src[..start].rfind('\n').map_or(0, |k| k + 1);
+            if src[line_start..start].trim_start().starts_with("use ") {
+                out.push_str(word);
+                continue;
+            }
             // a standard library method after `.` keeps its name (5.15: the
             // method table is closed and not a declaration of the program),
             // unless the program declares a function of that name, which is

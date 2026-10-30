@@ -185,3 +185,48 @@ fn a_write_back_call_in_a_conditional_position_requires_change() {
         assert!(err.contains("writes back"), "{t}: {err}");
     }
 }
+
+/// 5.6: a write through a `let` `&mut` borrow is a write to the borrowed
+/// place (`writeVia` of the Lean model of T6), on every target: the whole
+/// variable, a field, a list element whose index variable changes after the
+/// `let`, a method call through the borrow, and a borrow made in a loop body.
+#[test]
+fn writes_through_a_let_borrow_land_in_the_place_on_every_target() {
+    let src = "struct Foo
+    a: i64
+    b: i64
+
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn main()
+    var n: i64 = 0
+    let a = &mut n
+    bump(a)
+    a += 5
+    emit n
+    var f: Foo = Foo(a: 0, b: 0)
+    let fa = &mut f.a
+    bump(&mut f.b)
+    bump(fa)
+    emit [f.a, f.b]
+    var xs: List[i64] = [1, 2, 3]
+    var i: usize = 1
+    let e = &mut xs[i]
+    i = 2
+    e = e * 100
+    bump(e)
+    emit xs
+    emit i
+    var ys: List[i64] = []
+    let l = &mut ys
+    l.append(7)
+    emit ys.len()
+    var m: i64 = 0
+    for _k in 0..3
+        let q = &mut m
+        bump(q)
+    emit m
+";
+    agree("letmut", src, "emit 6\nemit [1, 1]\nemit [1, 201, 3]\nemit 2\nemit 1\nemit 3\n");
+}

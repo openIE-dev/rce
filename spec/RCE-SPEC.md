@@ -1012,11 +1012,26 @@ parameter (R-RET). This removes lifetime annotations entirely.
 ```
 
 Two paths overlap iff one is a prefix of the other; `x[i]` and `x[j]` always
-overlap (indexes are not compared statically). A borrow ℓ ends at the end of
-the call or statement that created it (R-END), or for R-RET at the last use of
-the returned value. Because borrows never outlive the statement that made
-them except through R-RET, Δ is empty at every statement boundary not inside
-an R-RET region, which makes the check a local, linear pass.
+overlap (indexes are not compared statically). The borrows among the
+arguments of one call are made together, so `f(&mut s.a, &mut s.b)` complies
+with the Form, while `f(&mut s.a, &mut s)` and `f(&mut xs[i], &mut xs[j])`
+require change under W-OWN-2. A borrow ℓ ends at the end of the call or
+statement that created it (R-END), for a `let` borrow at the last use of its
+name, or for R-RET at the last use of the returned value. Because borrows never
+outlive the statement that made them except through a `let` borrow or R-RET,
+Δ is empty at every statement boundary outside those ranges, which makes the
+check a local, linear pass.
+
+**`let` borrows.** A borrow made by `let a = &p` or `let a = &mut p` is live
+from the `let` to the last statement of the same block that uses `a` or a
+name bound from `a`. In that range a use of a path overlapping p that the
+rules above forbid (writing, moving or `&mut`-borrowing it under either kind
+of borrow, reading or borrowing it under a `&mut` borrow) requires change
+under W-OWN-2: `let a = &mut n; n = 5; bump(a)` requires change, and
+`let a = &mut n; bump(a); n = 5` complies with the Form. A write through `a`
+is a write to the place p (`writeVia` of the Lean model of T6), so
+`let a = &mut n; bump(a); emit n` emits 1. An index in p is evaluated once,
+at the `let`.
 
 **Shared XOR mutable (theorem T6 relies on this):** at every program point,
 for every path p, either Δ holds no mut borrow overlapping p, or it holds
@@ -2338,7 +2353,7 @@ Classical.choice). Status per theorem:
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
-| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move require change; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |
+| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed (also while a `let` borrow is still used), overlapping `&mut`, dangling borrows and read-after-partial-move require change; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `write_while_mut_borrowed_no_typing`, `mut_root_while_field_borrowed_no_typing`, `write_after_borrow_ends_ok`, `dangling_no_typing`, `tasks_never_share` |
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is injective and fixes undeclared names, hence the state hash and the whole entry chain for every hash function, and that its event index is the `idx` the De Bruijn model hashes | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent`, `Positional.pos_rename`, `Positional.chain_name_independent`, `Positional.eventIndex_eq_idx` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
