@@ -3394,17 +3394,30 @@ types `t0, …`, kind variants `k0, …`, fields, parameters and locals
 `v0, …`. Keywords, built-in types, standard library names, string contents
 and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
 kept, as are `main`, the built-in traits and their methods, the host
-events and the named constants of 6.7. A standard library method after
-`.` keeps its name even when the module declares a field of that name
-(the method table of 5.15 is closed and is not a declaration of the
-program); a function the module declares is renamed at its call sites. The projection is deterministic and
+events and the named constants of 6.7. A use is renamed by its position
+as well as its name. After `.`, a call is renamed only when it names a
+method of the module's own `impl` blocks, since a call after `.` reaches a
+function of the module in no other way (5.15): a standard library method,
+or a function of another module, keeps its name even when the module
+declares a function, field or local of that name. After `.`, a name that is
+not called is renamed only as a field of the module's own types. A label
+`NAME:` in parentheses is renamed only when the callee is the module's own
+function, type, variant, event or error. A field name that a type of a
+standard library module the program uses (directly or through that
+module's own `use` lines) also declares keeps its text wherever it names a
+field, since a receiver's type is not known to the projection; it is still
+renamed where it names a local. Function calls by name are renamed at their
+call sites. The projection is deterministic and
 idempotent, and it has the same outcomes, outputs, ids and log hashes as
 the source: `rce trace --json` of the two is equal step for step except
 in the readable `event` field, since 6.1 hashes the positional forms
 (T7). A name the
 projection does not recognise as declared is left as written, so the
-output is accepted whenever the input is (`tests/nameless.rs`, every
-example). It is the text of the concept record's complement (6.6).
+output is accepted whenever the input is for every example
+(`tests/nameless.rs`). Over the 1,873 files of the repository that
+`rce check` admits on their own, two projections require change, both in
+`spec/examples-0.9` (a capability parameter of a foreign function, and a
+template). It is the text of the concept record's complement (6.6).
 
 ### 10.7 The language server: `rce lsp`
 
