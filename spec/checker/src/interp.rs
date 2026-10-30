@@ -92,7 +92,7 @@ impl std::borrow::Borrow<str> for Shared<String> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum V {
     Int(i128, &'static str), // "lit" = an integer literal not yet given a type
     F(f64),
@@ -119,10 +119,50 @@ pub enum V {
     Session(String, String, i128),             // endpoint: send channel, receive channel, capacity
     LVar(std::sync::Arc<crate::conc::LCell>),  // lattice cell (C.11.8)
 }
+/// Cloning a value is structural, so its native recursion is as deep as the
+/// value. A deep value cloned inside a deep evaluation would otherwise run
+/// out of the host's stack (an abort, not the defined `evaluation depth`
+/// trap of 6.7); the recursive cases grow the stack on the heap as `eval`
+/// does.
+impl Clone for V {
+    fn clone(&self) -> V {
+        use V::*;
+        match self {
+            Int(a, k) => Int(*a, k),
+            F(x) => F(*x),
+            Bool(b) => Bool(*b),
+            Text(t) => Text(t.clone()),
+            Unit => Unit,
+            Tuple(v) => Tuple(v.clone()),
+            List(v) => List(v.clone()),
+            Set(v) => Set(v.clone()),
+            Map(kv) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Map(kv.clone())),
+            Opt(o) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Opt(o.clone())),
+            Rec(n, fs) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Rec(n.clone(), fs.clone())),
+            Err(e) => stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || Err(e.clone())),
+            Fn(n) => Fn(n.clone()),
+            Closure(p, b, env) => Closure(p.clone(), b.clone(), env.clone()),
+            Range(a, b, k) => Range(*a, *b, k),
+            F32(x) => F32(*x),
+            Gen(i) => Gen(*i),
+            Chan(a, c) => Chan(a.clone(), *c),
+            Actor(a, b) => Actor(a.clone(), b.clone()),
+            Task(t) => Task(t.clone()),
+            Session(a, b, c) => Session(a.clone(), b.clone(), *c),
+            LVar(c) => LVar(c.clone()),
+        }
+    }
+}
 impl PartialEq for V {
     fn eq(&self, o: &V) -> bool {
+        // structural, as deep as the values: grow the stack as `eval` does
+        stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || v_eq(self, o))
+    }
+}
+fn v_eq(a0: &V, o: &V) -> bool {
+    {
         use V::*;
-        match (self, o) {
+        match (a0, o) {
             (Int(a, _), Int(b, _)) => a == b,
             (F(a), F(b)) => a == b,
             (F32(a), F32(b)) => a == b,
