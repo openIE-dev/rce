@@ -34,6 +34,8 @@ const BUILTIN_TYPES: &[&str] = &[
     // semantic names: the entry point, the built-in traits and their methods
     "main", "Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge", "eq", "cmp", "hash", "show", "merge", "bottom",
     "Start", "Input", "Display", "Exit", "Synced", "Backpressure", "Deadlock",
+    // the authority structs of foreign file access (F.5.1, W-CAP-3)
+    "DirRead", "DirWrite",
     // per-program constants the checker reads by name (6.7, C.11.11)
     "LOOP_LIMIT", "RESTART_WINDOW", "TICK_NS",
 ];
@@ -259,10 +261,61 @@ fn foreign_fields(src: &str) -> HashSet<String> {
     out
 }
 
+/// An expression inside a template's `{…}`: the same rules as in code for
+/// a member after `.` (5.15) and for every other declared name.
+fn project_expr(
+    e: &str,
+    map: &BTreeMap<String, String>,
+    fields: &HashSet<String>,
+    methods: &HashSet<String>,
+    foreign: &HashSet<String>,
+) -> String {
+    let b = e.as_bytes();
+    let mut out = String::with_capacity(e.len());
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c.is_ascii_alphabetic() || c == b'_' {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
+                i += 1;
+            }
+            let word = &e[start..i];
+            let after_dot = start > 0 && b[start - 1] == b'.' && !(start > 1 && b[start - 2] == b'.');
+            let keep = if after_dot && b.get(i) == Some(&b'(') {
+                !methods.contains(word)
+            } else if after_dot {
+                foreign.contains(word) || (map.get(word).is_some_and(|r| r.starts_with('v')) && !fields.contains(word))
+            } else {
+                false
+            };
+            match map.get(word) {
+                Some(r) if !keep => out.push_str(r),
+                _ => out.push_str(word),
+            }
+        } else if c.is_ascii_digit() {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || (b[i] == b'.' && b.get(i + 1).is_some_and(u8::is_ascii_digit))) {
+                i += 1;
+            }
+            out.push_str(&e[start..i]);
+        } else {
+            let ch = e[i..].chars().next().unwrap();
+            out.push(ch);
+            i += ch.len_utf8();
+        }
+    }
+    out
+}
+
 /// Rewrite identifiers outside strings and comments by the map.
 pub fn nameless(src: &str) -> Result<String, String> {
     let Names { map, fields, methods, own, fns } = renames(src)?;
-    let foreign = foreign_fields(src);
+    let mut foreign = foreign_fields(src);
+    // F.5.1: the checker reads the field `root` of DirRead and DirWrite by name
+    if own.contains("DirRead") || own.contains("DirWrite") {
+        foreign.insert("root".to_string());
+    }
     let b = src.as_bytes();
     let mut out = String::with_capacity(src.len());
     let mut i = 0;
@@ -305,8 +358,36 @@ pub fn nameless(src: &str) -> Result<String, String> {
             parens.pop();
             out.push(c);
             i += 1;
+        } else if c == '"' && i > 0 && b[i - 1] == b't' && (i < 2 || !(b[i - 2].is_ascii_alphanumeric() || b[i - 2] == b'_')) {
+            // a template literal `t"…{expr}…"` (F.6.1): the text is copied as
+            // written, and each `{expr}` is projected like code (`{{` and `}}`
+            // are literal braces)
+            out.push('"');
+            i += 1;
+            while i < b.len() && b[i] != b'"' {
+                if b[i] == b'\\' && i + 1 < b.len() {
+                    out.push_str(&src[i..i + 2]);
+                    i += 2;
+                } else if (b[i] == b'{' || b[i] == b'}') && b.get(i + 1) == Some(&b[i]) {
+                    out.push_str(&src[i..i + 2]);
+                    i += 2;
+                } else if b[i] == b'{' {
+                    let end = src[i..].find('}').map_or(b.len(), |k| i + k);
+                    out.push('{');
+                    out.push_str(&project_expr(&src[i + 1..end], &map, &fields, &methods, &foreign));
+                    i = end;
+                } else {
+                    let ch = src[i..].chars().next().unwrap();
+                    out.push(ch);
+                    i += ch.len_utf8();
+                }
+            }
+            if i < b.len() {
+                out.push('"');
+                i += 1;
+            }
         } else if c == '"' {
-            // string or template literal body: copy verbatim with escapes
+            // string literal body: copy verbatim with escapes
             let start = i;
             i += 1;
             while i < b.len() && b[i] != b'"' {

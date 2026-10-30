@@ -3417,10 +3417,12 @@ in the readable `event` field, since 6.1 hashes the positional forms
 (T7). A name the
 projection does not recognise as declared is left as written, so the
 output is accepted whenever the input is for every example
-(`tests/nameless.rs`). Over the 1,873 files of the repository that
-`rce check` admits on their own, two projections require change, both in
-`spec/examples-0.9` (a capability parameter of a foreign function, and a
-template). It is the text of the concept record's complement (6.6).
+(`tests/nameless.rs`), and for every one of the 1,876 files of the
+repository that `rce check` admits on their own. The expressions inside a
+template's `{…}` (F.6.1) are projected like code, and the authority structs
+`DirRead` and `DirWrite` keep their names and their field `root`, which the
+checker reads by name (F.5.1). It is the text of the concept record's
+complement (6.6).
 
 ### 10.7 The language server: `rce lsp`
 
