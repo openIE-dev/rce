@@ -10,12 +10,12 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `02-lexical.md` | `b48794be4b4fba7520cbc7764d17fc9bf7ce3a2979375ed708f18ef63dd502fe` | Which code point is the horizontal tab, as written in this section? |
 | `03-syntax.md` | `341fe96ee16fb89234a62e7a4375f3b1530503840641f456230253255a6b6d4c` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
 | `04-programs.md` | `f176cdbdab83223bd6e746a60ee394053648bbe43bb5f1afe1fec87c22fbb3ff` | What is the outermost scope called? (one word) |
-| `05-types-ownership.md` | `9bf4da7ffa7afa6304e34a4b9a523bad2c22f667eabfe0dcc63d66a6514199aa` | What is the name of the example kind used to illustrate error sets? |
+| `05-types-ownership.md` | `f3e970007bb2faf57da1674ca03cb6cc103a163c3fcbad7da4add6bc741e1baf` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb` | What kind of channel does a capacity of 0 give? (one word) |
 | `07-form-evaluation.md` | `0dc0c2af67c908c2000eb760a3f14aa6dabf408b6729723fe42b4fcd39f788a8` | Which JavaScript function is named for rounding to binary32? |
 | `08-steps-loops-concurrency.md` | `3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811` | Name-free hashing uses indices named after which logician? (two words) |
 | `09-wellformedness.md` | `515463b2081ca4bbf0514f709572c0de1e3ddfa3a5e2c92a952035a4fe9058ff` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
-| `10-theorems.md` | `86c527f15354073e564232027b6775535873033fe643ebc8f86c43e51f4fc626` | What is the deep embedding of the emitted Rust subset called? |
+| `10-theorems.md` | `8c2c35f781366ce0c47415700a619ff11f18ce6af1cadbe4dea5128f90468218` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: bc30894c20c4831c35b87f6a960ac8406b9d493c57acad1592609f752c4fb462 -->
+<!-- body-sha256: 42df63646e3acae1cebb86e4ba52f2083b346451a8cfc115afcf9f22e70b8a80 -->

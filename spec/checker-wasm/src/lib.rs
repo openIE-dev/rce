@@ -2,6 +2,8 @@
 //! Browser surface for rce-check. One call: `check(src)` returns a JSON string.
 #[path = "../../checker/src/ast.rs"]
 mod ast;
+#[path = "../../checker/src/borrow.rs"]
+mod borrow;
 #[path = "../../checker/src/check.rs"]
 mod check;
 #[path = "../../checker/src/check06b.rs"]

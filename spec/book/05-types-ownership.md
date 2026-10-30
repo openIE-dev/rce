@@ -291,11 +291,26 @@ parameter (R-RET). This removes lifetime annotations entirely.
 ```
 
 Two paths overlap iff one is a prefix of the other; `x[i]` and `x[j]` always
-overlap (indexes are not compared statically). A borrow ℓ ends at the end of
-the call or statement that created it (R-END), or for R-RET at the last use of
-the returned value. Because borrows never outlive the statement that made
-them except through R-RET, Δ is empty at every statement boundary not inside
-an R-RET region, which makes the check a local, linear pass.
+overlap (indexes are not compared statically). The borrows among the
+arguments of one call are made together, so `f(&mut s.a, &mut s.b)` complies
+with the Form, while `f(&mut s.a, &mut s)` and `f(&mut xs[i], &mut xs[j])`
+require change under W-OWN-2. A borrow ℓ ends at the end of the call or
+statement that created it (R-END), for a `let` borrow at the last use of its
+name, or for R-RET at the last use of the returned value. Because borrows never
+outlive the statement that made them except through a `let` borrow or R-RET,
+Δ is empty at every statement boundary outside those ranges, which makes the
+check a local, linear pass.
+
+**`let` borrows.** A borrow made by `let a = &p` or `let a = &mut p` is live
+from the `let` to the last statement of the same block that uses `a` or a
+name bound from `a`. In that range a use of a path overlapping p that the
+rules above forbid (writing, moving or `&mut`-borrowing it under either kind
+of borrow, reading or borrowing it under a `&mut` borrow) requires change
+under W-OWN-2: `let a = &mut n; n = 5; bump(a)` requires change, and
+`let a = &mut n; bump(a); n = 5` complies with the Form. A write through `a`
+is a write to the place p (`writeVia` of the Lean model of T6), so
+`let a = &mut n; bump(a); emit n` emits 1. An index in p is evaluated once,
+at the `let`.
 
 **Shared XOR mutable (theorem T6 relies on this):** at every program point,
 for every path p, either Δ holds no mut borrow overlapping p, or it holds
@@ -311,4 +326,4 @@ sound and is excluded (F.2).
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: 9bf4da7ffa7afa6304e34a4b9a523bad2c22f667eabfe0dcc63d66a6514199aa -->
+<!-- body-sha256: f3e970007bb2faf57da1674ca03cb6cc103a163c3fcbad7da4add6bc741e1baf -->
