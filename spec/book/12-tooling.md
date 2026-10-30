@@ -30,7 +30,10 @@ and stops at the third event, whose step keeps the state, with exit status 1.
    example or check failed, a run reached a kept step, or `fmt --check`
    found a file to change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
-   construct an emitter does not translate (10.5).
+   construct an emitter does not translate (10.5). 3 means a question the
+   command could not decide within its bound: `rce equiv` and `rce change`
+   when exploration reached `--fuel` before either equivalence or a
+   distinguishing event sequence was established (10.11).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -664,9 +667,13 @@ event instances, compares every step by its name-free output (emitted
 values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
-bisimilarity). Status 0 and `equivalent` when they do; otherwise status 1
-with the shortest distinguishing event sequence and the two outputs at its
-end, or the event instances one program explores and the other does not.
+bisimilarity). Status 0 and `equivalent` when they do; status 1 and
+`different` with the shortest distinguishing event sequence and the two
+outputs at its end, or the event instances one program explores and the
+other does not. When an exploration reached its bound and the refinement
+separates the initial states but no distinguishing sequence exists within
+the explored graph, the separation may come from the unexplored frontier,
+so the verdict is `undecided` with status 3, never `different`.
 The verdict is over the explored alphabet and, when a bound is reached, to
 that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
@@ -681,7 +688,8 @@ export is compatible and every behaviour is kept (status 0; "to the
 explored bound" when a bound was reached); *meaning change* when a
 behaviour changed (status 1: the program's meaning changed); *interface change*
 when behaviour is kept but an export is broken (status 1: callers must
-change); *compatible* or *breaking* from the rows alone when neither
+change); *undecided* when `rce equiv` is undecided (status 3: raise
+`--fuel`); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
@@ -701,4 +709,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90 -->
+<!-- body-sha256: 0d781efdb31d6053105efc2489ca815fd2e85040ed6b9ea850c3aaa796f958f6 -->

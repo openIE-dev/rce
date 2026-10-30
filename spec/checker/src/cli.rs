@@ -18,6 +18,9 @@ pub const REQUIRES_CHANGE: i32 = 1;
 /// spec 10.1 gives every non-zero outcome of a run.
 pub const STEP_KEPT: i32 = 1;
 pub const USAGE: i32 = 2;
+/// A question the command could not decide within its bound (10.1):
+/// `rce equiv` and `rce change` when exploration reached `--fuel` first.
+pub const UNDECIDED: i32 = 3;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
 /// `known` is the set of module paths `use` may resolve to.
@@ -875,6 +878,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             };
             let (verdict, status) = match (&beh, breaking) {
+                (Some(e), _) if e.undecided => ("undecided  behaviour not decided within the explored bound: raise --fuel", UNDECIDED),
                 (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", REQUIRES_CHANGE),
                 (Some(e), false) if e.exact => ("erratum  every export compatible and every behaviour kept on the whole explored graph", OK),
                 (Some(_), false) => ("erratum to the explored bound  every export compatible and every behaviour kept as far as explored", OK),
@@ -917,7 +921,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             } else {
                 write!(out, "{}", crate::dim::equiv_report(&e)).map_err(w)?;
             }
-            if e.equivalent { OK } else { REQUIRES_CHANGE }
+            if e.equivalent { OK } else if e.undecided { UNDECIDED } else { REQUIRES_CHANGE }
         }
         Some("fingerprint") if !rest.is_empty() => {
             // rce fingerprint [--depth N] [--fuel N] [--json] FILE...   (10.11, BF-1)

@@ -197,3 +197,29 @@ fn fingerprint_reports_fuel_and_lists_many_files() {
     assert_eq!(status, 0);
     assert!(out.contains("event sequences of length 1 to 3 (14 sequences)"), "{out}");
 }
+
+#[test]
+fn equiv_is_undecided_when_only_the_frontier_separates() {
+    // A counter modulo 7 (explored whole) and an unbounded counter (cut at
+    // the bound): both silent on every event, so equivalent; the cut graph
+    // separates them only at its frontier, with no distinguishing sequence.
+    // That is `undecided` (status 3), not `different` (10.11).
+    let d = std::env::temp_dir().join(format!("rce-equiv-undecided-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let a = d.join("cyc.rce");
+    let b = d.join("grow.rce");
+    std::fs::write(&a, "state C\n    n: u64 = 0\n\nevent Tick\n\nstep C on Tick -> (n + 1) % 7\n").unwrap();
+    std::fs::write(&b, "state C\n    n: u64 = 0\n\nevent Tick\n\nstep C on Tick -> n + 1\n").unwrap();
+    let (a, b) = (a.to_string_lossy().into_owned(), b.to_string_lossy().into_owned());
+    let (code, out) = rce(&["equiv", "--fuel", "50", &a, &b]);
+    assert_eq!(code, 3, "{out}");
+    assert!(out.contains("verdict             undecided"), "{out}");
+    let (code, out) = rce(&["equiv", "--fuel", "50", "--json", &a, &b]);
+    assert_eq!(code, 3, "{out}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(v["undecided"], true);
+    assert_eq!(v["equivalent"], false);
+    let (code, out) = rce(&["change", "--fuel", "50", &a, &b]);
+    assert_eq!(code, 3, "{out}");
+    assert!(out.contains("verdict             undecided"), "{out}");
+}

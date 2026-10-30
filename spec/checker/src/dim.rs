@@ -650,6 +650,10 @@ pub struct Equiv {
     pub only_b: Vec<String>,
     /// (event sequence, A's output at its end, B's output at its end)
     pub witness: Option<(Vec<String>, String, String)>,
+    /// an exploration reached its bound and the refinement separates the
+    /// initial states with no distinguishing sequence in the explored graph:
+    /// the separation may come from the unexplored frontier (10.11)
+    pub undecided: bool,
 }
 
 /// Behaviour equivalence of two programs (6.10): explore both over the same
@@ -665,7 +669,7 @@ pub fn equiv(a: &Module, b: &Module, fuel: usize) -> Result<Equiv, String> {
     let only_a: Vec<String> = ga.keys.iter().zip(&ga.alphabet).filter(|(k, _)| !sb.contains(k)).map(|(_, s)| s.clone()).collect();
     let only_b: Vec<String> = gb.keys.iter().zip(&gb.alphabet).filter(|(k, _)| !sa.contains(k)).map(|(_, s)| s.clone()).collect();
     if !only_a.is_empty() || !only_b.is_empty() || ga.keys != gb.keys {
-        return Ok(Equiv { equivalent: false, exact: !ga.bound_reached && !gb.bound_reached, states_a: ga.states.len(), states_b: gb.states.len(), alphabet: ga.alphabet.clone(), only_a, only_b, witness: None });
+        return Ok(Equiv { equivalent: false, exact: !ga.bound_reached && !gb.bound_reached, states_a: ga.states.len(), states_b: gb.states.len(), alphabet: ga.alphabet.clone(), only_a, only_b, witness: None, undecided: false });
     }
     let na = ga.states.len();
     let nb = gb.states.len();
@@ -701,7 +705,9 @@ pub fn equiv(a: &Module, b: &Module, fuel: usize) -> Result<Equiv, String> {
             }
         }
     }
-    Ok(Equiv { equivalent, exact: !ga.bound_reached && !gb.bound_reached, states_a: na, states_b: nb, alphabet: ga.alphabet.clone(), only_a, only_b, witness })
+    let exact = !ga.bound_reached && !gb.bound_reached;
+    let undecided = !equivalent && witness.is_none() && !exact;
+    Ok(Equiv { equivalent, exact, states_a: na, states_b: nb, alphabet: ga.alphabet.clone(), only_a, only_b, witness, undecided })
 }
 
 fn show_output(l: &str) -> String {
@@ -726,6 +732,8 @@ pub fn equiv_report(e: &Equiv) -> String {
         s.push_str(&format!("after               {}\n", seq.join(", ")));
         s.push_str(&format!("  A                 {}\n", show_output(la)));
         s.push_str(&format!("  B                 {}\n", show_output(lb)));
+    } else if e.undecided {
+        s.push_str("verdict             undecided  the exploration reached its bound before a distinguishing event sequence or equivalence was established: raise --fuel\n");
     } else {
         s.push_str("verdict             different  (no finite witness within the explored graph)\n");
     }
@@ -738,6 +746,7 @@ pub fn equiv_json(e: &Equiv) -> String {
         "format": "rce-equiv/1",
         "equivalent": e.equivalent,
         "exact": e.exact,
+        "undecided": e.undecided,
         "states": [e.states_a, e.states_b],
         "alphabet": e.alphabet,
         "only_a": e.only_a,
