@@ -8,6 +8,7 @@ pub const GIT_COMMIT: &str = env!("RCE_GIT_COMMIT");
 pub mod adapters;
 pub mod anf;
 pub mod apidiff;
+pub mod borrow;
 pub mod ast;
 pub mod book;
 pub mod brick;

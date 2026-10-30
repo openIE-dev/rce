@@ -1,0 +1,21 @@
+# 5.6: f.a and f overlap (f is a prefix of f.a), so the two borrows of one call conflict.
+struct Foo
+    a: i64
+    b: i64
+
+fn two(x: &mut i64, g: &mut Foo)
+    x = x + 1
+    g.b = g.b + 1
+
+fn main()
+    var f: Foo = Foo(a: 0, b: 0)
+    two(&mut f.a, &mut f)
+    emit f.a
+#--- rce-test
+# id: types-checking/targeted/w-own-2-call-overlap
+# area: types-checking
+# clauses: [CH09-M-82e65964, T6, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: borrow-fix: overlapping paths in one call (5.6)
+#---

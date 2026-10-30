@@ -1,0 +1,26 @@
+# 5.6: `&mut f` overlaps the live `let` borrow of `f.a` (f is a prefix of f.a).
+struct Foo
+    a: i64
+    b: i64
+
+fn bump(x: &mut i64)
+    x = x + 1
+
+fn increment_b(f: &mut Foo)
+    f.b = f.b + 1
+
+fn main()
+    var f: Foo = Foo(a: 0, b: 0)
+    let a = &mut f.a
+    increment_b(&mut f)
+    bump(a)
+    emit f.a
+    emit f.b
+#--- rce-test
+# id: types-checking/targeted/w-own-2-let-borrow-field
+# area: types-checking
+# clauses: [CH09-M-82e65964, T6, W-OWN-2]
+# expect: change
+# diagnostic: W-OWN-2
+# provenance: borrow-fix: whole value borrowed while a let borrow of its field is live (5.6 [Borrow-Mut])
+#---

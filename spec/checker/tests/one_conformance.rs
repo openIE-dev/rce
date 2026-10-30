@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 /// The number of run and trace tests the lowering covers with identical
 /// traces; a change that covers more raises it.
-const COVERED_AT_LEAST: usize = 1435;
+const COVERED_AT_LEAST: usize = 1436;
 
 fn walk(d: &Path, out: &mut Vec<PathBuf>) {
     let mut es: Vec<PathBuf> = std::fs::read_dir(d).unwrap().map(|e| e.unwrap().path()).collect();
@@ -68,6 +68,6 @@ fn conformance_run_and_trace_tests_lower_to_the_reference_trace() {
     }
     eprintln!("conformance run and trace tests: {tests}; identical traces: {same}; not yet covered: {kept}");
     assert!(diffs.is_empty(), "traces that differ: {diffs:?}");
-    assert_eq!(tests, 1459);
+    assert_eq!(tests, 1462);
     assert!(same >= COVERED_AT_LEAST, "{same} covered, {COVERED_AT_LEAST} expected");
 }
