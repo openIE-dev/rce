@@ -418,6 +418,13 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
 /// Breadth-first exploration of a program from its initial state over the
 /// boundary instances of its events (10.11), to at most `fuel` states.
 pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
+    explore_to(m, fuel, usize::MAX)
+}
+
+/// `explore` that expands only the states fewer than `max_depth` steps from
+/// s₀: a state at depth `max_depth` is stored but not stepped, and its row is
+/// unexplored (`None`, empty labels). `usize::MAX` is the whole exploration.
+fn explore_to(m: &Module, fuel: usize, max_depth: usize) -> Result<Graph, String> {
     let mut it = Interp::new(m);
     let s0 = it.initial_state().map_err(why)?;
     let (evs, skipped) = instances(m);
@@ -459,8 +466,16 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
     index.insert(key0, 0);
     states.push(s0);
     queue.push_back(0usize);
+    let mut depth: Vec<usize> = vec![0];
     let mut bound_reached = false;
     while let Some(i) = queue.pop_front() {
+        if depth[i] >= max_depth {
+            succ.push(vec![None; k]);
+            label.push(vec![String::new(); k]);
+            clabel.push(vec![String::new(); k]);
+            plabel.push(vec![String::new(); k]);
+            continue;
+        }
         let s = states[i].clone();
         let mut row = Vec::with_capacity(k);
         let mut lab = Vec::with_capacity(k);
@@ -481,6 +496,7 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
                         let j = states.len();
                         index.insert(key, j);
                         states.push(s2);
+                        depth.push(depth[i] + 1);
                         queue.push_back(j);
                         row.push(Some(j));
                     } else {
@@ -727,6 +743,117 @@ pub fn equiv_json(e: &Equiv) -> String {
         "only_a": e.only_a,
         "only_b": e.only_b,
         "witness": e.witness.as_ref().map(|(seq, la, lb)| serde_json::json!({"after": seq, "a": la, "b": lb})),
+    });
+    crate::interp::canon_json(&v)
+}
+
+/// The result of `rce fingerprint FILE`: a behaviour fingerprint (proposal
+/// `behaviour-fingerprint.md`, BF-1).
+pub struct Fingerprint {
+    /// `sha256:` and 64 hex digits
+    pub hash: String,
+    pub depth: usize,
+    /// event instances in the alphabet (as `rce equiv` explores them)
+    pub alphabet: usize,
+    /// states within `depth - 1` steps of s₀, each stepped on every instance
+    pub states: usize,
+    /// event sequences the hash covers: alphabet^1 + ... + alphabet^depth
+    pub sequences: u128,
+}
+
+/// The behaviour fingerprint of a program to depth `n` (BF-1): the SHA-256
+/// of the name-free outputs (the labels `rce equiv` compares) of every event
+/// sequence of length 1 to `n` over the alphabet `rce equiv` explores, in the
+/// canonical order of that alphabet. The trace tree is hashed bottom up
+/// (h₀ = a constant; h_d(s) = SHA-256 over the instances e in order of the
+/// output of e at s and h_{d-1} of its successor), so the cost is one hash
+/// per (state within depth, instance), never one per sequence, and the
+/// result is a function of the outputs alone: two programs with the same
+/// output on every sequence of length at most `n` have the same fingerprint.
+/// The alphabet's name-free keys and `n` are hashed in, so two programs that
+/// `rce equiv` cannot compare (different alphabets) never share one. `fuel`
+/// bounds the states stepped; a fingerprint that would need an unexplored
+/// state is not computed.
+pub fn fingerprint(m: &Module, depth: usize, fuel: usize) -> Result<Fingerprint, String> {
+    use sha2::{Digest, Sha256};
+    if depth == 0 {
+        return Err("--depth n: n is at least 1".into());
+    }
+    let g = explore_to(m, fuel, depth)?;
+    let k = g.keys.len();
+    let n = g.states.len();
+    // depth of each state (BFS from s0 over explored rows)
+    let mut dist = vec![usize::MAX; n];
+    dist[0] = 0;
+    let mut q = VecDeque::from([0usize]);
+    while let Some(i) = q.pop_front() {
+        for t in g.succ[i].iter().flatten() {
+            if dist[*t] == usize::MAX {
+                dist[*t] = dist[i] + 1;
+                q.push_back(*t);
+            }
+        }
+    }
+    let leaf: [u8; 32] = Sha256::digest(b"rce-fingerprint/1 leaf").into();
+    // h[s] at remaining depth d, computed for d = 1..=depth; only states with
+    // dist + d <= depth are needed
+    let mut prev: Vec<Option<[u8; 32]>> = vec![Some(leaf); n];
+    for d in 1..=depth {
+        let mut cur: Vec<Option<[u8; 32]>> = vec![None; n];
+        for i in 0..n {
+            if dist[i] == usize::MAX || dist[i] + d > depth {
+                continue;
+            }
+            let mut h = Sha256::new();
+            for e in 0..k {
+                let l = g.plabel[i][e].as_bytes();
+                h.update((l.len() as u64).to_le_bytes());
+                h.update(l);
+                let next = match g.succ[i][e] {
+                    Some(j) => prev[j],
+                    None if d == 1 => Some(leaf),
+                    None => None,
+                };
+                match next {
+                    Some(x) => h.update(x),
+                    None => return Err(format!("fuel reached before depth {depth} ({n} states); raise --fuel or lower --depth")),
+                }
+            }
+            cur[i] = Some(h.finalize().into());
+        }
+        prev = cur;
+    }
+    let root = prev[0].ok_or("internal: no root hash")?;
+    let mut h = Sha256::new();
+    h.update(format!("rce-fingerprint/1 depth {depth} alphabet {}\n", k).as_bytes());
+    for key in &g.keys {
+        h.update((key.len() as u64).to_le_bytes());
+        h.update(key.as_bytes());
+    }
+    h.update(root);
+    let hash = format!("sha256:{}", h.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>());
+    let stepped = (0..n).filter(|&i| dist[i] < depth).count();
+    let sequences = (1..=depth as u32).fold(0u128, |acc, d| acc.saturating_add((k as u128).saturating_pow(d)));
+    Ok(Fingerprint { hash, depth, alphabet: k, states: stepped, sequences })
+}
+
+/// The text report of `rce fingerprint`.
+pub fn fingerprint_report(f: &Fingerprint) -> String {
+    format!(
+        "fingerprint         {}\ndepth               {:<8} event sequences of length 1 to {} ({} sequences)\nalphabet            {:<8} event instances explored\nstates              {:<8} states stepped\n",
+        f.hash, f.depth, f.depth, f.sequences, f.alphabet, f.states
+    )
+}
+
+/// The JSON report of `rce fingerprint` (format `rce-fingerprint/1`).
+pub fn fingerprint_json(f: &Fingerprint) -> String {
+    let v = serde_json::json!({
+        "format": "rce-fingerprint/1",
+        "fingerprint": f.hash,
+        "depth": f.depth,
+        "alphabet": f.alphabet,
+        "states": f.states,
+        "sequences": f.sequences.to_string(),
     });
     crate::interp::canon_json(&v)
 }
