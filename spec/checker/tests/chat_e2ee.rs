@@ -11,6 +11,8 @@ use rce_spec_check::host::{Adapter, Host, MemStore, replay};
 use rce_spec_check::interp::V;
 use rce_spec_check::parse::parse;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn port() -> u16 {
     std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
@@ -30,15 +32,18 @@ fn region(h: &Host, field: &str) -> String {
 
 #[test]
 fn generated_chat_is_in_sync() {
+    // apps/chat.rce = apps/chat-app.rce without `use crypto` and its `crypto.`
+    // qualifiers, then stdlib/lib/crypto.rce flattened without its checks
+    // (scripts/build-chat.sh), so `rce host serve apps/chat.rce` reads one file
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let app = std::fs::read_to_string(root.join("apps/chat-app.rce")).unwrap();
-    let lib = std::fs::read_to_string(root.join("lib/crypto.rce")).unwrap();
-    let mut want = app;
-    want.push_str("\n# ---------------------------------------------------------------- lib/crypto.rce (generated, do not edit here)\n");
-    for l in lib.lines().filter(|l| *l != "module crypto" && !l.starts_with("check ")) {
-        want.push_str(l);
+    let mut want = String::new();
+    for l in app.lines().filter(|l| *l != "use crypto") {
+        want.push_str(&flat::unqualify(l, &["crypto"]));
         want.push('\n');
     }
+    want.push_str("\n# ---------------------------------------------------------------- stdlib/lib/crypto.rce (generated, do not edit here)\n");
+    want.push_str(&flat::flat(&["crypto"], false));
     assert!(std::fs::read_to_string(root.join("apps/chat.rce")).unwrap() == want, "apps/chat.rce is stale: run scripts/build-chat.sh");
 }
 

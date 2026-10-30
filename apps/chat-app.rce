@@ -1,5 +1,7 @@
 module chat
 
+use crypto
+
 intent "chat v1: workspaces, channels and topic threads, DMs and groups, reactions, presence, file shares and call rooms as one replicated RCE state; every change is an op applied locally and sent to peers over P4 channels; messages order by (Lamport clock, author) so replicas converge; direct messages are end-to-end encrypted (signed-prekey X3DH, one Double Ratchet per peer)"
     example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi") -> messages.len() == 1
     example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi"), Do(op: "react", conv: "c\u{1f}t\u{1f}000000000001\u{1f}a", topic: "+1", body: "") -> reactions.len() == 1
@@ -12,7 +14,7 @@ intent "chat v1: workspaces, channels and topic threads, DMs and groups, reactio
     example Setup(me: "a", peers: []), RandomDone(req: 1, status: "delivered", data: some("1111111111111111111111111111111111111111111111111111111111111111222222222222222222222222222222222222222222222222222222222222222233333333333333333333333333333333333333333333333333333333333333333"), err: "") -> keys.len() == 0
 
 # ---------------------------------------------------------------- chat app
-# Source of apps/chat.rce together with lib/crypto.rce (scripts/build-chat.sh
+# Source of apps/chat.rce together with stdlib/lib/crypto.rce (scripts/build-chat.sh
 # concatenates them; tests/app_chat.rs fails while apps/chat.rce is stale).
 #
 # E2EE (W4): each replica has an X25519 identity key, an Ed25519 signing key
@@ -66,9 +68,9 @@ fn pad(n: u64) -> text
             s = "0" + s
     s
 
-fn hexslice(h: text, lo: usize, hi: usize) -> text = tohex(slice(unhex(h), lo, hi))
+fn hexslice(h: text, lo: usize, hi: usize) -> text = crypto.tohex(crypto.slice(crypto.unhex(h), lo, hi))
 
-fn no_ratchet() -> Ratchet = Ratchet(dhs: "", dhs_pub: "", dhr: "", rk: "", cks: "", ckr: "", ns: 0, nr: 0, pn: 0, skipped: {})
+fn no_ratchet() -> crypto.Ratchet = crypto.Ratchet(dhs: "", dhs_pub: "", dhr: "", rk: "", cks: "", ckr: "", ns: 0, nr: 0, pn: 0, skipped: {})
 
 fn dm_conv(a: text, b: text) -> text
     if a < b
@@ -132,7 +134,7 @@ state Chat
     keys: Map[text, text] = {}
     bundles: Map[text, text] = {}
     addr: Map[text, text] = {}
-    sessions: Map[text, Ratchet] = {}
+    sessions: Map[text, crypto.Ratchet] = {}
     outbox: Map[text, List[text]] = {}
     wants: Map[u64, text] = {}
     jobs: Map[u64, text] = {}
@@ -199,9 +201,9 @@ step Chat on Do(op: k, conv: c, topic: t, body: b)
         read[copy(c) + "\u{1f}" + copy(t)] = pad(clock)
     elif k == "dm"
         # c is the peer's name; the plaintext b never leaves this replica
-        messages[dm_conv(copy(who), copy(c)) + "\u{1f}\u{1f}" + pad(clock) + "\u{1f}" + copy(who)] = "e2e:" + tohex(tobytes(copy(b)))
+        messages[dm_conv(copy(who), copy(c)) + "\u{1f}\u{1f}" + pad(clock) + "\u{1f}" + copy(who)] = "e2e:" + crypto.tohex(crypto.tobytes(copy(b)))
         var q = outbox.get(copy(c)) catch []
-        q.push(pad(clock) + ":" + tohex(tobytes(copy(b))))
+        q.push(pad(clock) + ":" + crypto.tohex(crypto.tobytes(copy(b))))
         outbox[copy(c)] = q
         let s = sessions.get(copy(c)) catch no_ratchet()
         if s.cks != ""
@@ -241,16 +243,16 @@ step Chat on Poll
         let f = j.split("\u{1f}")
         let jk = copy(f[0])
         if jk == "k1"
-            keys["ik_pub"] = pubkey(keys.get("ik") catch "")
-            keys["spk_pub"] = pubkey(keys.get("spk") catch "")
+            keys["ik_pub"] = crypto.pubkey(keys.get("ik") catch "")
+            keys["spk_pub"] = crypto.pubkey(keys.get("spk") catch "")
             jobs[jtail] = "k2"
             jtail += 1
         elif jk == "k2"
-            keys["ed_pub"] = ed_pubkey(keys.get("ed") catch "")
+            keys["ed_pub"] = crypto.ed_pubkey(keys.get("ed") catch "")
             jobs[jtail] = "k3"
             jtail += 1
         elif jk == "k3"
-            keys["sig"] = ed_sign(keys.get("ed") catch "", unhex(keys.get("spk_pub") catch ""))
+            keys["sig"] = crypto.ed_sign(keys.get("ed") catch "", crypto.unhex(keys.get("spk_pub") catch ""))
             let bundle = (keys.get("ik_pub") catch "") + "." + (keys.get("ed_pub") catch "") + "." + (keys.get("spk_pub") catch "") + "." + (keys.get("sig") catch "")
             clock += 1
             let wire = "bundle\u{1e}" + copy(me) + "\u{1e}" + clock.tostr() + "\u{1e}\u{1e}\u{1e}" + bundle
@@ -268,7 +270,7 @@ step Chat on Poll
         elif jk == "vb" and f.len() == 3
             let w = copy(f[1])
             let parts = copy(f[2]).split(".")
-            if parts.len() == 4 and ed_verify(copy(parts[1]), unhex(copy(parts[2])), copy(parts[3]))
+            if parts.len() == 4 and crypto.ed_verify(copy(parts[1]), crypto.unhex(copy(parts[2])), copy(parts[3]))
                 bundles[copy(w)] = copy(f[2])
                 if keys.contains("sig") and copy(me) < copy(w) and not sessions.contains(copy(w))
                     next += 1
@@ -281,14 +283,14 @@ step Chat on Poll
             let parts = (bundles.get(copy(w)) catch "").split(".")
             let r = copy(f[2])
             let eka = hexslice(copy(r), 0, 32)
-            let sk = x3dh_init(keys.get("ik") catch "", copy(eka), copy(parts[0]), copy(parts[2]))
+            let sk = crypto.x3dh_init(keys.get("ik") catch "", copy(eka), copy(parts[0]), copy(parts[2]))
             jobs[jtail] = "ia\u{1f}" + copy(w) + "\u{1f}" + sk + "\u{1f}" + eka + "\u{1f}" + hexslice(r, 32, 64)
             jtail += 1
         elif jk == "ia" and f.len() == 5
             let w = copy(f[1])
             let parts = (bundles.get(copy(w)) catch "").split(".")
-            sessions[copy(w)] = ratchet_init_alice(copy(f[2]), copy(parts[2]), copy(f[4]))
-            let hello = (keys.get("ik_pub") catch "") + "." + pubkey(copy(f[3]))
+            sessions[copy(w)] = crypto.ratchet_init_alice(copy(f[2]), copy(parts[2]), copy(f[4]))
+            let hello = (keys.get("ik_pub") catch "") + "." + crypto.pubkey(copy(f[3]))
             clock += 1
             let wire = "x3dh\u{1e}" + copy(me) + "\u{1e}" + clock.tostr() + "\u{1e}\u{1e}\u{1e}" + hello
             next += 1
@@ -306,11 +308,11 @@ step Chat on Poll
             let w = copy(f[1])
             let parts = copy(f[2]).split(".")
             if parts.len() == 2
-                let sk = x3dh_resp(keys.get("ik") catch "", keys.get("spk") catch "", copy(parts[0]), copy(parts[1]))
+                let sk = crypto.x3dh_resp(keys.get("ik") catch "", keys.get("spk") catch "", copy(parts[0]), copy(parts[1]))
                 jobs[jtail] = "ib\u{1f}" + copy(w) + "\u{1f}" + sk
                 jtail += 1
         elif jk == "ib" and f.len() == 3
-            sessions[copy(f[1])] = ratchet_init_bob(copy(f[2]), keys.get("spk") catch "")
+            sessions[copy(f[1])] = crypto.ratchet_init_bob(copy(f[2]), keys.get("spk") catch "")
         elif jk == "dec" and f.len() == 6
             let w = copy(f[1])
             if not sessions.contains(copy(w))
@@ -318,14 +320,14 @@ step Chat on Poll
                 jobs[jtail] = copy(j)
                 jtail += 1
             else
-                let o = ratchet_decrypt(sessions.get(copy(w)) catch no_ratchet(), copy(f[3]), copy(f[4]), copy(f[5]))
+                let o = crypto.ratchet_decrypt(sessions.get(copy(w)) catch no_ratchet(), copy(f[3]), copy(f[4]), copy(f[5]))
                 if o.ok and valid_utf8(copy(o.plain))
                     sessions[copy(w)] = copy(o.st)
                     let rc = copy(f[2]).toint() as u64
                     if rc > clock
                         clock = rc
                     if o.plain.len() > 0
-                        messages[dm_conv(copy(me), copy(w)) + "\u{1f}\u{1f}" + pad(rc) + "\u{1f}" + copy(w)] = "e2e:" + tohex(o.plain)
+                        messages[dm_conv(copy(me), copy(w)) + "\u{1f}\u{1f}" + pad(rc) + "\u{1f}" + copy(w)] = "e2e:" + crypto.tohex(o.plain)
                     if (outbox.get(copy(w)) catch []).len() > 0
                         jobs[jtail] = "flush\u{1f}" + copy(w)
                         jtail += 1
@@ -347,7 +349,7 @@ step Chat on Poll
                     else
                         clock += 1
                         rc0 = clock
-                    let sealed = ratchet_encrypt(copy(s), unhex(pt))
+                    let sealed = crypto.ratchet_encrypt(copy(s), crypto.unhex(pt))
                     s = copy(sealed.st)
                     let wire = "dm\u{1e}" + copy(me) + "\u{1e}" + rc0.tostr() + "\u{1e}\u{1e}\u{1e}" + copy(sealed.header) + "|" + copy(sealed.body)
                     next += 1
@@ -519,7 +521,7 @@ step Chat on Show(conv: c, topic: t)
                 line = "[deleted]"
             elif v.startswith("e2e:")
                 let h = copy(v).split(":")
-                line = unhex(copy(h[1])).utf8()
+                line = crypto.unhex(copy(h[1])).utf8()
             elif v.startswith("post:")
                 let ps = copy(v).split(":")
                 line = copy(ps[1])
@@ -573,7 +575,7 @@ step Chat on View(conv: c, topic: t)
             elif v.startswith("e2e:")
                 flags = flags + "e2e,"
                 let h = copy(v).split(":")
-                line = unhex(copy(h[1])).utf8()
+                line = crypto.unhex(copy(h[1])).utf8()
             elif v.startswith("post:")
                 let ps = copy(v).split(":")
                 line = copy(ps[1])

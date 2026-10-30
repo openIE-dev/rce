@@ -11,18 +11,12 @@ use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn combined() -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule protect_steps\n");
-    for f in ["lib/crypto.rce", "lib/hpke.rce", "lib/mls.rce", "lib/treekem.rce", "lib/framing.rce", "lib/protect.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || l.starts_with("check ") {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "hpke", "mls", "treekem", "framing", "protect"], false));
     s + APP
 }
 

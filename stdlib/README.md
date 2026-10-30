@@ -11,6 +11,11 @@ run replays bit for bit.
 | `lib/pq.rce` | Keccak (SHA3-256, SHA3-512, SHAKE128, SHAKE256 of FIPS 202), ML-KEM-768 (FIPS 203) and PQXDH |
 | `lib/hpke.rce` | AES-128-GCM (FIPS 197, SP 800-38D) and HPKE base mode (RFC 9180) with DHKEM(X25519, HKDF-SHA256) |
 | `lib/mls.rce` | MLS (RFC 9420) cipher suite 1: ratchet tree math, the key schedule, the exporter, crypto basics |
+| `lib/treekem.rce` | MLS TreeKEM (RFC 9420 section 7): ratchet tree decoding and padding, tree hashes, resolutions, parent-hash validity, update paths |
+| `lib/framing.rce` | MLS message framing (RFC 9420 6, 12.1, 12.4): walkers for the exact end of every wire structure |
+| `lib/protect.rce` | MLS message protection (RFC 9420 6.1 to 6.3, 9): the secret tree, ratchets, sender data, PrivateMessage decryption, FramedContentTBS signatures, membership tags |
+| `lib/welcome.rce` | Joining an MLS group from a Welcome (RFC 9420 12.4.3.1): GroupSecrets, the PSK secret, GroupInfo with its confirmation tag, signature and tree hash |
+| `lib/grp.rce` | `grp`: MLS group state across epochs for a passive member (RFC 9420 8, 12.2 to 12.4): proposals in RFC order, the committer's update path |
 | `lib/core/exact.rce` | `core.exact`: big integers (base 2^24 limbs), rationals, unbounded decimals with explicit rounding modes, binary fixed-point |
 | `lib/core/bytes.rce` | `core.bytes`: byte buffers as `List[i64]`: big/little-endian integers, strict hex, slice, compare, xor, find |
 | `lib/col/col.rce` | `col`: deque, binary heap, ordered map and set (sorted, canonical order), FNV-1a fixed-hash map with insertion-order iteration |

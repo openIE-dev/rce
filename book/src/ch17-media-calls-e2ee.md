@@ -65,7 +65,7 @@ payload, and payloads are end-to-end ciphertext it cannot read. A runnable examp
 
 ## Direct messages: X3DH and the Double Ratchet
 
-`lib/crypto.rce` provides SHA-256, the keyed hash HMAC (Hash-based
+`stdlib/lib/crypto.rce` provides SHA-256, the keyed hash HMAC (Hash-based
 Message Authentication Code), HKDF (the HMAC-based Key Derivation
 Function of RFC 5869), X25519, the Ed25519 signature scheme (RFC 8032)
 and an authenticated encryption with associated data (AEAD) built from
@@ -81,8 +81,8 @@ well-formed UTF-8 is dropped and counted.
 
 ## Post-quantum key agreement: ML-KEM-768 and PQXDH
 
-`lib/pq.rce` adds post-quantum key agreement, used together with
-`lib/crypto.rce`:
+`stdlib/lib/pq.rce` adds post-quantum key agreement, used together with
+`stdlib/lib/crypto.rce`:
 
 - Keccak and its functions SHA3-256, SHA3-512, SHAKE128 and SHAKE256 of
   the Federal Information Processing Standard (FIPS) 202.
@@ -108,7 +108,7 @@ derive the same SK, and that the log replays with secrets redacted.
 
 ## HPKE and AES-128-GCM
 
-`lib/hpke.rce` provides AES-128-GCM, the Advanced Encryption Standard of
+`stdlib/lib/hpke.rce` provides AES-128-GCM, the Advanced Encryption Standard of
 FIPS 197 with a 128-bit key in Galois/Counter Mode (GCM) of the National
 Institute of Standards and Technology (NIST) Special Publication
 800-38D, an AEAD. On top of it is HPKE, Hybrid Public Key Encryption of
@@ -132,7 +132,7 @@ The test suite checks the RFC 9180 base-mode vector at sequence numbers
 
 ## Group keys: MLS
 
-`lib/mls.rce` is the first part of Messaging Layer Security (MLS), the
+`stdlib/lib/mls.rce` is the first part of Messaging Layer Security (MLS), the
 group key agreement of RFC 9420, for cipher suite 1
 (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519). It provides:
 

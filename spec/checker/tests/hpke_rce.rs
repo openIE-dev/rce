@@ -1,5 +1,5 @@
-//! AES-128-GCM and HPKE base mode in pure RCE (crates/rce/lib/hpke.rce on
-//! top of lib/crypto.rce). The FIPS 197 and SP 800-38D checks of the module;
+//! AES-128-GCM and HPKE base mode in pure RCE (stdlib/lib/hpke.rce on
+//! top of stdlib/lib/crypto.rce). The FIPS 197 and SP 800-38D checks of the module;
 //! the official RFC 9180 vector for DHKEM(X25519, HKDF-SHA256), HKDF-SHA256,
 //! AES-128-GCM in base mode (key pair derivation, seal at sequence numbers
 //! 0, 1, 2, 255 and 256, open, a tampered ciphertext that does not open); and the RFC
@@ -10,18 +10,12 @@ use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn combined(checks: bool) -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule hpke_steps\n");
-    for f in ["lib/crypto.rce", "lib/hpke.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || (!checks && l.starts_with("check ")) {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "hpke"], checks));
     s
 }
 

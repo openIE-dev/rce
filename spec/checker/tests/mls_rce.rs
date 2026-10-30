@@ -1,4 +1,4 @@
-//! MLS groups in pure RCE (crates/rce/lib/mls.rce on top of lib/crypto.rce)
+//! MLS groups in pure RCE (stdlib/lib/mls.rce on top of stdlib/lib/crypto.rce)
 //! against the official RFC 9420 test vectors of mlswg/mls-implementations
 //! (tests/vectors/mls): tree-math.json for every tree in the file, and
 //! key-schedule.json for cipher suite 1 (every epoch: joiner, welcome and
@@ -12,18 +12,12 @@ use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn combined(checks: bool) -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule mls_steps\n");
-    for f in ["lib/crypto.rce", "lib/mls.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || (!checks && l.starts_with("check ")) {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "mls"], checks));
     s
 }
 

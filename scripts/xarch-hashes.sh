@@ -28,5 +28,5 @@ ev="Setup(me: \"ann\", peers: []), RandomDone(req: 1, status: \"delivered\", dat
 printf '%s trace apps/chat.rce (keygen, post, react, dm)\n' "$(rce trace --json "$here/apps/chat.rce" "$ev" 2>&1 | sha)"
 # on Windows the binary prints the mixed form C:/... of $here
 herem="$(cygpath -m "$here" 2>/dev/null || echo "$here")"
-rce test "$here/lib/crypto.rce" | sed -n 1p | sed 's/^/crypto /;s#'"$herem"'##;s#'"$here"'##'
+rce test "$here/stdlib/lib/crypto.rce" | sed -n 1p | sed 's/^/crypto /;s#'"$herem"'##;s#'"$here"'##'
 rm -rf "$tmp"

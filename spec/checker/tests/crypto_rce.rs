@@ -1,4 +1,4 @@
-//! Chat E2EE primitives written in RCE (crates/rce/lib/crypto.rce): the
+//! Chat E2EE primitives written in RCE (stdlib/lib/crypto.rce): the
 //! RFC/FIPS vectors are `check`s of the module (rce test); here X3DH and the
 //! Double Ratchet run as host steps, one cryptographic operation per input so
 //! each step stays inside the fuel of 6.7, with randomness supplied as
@@ -7,14 +7,16 @@
 use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn main_src() -> String {
-    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/crypto.rce")).unwrap()
+    format!("module crypto\n{}", flat::flat(&["crypto"], true))
 }
 
 #[test]
 fn crypto_module_vectors_pass() {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/crypto.rce");
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../stdlib/lib/crypto.rce");
     let o = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).arg("test").arg(&p).output().unwrap();
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(o.status.success() && out.contains("8 checks"), "{out}");

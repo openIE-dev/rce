@@ -1,0 +1,109 @@
+module protect
+
+use crypto
+use framing
+use hpke
+use mls
+use treekem
+
+# MLS message protection (RFC 9420 6.1 to 6.3, 9) in pure RCE on
+# lib/crypto.rce, lib/hpke.rce, lib/mls.rce, lib/treekem.rce and
+# lib/framing.rce: the secret tree from the epoch's encryption secret, the
+# application and handshake ratchets, sender data keys, PrivateMessage
+# decryption (sender data, reuse guard, content, padding), FramedContentTBS
+# signatures and PublicMessage membership tags. Vectors: secret-tree.json
+# and message-protection.json (suite 1), in tests/protect_rce.rs.
+
+# leaf secret of leaf i in a secret tree over n leaves
+fn st_leaf_secret(es: text, n: i64, i: i64) -> text
+    var x = mls.tm_root(n)
+    var s = crypto.unhex(es)
+    while x != 2 * i bound 64
+        let k = mls.tm_level(x)
+        if 2 * i < x
+            s = mls.expand_label(s, "tree", crypto.tobytes("left"), 32)
+            x = x ^ (1 << (k - 1))
+        else
+            s = mls.expand_label(s, "tree", crypto.tobytes("right"), 32)
+            x = x ^ (3 << (k - 1))
+    return crypto.tohex(s)
+
+# key + "." + nonce of the label ("application" or "handshake") ratchet at generation g
+fn st_key_nonce(leaf_secret: text, lbl: text, g: i64) -> text
+    var s = crypto.tohex(mls.expand_label(crypto.unhex(leaf_secret), lbl, [], 32))
+    for j in 0..g
+        s = mls.derive_tree_secret(s, "secret", j, 32)
+    return mls.derive_tree_secret(copy(s), "key", g, 16) + "." + mls.derive_tree_secret(s, "nonce", g, 12)
+
+fn sd_sample(ctext: List[i64]) -> List[i64] = if ctext.len() > 32 then crypto.slice(ctext, 0, 32) else ctext
+
+fn sd_key_nonce(sds: text, ctext: text) -> text
+    let smp = sd_sample(crypto.unhex(ctext))
+    return crypto.tohex(mls.expand_label(crypto.unhex(copy(sds)), "key", copy(smp), 16)) + "." + crypto.tohex(mls.expand_label(crypto.unhex(sds), "nonce", smp, 12))
+
+# open a PrivateMessage: [leaf, content_type, authenticated_data, content,
+# signature, confirmation_tag] (hex, leaf and type as hex bytes); [] if it
+# does not open or its padding is not zero
+fn priv_open(msg: text, es: text, sds: text, n: i64) -> List[text]
+    let f = framing.mls_decode(msg)
+    if f.len() != 7
+        return []
+    let ctext = crypto.unhex(copy(f[3]))[0]
+    let kn = sd_key_nonce(sds, copy(f[6])).split(".")
+    let sdaad = crypto.cat(crypto.cat(treekem.ser_v(crypto.unhex(copy(f[1]))), crypto.unhex(copy(f[2]))), [ctext])
+    let sd = hpke.gcm_open(crypto.unhex(copy(kn[0])), crypto.unhex(copy(kn[1])), sdaad, crypto.unhex(copy(f[5])))
+    if sd.len() != 12
+        return []
+    let leaf = (sd[0] << 24) | (sd[1] << 16) | (sd[2] << 8) | sd[3]
+    let g = (sd[4] << 24) | (sd[5] << 16) | (sd[6] << 8) | sd[7]
+    let lbl = if ctext == 1 then "application" else "handshake"
+    let ckn = st_key_nonce(st_leaf_secret(es, n, leaf), lbl, g).split(".")
+    var nonce = crypto.unhex(copy(ckn[1]))
+    for j in 0..4
+        nonce[j] = nonce[j] ^ sd[8 + j]
+    let aad = crypto.cat(crypto.cat(treekem.ser_v(crypto.unhex(copy(f[1]))), crypto.unhex(copy(f[2]))), crypto.cat([ctext], treekem.ser_v(crypto.unhex(copy(f[4])))))
+    let pt = hpke.gcm_open(crypto.unhex(copy(ckn[0])), nonce, aad, crypto.unhex(copy(f[6])))
+    if pt.len() == 1 and pt[0] == -1
+        return []
+    var e: usize = 0
+    if ctext == 1
+        e = treekem.skip_v(copy(pt), 0)
+    if ctext == 2
+        e = framing.proposal_end(copy(pt), 0)
+    if ctext == 3
+        e = framing.commit_end(copy(pt), 0)
+    if e == 0
+        return []
+    let sig = crypto.tohex(treekem.get_v(copy(pt), e))
+    var p = treekem.skip_v(copy(pt), e)
+    var tag = ""
+    if ctext == 3
+        tag = crypto.tohex(treekem.get_v(copy(pt), p))
+        p = treekem.skip_v(copy(pt), p)
+    while p < pt.len() bound 65536
+        if pt[p] != 0
+            return []
+        p += 1
+    return [crypto.tohex(treekem.u32b(leaf)), crypto.tohex([ctext]), copy(f[4]), crypto.tohex(crypto.slice(pt, 0, e)), sig, tag]
+
+# FramedContentTBS for a member sender
+fn framed_tbs(wf: i64, gid: text, ep: text, sender: text, aad: text, ctext: text, content: text, gc: text) -> List[i64]
+    let fc = crypto.cat(crypto.cat(crypto.cat(treekem.ser_v(crypto.unhex(gid)), crypto.unhex(ep)), crypto.cat(crypto.unhex(sender), treekem.ser_v(crypto.unhex(aad)))), crypto.cat(crypto.unhex(ctext), crypto.unhex(content)))
+    return crypto.cat(crypto.cat([0, 1, 0, wf], fc), crypto.unhex(gc))
+
+fn priv_signature_ok(msg: text, opened: List[text], gc: text, pk: text) -> bool
+    let f = framing.mls_decode(msg)
+    let tbs = framed_tbs(2, copy(f[1]), copy(f[2]), "01" + copy(opened[0]), copy(opened[2]), copy(opened[1]), copy(opened[3]), gc)
+    return mls.verify_with_label(pk, "FramedContentTBS", crypto.tohex(tbs), copy(opened[4]))
+
+# PublicMessage from a member: signature and membership tag
+pub fn pub_ok(msg: text, gc: text, pk: text, membership_key: text) -> bool
+    let f = framing.mls_decode(msg)
+    if f.len() != 10
+        return false
+    let tbs = framed_tbs(1, copy(f[1]), copy(f[2]), copy(f[3]), copy(f[4]), copy(f[5]), copy(f[6]), gc)
+    var auth = treekem.ser_v(crypto.unhex(copy(f[7])))
+    if f[5] == "03"
+        auth = crypto.cat(auth, treekem.ser_v(crypto.unhex(copy(f[8]))))
+    let mt = crypto.hmac(crypto.unhex(membership_key), crypto.cat(copy(tbs), auth))
+    return mls.verify_with_label(pk, "FramedContentTBS", crypto.tohex(tbs), copy(f[7])) and crypto.tohex(mt) == f[9]

@@ -1,5 +1,5 @@
-//! Post-quantum key agreement in pure RCE (crates/rce/lib/pq.rce on top of
-//! lib/crypto.rce): the FIPS 202 checks of the module; ML-KEM-768 key
+//! Post-quantum key agreement in pure RCE (stdlib/lib/pq.rce on top of
+//! stdlib/lib/crypto.rce): the FIPS 202 checks of the module; ML-KEM-768 key
 //! generation, encapsulation, decapsulation and implicit rejection as host
 //! steps, against the RustCrypto ml-kem 0.2.3 crate for d = 01*32,
 //! z = 02*32, m = 03*32 (digests of ek, dk and ct, the shared secrets in
@@ -10,6 +10,8 @@ use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use sha2::{Digest, Sha256};
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 const EK_SHA: &str = "34de5514432a9f2a59b397b800a06ea4eb377aae027389ecb0010ee004e212bb";
 const DK_SHA: &str = "e8e7516fd7cb2bbd98e3ff48ca645dc92b40e3a0f64f2c742b9183e7af01f367";
@@ -63,18 +65,10 @@ fn root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// lib/crypto.rce and lib/pq.rce as one module (checks kept or dropped)
+/// stdlib/lib/crypto.rce and stdlib/lib/pq.rce as one module (checks kept or dropped)
 fn combined(checks: bool) -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule pq_steps\n");
-    for f in ["lib/crypto.rce", "lib/pq.rce"] {
-        for l in std::fs::read_to_string(root().join(f)).unwrap().lines() {
-            if l.starts_with("module ") || (!checks && l.starts_with("check ")) {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "pq"], checks));
     s
 }
 

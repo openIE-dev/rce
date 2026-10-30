@@ -198,7 +198,7 @@ the host's channel adapter, enabled with `--chan HOST:PORT` and
 Replicas order messages by (Lamport clock, author) and so converge.
 Direct messages are end-to-end encrypted (E2EE) as chapter 17 describes.
 `apps/chat.rce` is generated from `apps/chat-app.rce` and
-`lib/crypto.rce` by `scripts/build-chat.sh`.
+`stdlib/lib/crypto.rce` by `scripts/build-chat.sh`.
 
 The front end `scripts/chat-ui.py` runs `rce host serve apps/chat.rce`
 as a child process and holds no chat state of its own. Each command it

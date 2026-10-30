@@ -12,14 +12,14 @@ name: RCE replay-hash parity
     paths:
       - 'spec/**'
       - 'apps/**'
-      - 'lib/**'
+      - 'stdlib/lib/crypto.rce'
       - 'scripts/xarch-*'
       - '.github/workflows/xarch-parity.yml'
   pull_request:
     paths:
       - 'spec/**'
       - 'apps/**'
-      - 'lib/**'
+      - 'stdlib/lib/crypto.rce'
       - 'scripts/xarch-*'
       - '.github/workflows/xarch-parity.yml'
   workflow_dispatch:
