@@ -1,0 +1,11 @@
+intent "a counter whose decrement stops at zero instead of saying so"
+    example Inc, Inc, Dec -> 1
+
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+step Counter on Inc -> n + 1
+step Counter on Dec -> if n == 0 then 0 else n - 1
