@@ -1709,7 +1709,7 @@
    "diagnostic": "W-LOOP-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/ok-7000-accept.rce",
+   "path": "tests/evaluation-fuel/harvested/under-limit-accept.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": true,
@@ -1781,7 +1781,7 @@
    "diagnostic": "W-REC-1"
   },
   {
-   "path": "tests/evaluation-fuel/harvested/trap-10000-change.rce",
+   "path": "tests/evaluation-fuel/harvested/over-limit-change.rce",
    "reference_parses": true,
    "tree_sitter_parses": true,
    "law_parses": null,
@@ -3189,7 +3189,7 @@
    "diagnostic": "W-LEX-3"
   },
   {
-   "path": "tests/lexing-parsing/generated/mut-bigint-ok-7000-accept.rce",
+   "path": "tests/lexing-parsing/generated/mut-bigint-under-limit-accept.rce",
    "reference_parses": false,
    "tree_sitter_parses": true,
    "law_parses": false,
