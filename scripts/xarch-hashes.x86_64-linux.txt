@@ -76,4 +76,4 @@ a4761e3247cb448b444ad2a4e1849d9b9a7e34b2911837c9660cd4dd2486b50e streams 59_dim_
 f5df0f4510ed74df06a78662e9901376bc7d2450f6b3bad7fef45b02db5a2a53 streams 61_dim_minimal.rce (700 traces of 700 streams, status 0)
 host-rcedb state_hash 6f0c8943d261b0ddc324476747ac45466cfdb83d80a4b84209c89648fd5371e3
 05979d8e11d02d1057078f3bf963fff72d7fd0773871d6eb3ce48888322c36a6 trace apps/chat.rce (keygen, post, react, dm)
-crypto ok /lib/crypto.rce (0 examples, 8 checks)
+crypto ok /stdlib/lib/crypto.rce (0 examples, 8 checks)
