@@ -1,0 +1,5 @@
+0 (initial) Counter { n = 0 }
+1 Inc Counter { n = 1 }
+2 Inc Counter { n = 2 }
+3 Dec Counter { n = 1 }
+exit status: 0

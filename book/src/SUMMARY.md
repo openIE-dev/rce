@@ -2,6 +2,7 @@
 
 [Introduction](introduction.md)
 
+- [A ten-minute tour](tour.md)
 - [Getting started](ch01-getting-started.md)
 - [Values, types and functions](ch02-values.md)
 - [Choices and loops](ch03-control-flow.md)

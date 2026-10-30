@@ -1,0 +1,14 @@
+intent "the same counter under other names"
+    example Up, Up, Down -> 1
+    example Down -> kept: BelowZero
+
+state Tally
+    count: u64 = 0
+
+event Up
+event Down
+
+error BelowZero
+
+step Tally on Up -> count + 1
+step Tally on Down -> try count.checked_sub(1) else BelowZero

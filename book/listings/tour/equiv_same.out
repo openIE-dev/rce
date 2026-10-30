@@ -1,0 +1,4 @@
+alphabet            2        event instances explored
+states              1000 / 1000
+verdict             equivalent  same behaviour on the explored alphabet (to the explored bound)
+exit status: 0
