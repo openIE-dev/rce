@@ -8,6 +8,18 @@ on:
 # each slow vector suite (scripts/ci-tests.sh lists them) are separate jobs,
 # each with a timeout, each run with and without the version 0.6 suites.
 jobs:
+  # No file may name a path that an earlier commit deleted or renamed: such a
+  # mention points at a version of the repository that no longer exists.
+  removed-paths:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No mention of a removed path
+        run: python3 scripts/check-removed-paths.py
+
   spec:
     runs-on: ubuntu-latest
     timeout-minutes: 30

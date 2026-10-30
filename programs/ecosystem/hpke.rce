@@ -3,7 +3,7 @@ module hpke_example
 use hpke
 use crypto
 
-intent "HPKE base mode (RFC 9180, DHKEM-X25519, HKDF-SHA256, AES-128-GCM) with lib/hpke.rce: the receiver derives its key pair from logged input keying material, the sender seals to the receiver's public key, the receiver opens; the official RFC 9180 vector fixes every byte, and a tampered ciphertext does not open"
+intent "HPKE base mode (RFC 9180, DHKEM-X25519, HKDF-SHA256, AES-128-GCM) with stdlib/lib/hpke.rce: the receiver derives its key pair from logged input keying material, the sender seals to the receiver's public key, the receiver opens; the official RFC 9180 vector fixes every byte, and a tampered ciphertext does not open"
     example KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037") -> skr == "4612c550263fc8ad58375df3f557aac531d26850903e55a9f23f21d8534e8ac8"
     example KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037"), PubR -> pkr == "3948cfe0ad1ddb695d780e59077195da6c56506b027329794ab02bca80815c4d"
 

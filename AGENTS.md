@@ -63,7 +63,12 @@ bash ../../scripts/ci-tests.sh fast
 cargo clippy --release --all-targets
 cargo run --release --bin rce-spec-check
 cargo run --release --bin rce-book -- build --check
+python3 ../../scripts/check-removed-paths.py
 ```
+
+`check-removed-paths.py` fails when any file names a path that git history
+deleted or renamed; name the current path instead. The ledger, which records
+past changes, is exempt.
 
 Run the slow test binaries your change touches with
 `scripts/ci-tests.sh bin NAME`. The full Rust emitter conformance suite runs

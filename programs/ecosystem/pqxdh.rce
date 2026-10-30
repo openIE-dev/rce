@@ -3,7 +3,7 @@ module pqxdh_example
 use pq
 use crypto
 
-intent "PQXDH (Signal's post-quantum X3DH) over X25519, SHA-256 and ML-KEM-768 (FIPS 203) with lib/crypto.rce and lib/pq.rce: the initiator runs three X25519 Diffie-Hellman exchanges and encapsulates to the responder's ML-KEM prekey; the responder runs the same exchanges and decapsulates; both derive the same 32-byte session key, and a forged KEM ciphertext gives another key by implicit rejection"
+intent "PQXDH (Signal's post-quantum X3DH) over X25519, SHA-256 and ML-KEM-768 (FIPS 203) with stdlib/lib/crypto.rce and stdlib/lib/pq.rce: the initiator runs three X25519 Diffie-Hellman exchanges and encapsulates to the responder's ML-KEM prekey; the responder runs the same exchanges and decapsulates; both derive the same 32-byte session key, and a forged KEM ciphertext gives another key by implicit rejection"
     example Keys(ika: "11", eka: "22", ikb: "33", spkb: "44") -> priv.len() == 4 and sk_i == ""
 
 # Run: ./run.sh pqxdh (or rce test for the light examples). `use pq` and
