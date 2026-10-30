@@ -61,10 +61,6 @@ step S on Sk(dh: d, ss: s)
     out.push(pqxdh_sk(d, s))
 "#;
 
-fn root() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// stdlib/lib/crypto.rce and stdlib/lib/pq.rce as one module (checks kept or dropped)
 fn combined(checks: bool) -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule pq_steps\n");
