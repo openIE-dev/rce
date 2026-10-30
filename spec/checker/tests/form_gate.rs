@@ -38,7 +38,7 @@ fn every_fixture_has_its_expected_outcome() {
         let name = format!("{} {}", f["form"], f["vectors"]);
         match (run(f), f["outcome"].as_str().unwrap()) {
             (Outcome::Applied(_), "applied") => {}
-            (Outcome::Kept(k), "kept") => {
+            (Outcome::RequiresChange(k), "requires change") => {
                 assert_eq!(k.rule, f["rule"].as_str().unwrap(), "{name}: {}", k.line());
                 if let Some(why) = f["names"].as_str() {
                     assert!(k.reason.contains(why), "{name}: the reason does not name {why}: {}", k.line());
@@ -50,7 +50,7 @@ fn every_fixture_has_its_expected_outcome() {
 }
 
 #[test]
-fn every_rule_has_an_applied_and_a_kept_fixture() {
+fn every_rule_has_an_applied_fixture_and_one_that_requires_change() {
     let e = expect();
     // a fixture's name is its vectors file's, or its module file's when it has no vectors
     let outcome = |name: &str| -> Option<&Value> {
@@ -62,21 +62,21 @@ fn every_rule_has_an_applied_and_a_kept_fixture() {
     let mut have: Vec<String> = rules.keys().cloned().collect();
     have.sort();
     assert_eq!(have, names, "expect.json names each of C1 to C11 and FG1 to FG15");
-    // the two rules that cannot keep a module on their own (README.md)
+    // the two rules that cannot make a module require change on their own (README.md)
     let alone = ["C2", "FG9"];
     for (r, v) in rules {
         let a = v["applied"].as_str().unwrap_or_else(|| panic!("{r}: no applied fixture"));
         let fa = outcome(a).unwrap_or_else(|| panic!("{r}: {a} is not a fixture"));
         assert_eq!(fa["outcome"], "applied", "{r}: {a}");
-        match v["kept"].as_str() {
+        match v["requires_change"].as_str() {
             Some(k) => {
                 let fk = outcome(k).unwrap_or_else(|| panic!("{r}: {k} is not a fixture"));
-                assert_eq!(fk["outcome"], "kept", "{r}: {k}");
+                assert_eq!(fk["outcome"], "requires change", "{r}: {k}");
                 // the rule itself is named: as the outcome's rule, or, for a canonical
                 // rule, in the reason of FG1 (C1, C10) or of FG3 (C2 to C11)
                 assert!(fk["rule"] == r.as_str() || fk["names"] == r.as_str(), "{r}: {k} does not name {r}");
             }
-            None => assert!(alone.contains(&r.as_str()), "{r}: no kept fixture"),
+            None => assert!(alone.contains(&r.as_str()), "{r}: no fixture that requires change"),
         }
     }
 }
@@ -115,9 +115,9 @@ fn the_catalogue_key_is_the_digest_of_the_catalogue_file() {
 }
 
 /// A changed byte never makes the gate fail by a panic: every one-digit change
-/// of an applied fixture is applied or kept.
+/// of an applied fixture is applied or requires change.
 #[test]
-fn a_changed_digit_is_applied_or_kept() {
+fn a_changed_digit_is_applied_or_requires_change() {
     for name in ["counter.json", "loops.json", "group.json", "types.json"] {
         let bytes = read(name);
         let mut seen = 0;
@@ -135,7 +135,7 @@ fn a_changed_digit_is_applied_or_kept() {
 }
 
 /// `rce form-check FORM [VECTORS]`: positional arguments only; exit 0 when the
-/// module is applied, 1 when it is kept, 2 for a usage error.
+/// module is applied, 1 when it requires change, 2 for a usage error.
 #[test]
 fn form_check_command() {
     let rce = |args: &[&str]| -> (i32, String) {
@@ -152,10 +152,10 @@ fn form_check_command() {
     assert_eq!((c, out.starts_with("applied ")), (0, true), "{out}");
     let (c, out) = rce(&["form-check", &p("counter-fg6.json")]);
     assert_eq!(c, 1);
-    assert!(out.starts_with("kept FG6 "), "{out}");
+    assert!(out.starts_with("requires change FG6 "), "{out}");
     let (c, out) = rce(&["form-check", &p("counter.json"), &p("counter.wrong-vectors.json")]);
     assert_eq!(c, 1);
-    assert!(out.starts_with("kept FG15 "), "{out}");
+    assert!(out.starts_with("requires change FG15 "), "{out}");
     assert_eq!(rce(&["form-check"]).0, 2);
     assert_eq!(rce(&["form-check", &p("no-such-file.json")]).0, 2);
     assert_eq!(rce(&["form-check", &p("counter.json"), &p("counter.vectors.json"), "x"]).0, 2);

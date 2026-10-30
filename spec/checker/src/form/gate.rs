@@ -1,5 +1,5 @@
 //! The gate on `rce-form/1` (rce-form.md §11): FG1 to FG15, in order. The
-//! module is kept at the first rule that fails, with the rule, the group
+//! module requires change at the first rule that fails, with the rule, the group
 //! key, the function index and the node path; a module that passes every
 //! rule is applied: it complies with the Form.
 use super::canon::{self, Defer};
@@ -7,11 +7,11 @@ use super::catalogue::{self, Entry};
 use super::ir::*;
 use super::types::{Tx, fshow, lies_within, show};
 use super::walk::{Cx, Visit, walk};
-use super::{Kept, decode, eval};
+use super::{RequiresChange, decode, eval};
 use serde_json::Value as J;
 use std::collections::{BTreeMap, BTreeSet};
 
-type G = Result<(), Kept>;
+type G = Result<(), RequiresChange>;
 type W = Result<(), String>;
 /// A failed check of one function: the node path and the reason.
 type At = Result<(), (String, String)>;
@@ -19,12 +19,12 @@ type At = Result<(), (String, String)>;
 /// argument the parameter it is and whether it is a component of it.
 type RecCall = (u32, u32, Vec<Option<(u32, bool)>>);
 
-fn kept(rule: &'static str, group: Option<&str>, func: Option<u32>, path: impl Into<String>, reason: impl Into<String>) -> Kept {
-    Kept { rule, group: group.map(str::to_string), func, path: path.into(), reason: reason.into() }
+fn requires_change(rule: &'static str, group: Option<&str>, func: Option<u32>, path: impl Into<String>, reason: impl Into<String>) -> RequiresChange {
+    RequiresChange { rule, group: group.map(str::to_string), func, path: path.into(), reason: reason.into() }
 }
 
-fn frame(rule: &'static str, path: impl Into<String>, reason: impl Into<String>) -> Kept {
-    kept(rule, None, None, path, reason)
+fn frame(rule: &'static str, path: impl Into<String>, reason: impl Into<String>) -> RequiresChange {
+    requires_change(rule, None, None, path, reason)
 }
 
 /// Run a check on every function, groups in key order, functions in order.
@@ -32,7 +32,7 @@ fn per_fn(m: &Module, rule: &'static str, check: &dyn Fn(&Module, &str, u32, &Fu
     for (k, g) in &m.defs {
         for (i, f) in g.fns.iter().enumerate() {
             if let Err((p, r)) = check(m, k, i as u32, f) {
-                return Err(kept(rule, Some(k), Some(i as u32), p, r));
+                return Err(requires_change(rule, Some(k), Some(i as u32), p, r));
             }
         }
     }
@@ -45,7 +45,7 @@ fn per_walk<'a, V: Visit<'a>>(m: &'a Module, rule: &'static str, mk: &dyn Fn() -
         for (i, f) in g.fns.iter().enumerate() {
             let mut v = mk();
             if let Err((p, r)) = walk(m, k, i as u32, f, &mut v) {
-                return Err(kept(rule, Some(k), Some(i as u32), p, r));
+                return Err(requires_change(rule, Some(k), Some(i as u32), p, r));
             }
         }
     }
@@ -70,7 +70,7 @@ fn fg2(m: &Module, raw: &J) -> G {
     for (k, g) in raw["defs"].as_object().into_iter().flatten() {
         let h = sha(g);
         if &h != k {
-            return Err(kept("FG2", Some(k), None, "", format!("the group key is not the SHA-256 of the group's bytes, which is {h}")));
+            return Err(requires_change("FG2", Some(k), None, "", format!("the group key is not the SHA-256 of the group's bytes, which is {h}")));
         }
     }
     let resolves = |r: &Ref, group: Option<&str>| -> Option<String> {
@@ -90,7 +90,7 @@ fn fg2(m: &Module, raw: &J) -> G {
             refs_in(&f.body, &mut rs, "");
             for (p, r) in rs {
                 if let Some(e) = resolves(&r, Some(k)) {
-                    return Err(kept("FG2", Some(k), Some(fi as u32), p, e));
+                    return Err(requires_change("FG2", Some(k), Some(fi as u32), p, e));
                 }
             }
         }
@@ -135,7 +135,7 @@ fn fg2(m: &Module, raw: &J) -> G {
     }
     for k in m.defs.keys() {
         if let Some(c) = visit(m, k, &mut state) {
-            return Err(kept("FG2", Some(&c), None, "", "the graph of keys has a cycle through this group"));
+            return Err(requires_change("FG2", Some(&c), None, "", "the graph of keys has a cycle through this group"));
         }
     }
     Ok(())
@@ -154,8 +154,8 @@ fn fg3(bytes: &[u8], m: &Module) -> G {
     }
     let group = m.defs.keys().find(|k| !c.defs.contains_key(*k)).map(String::as_str);
     Err(match first {
-        Some(rule) => kept("FG3", group, None, "", format!("{rule}: decoding and encoding again does not give the same bytes; the canonical form differs by {rule}")),
-        None => kept("FG3", None, None, "", "6.1.1: the bytes are not the canonical JSON of the module"),
+        Some(rule) => requires_change("FG3", group, None, "", format!("{rule}: decoding and encoding again does not give the same bytes; the canonical form differs by {rule}")),
+        None => requires_change("FG3", None, None, "", "6.1.1: the bytes are not the canonical JSON of the module"),
     })
 }
 
@@ -896,7 +896,7 @@ fn fg8_group(m: &Module, k: &str, g: &Group) -> G {
         let f = &g.fns[fi as usize];
         if !recursive {
             if f.bound != Bound::None {
-                return Err(kept("FG8", Some(k), Some(fi), "bound", "a function that is not recursive has bound null"));
+                return Err(requires_change("FG8", Some(k), Some(fi), "bound", "a function that is not recursive has bound null"));
             }
             continue;
         }
@@ -914,7 +914,7 @@ fn fg8_group(m: &Module, k: &str, g: &Group) -> G {
         // declared bounds: every cycle of calls passes through a bounded function
         let unbounded: BTreeSet<u32> = comp.iter().copied().filter(|x| !matches!(g.fns[*x as usize].bound, Bound::N(_))).collect();
         if cyclic(&edges, &unbounded) {
-            return Err(kept(
+            return Err(requires_change(
                 "FG8",
                 Some(k),
                 Some(fi),
@@ -1266,7 +1266,7 @@ fn caps_in(b: &Body, out: &mut Vec<(String, String)>, path: &str) {
 
 fn fg13(m: &Module) -> G {
     // no `rce-cap/1` signature is known to the checker: the format is named
-    // in §21 and defined nowhere yet, so every capability is kept
+    // in §21 and defined nowhere yet, so every capability requires change
     per_fn(m, "FG13", &|_, _, _, f| {
         let mut cs = vec![];
         caps_in(&f.body, &mut cs, "");
@@ -1363,7 +1363,7 @@ impl<'a> Visit<'a> for Fg14 {
 // ---- the gate
 
 /// FG1 to FG15 on a module's bytes and, when given, its admission vectors.
-pub fn gate(bytes: &[u8], vectors: Option<&[u8]>) -> Result<Module, Kept> {
+pub fn gate(bytes: &[u8], vectors: Option<&[u8]>) -> Result<Module, RequiresChange> {
     let m = decode::decode(bytes)?;
     let raw: J = serde_json::from_slice(bytes).map_err(|e| frame("FG1", "", format!("C1: {e}")))?;
     fg2(&m, &raw)?;

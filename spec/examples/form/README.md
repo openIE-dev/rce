@@ -8,14 +8,14 @@ canonical rules C1 to C11 and the gate rules FG1 to FG15 of
 - `make.py` writes every fixture and `expect.json`. It builds each module from
   the rules as the proposal states them, with an encoder of its own: canonical
   JSON (6.1.1), group and module keys, Merkle digests (C2), and the orders that
-  C3, C5, C7 and C9 fix. A kept fixture breaks one rule and is canonical in
+  C3, C5, C7 and C9 fix. A fixture that requires change breaks one rule and is canonical in
   every other respect. `python3 spec/examples/form/make.py --check` fails when
   a file here differs from what `make.py` writes.
 - `expect.json` gives each fixture's outcome, written by hand in `make.py`
-  from the rules, never from the checker: `applied`, or `kept` with the rule
+  from the rules, never from the checker: `applied`, or `requires change` with the rule
   the gate names first and, for a canonical rule, the rule its reason names.
   Its `rules` table names, for each of C1 to C11 and FG1 to FG15, a fixture
-  the rule applies and one it keeps.
+  the rule applies and one that requires change under it.
 - `spec/checker/tests/form_gate.rs` runs the gate on every fixture and checks
   the table, and checks that decoding then encoding every applied fixture
   gives its own bytes (FG3).
@@ -27,20 +27,20 @@ canonical rules C1 to C11 and the gate rules FG1 to FG15 of
 | `types` | a declared record and kind (C8), an option field, a payload, an emitted float | applied |
 | `group` | `even` and `odd` as one recursive group with declared bounds (C9, FG8) | applied |
 | `loops` | Iterate with a measure and with a count bound, `list.get` under DF5, `sum.get` under DF4, a memo cell (FG6, FG8) | applied |
-| `counter-c1`, `-c3` … `-c7`, `-c10`, `-c11`, `types-c8`, `group-c9` | each breaks one canonical rule | kept by FG1 (C1, C10) or FG3 (the others) |
-| `counter-fg1` … `-fg13`, `types-fg12`, `types-fg14`, `group-fg8`, `counter.wrong-vectors` | each breaks one gate rule | kept by that rule |
-| `cycle` | a region whose node reads its own output | kept by FG4 (below) |
+| `counter-c1`, `-c3` … `-c7`, `-c10`, `-c11`, `types-c8`, `group-c9` | each breaks one canonical rule | requires change under FG1 (C1, C10) or FG3 (the others) |
+| `counter-fg1` … `-fg13`, `types-fg12`, `types-fg14`, `group-fg8`, `counter.wrong-vectors` | each breaks one gate rule | requires change under that rule |
+| `cycle` | a region whose node reads its own output | requires change under FG4 (below) |
 
 ## Rules no module can break on its own
 
 - **C2** is the Merkle digest that C3, C4, C7 and C9 order and merge by. It
-  is a definition, not a check, so no module is kept by C2 alone.
+  is a definition, not a check, so no module requires change under C2 alone.
 - **FG9** (acyclic regions) follows from FG4, which the gate applies first:
   when every source precedes its consumer in the numbering, the region is
-  acyclic. `cycle` is a region with a cycle, and FG4 keeps it.
+  acyclic. `cycle` is a region with a cycle, and it requires change under FG4.
 - **C10** (no unobservable names) follows from C1: no field of the schema
   holds a name, and an unknown field fails decoding. `counter-c10` adds a
-  `names` field and is kept by FG1, whose reason names both C1 and C10.
+  `names` field and requires change under FG1, whose reason names both C1 and C10.
 
 ## How the module reads what the proposal leaves open
 
@@ -70,7 +70,7 @@ follows; each is a choice the proposal's text should settle.
   equality is otherwise by spelling.
 - **Body representation of frame types (§3).** `res` is
   `sum(τ, tup(fields of each error)…)` in the order the type lists its errors;
-  `chan` and `actor` have none, so a step over one is kept by FG10 or FG11.
+  `chan` and `actor` have none, so a step over one requires change under FG10 or FG11.
 - **FG5 and FG8 on a Branch selector.** FG5 requires `bool` (two arms) or an
   integer type; FG8 requires an integer selector's range to lie in 0 to n − 1.
 - **FG6 on memo cells.** "Takes full" is a fact of a run. A cell counts as
@@ -91,7 +91,7 @@ follows; each is a choice the proposal's text should settle.
   command (§9), and ω. The task events of 6.8 have no names in the proposal,
   so `Tick` is the only built-in event a step may name.
 - **FG13.** `rce-cap/1` is named and not defined, so no capability has a
-  signature and every module that names one is kept.
+  signature and every module that names one requires change.
 - **FG15.** `rce-vectors/1` does not fix an input's form, a case's outcome or
   how several inputs' outputs combine. An input is `{"type": i | "Tick" |
   "Start", "payload": [VALUE…]}`, the positional event of 6.1; each input
@@ -102,5 +102,5 @@ follows; each is a choice the proposal's text should settle.
   the reference trace's names come from the concept record, which the gate
   does not read.
 - **Values of the frame (FG10).** §3 and 6.1 state no positional form of a
-  result, a channel or an actor handle, so a field of one of those types is
-  kept. A step's `deadline` is decoded and not evaluated.
+  result, a channel or an actor handle, so a field of one of those types
+  requires change. A step's `deadline` is decoded and not evaluated.

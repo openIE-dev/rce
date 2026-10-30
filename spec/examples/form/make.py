@@ -7,7 +7,7 @@ Each fixture is built here from the rules as the proposal writes them, with
 an encoder written from the text of 6.1.1 and §10 alone: group keys, module
 keys and Merkle digests (C2) are computed here, and so are the orders that C3
 (symmetric operands), C5 (numbering), C7 (captures) and C9 (recursive groups)
-fix. A kept fixture breaks exactly one rule and is built canonical in every
+fix. A fixture that requires change breaks exactly one rule and is built canonical in every
 other respect. The expected outcomes in `expect.json` are written by hand
 from the rules, in the table at the end of this file; the checker's code is
 never run to make them.
@@ -662,37 +662,37 @@ def raw_fixtures(written):
 EXPECT = {
     "counter": ("applied", None, None),
     "counter.vectors": ("applied", None, None),
-    "counter.wrong-vectors": ("kept", "FG15", None),
+    "counter.wrong-vectors": ("requires change", "FG15", None),
     "types": ("applied", None, None),
     "types.vectors": ("applied", None, None),
     "group": ("applied", None, None),
     "group.vectors": ("applied", None, None),
     "loops": ("applied", None, None),
-    "counter-c1": ("kept", "FG1", "C1"),
-    "counter-c10": ("kept", "FG1", "C10"),
-    "counter-c3": ("kept", "FG3", "C3"),
-    "counter-c4": ("kept", "FG3", "C4"),
-    "counter-c5": ("kept", "FG3", "C5"),
-    "counter-c6": ("kept", "FG3", "C6"),
-    "counter-c7": ("kept", "FG3", "C7"),
-    "types-c8": ("kept", "FG3", "C8"),
-    "group-c9": ("kept", "FG3", "C9"),
-    "counter-c11": ("kept", "FG3", "C11"),
-    "counter-fg1": ("kept", "FG1", None),
-    "counter-fg2": ("kept", "FG2", None),
-    "counter-fg3": ("kept", "FG3", "6.1.1"),
-    "counter-fg4": ("kept", "FG4", None),
-    "counter-fg5": ("kept", "FG5", None),
-    "counter-fg6": ("kept", "FG6", None),
-    "counter-fg7": ("kept", "FG7", None),
-    "counter-fg8": ("kept", "FG8", None),
-    "group-fg8": ("kept", "FG8", None),
-    "cycle": ("kept", "FG4", None),
-    "counter-fg10": ("kept", "FG10", None),
-    "counter-fg11": ("kept", "FG11", None),
-    "types-fg12": ("kept", "FG12", None),
-    "counter-fg13": ("kept", "FG13", None),
-    "types-fg14": ("kept", "FG14", None),
+    "counter-c1": ("requires change", "FG1", "C1"),
+    "counter-c10": ("requires change", "FG1", "C10"),
+    "counter-c3": ("requires change", "FG3", "C3"),
+    "counter-c4": ("requires change", "FG3", "C4"),
+    "counter-c5": ("requires change", "FG3", "C5"),
+    "counter-c6": ("requires change", "FG3", "C6"),
+    "counter-c7": ("requires change", "FG3", "C7"),
+    "types-c8": ("requires change", "FG3", "C8"),
+    "group-c9": ("requires change", "FG3", "C9"),
+    "counter-c11": ("requires change", "FG3", "C11"),
+    "counter-fg1": ("requires change", "FG1", None),
+    "counter-fg2": ("requires change", "FG2", None),
+    "counter-fg3": ("requires change", "FG3", "6.1.1"),
+    "counter-fg4": ("requires change", "FG4", None),
+    "counter-fg5": ("requires change", "FG5", None),
+    "counter-fg6": ("requires change", "FG6", None),
+    "counter-fg7": ("requires change", "FG7", None),
+    "counter-fg8": ("requires change", "FG8", None),
+    "group-fg8": ("requires change", "FG8", None),
+    "cycle": ("requires change", "FG4", None),
+    "counter-fg10": ("requires change", "FG10", None),
+    "counter-fg11": ("requires change", "FG11", None),
+    "types-fg12": ("requires change", "FG12", None),
+    "counter-fg13": ("requires change", "FG13", None),
+    "types-fg14": ("requires change", "FG14", None),
 }
 
 # rule -> (a fixture the rule applies, a fixture the rule keeps); C2 is the
@@ -749,7 +749,7 @@ def main():
     for name, (outcome, rule, why) in sorted(EXPECT.items()):
         base, _, vec = name.partition(".")
         entries.append({"form": base + ".json", "vectors": name + ".json" if vec else None, "outcome": outcome, "rule": rule, "names": why})
-    files["expect.json"] = canon({"format": "rce-form-fixtures/1", "fixtures": entries, "rules": {r: {"applied": a, "kept": k} for r, (a, k) in RULES.items()}})
+    files["expect.json"] = canon({"format": "rce-form-fixtures/1", "fixtures": entries, "rules": {r: {"applied": a, "requires_change": k} for r, (a, k) in RULES.items()}})
     bad = 0
     for name, text in sorted(files.items()):
         p = os.path.join(HERE, name)
