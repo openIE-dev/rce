@@ -666,7 +666,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
   rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--http HOST:PORT] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, each HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (--http, Appendix E HC-24), Display(data) is written to stdout, Exit or SIGTERM ends the loop
   rce host tls-id FILE --log D   the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with --peer ADDR=KEY under --tls)
-  rce host replay FILE --log D [--redact F,..]   replay D with every adapter disconnected (HC-8) and re-derive every state hash
+  rce host replay FILE --log D [--redact F,..]   replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27)
   rce db D CMD [ARGS]            RCEdb (W3), serverless and in-process: the database is the log D. CMD: insert T K ROW, delete T K,
                                  link S L D, unlink S L D, schema T COLS (name:text|i64|bool,...), index T COL, scan T [START],
                                  lookup T COL VALUE, edges S, describe, dump, emit sqlite|postgres|duckdb|cypher, as-of N scan T [START]";
@@ -1285,6 +1285,31 @@ fn serve_dyn(r: &mut dyn BufRead, w: &mut dyn Write) -> i32 {
 }
 
 /// `rce host run|replay FILE --log D [EVENTS]` (Appendix E host runtime v0).
+/// HC-27: the log D is bound to the program that wrote it by `D.program`, the
+/// module hash (F.5.3: SHA-256 of the canonical unparse, so layout and
+/// comments do not count). `run` and `serve` write it when it is absent,
+/// which binds a new log and adopts an older one; a program whose hash
+/// differs is refused with the reason, before D is opened. `replay` checks
+/// it when present.
+fn program_binding(log: &str, src: &str, write: bool) -> Result<Option<String>, String> {
+    let path = format!("{log}.program");
+    let hash = crate::manifest::module_hash(src)?;
+    match std::fs::read_to_string(&path) {
+        Ok(bound) if bound.trim() == hash => Ok(None),
+        Ok(bound) => Ok(Some(format!(
+            "HC-27 the log {log} was written by the program {} ({path}), and this program is {hash}; a log replays only with the program that wrote it: start a new log for a changed program, or, for a change `rce change` classifies as an erratum, write the new hash to {path}",
+            bound.trim()
+        ))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            if write {
+                std::fs::write(&path, format!("{hash}\n")).map_err(|e| format!("{path}: {e}"))?;
+            }
+            Ok(None)
+        }
+        Err(e) => Err(format!("{path}: {e}")),
+    }
+}
+
 fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
     use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
@@ -1296,6 +1321,13 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         return Ok(REQUIRES_CHANGE);
     }
     let m = crate::program(&src)?;
+    // HC-27: a log is bound to the program that wrote it.
+    if matches!(sub, "run" | "serve" | "replay") {
+        if let Some(why) = program_binding(log, &src, sub != "replay")? {
+            writeln!(out, "requires change {file}: {why}").map_err(w)?;
+            return Ok(REQUIRES_CHANGE);
+        }
+    }
     match sub {
         "replay" => {
             let text = std::fs::read_to_string(log).map_err(|e| format!("{log}: {e}"))?;

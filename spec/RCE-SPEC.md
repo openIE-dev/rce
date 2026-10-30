@@ -5847,6 +5847,23 @@ did not, not by restricting what a module may declare.
 `rce check` does not make these comparisons, because what a host
 delivers depends on the adapters it is granted.
 
+### E.4d The program that wrote D (HC-27)
+
+- **HC-27 A log is bound to the program that wrote it.** Beside the log D
+  the host keeps `D.program`, the module hash of the program (F.5.3: the
+  SHA-256 of its canonical unparse, so layout and comments are not part of
+  it). `rce host run` and `rce host serve` write it when it is absent,
+  which binds a new log and adopts a log written before this rule. A
+  program whose module hash differs from `D.program` requires change on
+  that log: the host names both hashes and opens nothing, so D is unchanged.
+  `rce host replay` checks `D.program` when it is present. A log replays
+  to the state its program derived only with that program, so a changed
+  program starts a new log; for a change that `rce change` classifies as
+  an erratum (10.11), the operator may write the new hash to `D.program`,
+  and that act is the record of the decision. The module hash covers the
+  program's own text, not the library modules it uses, which the checker's
+  build pins (F.5.3).
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
