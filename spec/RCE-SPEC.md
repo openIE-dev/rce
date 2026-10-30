@@ -2096,6 +2096,23 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
 
+**The lookup-table control (W-INT-2).** The examples of a module are
+finitely many event lists folded from s₀, so they say nothing about any
+other list. The *lookup-table control* of a module M is M with one more
+field per region, the region's position in the trie of the example event
+lists (each list restricted to the events the region has a step for): each
+step of M applies only at a position that has a child for its event and
+moves the position to that child (where M selects no step of the region,
+the control only moves the position), and an event at a position with no
+child for it is kept with an error of its own. The control equals M on every prefix of every example
+list, so it meets every example of M, and it keeps the state on every other
+list. A `check` is a proposition about comptime values and functions, and a
+contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
+admits it and reports the recommended change W-INT-2 (10.2): its
+obligations do not constrain behaviour beyond the listed examples. W-INT-2
+never makes a program require change; it says what the examples do not
+state.
+
 ### 6.10 Behaviour, equivalence and dimension
 
 This section defines what "the same behaviour" means for two programs, and
@@ -2219,9 +2236,8 @@ Types
 - W-PLACE Left side of an assignment or `op=` is not a mutable place.
 
 Ownership and borrowing
-- W-OWN-1 Use after move (O1). W-OWN-2 Violating [Borrow-Shr], [Borrow-Mut],
-  [No-Alias-Write] or [No-Mut-Read], among the arguments of one call or while
-  a `let` borrow is live (5.6). W-OWN-3 Storing, returning (except R-RET) or capturing a
+- W-OWN-1 Use after move (O1). W-OWN-2 Violating [No-Alias-Write] or
+  [No-Mut-Read]. W-OWN-3 Storing, returning (except R-RET) or capturing a
   borrow. W-REG-1 A region-typed value escaping its `with arena` block.
 - W-SPAWN-1 Spawning with a borrow or region-typed argument.
 
@@ -2246,6 +2262,9 @@ The Form
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
+- W-INT-2 (recommended; never requires change) A module with a step and
+  `example` lines, whose obligations its lookup-table control meets (6.9):
+  `rce check` admits it and prints the recommendation (10.2).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -3166,6 +3185,25 @@ it, its outputs, or the kept record), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
+
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
 
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
@@ -5178,6 +5216,13 @@ defined by logical time, never by a wall clock.
   the admitter acks an input only after the barrier (HS-2) that covers
   its window succeeded. A crash before the ack leads to a retransmission,
   which HC-16 turns into a duplicate when the input did reach D.
+  Exactly once covers only inputs that carry a source and sequence
+  number. A typed input (HC-10b: a line of `rce host run` or `serve`) and
+  an HTTP request (HC-24) carry none, so a client's retry of one is a new
+  input, and a program that must apply a retried request once keeps its
+  own key in its state. A duplicate is acked, and the window that finds it
+  holds no outcome for it, so the client that retried learns that its
+  input is in D but not how its step ended; it reads that from D.
 - **HC-17 Window entries.** Closing a window appends `host.Window` {count,
   id, term, upto}, then, before each admitted input, `host.Input` {late (only when
   true), seq, source, window}. The dedupe state is the fold of these entries: on open
@@ -6034,6 +6079,7 @@ is cited by a test.
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
 

@@ -956,6 +956,17 @@
    "profile": "language"
   },
   {
+   "id": "W-INT-2",
+   "kind": "rule",
+   "normative": true,
+   "chapter": "09-wellformedness.md",
+   "line": 72,
+   "section": "7. Well-formedness: what requires change at entry",
+   "text": "- W-INT-2 (recommended; never requires change) A module with a step and `example` lines, whose obligations its lookup-table control meets (6.9): `rce check` admits it and prints the recommendation (10.2).",
+   "restated": [],
+   "profile": "language"
+  },
+  {
    "id": "W-SIMD-1",
    "kind": "rule",
    "normative": true,

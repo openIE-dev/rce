@@ -1,0 +1,44 @@
+name: interop
+
+# examples/interop/: programs printed by `rce emit` embedded in ordinary
+# hosts (asyncio, FastAPI and numpy values in Python, tokio in Rust, node:http, React and
+# a realm without `process` in JavaScript); every transcript must equal
+# `rce run` byte for byte. Every embedding is required, so none is skipped.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        working-directory: spec/checker
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            spec/checker
+            examples/interop/rust
+            examples/interop/hand/rust
+      - name: Build rce
+        working-directory: spec/checker
+        run: cargo build --release --bin rce
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the host libraries
+        run: |
+          python -m pip install fastapi==0.115.6 httpx==0.28.1 numpy==2.3.4
+          cd examples/interop/js && npm ci --no-audit --no-fund
+      - name: Every embedding against rce run
+        run: >-
+          RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce"
+          INTEROP_REQUIRE=python,fastapi,numpy,rust,js,react,browser,hand-python,hand-js,hand-rust
+          python examples/interop/check.py

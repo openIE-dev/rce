@@ -1,0 +1,24 @@
+intent "a counter whose only obligations are two examples"
+    example Inc, Inc -> 2
+    example Inc -> 1
+
+state C
+    n: u64 = 0
+
+event Inc
+
+step C on Inc -> n + 1
+#--- rce-test
+# id: tooling/int-2-table-control
+# area: tooling
+# clauses: [W-INT-2]
+# expect: cli
+# argv: ["check", "main.rce"]
+# status: 0
+# output_has:
+#   - ok main.rce
+#   - "recommended main.rce: line 2: W-INT-2"
+# output_lacks:
+#   - requires change
+# provenance: targeted: 6.9 and 10.2, the obligations are examples only, so the module is admitted with the recommended change W-INT-2 and status 0
+#---

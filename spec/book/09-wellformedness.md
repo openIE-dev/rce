@@ -44,9 +44,8 @@ Types
 - W-PLACE Left side of an assignment or `op=` is not a mutable place.
 
 Ownership and borrowing
-- W-OWN-1 Use after move (O1). W-OWN-2 Violating [Borrow-Shr], [Borrow-Mut],
-  [No-Alias-Write] or [No-Mut-Read], among the arguments of one call or while
-  a `let` borrow is live (5.6). W-OWN-3 Storing, returning (except R-RET) or capturing a
+- W-OWN-1 Use after move (O1). W-OWN-2 Violating [No-Alias-Write] or
+  [No-Mut-Read]. W-OWN-3 Storing, returning (except R-RET) or capturing a
   borrow. W-REG-1 A region-typed value escaping its `with arena` block.
 - W-SPAWN-1 Spawning with a borrow or region-typed argument.
 
@@ -71,6 +70,9 @@ The Form
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
+- W-INT-2 (recommended; never requires change) A module with a step and
+  `example` lines, whose obligations its lookup-table control meets (6.9):
+  `rce check` admits it and prints the recommendation (10.2).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -124,4 +126,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: 1fdb66d8a400c013799f133c502a9bafbec5b4ec7a8f024003d6b4c01ef99fbb -->
+<!-- body-sha256: 515463b2081ca4bbf0514f709572c0de1e3ddfa3a5e2c92a952035a4fe9058ff -->

@@ -1,0 +1,25 @@
+{
+  "format": "rce-interop-streams/1",
+  "note": "Each stream is a list of events as JSON objects: \"type\" names the event and every other key is a payload field. A kept step, when a stream has one, is its last event, so the transcript equals `rce run FILE EVENTS` byte for byte.",
+  "programs": [
+    {"name": "counter", "file": "spec/examples/01_counter.rce", "streams": [
+      [{"type": "Inc"}, {"type": "Inc"}, {"type": "Dec"}, {"type": "Dec"}, {"type": "Dec"}],
+      [{"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}]]},
+    {"name": "bank", "file": "spec/examples/04_bank_account.rce", "streams": [
+      [{"type": "Deposit", "amount": 50}, {"type": "Withdraw", "amount": 20}, {"type": "Deposit", "amount": 0}, {"type": "Withdraw", "amount": 100}],
+      [{"type": "Deposit", "amount": 9007199254740993}, {"type": "Withdraw", "amount": 9007199254740992}]]},
+    {"name": "multi_region", "file": "spec/examples/16_multi_region.rce", "streams": [
+      [{"type": "AddItem", "name": "x"}, {"type": "AddItem", "name": "y"}, {"type": "RemoveItem", "name": "x"}, {"type": "Reset"}, {"type": "AddItem", "name": "café \"quoted\""}]]},
+    {"name": "traffic_light", "file": "spec/examples/17_traffic_light.rce", "streams": [
+      [{"type": "Tick"}, {"type": "Tick"}, {"type": "Tick"}, {"type": "Tick"}]]},
+    {"name": "door", "file": "spec/examples/30_state_machine_guarded.rce", "streams": [
+      [{"type": "Open"}, {"type": "Close"}, {"type": "Lock"}, {"type": "Unlock"}, {"type": "Open"}, {"type": "Lock"}],
+      [{"type": "Lock"}, {"type": "Open"}]]},
+    {"name": "inventory", "file": "spec/examples/31_inventory.rce", "streams": [
+      [{"type": "Receive", "sku": "a", "qty": 3}, {"type": "Receive", "sku": "b", "qty": 1}, {"type": "Ship", "sku": "a", "qty": 2}, {"type": "Ship", "sku": "b", "qty": 5}]]},
+    {"name": "rcedb", "file": "spec/examples/55_rcedb.rce", "streams": [
+      [{"type": "Put", "key": "b", "val": "2"}, {"type": "Put", "key": "a", "val": "1"}, {"type": "Synced", "upto": 1}, {"type": "Scan", "start": ""}, {"type": "Delete", "key": "a"}, {"type": "Delete", "key": "x"}]]},
+    {"name": "float_keys", "file": "spec/examples/58_float_keys.rce", "streams": [
+      [{"type": "Add", "x": 0.0}, {"type": "Flip", "x": 0.0}, {"type": "Add", "x": -0.0}, {"type": "Add", "x": 1.5}, {"type": "Flip", "x": 2.5}, {"type": "Add", "x": 0.1}]]}
+  ]
+}

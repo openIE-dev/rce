@@ -247,6 +247,23 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
 
+**The lookup-table control (W-INT-2).** The examples of a module are
+finitely many event lists folded from s₀, so they say nothing about any
+other list. The *lookup-table control* of a module M is M with one more
+field per region, the region's position in the trie of the example event
+lists (each list restricted to the events the region has a step for): each
+step of M applies only at a position that has a child for its event and
+moves the position to that child (where M selects no step of the region,
+the control only moves the position), and an event at a position with no
+child for it is kept with an error of its own. The control equals M on every prefix of every example
+list, so it meets every example of M, and it keeps the state on every other
+list. A `check` is a proposition about comptime values and functions, and a
+contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
+admits it and reports the recommended change W-INT-2 (10.2): its
+obligations do not constrain behaviour beyond the listed examples. W-INT-2
+never makes a program require change; it says what the examples do not
+state.
+
 ### 6.10 Behaviour, equivalence and dimension
 
 This section defines what "the same behaviour" means for two programs, and
@@ -322,4 +339,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 6e403282d3fe412ba0ac3a00a518a340e3b1337b0978399aeaba3b2571c162ad -->
+<!-- body-sha256: 3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811 -->

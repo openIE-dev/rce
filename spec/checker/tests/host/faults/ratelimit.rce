@@ -1,0 +1,38 @@
+module ratelimit
+
+intent "a token bucket per client over wall time: a client may make BURST requests at once and one more per second of wall time; a request over the limit is denied"
+    example WallTime(ns: 0), Request(client: "a"), Request(client: "a"), Request(client: "a"), Request(client: "a") -> allowed["a"] == 3 and denied == 1
+    example WallTime(ns: 0), Request(client: "a"), Request(client: "a"), Request(client: "a"), WallTime(ns: 2000000000), Request(client: "a"), Request(client: "a"), Request(client: "a") -> allowed["a"] == 5 and denied == 1
+    example WallTime(ns: 0), Request(client: "a"), WallTime(ns: 9000000000), Request(client: "a"), Request(client: "a"), Request(client: "a"), Request(client: "a") -> allowed["a"] == 4 and denied == 1
+
+const BURST: u64 = 3
+const SECOND: u64 = 1000000000
+
+state Limiter
+    now_ns: u64 = 0
+    tokens: Map[text, u64] = {}
+    stamp: Map[text, u64] = {}
+    allowed: Map[text, u64] = {}
+    denied: u64 = 0
+
+event WallTime(ns: u64)
+event Request(client: text)
+
+step Limiter on WallTime(ns: t)
+    now_ns = t
+
+step Limiter on Request(client: c)
+    let last = stamp.get(c) catch now_ns
+    let have = tokens.get(c) catch BURST
+    let refill = (now_ns - last) / SECOND
+    if have + refill >= BURST
+        stamp[copy(c)] = now_ns
+    else
+        stamp[copy(c)] = last + refill * SECOND
+    let t = if have + refill > BURST then BURST else have + refill
+    if t == 0
+        tokens[copy(c)] = 0
+        denied += 1
+    else
+        tokens[copy(c)] = t - 1
+        allowed[copy(c)] = (allowed.get(c) catch 0) + 1

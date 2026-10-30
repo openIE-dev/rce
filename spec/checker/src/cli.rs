@@ -179,6 +179,35 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
     (e, c)
 }
 
+/// The recommended changes of an admitted module (10.2). W-INT-2 (6.9): the
+/// module has a step and its only obligations on its steps are `example`
+/// lines, so its lookup-table control (the module on the prefixes of the
+/// example event lists, every other event kept) meets them. A recommended
+/// change never changes the verdict or the exit status.
+pub fn recommendations(m: &Module) -> Vec<String> {
+    let steps = m.items.iter().filter(|i| matches!(i, Item::Step { .. })).count();
+    let mut lines: Vec<usize> = vec![];
+    for i in &m.items {
+        match i {
+            Item::Example(x) => lines.push(x.line),
+            Item::Intent(_, xs, _) => lines.extend(xs.iter().map(|x| x.line)),
+            _ => {}
+        }
+    }
+    let Some(first) = lines.iter().min() else { return vec![] };
+    if steps == 0 {
+        return vec![];
+    }
+    let n = lines.len();
+    vec![format!(
+        "line {first}: W-INT-2 the {n} example line{} {} the only obligation{} on the steps; their lookup-table control (6.9) meets {}, so they do not constrain behaviour beyond the listed examples",
+        if n == 1 { "" } else { "s" },
+        if n == 1 { "is" } else { "are" },
+        if n == 1 { "" } else { "s" },
+        if n == 1 { "it" } else { "them" },
+    )]
+}
+
 /// `rce emit TARGET FILE`: `form` prints the Form JSON, `core` the core
 /// `rce-core/1` as JSON; `rust`, `python`, `js` and `scala` print a
 /// self-contained program that prints the module's observations (10.5).
@@ -619,6 +648,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
+  rce fingerprint [--depth N] [--fuel N] [--json] FILE...  behaviour fingerprint (BF-1): a hash of the name-free outputs of every event sequence of length 1 to N (default 8) over the alphabet rce equiv explores; programs rce equiv judges equal share it, a shared one is confirmed by rce equiv
   rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
   rce lib [MODULE]               the built-in standard library: every module `use` can name (4.1) and the hash that pins it, or the source of one module
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
@@ -702,9 +732,19 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     Ok(match a.first().map(String::as_str) {
         Some("check") if !rest.is_empty() => {
             let mut bad = 0;
-            for (p, v) in crate::check_program(&load(rest)?, false) {
+            let files = load(rest)?;
+            let srcs: HashMap<&str, &str> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
+            for (p, v) in crate::check_program(&files, false) {
                 match v {
-                    Ok(()) => writeln!(out, "ok {p}").map_err(w)?,
+                    Ok(()) => {
+                        writeln!(out, "ok {p}").map_err(w)?;
+                        // recommended changes (10.2, W-INT-2): the verdict stays `ok`
+                        if let Some(m) = srcs.get(p.as_str()).and_then(|s| parse(s).ok()) {
+                            for r in recommendations(&m) {
+                                writeln!(out, "recommended {p}: {r}").map_err(w)?;
+                            }
+                        }
+                    }
                     Err(e) => {
                         bad += 1;
                         writeln!(out, "requires change {p}: {e}").map_err(w)?
@@ -878,6 +918,50 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 write!(out, "{}", crate::dim::equiv_report(&e)).map_err(w)?;
             }
             if e.equivalent { OK } else { REQUIRES_CHANGE }
+        }
+        Some("fingerprint") if !rest.is_empty() => {
+            // rce fingerprint [--depth N] [--fuel N] [--json] FILE...   (10.11, BF-1)
+            let (mut depth, mut fuel, mut json, mut files) = (8usize, 100_000usize, false, Vec::new());
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--depth" if i + 1 < rest.len() => {
+                        depth = rest[i + 1].parse().map_err(|_| "--depth N: N is a length of event sequence".to_string())?;
+                        i += 2;
+                    }
+                    "--fuel" if i + 1 < rest.len() => {
+                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
+                        i += 2;
+                    }
+                    "--json" => {
+                        json = true;
+                        i += 1;
+                    }
+                    f if !f.starts_with("--") => {
+                        files.push(f.to_string());
+                        i += 1;
+                    }
+                    other => return Err(format!("fingerprint: unexpected argument `{other}`")),
+                }
+            }
+            if files.is_empty() {
+                return Err("fingerprint: a FILE is required".into());
+            }
+            let one = files.len() == 1;
+            let mut status = OK;
+            for f in &files {
+                let m = parse(&read_file(f)?).map_err(|e| format!("{f}: {e}"))?;
+                match crate::dim::fingerprint(&m, depth, fuel) {
+                    Ok(fp) if json => writeln!(out, "{}", crate::dim::fingerprint_json(&fp)).map_err(w)?,
+                    Ok(fp) if one => write!(out, "{}", crate::dim::fingerprint_report(&fp)).map_err(w)?,
+                    Ok(fp) => writeln!(out, "{}  {f}", fp.hash).map_err(w)?,
+                    Err(e) => {
+                        writeln!(out, "not fingerprinted {f}: {e}").map_err(w)?;
+                        status = REQUIRES_CHANGE;
+                    }
+                }
+            }
+            status
         }
         Some("dim") if !rest.is_empty() => {
             // rce dim [--fuel N] [--control] [--json] FILE   (10.11)
