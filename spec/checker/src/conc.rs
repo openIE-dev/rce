@@ -17,7 +17,7 @@
 //!   logged partitions and vector clocks (C.11.4), and session endpoints
 //!   (C.11.3).
 use crate::ast::*;
-use crate::interp::{Flow, Interp, R, V, chk, trap};
+use crate::interp::{Flow, Interp, R, Shared, V, chk, trap};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 
@@ -422,7 +422,7 @@ pub fn merge_builtin(a: &V, b: &V) -> R<V> {
                 .collect::<R<_>>()?,
         ),
         (V::Opt(None), x) | (x, V::Opt(None)) => x.clone(),
-        (V::Opt(Some(x)), V::Opt(Some(y))) => V::Opt(Some(Box::new(merge_builtin(x, y)?))),
+        (V::Opt(Some(x)), V::Opt(Some(y))) => V::Opt(Some(Shared::from(merge_builtin(x, y)?))),
         (x, y) => return trap(format!("no Merge instance for {} and {}", x.show(), y.show())),
     })
 }
@@ -994,7 +994,8 @@ impl<'a> Interp<'a> {
                         vec![
                             ("lane".into(), V::Int(lane as i128, "usize")),
                             ("lanes".into(), V::Int(n, "usize")),
-                        ],
+                        ]
+                        .into(),
                     ),
                 );
                 self.scopes.push(lf);
@@ -1248,7 +1249,7 @@ impl<'a> Interp<'a> {
                 _ => return trap("choose needs a label"),
             };
             self.charge(C_CHAN)?;
-            self.comm(Op::Send(V::Chan(out.clone(), *cap), V::Rec(l, vec![])))?;
+            self.comm(Op::Send(V::Chan(out.clone(), *cap), V::Rec(l, vec![].into())))?;
             return Ok(Some(V::Unit));
         }
         Ok(None)
@@ -1268,7 +1269,7 @@ impl<'a> Interp<'a> {
             (V::Session(_, inn, cap), "offer") => {
                 self.charge(C_CHAN)?;
                 match self.comm(Op::Recv(V::Chan(inn.clone(), *cap)))? {
-                    Rep::Val(V::Opt(Some(v))) => match *v {
+                    Rep::Val(V::Opt(Some(v))) => match v.take() {
                         V::Rec(l, f) if f.is_empty() => V::Rec(format!("$label:{l}"), f),
                         o => o,
                     },
@@ -1357,7 +1358,7 @@ impl<'a> Interp<'a> {
             o => (o, false),
         };
         match self.comm(Op::Recv(ch))? {
-            Rep::Val(V::Opt(Some(v))) if session => Ok(*v),
+            Rep::Val(V::Opt(Some(v))) if session => Ok(v.take()),
             Rep::Val(_) if session => trap("session closed"),
             Rep::Val(v) => Ok(v),
             _ => trap("bad receive"),
@@ -1918,7 +1919,8 @@ impl<'a> Sched<'a> {
             vec![
                 ("task".into(), V::Text(self.slots[i].id.clone().into())),
                 ("reason".into(), V::Text(reason.into())),
-            ],
+            ]
+            .into(),
         )
     }
 
@@ -2033,7 +2035,7 @@ impl<'a> Sched<'a> {
                 if has {
                     let m = self.take(&c).unwrap();
                     self.deliver_entry(0, format!("Recv({})", m.v.show()), &m);
-                    Some(Rep::Val(V::Opt(Some(Box::new(m.v)))))
+                    Some(Rep::Val(V::Opt(Some(Shared::from(m.v)))))
                 } else if closed {
                     self.local(0, "Recv(none)".into());
                     Some(Rep::Val(V::Opt(None)))
@@ -2056,7 +2058,7 @@ impl<'a> Sched<'a> {
                             match self.take(&c) {
                                 Some(m) => {
                                     self.deliver_entry(0, format!("Recv({})", m.v.show()), &m);
-                                    Rep::Arm(k, Some(V::Opt(Some(Box::new(m.v)))))
+                                    Rep::Arm(k, Some(V::Opt(Some(Shared::from(m.v)))))
                                 }
                                 None => {
                                     self.local(0, "Recv(none)".into());
@@ -2103,7 +2105,7 @@ impl<'a> Sched<'a> {
                 self.slots[j].joined = true;
                 Some(Rep::Val(match &self.slots[j].result {
                     Some(Ok(v)) => v.clone(),
-                    _ => V::Err(Box::new(self.task_failed_value(j))),
+                    _ => V::Err(Shared::from(self.task_failed_value(j))),
                 }))
             }
             Op::AwaitScope(sid) => {
@@ -2856,7 +2858,7 @@ fn merge_laws(m: &Module, t: &str, members: &[FnDecl]) -> Result<(), String> {
         {
             exhaustive = true;
             for (v, _) in variants {
-                let x = V::Rec(v.clone(), vec![]);
+                let x = V::Rec(v.clone(), vec![].into());
                 if !sample.contains(&x) {
                     sample.push(x);
                 }
@@ -3243,7 +3245,7 @@ pub fn lvar_gate(m: &Module) -> Vec<String> {
         }
         m.items.iter().find_map(|i| match i {
             Item::Kind { name, variants, .. } if *name == p[0] && variants.iter().all(|v| v.1.is_empty()) => {
-                Some(variants.iter().map(|v| V::Rec(v.0.clone(), vec![])).collect())
+                Some(variants.iter().map(|v| V::Rec(v.0.clone(), vec![].into())).collect())
             }
             _ => None,
         })

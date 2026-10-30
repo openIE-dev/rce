@@ -613,7 +613,7 @@ fn main()
 ";
     let m = parse(src).unwrap();
     let ev = |n: &str, k: Option<i64>| {
-        rce_spec_check::interp::V::Rec(n.into(), k.map(|k| vec![("k".to_string(), rce_spec_check::interp::V::Int(k as i128, "i64"))]).unwrap_or_default())
+        rce_spec_check::interp::V::Rec(n.into(), k.map(|k| vec![("k".to_string(), rce_spec_check::interp::V::Int(k as i128, "i64"))]).unwrap_or_default().into())
     };
     let cfg = RunCfg {
         events: vec![(5, ev("Hit", Some(3))), (6, ev("Hit", Some(4))), (8, ev("Show", None)), (9, ev("Nobody", None))],
