@@ -19,9 +19,9 @@ pub mod ir;
 pub mod types;
 pub mod walk;
 
-/// Why the gate keeps a module: the first rule that fails, and where.
+/// Why a module requires change: the first rule of the gate that fails, and where.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Kept {
+pub struct RequiresChange {
     /// FG1 to FG15
     pub rule: &'static str,
     pub group: Option<String>,
@@ -30,11 +30,11 @@ pub struct Kept {
     pub reason: String,
 }
 
-impl Kept {
-    /// One line: `kept RULE GROUP FN PATH: REASON`, `-` for a part that does not apply.
+impl RequiresChange {
+    /// One line: `requires change RULE GROUP FN PATH: REASON`, `-` for a part that does not apply.
     pub fn line(&self) -> String {
         format!(
-            "kept {} {} {} {}: {}",
+            "requires change {} {} {} {}: {}",
             self.rule,
             self.group.as_deref().unwrap_or("-"),
             self.func.map(|f| f.to_string()).unwrap_or("-".into()),
@@ -49,13 +49,13 @@ impl Kept {
 pub enum Outcome {
     /// it complies with the Form; the module key
     Applied(String),
-    Kept(Kept),
+    RequiresChange(RequiresChange),
 }
 
 /// FG1 to FG15 on a module's bytes, and on its admission vectors when given.
 pub fn check(bytes: &[u8], vectors: Option<&[u8]>) -> Outcome {
     match gate::gate(bytes, vectors) {
         Ok(_) => Outcome::Applied(crate::interp::d_sha(&String::from_utf8_lossy(bytes))),
-        Err(k) => Outcome::Kept(k),
+        Err(k) => Outcome::RequiresChange(k),
     }
 }

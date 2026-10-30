@@ -645,7 +645,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce run-core FILE              the output of the core evaluator on the core of FILE (an RCE module or rce-core/1 JSON):
                                  an implementation under test; the expected bytes are the reference interpreter's trace
   rce form-check FORM [VECTORS]  the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or
-                                 `kept RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
+                                 `requires change RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
                                  rce-vectors/1 admission vectors, checked by FG15
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
@@ -1153,7 +1153,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     writeln!(out, "applied {key}").map_err(w)?;
                     OK
                 }
-                crate::form::Outcome::Kept(k) => {
+                crate::form::Outcome::RequiresChange(k) => {
                     writeln!(out, "{}", k.line()).map_err(w)?;
                     REQUIRES_CHANGE
                 }

@@ -2,13 +2,13 @@
 //! is present and no unknown field is; integers are canonical decimal text
 //! and floats 16 lower-case hexadecimal digits; a module with an unknown
 //! kind, entry, type or catalogue key is kept. Nothing defaults.
-use super::Kept;
+use super::RequiresChange;
 use super::catalogue;
 use super::ir::*;
 use serde_json::Value as J;
 use std::collections::BTreeMap;
 
-type R<T> = Result<T, Kept>;
+type R<T> = Result<T, RequiresChange>;
 
 /// Where the decoder is: a group and function, if inside one, and a path.
 struct Cx {
@@ -22,7 +22,7 @@ struct Cx {
 
 impl Cx {
     fn fail<T>(&self, reason: impl Into<String>) -> R<T> {
-        Err(Kept {
+        Err(RequiresChange {
             rule: "FG1",
             group: self.group.clone(),
             func: self.func,
