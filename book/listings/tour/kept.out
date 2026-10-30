@@ -1,0 +1,5 @@
+0 (initial) Counter { n = 0 }
+1 Inc Counter { n = 1 }
+2 Dec Counter { n = 0 }
+3 Dec kept: Underflow
+exit status: 1

@@ -1,0 +1,7 @@
+alphabet            2        event instances explored
+states              1000 / 1000
+verdict             different
+after               Dec()
+  A                 kept: Underflow
+  B                 silent
+exit status: 1

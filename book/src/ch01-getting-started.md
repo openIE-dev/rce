@@ -25,7 +25,7 @@ install -m 755 target/release/rce ~/.local/bin/
 
 Prebuilt binaries of `rce` (together with the desktop IDE) for Linux,
 macOS and Windows are on the
-[rce-ide releases page](https://github.com/openIE-dev/rce-ide/releases/latest);
+[releases page](https://github.com/openIE-dev/rce/releases);
 unpack one and put `rce` on your `PATH` instead of building.
 
 Check that it runs. `rce --version` names the specification draft it
