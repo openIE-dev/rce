@@ -11,8 +11,12 @@ checker-verified mutants of the accepted programs under a fixed seed: three
 whitespace-token mutants and two of each typed operator (rename, operator,
 literal, guard, type), each classified as requiring change (with its diagnostic),
 caught by the program's own example lines (W-INT-1), accepted with the same
-shape, accepted and equivalent (same trace heads), or accepted with a
-behaviour change the examples did not catch.
+shape, accepted and equivalent (same trace heads, or `rce equiv` finds the
+same behaviour when the heads differ only in state no output reads),
+accepted and undecided (`rce equiv` reaches its fuel bound), or accepted
+with a behaviour change the examples did not catch (`rce equiv` finds a
+distinguishing sequence; the trace heads decide only for a program with no
+explorable Form). Each accepted mutant records what decided it.
 
     scripts/corpus.py --rce PATH/TO/rce --out DIR
 
@@ -260,6 +264,7 @@ def main():
     ap.add_argument("--mutants", type=int, default=3, help="whitespace-token mutants per accepted program")
     ap.add_argument("--typed-depth", type=int, default=2, help="mutants per typed operator per accepted program")
     ap.add_argument("--typed-depth-with-examples", type=int, default=2, help="the same for programs with example lines (whose mutants can be scored)")
+    ap.add_argument("--equiv-fuel", type=int, default=2000, help="states rce equiv explores when a mutant's trace heads differ from its parent's")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -364,7 +369,7 @@ def main():
                      "licence": "MIT OR Apache-2.0", "source": src, "source_sha256": sha(src), "verdict": "reject",
                      "diagnostic": meta.get("diagnostic"), "clauses": meta.get("clauses"), "kind": "conformance"})
     rng = Rng(SEED)
-    mut_stats = {"reject": 0, "accept": 0, "accept_same_shape": 0, "accept_equivalent": 0, "accept_behaviour_change": 0, "caught_by_examples": 0}
+    mut_stats = {"reject": 0, "accept": 0, "accept_same_shape": 0, "accept_equivalent": 0, "accept_behaviour_change": 0, "accept_undecided": 0, "caught_by_examples": 0}
     scores = []
 
     def classify(r, text, kind, op):
@@ -401,10 +406,27 @@ def main():
                     row["outcome"] = "accept_no_examples"
                 elif heads == r["trace_heads"]:
                     row["outcome"] = "accept_equivalent"
+                    row["decided_by"] = "trace_heads"
                 else:
-                    row["outcome"] = "accept_behaviour_change"
+                    # A trace head hashes the whole state, so heads also differ
+                    # when only state that no output reads differs. Behaviour is
+                    # what rce equiv compares (10.11): 0 equivalent, 1 different,
+                    # 3 undecided at the fuel bound; any other status means the
+                    # program has no explorable Form, and the heads decide.
+                    parent = tmpdir / f"parent-{r['shape_hash'][:12]}.rce"
+                    parent.write_text(r["source"], encoding="utf-8")
+                    eq = rce.run("equiv", "--fuel", str(a.equiv_fuel), str(parent), str(f))
+                    parent.unlink()
+                    if eq.returncode == 0:
+                        row["outcome"], row["decided_by"] = "accept_equivalent", "rce_equiv"
+                    elif eq.returncode == 1 and "different" in eq.stdout:
+                        row["outcome"], row["decided_by"] = "accept_behaviour_change", "rce_equiv"
+                    elif eq.returncode == 3:
+                        row["outcome"], row["decided_by"] = "accept_undecided", "rce_equiv"
+                    else:
+                        row["outcome"], row["decided_by"] = "accept_behaviour_change", "trace_heads"
             mut_stats["accept"] += 1
-            for k in ("accept_same_shape", "accept_equivalent", "accept_behaviour_change"):
+            for k in ("accept_same_shape", "accept_equivalent", "accept_behaviour_change", "accept_undecided"):
                 if row["outcome"] == k:
                     mut_stats[k] += 1
         f.unlink()
