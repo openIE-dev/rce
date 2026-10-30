@@ -1,5 +1,13 @@
 module grp
 
+use crypto
+use framing
+use hpke
+use mls
+use protect
+use treekem
+use welcome
+
 # MLS group state across epochs for a passive member (RFC 9420 8, 12.2 to
 # 12.4), pure RCE on lib/crypto.rce, lib/hpke.rce, lib/mls.rce,
 # lib/treekem.rce, lib/framing.rce, lib/protect.rce and lib/welcome.rce:
@@ -35,18 +43,18 @@ fn lca(a0: i64, b0: i64) -> i64
     var a = a0
     var b = b0
     while a != b bound 128
-        if tm_level(a) <= tm_level(b)
-            a = rt_parent(a)
+        if mls.tm_level(a) <= mls.tm_level(b)
+            a = treekem.rt_parent(a)
         else
-            b = rt_parent(b)
+            b = treekem.rt_parent(b)
     return a
 
 fn tree_root(nodes: List[text]) -> i64 = ((nodes.len() - 1) / 2) as i64
 
 # the LeafNode of a KeyPackage body, as a tree node ("01" + LeafNode)
 fn kp_leaf_node(kp: List[i64]) -> text
-    let p = skip_v(copy(kp), 4)
-    return "01" + tohex(slice(copy(kp), p, leaf_end(kp, p)))
+    let p = treekem.skip_v(copy(kp), 4)
+    return "01" + crypto.tohex(crypto.slice(copy(kp), p, treekem.leaf_end(kp, p)))
 
 fn in_list(xs: List[i64], v: i64) -> bool
     for x in xs
@@ -57,7 +65,7 @@ fn in_list(xs: List[i64], v: i64) -> bool
 # resolution excluding the leaves in ex (new members of this commit)
 fn resolution_ex(nodes: List[text], x: i64, ex: List[i64]) -> List[i64]
     var out: List[i64] = []
-    for y in resolution(nodes, x)
+    for y in treekem.resolution(nodes, x)
         if y % 2 == 1 or not in_list(copy(ex), y / 2)
             out.push(y)
     return out
@@ -67,8 +75,8 @@ fn filtered_path_ex(nodes: List[text], s: i64, ex: List[i64]) -> List[i64]
     var out: List[i64] = []
     var x = 2 * s
     while x != root bound 64
-        let q = rt_parent(x)
-        let sb = rt_sibling(x, q)
+        let q = treekem.rt_parent(x)
+        let sb = treekem.rt_sibling(x, q)
         if resolution_ex(copy(nodes), sb, copy(ex)).len() > 0
             out.push(q)
             out.push(sb)
@@ -80,42 +88,42 @@ fn blank_path(nodes: List[text], x0: i64) -> List[text]
     let root = tree_root(copy(t))
     var x = x0
     while x != root bound 64
-        x = rt_parent(x)
+        x = treekem.rt_parent(x)
         t[x as usize] = ""
     return t
 
 fn with_unmerged(n: text, u: i64) -> text
-    let f = nfields(copy(n))
+    let f = treekem.nfields(copy(n))
     var um: List[i64] = []
-    for x in unmerged(n)
-        um = cat(um, u32b(x))
-    um = cat(um, u32b(u))
-    return "02" + tohex(cat(cat(ser_v(unhex(copy(f[0]))), ser_v(unhex(copy(f[1])))), ser_v(um)))
+    for x in treekem.unmerged(n)
+        um = crypto.cat(um, treekem.u32b(x))
+    um = crypto.cat(um, treekem.u32b(u))
+    return "02" + crypto.tohex(crypto.cat(crypto.cat(treekem.ser_v(crypto.unhex(copy(f[0]))), treekem.ser_v(crypto.unhex(copy(f[1])))), treekem.ser_v(um)))
 
 # the proposals of a Commit, resolved: "sender.proposal hex" (type included);
 # refs maps ProposalRef hex to "sender.proposal hex"
 fn commit_proposals(content: List[i64], s: i64, refs: text) -> List[text]
-    let v = rd_v(copy(content), 0)
+    let v = treekem.rd_v(copy(content), 0)
     let end = (v[0] + v[1]) as usize
     var p = v[1] as usize
     var out: List[text] = []
     while p < end bound 4096
         if content[p] == 1
-            let e = proposal_end(copy(content), p + 1)
-            out.push(s.tostr() + "." + tohex(slice(copy(content), p + 1, e)))
+            let e = framing.proposal_end(copy(content), p + 1)
+            out.push(s.tostr() + "." + crypto.tohex(crypto.slice(copy(content), p + 1, e)))
             p = e
         else
-            let r = tohex(get_v(copy(content), p + 1))
+            let r = crypto.tohex(treekem.get_v(copy(content), p + 1))
             out.push(kv_get(copy(refs), r))
-            p = skip_v(copy(content), p + 1)
+            p = treekem.skip_v(copy(content), p + 1)
     return out
 
 # ProposalRef of a proposal PublicMessage, and "sender.proposal hex"
 fn proposal_ref(msg: text) -> List[text]
-    let f = mls_decode(copy(msg))
-    let ac = cat(cat([0, 1], cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2])))), cat(cat(unhex(copy(f[3])), ser_v(unhex(copy(f[4])))), cat(unhex(copy(f[5])), cat(unhex(copy(f[6])), ser_v(unhex(copy(f[7])))))))
-    let r = ref_hash("MLS 1.0 Proposal Reference", tohex(ac))
-    let sb = unhex(copy(f[3]))
+    let f = framing.mls_decode(copy(msg))
+    let ac = crypto.cat(crypto.cat([0, 1], crypto.cat(treekem.ser_v(crypto.unhex(copy(f[1]))), crypto.unhex(copy(f[2])))), crypto.cat(crypto.cat(crypto.unhex(copy(f[3])), treekem.ser_v(crypto.unhex(copy(f[4])))), crypto.cat(crypto.unhex(copy(f[5])), crypto.cat(crypto.unhex(copy(f[6])), treekem.ser_v(crypto.unhex(copy(f[7])))))))
+    let r = mls.ref_hash("MLS 1.0 Proposal Reference", crypto.tohex(ac))
+    let sb = crypto.unhex(copy(f[3]))
     let sender = (sb[1] << 24) | (sb[2] << 16) | (sb[3] << 8) | sb[4]
     return [r, sender.tostr() + "." + copy(f[6])]
 
@@ -127,20 +135,20 @@ fn apply_proposals(nodes: List[text], props: List[text], gce0: text) -> List[tex
     var gce = gce0
     for pr in copy(props)
         let pp = pr.split(".")
-        let b = unhex(copy(pp[1]))
+        let b = crypto.unhex(copy(pp[1]))
         if ((b[0] << 8) | b[1]) == 7
-            gce = tohex(get_v(slice_i(b, 2), 0))
+            gce = crypto.tohex(treekem.get_v(treekem.slice_i(b, 2), 0))
     for pr in copy(props)
         let pp = pr.split(".")
-        let b = unhex(copy(pp[1]))
+        let b = crypto.unhex(copy(pp[1]))
         if ((b[0] << 8) | b[1]) == 2
             let sx = copy(pp[0]).toint()
-            t[(2 * sx) as usize] = "01" + tohex(slice_i(b, 2))
+            t[(2 * sx) as usize] = "01" + crypto.tohex(treekem.slice_i(b, 2))
             t = blank_path(t, 2 * sx)
     var removed = false
     for pr in copy(props)
         let pp = pr.split(".")
-        let b = unhex(copy(pp[1]))
+        let b = crypto.unhex(copy(pp[1]))
         if ((b[0] << 8) | b[1]) == 3
             let r = (b[2] << 24) | (b[3] << 16) | (b[4] << 8) | b[5]
             t[(2 * r) as usize] = ""
@@ -163,7 +171,7 @@ fn apply_proposals(nodes: List[text], props: List[text], gce0: text) -> List[tex
     var added = ""
     for pr in copy(props)
         let pp = pr.split(".")
-        let b = unhex(copy(pp[1]))
+        let b = crypto.unhex(copy(pp[1]))
         if ((b[0] << 8) | b[1]) == 1
             var free: i64 = -1
             var i: usize = 0
@@ -176,20 +184,20 @@ fn apply_proposals(nodes: List[text], props: List[text], gce0: text) -> List[tex
                 let w = t.len() + 1
                 for _ in 0..w
                     t.push("")
-            t[free as usize] = kp_leaf_node(slice_i(b, 2))
+            t[free as usize] = kp_leaf_node(treekem.slice_i(b, 2))
             added = added + (free / 2).tostr() + ","
             let root = tree_root(copy(t))
             var y = free
             while y != root bound 64
-                y = rt_parent(y)
+                y = treekem.rt_parent(y)
                 if t[y as usize] != ""
                     t[y as usize] = with_unmerged(copy(t[y as usize]), free / 2)
     var psks = ""
     for pr in copy(props)
         let pp = pr.split(".")
-        let b = unhex(copy(pp[1]))
+        let b = crypto.unhex(copy(pp[1]))
         if ((b[0] << 8) | b[1]) == 4
-            psks = psks + tohex(slice_i(b, 2)) + ","
+            psks = psks + crypto.tohex(treekem.slice_i(b, 2)) + ","
     t.push(gce)
     t.push(added)
     t.push(psks)
@@ -208,27 +216,27 @@ fn psk_secret_ids(ids: text, ext: text, res: text) -> List[i64]
     for x in ids.split(",")
         if x != ""
             list.push(copy(x))
-    var ps = zero32()
+    var ps = mls.zero32()
     let n = list.len() as i64
     var i: i64 = 0
     for idh in list
-        let idb = unhex(copy(idh))
+        let idb = crypto.unhex(copy(idh))
         var key: List[i64] = []
         if idb[0] == 1
-            key = unhex(kv_get(copy(ext), tohex(get_v(copy(idb), 1))))
+            key = crypto.unhex(kv_get(copy(ext), crypto.tohex(treekem.get_v(copy(idb), 1))))
         else
-            let q = skip_v(copy(idb), 2)
+            let q = treekem.skip_v(copy(idb), 2)
             var e: i64 = 0
             for j in 0..8
                 e = (e << 8) | idb[q + j]
-            key = unhex(kv_get(copy(res), e.tostr()))
-        let pin = expand_label(extract(zero32(), key), "derived psk", cat(idb, [(i >> 8) & 255, i & 255, (n >> 8) & 255, n & 255]), 32)
-        ps = extract(pin, ps)
+            key = crypto.unhex(kv_get(copy(res), e.tostr()))
+        let pin = mls.expand_label(mls.extract(mls.zero32(), key), "derived psk", crypto.cat(idb, [(i >> 8) & 255, i & 255, (n >> 8) & 255, n & 255]), 32)
+        ps = mls.extract(pin, ps)
         i += 1
     return ps
 
 fn group_context_x(gid: text, epoch: i64, th: text, cth: text, gce: text) -> text
-    return tohex(cat(cat(cat([0, 1, 0, 1], ser_v(unhex(gid))), cat(u64b(epoch), ser_v(unhex(th)))), cat(ser_v(unhex(cth)), ser_v(unhex(gce)))))
+    return crypto.tohex(crypto.cat(crypto.cat(crypto.cat([0, 1, 0, 1], treekem.ser_v(crypto.unhex(gid))), crypto.cat(welcome.u64b(epoch), treekem.ser_v(crypto.unhex(th)))), crypto.cat(treekem.ser_v(crypto.unhex(cth)), treekem.ser_v(crypto.unhex(gce)))))
 
 # our new keys from an update path: decrypt at the first filtered node over
 # our leaf, ratchet up; returns [held, commit secret] or [] if we cannot
@@ -237,7 +245,7 @@ fn path_receive(old: List[text], up: List[text], fp: List[i64], ex: List[i64], g
     let m = fp.len() / 2
     for j in 0..m
         let sb = fp[2 * j + 1]
-        let k = tm_level(sb)
+        let k = mls.tm_level(sb)
         if 2 * me >= sb - ((1 << k) - 1) and 2 * me <= sb + ((1 << k) - 1)
             let cts = up[j + 1].split("|")
             var pos: usize = 0
@@ -245,10 +253,10 @@ fn path_receive(old: List[text], up: List[text], fp: List[i64], ex: List[i64], g
                 let sk = kv_get(copy(held), d.tostr())
                 if sk != ""
                     let kc = cts[pos + 1].split(",")
-                    var ps = decrypt_with_label(sk, "UpdatePathNode", copy(gc), copy(kc[0]), copy(kc[1]))
+                    var ps = hpke.decrypt_with_label(sk, "UpdatePathNode", copy(gc), copy(kc[0]), copy(kc[1]))
                     for jj in j..m
-                        held = kv_set(held, fp[2 * jj].tostr(), node_sk(copy(ps)))
-                        ps = tohex(derive_secret(unhex(ps), "path"))
+                        held = kv_set(held, fp[2 * jj].tostr(), treekem.node_sk(copy(ps)))
+                        ps = crypto.tohex(mls.derive_secret(crypto.unhex(ps), "path"))
                     return [held, ps]
                 pos += 1
     return []
@@ -256,10 +264,10 @@ fn path_receive(old: List[text], up: List[text], fp: List[i64], ex: List[i64], g
 # a PublicMessage from a current member: signed by its leaf, with the
 # membership tag under this epoch's membership key and GroupContext gc
 fn authentic(msg: text, nodes: List[text], gc: text, mkey: text) -> bool
-    let f = mls_decode(copy(msg))
+    let f = framing.mls_decode(copy(msg))
     if f.len() != 10
         return false
-    let sb = unhex(copy(f[3]))
+    let sb = crypto.unhex(copy(f[3]))
     if sb[0] != 1
         return false
     let s = (sb[1] << 24) | (sb[2] << 16) | (sb[3] << 8) | sb[4]
@@ -267,4 +275,4 @@ fn authentic(msg: text, nodes: List[text], gc: text, mkey: text) -> bool
         return false
     if nodes[(2 * s) as usize] == ""
         return false
-    return pub_ok(msg, gc, leaf_sig_key(nodes, s), mkey)
+    return protect.pub_ok(msg, gc, welcome.leaf_sig_key(nodes, s), mkey)

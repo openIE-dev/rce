@@ -1,5 +1,5 @@
-//! TreeKEM ratchet trees in pure RCE (crates/rce/lib/treekem.rce on top of
-//! lib/crypto.rce and lib/mls.rce) against the official RFC 9420
+//! TreeKEM ratchet trees in pure RCE (stdlib/lib/treekem.rce on top of
+//! stdlib/lib/crypto.rce and stdlib/lib/mls.rce) against the official RFC 9420
 //! tree-validation.json vectors for cipher suite 1: every tree decodes, every
 //! tree hash and every resolution matches, and every parent node is
 //! parent-hash valid (the 11 trees up to 16 leaves; hashes and
@@ -10,18 +10,12 @@ use rce_spec_check::host::{Adapter, Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn combined() -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule treekem_steps\n");
-    for f in ["lib/crypto.rce", "lib/hpke.rce", "lib/mls.rce", "lib/treekem.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || l.starts_with("check ") {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "hpke", "mls", "treekem"], false));
     s + APP
 }
 

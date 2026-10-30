@@ -12,7 +12,7 @@ intent "PQXDH (Signal's post-quantum X3DH) over X25519, SHA-256 and ML-KEM-768 (
 # input inside the per-input fuel of HC-7a. The private keys and the ML-KEM
 # seeds d, z and m are constants here; a real program takes them from logged
 # Random results (HC-10), and the initiator checks the Ed25519 signature on
-# the responder's ML-KEM prekey (ed_verify, lib/crypto.rce) before use.
+# the responder's ML-KEM prekey (ed_verify, stdlib/lib/crypto.rce) before use.
 
 event Keys(ika: text, eka: text, ikb: text, spkb: text)
 event Pub(who: text)

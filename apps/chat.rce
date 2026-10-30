@@ -1,5 +1,6 @@
 module chat
 
+
 intent "chat v1: workspaces, channels and topic threads, DMs and groups, reactions, presence, file shares and call rooms as one replicated RCE state; every change is an op applied locally and sent to peers over P4 channels; messages order by (Lamport clock, author) so replicas converge; direct messages are end-to-end encrypted (signed-prekey X3DH, one Double Ratchet per peer)"
     example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi") -> messages.len() == 1
     example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi"), Do(op: "react", conv: "c\u{1f}t\u{1f}000000000001\u{1f}a", topic: "+1", body: "") -> reactions.len() == 1
@@ -12,7 +13,7 @@ intent "chat v1: workspaces, channels and topic threads, DMs and groups, reactio
     example Setup(me: "a", peers: []), RandomDone(req: 1, status: "delivered", data: some("1111111111111111111111111111111111111111111111111111111111111111222222222222222222222222222222222222222222222222222222222222222233333333333333333333333333333333333333333333333333333333333333333"), err: "") -> keys.len() == 0
 
 # ---------------------------------------------------------------- chat app
-# Source of apps/chat.rce together with lib/crypto.rce (scripts/build-chat.sh
+# Source of apps/chat.rce together with stdlib/lib/crypto.rce (scripts/build-chat.sh
 # concatenates them; tests/app_chat.rs fails while apps/chat.rce is stale).
 #
 # E2EE (W4): each replica has an X25519 identity key, an Ed25519 signing key
@@ -588,7 +589,7 @@ step Chat on View(conv: c, topic: t)
             emit Display(data: "view\t" + copy(mk) + "\t" + copy(f[3]) + "\t" + flags + "\t" + line + "\n")
     emit Display(data: "view-end\n")
 
-# ---------------------------------------------------------------- lib/crypto.rce (generated, do not edit here)
+# ---------------------------------------------------------------- stdlib/lib/crypto.rce (generated, do not edit here)
 
 # Pure RCE cryptography for chat E2EE (W4). Bytes are List[i64] with values
 # 0..255; words are i64 masked to 32 bits. Randomness never comes from here:
@@ -600,7 +601,7 @@ step Chat on View(conv: c, topic: t)
 # vectors run as host steps in tests/ed25519_rce.rs: the comptime fuel of a
 # module is one budget for all its checks, and one signature costs ~30M.
 
-const MASK: i64 = 4294967295
+pub const MASK: i64 = 4294967295
 
 fn sha_k() -> List[i64] = [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]
 
@@ -608,7 +609,7 @@ fn rotr(x: i64, n: i64) -> i64 = ((x >> n) | (x << (32 - n))) & MASK
 
 fn rotl(x: i64, n: i64) -> i64 = ((x << n) | (x >> (32 - n))) & MASK
 
-fn sha256(msg: List[i64]) -> List[i64]
+pub fn sha256(msg: List[i64]) -> List[i64]
     let k = sha_k()
     var h: List[i64] = [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]
     var m = copy(msg)
@@ -668,13 +669,13 @@ fn sha256(msg: List[i64]) -> List[i64]
         out.push(x & 255)
     return out
 
-fn cat(a: List[i64], b: List[i64]) -> List[i64]
+pub fn cat(a: List[i64], b: List[i64]) -> List[i64]
     var o = copy(a)
     for x in b
         o.push(x)
     return o
 
-fn tobytes(s: text) -> List[i64]
+pub fn tobytes(s: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
     while i < s.len_bytes() bound 1048576
@@ -682,7 +683,7 @@ fn tobytes(s: text) -> List[i64]
         i += 1
     return o
 
-fn hmac(key: List[i64], msg: List[i64]) -> List[i64]
+pub fn hmac(key: List[i64], msg: List[i64]) -> List[i64]
     var k = copy(key)
     if k.len() > 64
         k = sha256(copy(key))
@@ -696,7 +697,7 @@ fn hmac(key: List[i64], msg: List[i64]) -> List[i64]
     return sha256(cat(op, sha256(cat(ip, msg))))
 
 # HKDF-SHA256 (RFC 5869), output of n <= 255*32 bytes.
-fn hkdf(salt: List[i64], ikm: List[i64], info: List[i64], n: usize) -> List[i64]
+pub fn hkdf(salt: List[i64], ikm: List[i64], info: List[i64], n: usize) -> List[i64]
     let prk = hmac(salt, ikm)
     var out: List[i64] = []
     var t: List[i64] = []
@@ -743,7 +744,7 @@ fn chacha_block(key: List[i64], counter: i64, nonce: List[i64]) -> List[i64]
         out.push((v >> 24) & 255)
     return out
 
-fn chacha20(key: List[i64], nonce: List[i64], data: List[i64]) -> List[i64]
+pub fn chacha20(key: List[i64], nonce: List[i64], data: List[i64]) -> List[i64]
     var out: List[i64] = []
     var ks: List[i64] = []
     var ctr: i64 = 1
@@ -756,7 +757,7 @@ fn chacha20(key: List[i64], nonce: List[i64], data: List[i64]) -> List[i64]
         i += 1
     return out
 
-fn slice(b: List[i64], lo: usize, hi: usize) -> List[i64]
+pub fn slice(b: List[i64], lo: usize, hi: usize) -> List[i64]
     var o: List[i64] = []
     var i = lo
     while i < hi and i < b.len() bound 1048576
@@ -764,16 +765,27 @@ fn slice(b: List[i64], lo: usize, hi: usize) -> List[i64]
         i += 1
     return o
 
-# AEAD, encrypt-then-MAC: (enc, mac) = HKDF(key); ctext = ChaCha20(enc, nonce, pt);
-# tag = HMAC(mac, nonce || ad || ctext)[0..16]. Output: hex(ctext || tag).
-fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
+# AEAD, encrypt-then-MAC: (enc, mac) = HKDF(key); ct = ChaCha20(enc, nonce, pt);
+# tag = HMAC(mac, nonce || ad || ct)[0..16]. Output: hex(ct || tag).
+pub fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
     let ctext = chacha20(slice(copy(ks), 0, 32), copy(nonce), pt)
     let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
     return tohex(cat(ctext, tag))
 
+# Equality of two byte lists with no early exit: the OR of all byte XORs is
+# tested once at the end. Only the lengths are public (a length mismatch
+# answers at once). Constant fuel for any contents of equal length.
+fn ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
 # The plaintext bytes, or [-1] when the tag does not verify.
-fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i64]
+pub fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i64]
     let b = unhex(sealed)
     if b.len() < 16
         return [-1]
@@ -781,21 +793,21 @@ fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i
     let tag = slice(copy(b), b.len() - 16, b.len())
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
     let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
-    if tohex(want) != tohex(tag)
+    if not ct_eq(want, tag)
         return [-1]
     return chacha20(slice(copy(ks), 0, 32), nonce, ctext)
 
+# Value of one lowercase hex digit (0 for any other character, as before),
+# by arithmetic only: no digit table scan and no branch on the digit. The
+# range tests use the sign of a difference: ((c - lo) | (hi - c)) >> 63 is
+# all ones exactly when c is outside lo..hi.
 fn hexval(c: text) -> i64
-    let ds = "0123456789abcdef".chars()
-    var v: i64 = 0
-    var k: i64 = 0
-    for d in ds
-        if d == c
-            v = k
-        k += 1
-    return v
+    let b = c[0] as i64
+    let dm = (((b - 48) | (57 - b)) >> 63) ^ (0 - 1)
+    let am = (((b - 97) | (102 - b)) >> 63) ^ (0 - 1)
+    return (dm & (b - 48)) | (am & (b - 87))
 
-fn unhex(h: text) -> List[i64]
+pub fn unhex(h: text) -> List[i64]
     let cs = h.chars()
     var out: List[i64] = []
     var i: usize = 0
@@ -804,12 +816,24 @@ fn unhex(h: text) -> List[i64]
         i += 2
     return out
 
-fn tohex(b: List[i64]) -> text
-    let ds = "0123456789abcdef".chars()
-    var s = ""
+# ASCII code of the lowercase hex digit of n in 0..15: 48 + n, plus 39 when
+# n > 9 (mask from the sign of 9 - n). No table index.
+fn hexdig(n: i64) -> i64 = 48 + n + (39 & ((9 - n) >> 63))
+
+# Hex text of a byte list. Elements must be bytes: anything outside 0..255
+# traps, as an out-of-range table index did before. The trap comes from
+# utf8() of a guard element that is 256 exactly when the OR of all elements
+# has a bit outside 0..255, so there is no branch on the data.
+pub fn tohex(b: List[i64]) -> text
+    var codes: List[i64] = []
+    var acc: i64 = 0
     for x in b
-        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
-    return s
+        acc = acc | x
+        codes.push(hexdig(x >> 4))
+        codes.push(hexdig(x & 15))
+    let t = acc >> 8
+    let _g = [((t | (0 - t)) >> 63 & 1) << 8].utf8()
+    return codes.utf8()
 
 # GF(2^255 - 19) in ten 26-bit limbs (radix 2^26, 2^260 = 608 mod p) in
 # i64: limb products stay below 2^58 before carrying.
@@ -882,8 +906,6 @@ fn fsub(a: List[i64], b: List[i64]) -> List[i64]
         o[i] = o[i] - b[i]
     return carry(o)
 
-# schoolbook 10x10 limb product, unrolled (same arithmetic as the loop form,
-# about 3x fewer interpreter steps)
 fn fmul(a: List[i64], b: List[i64]) -> List[i64]
     let a0 = a[0]
     let a1 = a[1]
@@ -971,7 +993,6 @@ fn fsqn(a: List[i64], n: i64) -> List[i64]
         c = fmul(copy(c), copy(c))
     return c
 
-# z^(p-2) by the standard chain: 254 squarings, 11 multiplications
 fn finv(z: List[i64]) -> List[i64]
     let z2 = fmul(copy(z), copy(z))
     let z9 = fmul(fsqn(copy(z2), 2), copy(z))
@@ -1024,8 +1045,23 @@ fn unpack(b: List[i64]) -> List[i64]
         o[li] = o[li] | (bit << (k % 26))
     return o
 
+# Conditional swap of RFC 7748 5.1 (cswap) without a branch: for the mask m
+# (0 or all ones, m = 0 - bit) the swap of a and b is a ^= d, b ^= d with
+# d = m & (a ^ b). Every limb is processed whatever the bit.
+fn cdiff(m: i64, a: List[i64], b: List[i64]) -> List[i64]
+    var d: List[i64] = []
+    for i in 0..10
+        d.push(m & (a[i] ^ b[i]))
+    return d
+
+fn fxor(a: List[i64], d: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..10
+        o.push(a[i] ^ d[i])
+    return o
+
 # X25519(k, u) of RFC 7748 over 32-byte hex strings.
-fn x25519(kh: text, uh: text) -> text
+pub fn x25519(kh: text, uh: text) -> text
     var z = unhex(kh)
     z[31] = (z[31] & 127) | 64
     z[0] = z[0] & 248
@@ -1038,13 +1074,13 @@ fn x25519(kh: text, uh: text) -> text
     for s in 0..255
         let i = 254 - s
         let r = (z[(i >> 3) as usize] >> (i & 7)) & 1
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m = 0 - r
+        let sab = cdiff(m, copy(a), copy(b))
+        let scd = cdiff(m, copy(c), copy(d))
+        a = fxor(a, copy(sab))
+        b = fxor(b, sab)
+        c = fxor(c, copy(scd))
+        d = fxor(d, scd)
         var e = fadd(copy(a), copy(c))
         a = fsub(copy(a), copy(c))
         c = fadd(copy(b), copy(d))
@@ -1063,22 +1099,22 @@ fn x25519(kh: text, uh: text) -> text
         a = fmul(copy(d), copy(f))
         d = fmul(copy(b), copy(x))
         b = fmul(copy(e), copy(e))
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m2 = 0 - r
+        let sab2 = cdiff(m2, copy(a), copy(b))
+        let scd2 = cdiff(m2, copy(c), copy(d))
+        a = fxor(a, copy(sab2))
+        b = fxor(b, sab2)
+        c = fxor(c, copy(scd2))
+        d = fxor(d, scd2)
     let ci = finv(copy(c))
     return tohex(pack(fmul(copy(a), ci)))
 
 
 const BASE: text = "0900000000000000000000000000000000000000000000000000000000000000"
 
-fn pubkey(priv: text) -> text = x25519(priv, BASE)
+pub fn pubkey(priv: text) -> text = x25519(priv, BASE)
 
-fn ff32() -> List[i64]
+pub fn ff32() -> List[i64]
     var o: List[i64] = []
     for _ in 0..32
         o.push(255)
@@ -1088,13 +1124,13 @@ fn ff32() -> List[i64]
 # signature, both open in v0): the shared secret of the initiator holding
 # identity key ika and ephemeral key eka, to the responder's identity IKb and
 # signed prekey SPKb (hex public keys).
-fn x3dh_init(ika: text, eka: text, ikb_pub: text, spkb_pub: text) -> text
+pub fn x3dh_init(ika: text, eka: text, ikb_pub: text, spkb_pub: text) -> text
     let dh1 = unhex(x25519(ika, copy(spkb_pub)))
     let dh2 = unhex(x25519(copy(eka), ikb_pub))
     let dh3 = unhex(x25519(eka, spkb_pub))
     return tohex(hkdf([], cat(cat(cat(ff32(), dh1), dh2), dh3), tobytes("rce-x3dh-v0"), 32))
 
-fn x3dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
+pub fn x3dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
     let dh1 = unhex(x25519(copy(spkb), ika_pub))
     let dh2 = unhex(x25519(ikb, copy(eka_pub)))
     let dh3 = unhex(x25519(spkb, eka_pub))
@@ -1103,7 +1139,7 @@ fn x3dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
 # Double Ratchet (Signal spec) over X25519, HKDF and the AEAD above. Keys are
 # hex text. Skipped message keys are kept in `skipped` (dh|n -> key), at most
 # MAX_SKIP per chain step.
-struct Ratchet
+pub struct Ratchet
     dhs: text
     dhs_pub: text
     dhr: text
@@ -1115,12 +1151,12 @@ struct Ratchet
     pn: i64
     skipped: Map[text, text]
 
-struct Sealed
+pub struct Sealed
     st: Ratchet
     header: text
     body: text
 
-struct Opened
+pub struct Opened
     st: Ratchet
     ok: bool
     plain: List[i64]
@@ -1144,15 +1180,15 @@ fn nonce12(n: i64) -> List[i64]
 
 # Alice starts after X3DH: sk the shared secret, bob_spk Bob's signed prekey
 # (his first ratchet key), fresh 32 random bytes (a logged Random result).
-fn ratchet_init_alice(sk: text, bob_spk: text, fresh: text) -> Ratchet
+pub fn ratchet_init_alice(sk: text, bob_spk: text, fresh: text) -> Ratchet
     let dh = x25519(copy(fresh), copy(bob_spk))
     let k = kdf_rk(sk, dh)
     return Ratchet(dhs: copy(fresh), dhs_pub: pubkey(fresh), dhr: bob_spk, rk: tohex(slice(copy(k), 0, 32)), cks: tohex(slice(k, 32, 64)), ckr: "", ns: 0, nr: 0, pn: 0, skipped: {})
 
-fn ratchet_init_bob(sk: text, spk: text) -> Ratchet
+pub fn ratchet_init_bob(sk: text, spk: text) -> Ratchet
     return Ratchet(dhs: copy(spk), dhs_pub: pubkey(spk), dhr: "", rk: sk, cks: "", ckr: "", ns: 0, nr: 0, pn: 0, skipped: {})
 
-fn ratchet_encrypt(r: Ratchet, pt: List[i64]) -> Sealed
+pub fn ratchet_encrypt(r: Ratchet, pt: List[i64]) -> Sealed
     var s = r
     let mk = ck_msg(copy(s.cks))
     s.cks = ck_next(copy(s.cks))
@@ -1161,7 +1197,7 @@ fn ratchet_encrypt(r: Ratchet, pt: List[i64]) -> Sealed
     s.ns = s.ns + 1
     return Sealed(st: s, header: header, body: body)
 
-fn ratchet_decrypt(r: Ratchet, header: text, body: text, fresh: text) -> Opened
+pub fn ratchet_decrypt(r: Ratchet, header: text, body: text, fresh: text) -> Opened
     var s = copy(r)
     let h = header.split(".")
     if h.len() != 3
@@ -1210,18 +1246,18 @@ fn ratchet_decrypt(r: Ratchet, header: text, body: text, fresh: text) -> Opened
 # each member has a sender chain key, sent to every member over pairwise
 # Double Ratchet sessions; a group message is sealed with the next key of the
 # sender's chain. MLS TreeKEM is open.
-struct SenderSealed
+pub struct SenderSealed
     chain: text
     n: i64
     body: text
 
-fn sender_seal(chain: text, n: i64, grp: text, pt: List[i64]) -> SenderSealed
+pub fn sender_seal(chain: text, n: i64, grp: text, pt: List[i64]) -> SenderSealed
     let mk = ck_msg(copy(chain))
     let body = seal(unhex(mk), nonce12(n), tobytes(grp), pt)
     return SenderSealed(chain: ck_next(chain), n: n + 1, body: body)
 
 # Decrypt message n of a sender chain whose key at index `at` is `chain`.
-fn sender_open(chain: text, at: i64, n: i64, grp: text, body: text) -> List[i64]
+pub fn sender_open(chain: text, at: i64, n: i64, grp: text, body: text) -> List[i64]
     var ck = chain
     var i = at
     while i < n bound 1024
@@ -1288,7 +1324,7 @@ fn n64(a: List[i64], b: List[i64]) -> List[i64] = [a[0] & b[0], a[1] & b[1]]
 
 fn not64(a: List[i64]) -> List[i64] = [MASK ^ a[0], MASK ^ a[1]]
 
-fn sha512(msg: List[i64]) -> List[i64]
+pub fn sha512(msg: List[i64]) -> List[i64]
     let kk = sha512_k()
     let h0: List[i64] = [1779033703, 4089235720, 3144134277, 2227873595, 1013904242, 4271175723, 2773480762, 1595750129, 1359893119, 2917565137, 2600822924, 725511199, 528734635, 4215389547, 1541459225, 327033209]
     var h: List[List[i64]] = []
@@ -1435,7 +1471,27 @@ fn pt_table(p: Pt) -> List[Pt]
 
 fn nib(s: List[i64], i: i64) -> usize = ((s[(i >> 1) as usize] >> (4 * (i & 1))) & 15) as usize
 
-# s * p, s a 32-byte little-endian scalar, 4-bit fixed window
+# tb[n] for n in 0..15 by a full scan: every entry is read and masked, the
+# entry whose index equals n (mask all ones: (j ^ n) - 1 is negative only
+# when j ^ n = 0) is the one kept. No index depends on n.
+fn pt_select(tb: List[Pt], n: i64) -> Pt
+    var x = fe(0)
+    var y = fe(0)
+    var z = fe(0)
+    var t = fe(0)
+    for j in 0..16
+        let m = ((j as i64 ^ n) - 1) >> 63
+        for l in 0..10
+            x[l] = x[l] | (m & tb[j].x[l])
+            y[l] = y[l] | (m & tb[j].y[l])
+            z[l] = z[l] | (m & tb[j].z[l])
+            t[l] = t[l] | (m & tb[j].t[l])
+    return Pt(x: x, y: y, z: z, t: t)
+
+# s * p, s a 32-byte little-endian scalar, 4-bit fixed window. The window
+# entry is chosen by pt_select (full scan), so no table index depends on s;
+# s is secret in key generation and signing. (pt_mul2 below is verification
+# only: both scalars are public there, and it keeps the direct index.)
 fn pt_mul(s: List[i64], p: Pt) -> Pt
     let tb = pt_table(p)
     var r = pt_zero()
@@ -1444,7 +1500,7 @@ fn pt_mul(s: List[i64], p: Pt) -> Pt
         if k > 0
             for _ in 0..4
                 r = pt_dbl(copy(r))
-        r = pt_add(copy(r), copy(tb[nib(copy(s), i)]))
+        r = pt_add(copy(r), pt_select(copy(tb), nib(copy(s), i) as i64))
     return r
 
 # s * p + t * q (Straus, shared doublings)
@@ -1503,15 +1559,28 @@ fn pt_dec(b: List[i64]) -> Dec
 
 fn ed_l() -> List[i64] = [237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0]
 
-# a >= b on equal-length little-endian byte lists
-fn bge(a: List[i64], b: List[i64]) -> bool
-    for k in 0..a.len()
-        let i = a.len() - 1 - k
-        if a[i] != b[i]
-            return a[i] > b[i]
-    return true
+# a - b on equal-length little-endian byte lists, as the difference modulo
+# 256^n and the final borrow (1 when a < b). The borrow is the sign bit of
+# each limb difference: no branch, same work for all values.
+fn sub_borrow(a: List[i64], b: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    for j in 0..a.len()
+        let v = a[j] - b[j] - br
+        br = (v >> 63) & 1
+        o.push(v & 255)
+    o.push(br)
+    return o
 
-# x mod L for a little-endian byte list x of any length, 32 bytes out
+# a >= b on equal-length little-endian byte lists, with no early exit
+fn bge(a: List[i64], b: List[i64]) -> bool
+    let d = sub_borrow(a, b)
+    return d[d.len() - 1] == 0
+
+# x mod L for a little-endian byte list x of any length, 32 bytes out.
+# Shift-and-subtract over the bits of x (a public count); each step
+# computes r - L with its borrow and keeps r or r - L by a mask, so the
+# work is the same whether or not the subtraction applies.
 fn sc_reduce(x: List[i64]) -> List[i64]
     let l = ed_l()
     var r: List[i64] = []
@@ -1526,16 +1595,10 @@ fn sc_reduce(x: List[i64]) -> List[i64]
             let v = r[j] * 2 + c
             r[j] = v & 255
             c = v >> 8
-        if bge(copy(r), copy(l))
-            var br: i64 = 0
-            for j in 0..33
-                let v = r[j] - l[j] - br
-                if v < 0
-                    r[j] = v + 256
-                    br = 1
-                else
-                    r[j] = v
-                    br = 0
+        let d = sub_borrow(copy(r), copy(l))
+        let keep = 0 - d[33]
+        for j in 0..33
+            r[j] = d[j] ^ (keep & (r[j] ^ d[j]))
         k += 1
     return slice(r, 0, 32)
 
@@ -1568,10 +1631,10 @@ fn ed_expand(seed: text) -> EdKey
     return EdKey(a: copy(a), prefix: slice(h, 32, 64), pk: pt_enc(pt_mul(a, ed_base())))
 
 # The public key (hex) of a 32-byte secret seed (hex).
-fn ed_pubkey(seed: text) -> text = tohex(ed_expand(seed).pk)
+pub fn ed_pubkey(seed: text) -> text = tohex(ed_expand(seed).pk)
 
 # The 64-byte signature (hex) of msg under seed (RFC 8032 5.1.6).
-fn ed_sign(seed: text, msg: List[i64]) -> text
+pub fn ed_sign(seed: text, msg: List[i64]) -> text
     let k = ed_expand(seed)
     let r = sc_reduce(sha512(cat(copy(k.prefix), copy(msg))))
     let rb = pt_enc(pt_mul(copy(r), ed_base()))
@@ -1580,7 +1643,7 @@ fn ed_sign(seed: text, msg: List[i64]) -> text
 
 # RFC 8032 5.1.7: S < L, A decodes, and [S]B - [k]A encodes to R (an
 # encoding is canonical, so a non-canonical R never matches).
-fn ed_verify(pk: text, msg: List[i64], sig: text) -> bool
+pub fn ed_verify(pk: text, msg: List[i64], sig: text) -> bool
     let sb = unhex(sig)
     let ab = unhex(copy(pk))
     if sb.len() != 64 or ab.len() != 32

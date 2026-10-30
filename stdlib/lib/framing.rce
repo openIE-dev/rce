@@ -1,5 +1,8 @@
 module framing
 
+use crypto
+use treekem
+
 # MLS message framing (RFC 9420 6, 12.1, 12.4) in pure RCE on lib/crypto.rce, lib/hpke.rce,
 # lib/mls.rce and lib/treekem.rce: walkers that find the exact end of every
 # wire structure (KeyPackage, LeafNode, the seven proposal types, Commit with
@@ -12,41 +15,41 @@ module framing
 fn u16at(b: List[i64], p: usize) -> i64 = (b[p] << 8) | b[p + 1]
 
 fn kp_end(b: List[i64], p0: usize) -> usize
-    var p = skip_v(copy(b), p0 + 4)
-    p = leaf_end(copy(b), p)
-    p = skip_v(copy(b), p)
-    return skip_v(b, p)
+    var p = treekem.skip_v(copy(b), p0 + 4)
+    p = treekem.leaf_end(copy(b), p)
+    p = treekem.skip_v(copy(b), p)
+    return treekem.skip_v(b, p)
 
 fn psk_id_end(b: List[i64], p0: usize) -> usize
     var p = p0 + 1
     if b[p0] == 1
-        p = skip_v(copy(b), p)
+        p = treekem.skip_v(copy(b), p)
     else
-        p = skip_v(copy(b), p + 1) + 8
-    return skip_v(b, p)
+        p = treekem.skip_v(copy(b), p + 1) + 8
+    return treekem.skip_v(b, p)
 
 # end of a proposal body of type t at p (0 for an unknown type)
 fn proposal_body_end(b: List[i64], p: usize, t: i64) -> usize
     if t == 1
         return kp_end(b, p)
     if t == 2
-        return leaf_end(b, p)
+        return treekem.leaf_end(b, p)
     if t == 3
         return p + 4
     if t == 4
         return psk_id_end(b, p)
     if t == 5
-        return skip_v(copy(b), skip_v(copy(b), p) + 4)
+        return treekem.skip_v(copy(b), treekem.skip_v(copy(b), p) + 4)
     if t == 6 or t == 7
-        return skip_v(b, p)
+        return treekem.skip_v(b, p)
     return 0
 
-fn proposal_end(b: List[i64], p: usize) -> usize
+pub fn proposal_end(b: List[i64], p: usize) -> usize
     let e = proposal_body_end(copy(b), p + 2, u16at(copy(b), p))
     return if e == 0 then 0 else e
 
-fn commit_end(b: List[i64], p0: usize) -> usize
-    let v = rd_v(copy(b), p0)
+pub fn commit_end(b: List[i64], p0: usize) -> usize
+    let v = treekem.rd_v(copy(b), p0)
     let end = (v[0] + v[1]) as usize
     var p = v[1] as usize
     while p < end bound 4096
@@ -56,7 +59,7 @@ fn commit_end(b: List[i64], p0: usize) -> usize
                 return 0
         else
             if b[p] == 2
-                p = skip_v(copy(b), p + 1)
+                p = treekem.skip_v(copy(b), p + 1)
             else
                 return 0
     if p != end
@@ -65,53 +68,53 @@ fn commit_end(b: List[i64], p0: usize) -> usize
         return p + 1
     if b[p] != 1
         return 0
-    return skip_v(copy(b), leaf_end(copy(b), p + 1))
+    return treekem.skip_v(copy(b), treekem.leaf_end(copy(b), p + 1))
 
 fn sender_end(b: List[i64], p: usize) -> usize = if b[p] == 1 or b[p] == 2 then p + 5 else p + 1
 
-fn hx(b: List[i64], lo: usize, hi: usize) -> text = tohex(slice(b, lo, hi))
+fn hx(b: List[i64], lo: usize, hi: usize) -> text = crypto.tohex(crypto.slice(b, lo, hi))
 
 # fields are hex; wire_format and content_type are one hex byte each
 # PublicMessage: [wire_format, group_id, epoch, sender, authenticated_data,
 # content_type, content, signature, confirmation_tag, membership_tag];
 # PrivateMessage: [wire_format, group_id, epoch, content_type,
 # authenticated_data, encrypted_sender_data, ciphertext]; [] if malformed
-fn mls_decode(h: text) -> List[text]
-    let b = unhex(h)
+pub fn mls_decode(h: text) -> List[text]
+    let b = crypto.unhex(h)
     let n = b.len()
     if n < 4
         return []
     if b[0] != 0 or b[1] != 1
         return []
     let wf = u16at(copy(b), 2)
-    let gid = tohex(get_v(copy(b), 4))
-    var p = skip_v(copy(b), 4)
+    let gid = crypto.tohex(treekem.get_v(copy(b), 4))
+    var p = treekem.skip_v(copy(b), 4)
     let ep = hx(copy(b), p, p + 8)
     p += 8
     if wf == 2
         let ctext = b[p]
-        let aad = tohex(get_v(copy(b), p + 1))
-        p = skip_v(copy(b), p + 1)
-        let esd = tohex(get_v(copy(b), p))
-        p = skip_v(copy(b), p)
-        let c = tohex(get_v(copy(b), p))
-        p = skip_v(copy(b), p)
+        let aad = crypto.tohex(treekem.get_v(copy(b), p + 1))
+        p = treekem.skip_v(copy(b), p + 1)
+        let esd = crypto.tohex(treekem.get_v(copy(b), p))
+        p = treekem.skip_v(copy(b), p)
+        let c = crypto.tohex(treekem.get_v(copy(b), p))
+        p = treekem.skip_v(copy(b), p)
         if p != n
             return []
-        return ["02", gid, ep, tohex([ctext]), aad, esd, c]
+        return ["02", gid, ep, crypto.tohex([ctext]), aad, esd, c]
     if wf != 1
         return []
     let st = b[p]
     let se = sender_end(copy(b), p)
     let sender = hx(copy(b), p, se)
     p = se
-    let aad = tohex(get_v(copy(b), p))
-    p = skip_v(copy(b), p)
+    let aad = crypto.tohex(treekem.get_v(copy(b), p))
+    p = treekem.skip_v(copy(b), p)
     let ctext = b[p]
     p += 1
     var ce: usize = 0
     if ctext == 1
-        ce = skip_v(copy(b), p)
+        ce = treekem.skip_v(copy(b), p)
     if ctext == 2
         ce = proposal_end(copy(b), p)
     if ctext == 3
@@ -120,63 +123,63 @@ fn mls_decode(h: text) -> List[text]
         return []
     let content = hx(copy(b), p, ce)
     p = ce
-    let sig = tohex(get_v(copy(b), p))
-    p = skip_v(copy(b), p)
+    let sig = crypto.tohex(treekem.get_v(copy(b), p))
+    p = treekem.skip_v(copy(b), p)
     var tag = ""
     if ctext == 3
-        tag = tohex(get_v(copy(b), p))
-        p = skip_v(copy(b), p)
+        tag = crypto.tohex(treekem.get_v(copy(b), p))
+        p = treekem.skip_v(copy(b), p)
     var mt = ""
     if st == 1
-        mt = tohex(get_v(copy(b), p))
-        p = skip_v(copy(b), p)
+        mt = crypto.tohex(treekem.get_v(copy(b), p))
+        p = treekem.skip_v(copy(b), p)
     if p != n
         return []
-    return ["01", gid, ep, sender, aad, tohex([ctext]), content, sig, tag, mt]
+    return ["01", gid, ep, sender, aad, crypto.tohex([ctext]), content, sig, tag, mt]
 
 fn mls_encode(f: List[text]) -> text
-    let wf = unhex(copy(f[0]))[0]
+    let wf = crypto.unhex(copy(f[0]))[0]
     let head = [0, 1, 0, wf]
-    let gide = cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2])))
+    let gide = crypto.cat(treekem.ser_v(crypto.unhex(copy(f[1]))), crypto.unhex(copy(f[2])))
     if wf == 2
-        let body = cat(cat(unhex(copy(f[3])), ser_v(unhex(copy(f[4])))), cat(ser_v(unhex(copy(f[5]))), ser_v(unhex(copy(f[6])))))
-        return tohex(cat(cat(head, gide), body))
-    let ctext = unhex(copy(f[5]))[0]
-    var o = cat(cat(head, gide), cat(unhex(copy(f[3])), ser_v(unhex(copy(f[4])))))
-    o = cat(cat(o, [ctext]), cat(unhex(copy(f[6])), ser_v(unhex(copy(f[7])))))
+        let body = crypto.cat(crypto.cat(crypto.unhex(copy(f[3])), treekem.ser_v(crypto.unhex(copy(f[4])))), crypto.cat(treekem.ser_v(crypto.unhex(copy(f[5]))), treekem.ser_v(crypto.unhex(copy(f[6])))))
+        return crypto.tohex(crypto.cat(crypto.cat(head, gide), body))
+    let ctext = crypto.unhex(copy(f[5]))[0]
+    var o = crypto.cat(crypto.cat(head, gide), crypto.cat(crypto.unhex(copy(f[3])), treekem.ser_v(crypto.unhex(copy(f[4])))))
+    o = crypto.cat(crypto.cat(o, [ctext]), crypto.cat(crypto.unhex(copy(f[6])), treekem.ser_v(crypto.unhex(copy(f[7])))))
     if ctext == 3
-        o = cat(o, ser_v(unhex(copy(f[8]))))
-    if unhex(copy(f[3]))[0] == 1
-        o = cat(o, ser_v(unhex(copy(f[9]))))
-    return tohex(o)
+        o = crypto.cat(o, treekem.ser_v(crypto.unhex(copy(f[8]))))
+    if crypto.unhex(copy(f[3]))[0] == 1
+        o = crypto.cat(o, treekem.ser_v(crypto.unhex(copy(f[9]))))
+    return crypto.tohex(o)
 
 fn group_info_end(b: List[i64], p0: usize) -> usize
-    var p = skip_v(copy(b), p0 + 4) + 8
+    var p = treekem.skip_v(copy(b), p0 + 4) + 8
     for _ in 0..3
-        p = skip_v(copy(b), p)
-    p = skip_v(copy(b), p)
-    p = skip_v(copy(b), p)
-    return skip_v(b, p + 4)
+        p = treekem.skip_v(copy(b), p)
+    p = treekem.skip_v(copy(b), p)
+    p = treekem.skip_v(copy(b), p)
+    return treekem.skip_v(b, p + 4)
 
-fn welcome_end(b: List[i64], p0: usize) -> usize = skip_v(copy(b), skip_v(copy(b), p0 + 2))
+fn welcome_end(b: List[i64], p0: usize) -> usize = treekem.skip_v(copy(b), treekem.skip_v(copy(b), p0 + 2))
 
 fn group_secrets_end(b: List[i64], p0: usize) -> usize
-    var p = skip_v(copy(b), p0)
+    var p = treekem.skip_v(copy(b), p0)
     if b[p] == 1
-        p = skip_v(copy(b), p + 1)
+        p = treekem.skip_v(copy(b), p + 1)
     else
         p += 1
-    return skip_v(b, p)
+    return treekem.skip_v(b, p)
 
 # does the structure of the named kind span exactly the bytes h
 fn walk_ok(what: text, h: text) -> bool
-    let b = unhex(h)
+    let b = crypto.unhex(h)
     let n = b.len()
     var e: usize = 0
     if what == "add"
         e = kp_end(copy(b), 0)
     if what == "update"
-        e = leaf_end(copy(b), 0)
+        e = treekem.leaf_end(copy(b), 0)
     if what == "remove"
         e = 4
     if what == "psk"
@@ -184,7 +187,7 @@ fn walk_ok(what: text, h: text) -> bool
     if what == "reinit"
         e = proposal_body_end(copy(b), 0, 5)
     if what == "external_init" or what == "gce"
-        e = skip_v(copy(b), 0)
+        e = treekem.skip_v(copy(b), 0)
     if what == "commit"
         e = commit_end(copy(b), 0)
     if what == "key_package"
@@ -196,5 +199,5 @@ fn walk_ok(what: text, h: text) -> bool
     if what == "group_secrets"
         e = group_secrets_end(copy(b), 0)
     if what == "ratchet_tree"
-        e = skip_v(copy(b), 0)
+        e = treekem.skip_v(copy(b), 0)
     return e == n and n > 0

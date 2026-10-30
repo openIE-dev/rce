@@ -1,5 +1,6 @@
 #!/bin/sh
-# Run the `check` lines of every library. pq, hpke and mls build on
+# Run the `check` lines of every library. pq, hpke, mls and the MLS modules
+# (treekem, framing, protect, welcome, grp) build on
 # crypto and import it with `use crypto`; every module of lib/ is built
 # into the rce binary (specification 4.1), so each is tested by itself.
 # Set RCE to the rce binary (default: rce on PATH).
@@ -18,7 +19,7 @@ only() { [ -z "${ONLY:-}" ] || case " $ONLY " in *" $1 "*) ;; *) return 1 ;; esa
 if ! cmp -s "$tmp/MANIFEST.json" lib/MANIFEST.json; then echo "check.sh: lib/MANIFEST.json is not current; run: rce manifest lib > lib/MANIFEST.json" >&2; exit 1; fi
 "$RCE" manifest-check lib/MANIFEST.json
 only crypto && "$RCE" test lib/crypto.rce
-for n in pq hpke mls; do
+for n in pq hpke mls treekem framing protect welcome grp; do
   only crypto || continue
   "$RCE" test "lib/$n.rce"
 done

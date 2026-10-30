@@ -7,7 +7,7 @@ RCE=${RCE:-rce}
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 "$RCE" test lib/crypto.rce
-for n in pq hpke mls; do
+for n in pq hpke mls treekem framing protect welcome grp; do
   "$RCE" test "lib/$n.rce"
 done
 # Foundation modules under lib/<area>/: each is tested alone (it must admit

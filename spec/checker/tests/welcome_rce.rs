@@ -1,5 +1,5 @@
-//! Joining an MLS group from a Welcome in pure RCE (crates/rce/lib/welcome.rce
-//! on lib/crypto.rce, lib/hpke.rce, lib/mls.rce and lib/treekem.rce) against
+//! Joining an MLS group from a Welcome in pure RCE (stdlib/lib/welcome.rce
+//! on stdlib/lib/crypto.rce, stdlib/lib/hpke.rce, stdlib/lib/mls.rce and stdlib/lib/treekem.rce) against
 //! the official RFC 9420 vectors for cipher suite 1: welcome.json (GroupSecrets
 //! opened with the KeyPackage init key, GroupInfo opened, its signature and
 //! confirmation tag verified) and passive-client-welcome.json (all 8 entries,
@@ -11,18 +11,12 @@ use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 fn combined() -> String {
     let mut s = String::from("# rce-version: 0.5\nmodule welcome_steps\n");
-    for f in ["lib/crypto.rce", "lib/hpke.rce", "lib/mls.rce", "lib/treekem.rce", "lib/welcome.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || l.starts_with("check ") {
-                continue;
-            }
-            s.push_str(l);
-            s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto", "hpke", "mls", "treekem", "welcome"], false));
     s + APP
 }
 

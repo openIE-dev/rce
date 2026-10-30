@@ -9,7 +9,7 @@ intent "MLS key schedule (RFC 9420 section 8) and ratchet tree math (Appendix C)
 
 # Run: rce test mls_key_schedule.rce. `use mls` names a module of the
 # library built into rce (mls imports crypto itself). TreeKEM path
-# secrets, commits, adds and removes are later slices of lib/mls.rce.
+# secrets, commits, adds and removes are later slices of stdlib/lib/mls.rce.
 
 event Epoch(init: text, commit: text, psk: text, ctx: text)
 event External

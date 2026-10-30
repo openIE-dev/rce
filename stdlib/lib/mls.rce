@@ -98,7 +98,7 @@ fn expand(prk: List[i64], info: List[i64], n: usize) -> List[i64]
         c += 1
     return out
 
-fn extract(salt: List[i64], ikm: List[i64]) -> List[i64] = crypto.hmac(salt, ikm)
+pub fn extract(salt: List[i64], ikm: List[i64]) -> List[i64] = crypto.hmac(salt, ikm)
 
 # ExpandWithLabel(Secret, Label, Context, Length); the label as bytes
 fn expand_label_b(secret: List[i64], lbl: List[i64], context: List[i64], n: usize) -> List[i64]
@@ -109,7 +109,7 @@ pub fn expand_label(secret: List[i64], lbl: text, context: List[i64], n: usize) 
 
 pub fn derive_secret(secret: List[i64], lbl: text) -> List[i64] = expand_label(secret, lbl, [], 32)
 
-fn zero32() -> List[i64]
+pub fn zero32() -> List[i64]
     var z: List[i64] = []
     for _ in 0..32
         z.push(0)

@@ -2,6 +2,8 @@
 use rce_spec_check::host::{Host, MemStore};
 use rce_spec_check::parse::parse;
 use std::path::Path;
+#[path = "support/flat.rs"]
+mod flat;
 
 const APP: &str = r##"
 event U(h: text)
@@ -30,12 +32,7 @@ step S on Hm(h: h)
 #[ignore]
 fn mls_hot_ops() {
     let mut s = String::from("module bench\n");
-    for f in ["lib/crypto.rce"] {
-        for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
-            if l.starts_with("module ") || l.starts_with("check ") { continue; }
-            s.push_str(l); s.push('\n');
-        }
-    }
+    s.push_str(&flat::flat(&["crypto"], false));
     s += APP;
     let m = parse(&s).unwrap();
     let mut st = MemStore::default();
