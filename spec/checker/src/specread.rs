@@ -5,11 +5,12 @@
 //! * the 5.15 standard library table decides which builtin methods exist on
 //!   each receiver (W-NAME-1 for any other, before the method is typed);
 //! * the C.6.4 complexity classes decide `conc::method_work`;
-//! * the language server offers the 5.15 methods after `.`.
+//! * the language server offers the 5.15 methods after `.`;
+//! * `rce check` prints the method of each report from the table of 7.1.
 //!
 //! What is compiled in (`include_str!`) is `spec/data/spec-tables.json`,
-//! the `methods` and `method_work` members of spec-data.json and nothing
-//! else (`tables_of`), written by `rce-spec-data` next to it so the wasm
+//! the `methods` and `method_work` members of spec-data.json and the rule
+//! to method map of `w_methods`, and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
 //! build does not carry the grammar tables. `rce-spec-data --check` and
 //! `tests/spec_data.rs` fail when either file is stale against the book,
 //! and `tests/spec_read.rs` checks that every table entry is typed and
@@ -23,7 +24,11 @@ pub const SPEC_TABLES: &str = include_str!("../../data/spec-tables.json");
 /// The members of spec-data.json the checker reads, as compact JSON.
 pub fn tables_of(spec_data: &str) -> String {
     let d: Value = serde_json::from_str(spec_data).expect("spec-data.json is JSON");
-    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"] }).to_string()
+    let rules: serde_json::Map<String, Value> = d["w_methods"]["table"]
+        .as_array()
+        .map(|t| t.iter().map(|r| (r["rule"].as_str().unwrap_or("").to_string(), r["method"].clone())).collect())
+        .unwrap_or_default();
+    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"], "w_methods": rules }).to_string()
 }
 
 /// Complexity class of a method (C.6.4).
@@ -75,6 +80,17 @@ pub static TABLES: LazyLock<Tables> = LazyLock::new(|| {
     assert!(!methods.is_empty() && !work.is_empty(), "spec-data.json: empty method tables");
     Tables { methods, work }
 });
+
+/// The method of a static rule by the table of 7.1: `altered`,
+/// `recommended` or `requires change`. None for a name the table does not
+/// list.
+pub fn rule_method(rule: &str) -> Option<&'static str> {
+    static M: LazyLock<BTreeMap<String, String>> = LazyLock::new(|| {
+        let d: Value = serde_json::from_str(SPEC_TABLES).expect("spec-tables.json is JSON");
+        d["w_methods"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect()).unwrap_or_default()
+    });
+    M.get(rule).map(|s| s.as_str())
+}
 
 /// Whether 5.15 lists method `m` for receiver `recv`.
 pub fn has_method(recv: &str, m: &str) -> bool {

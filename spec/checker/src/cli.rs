@@ -182,6 +182,39 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
     (e, c)
 }
 
+/// The reports of one file (joined by `; `, each starting `line N: `),
+/// each followed by its method from the table of 7.1: `[altered by rce
+/// fmt]` for a rule whose rewrite `rce fmt` writes, else `[requires
+/// change]` (10.2).
+pub fn with_methods(reports: &str) -> String {
+    let mut parts: Vec<String> = vec![];
+    for (k, r) in reports.split("; line ").enumerate() {
+        let r = if k == 0 { r.to_string() } else { format!("line {r}") };
+        match parts.last_mut() {
+            // a `;` inside a message, not between two reports
+            Some(last) if k > 0 && line_of(&r) == 1 && !r.starts_with("line 1:") => {
+                last.push_str("; ");
+                last.push_str(&r);
+            }
+            _ => parts.push(r),
+        }
+    }
+    parts
+        .iter()
+        .map(|r| format!("{r} [{}]", method_text(r)))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// The method of one report, as `rce check` prints it.
+pub fn method_text(report: &str) -> &'static str {
+    let rule = report.split_once(": ").and_then(|(_, m)| m.split(' ').next()).unwrap_or("");
+    match crate::specread::rule_method(rule) {
+        Some("altered") => "altered by rce fmt",
+        _ => "requires change",
+    }
+}
+
 /// The recommended changes of an admitted module (10.2). W-INT-2 (6.9): the
 /// module has a step and its only obligations on its steps are `example`
 /// lines, so its lookup-table control (the module on the prefixes of the
@@ -750,7 +783,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     }
                     Err(e) => {
                         bad += 1;
-                        writeln!(out, "requires change {p}: {e}").map_err(w)?
+                        writeln!(out, "requires change {p}: {}", with_methods(&e)).map_err(w)?
                     }
                 }
             }
@@ -1201,11 +1234,28 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let mut code = OK;
             for p in files {
                 let src = read_file(p)?;
-                match fmt_text(&src) {
+                // the rewrites of the rules whose method is altered (7.1),
+                // then the canonical layout
+                let (altered, done) = crate::alter::alter(&src);
+                let src_alt = if fmt_text(&altered).is_ok() { altered } else { src.clone() };
+                let done = if src_alt == src { vec![] } else { done };
+                for a in &done {
+                    let verb = if check { "would alter" } else { "altered" };
+                    writeln!(out, "{verb} {p}: line {}: {} {}", a.line, a.rule, a.what).map_err(w)?;
+                }
+                // a report of an altered rule whose rewrite would add or
+                // change another report is left for the author
+                for r in crate::alter::unaltered(&src_alt) {
+                    writeln!(out, "requires change {p}: {r} [not altered: the rewrite would add or change another report]").map_err(w)?;
+                    code = REQUIRES_CHANGE;
+                }
+                match fmt_text(&src_alt) {
                     Ok(n) if n == src => {}
                     Ok(n) => {
                         if check {
-                            writeln!(out, "would reformat {p}").map_err(w)?;
+                            if n != src_alt {
+                                writeln!(out, "would reformat {p}").map_err(w)?;
+                            }
                             code = REQUIRES_CHANGE;
                         } else {
                             std::fs::write(p, n).map_err(|e| format!("{p}: {e}"))?;

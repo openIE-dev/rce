@@ -2301,6 +2301,143 @@ Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
+### 7.1 How a rule guides a program into Form
+
+Each rule of this section, of Appendix C and of Appendix F guides a program
+that does not meet it into Form by exactly one of three methods:
+
+- **Altered.** The rule has one rewrite, determined by the text, that keeps
+  the program's meaning. `rce fmt FILE` writes it and `rce fmt --check FILE`
+  lists it (10.6). Until it is written the text requires change, and
+  `rce check` ends the report with `[altered by rce fmt]` (10.2). A rewrite
+  that would add or change another report is not written; `rce fmt` then
+  prints the report as requiring change.
+- **Recommended.** The program is admitted, and `rce check` prints a
+  `recommended` line that names the rule and the change (10.2).
+- **Requires change.** The program is not admitted until its author changes
+  it, because the change has more than one reading or states something only
+  the author can state (a type, a declaration, a bound, an authority).
+  `rce check` ends the report with `[requires change]`.
+
+A rule is altered only when the reference `rce fmt` writes its rewrite. The
+table gives every rule its method; the checker reads it from
+`spec/data/spec-data.json` (`w_methods`), and `tests/three_methods.rs`
+checks that every rule of the three lists has exactly one row and that the
+altered rows are the rules `rce fmt` rewrites. Name independence (T7,
+section 8) is the ground of a rewrite that renames.
+
+| Rule | Method | Reason |
+|---|---|---|
+| W-LEX-1 | requires change | A tab, a bare CR or bytes that are not UTF-8 have more than one reading (an indentation width, a line end, an encoding). |
+| W-LEX-2 | requires change | An inconsistent dedent has two block readings. |
+| W-LEX-3 | requires change | The type or the character the literal was meant to name is the author's. |
+| W-SYN-1 | requires change | A text outside the grammar of section 3 has no one reading. |
+| W-RES-1 | requires change | The construct is specified and not implemented; the author writes it with implemented constructs. |
+| W-NAME-1 | requires change | The author declares or imports the name, or names another. |
+| W-NAME-2 | requires change | Which declaration takes another name, and which name, is the author's choice. |
+| W-MOD-1 | requires change | A module's `pub` surface is its owner's to change. |
+| W-VIS-1 | requires change | It is the checker's name for W-MOD-1. |
+| W-MOD-2 | requires change | Which import breaks the cycle is the author's choice. |
+| W-MOD-3 | requires change | Which name changes is the author's choice. |
+| W-SAFE-1 | requires change | Each identifier has several forms in RCE (an owned value, a `state` field, the `extern` boundary). |
+| W-FFI-1 | requires change | A foreign boundary is declared by its author. |
+| W-TY-1 | requires change | A typing rule that fails has no one repair. |
+| W-TY-2 | requires change | The type that replaces the nested or borrowed one is the author's choice. |
+| W-TY-3 | requires change | The conversion and its rounding are the author's choice. |
+| W-PAT-1 | requires change | Whether the name was meant as the variant or as a binding is the author's statement. |
+| W-MATCH-1 | requires change | What the missing arms do is the author's statement. |
+| W-MATCH-2 | requires change | An unreachable arm marks an arm the author meant to reach, or one to remove. |
+| W-PLACE | requires change | Declaring the place with `var`, or writing another place, is the author's choice. |
+| W-OWN-1 | requires change | A copy, a borrow or another order of uses is the author's choice. |
+| W-OWN-2 | requires change | A copy in and out, or a snapshot, is the author's choice. |
+| W-OWN-3 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-REG-1 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-SPAWN-1 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-STATE-1 | requires change | The region's fields are the author's to declare. |
+| W-STATE-2 | requires change | A constant initializer, or a computation moved to an input, is the author's choice. |
+| W-STATE-3 | requires change | The owned type of the field is the author's choice. |
+| W-STEP-1 | requires change | The author declares the region or the event, or names another. |
+| W-STEP-2 | requires change | A step for the event, or no such event, is the author's choice. |
+| W-STEP-3 | requires change | The field the block form names is the author's choice. |
+| W-STEP-4 | requires change | Which step was meant to run is the author's statement. |
+| W-EFF-1 | requires change | Moving the effect to a task, a step or `fn main` is a choice of structure. |
+| W-REC-1 | requires change | A measure or a `bound` is the author's statement. |
+| W-CT-1 | requires change | The comptime expression is the author's to change. |
+| W-INT-1 | requires change | An example or check that does not hold states another behaviour than the program has; which of the two is meant is the author's statement. |
+| W-INT-2 | recommended | The module is admitted; the report recommends obligations beyond the listed examples (6.9). |
+| W-SIMD-1 | requires change | The lengths and lane types are the author's. |
+| W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
+| W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
+| W-ITER-1 | requires change | Collecting the iterator, or another structure, is the author's choice. |
+| W-REF-1 | requires change | The predicate is the author's statement. |
+| W-LOOP-1 | requires change | The bound n is the author's statement. |
+| W-TRAIT-1 | requires change | The missing or differing methods are the author's to write. |
+| W-TRAIT-2 | requires change | Which impl remains, or a newtype, is the author's choice. |
+| W-TRAIT-3 | requires change | Implementing the trait, or another use, is the author's choice. |
+| W-CTX-1 | requires change | The context of a text is declared by its author. |
+| W-SEC-1 | requires change | A digest, an equality bit or a release is the author's choice. |
+| W-CAP-1 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-2 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-PAR-1 | requires change | Separating the branches' footprints is a choice of structure. |
+| W-PAR-2 | requires change | Moving the effect or the exit out of the `par` is a choice of structure. |
+| W-PAR-3 | requires change | Writing the body as a reduction or by slot is a choice of structure. |
+| W-PAR-4 | requires change | Moving the effect or the exit out of the loop body is a choice of structure. |
+| W-DL-1 | requires change | Moving the construct into `fn main` or a task function is a choice of structure. |
+| W-ND-1 | requires change | Moving the construct into `fn main` or a task function is a choice of structure. |
+| W-GRP-1 | requires change | Where the group runs is the author's choice. |
+| W-GRP-2 | requires change | Where the barrier stands is the author's choice. |
+| W-GRP-3 | requires change | Which lane writes which slot in which phase is the author's choice. |
+| W-SES-1 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-2 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-3 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-4 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-5 | requires change | Which body passes which endpoint is the author's choice. |
+| W-SCOPE-1 | requires change | The scope of a task is a choice of structure. |
+| W-ATOM-1 | requires change | Moving the wait out of `atomic` is a choice of structure. |
+| W-ATOM-2 | requires change | The placement of the actors is the author's choice. |
+| W-CRDT-1 | requires change | The join's laws are the author's to meet. |
+| W-LVAR-1 | requires change | The order of `put` and `freeze` is the author's statement. |
+| W-LVAR-2 | requires change | The thresholds are the author's statement. |
+| W-NODE-1 | requires change | Placement is declared by the author. |
+| W-SUP-1 | requires change | Supervision is declared by the author. |
+| W-SUP-2 | requires change | Supervision is declared by the author. |
+| W-INTR-1 | requires change | The priority is the author's statement. |
+| W-RT-1 | requires change | The deadline is the author's statement. |
+| W-BUD-1 | requires change | The budget is the author's statement. |
+| W-UNUSED-1 | altered | An unread binding `x` is named `_x`, a binding `_x` that is read is named `x`, and an unread `use` takes a name that begins with `_` and links the same module; names carry no meaning (T7). |
+| W-UNUSED-2 | requires change | Which branch the constant condition was meant to choose is the author's statement. |
+| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did. |
+| W-ASSIGN-1 | requires change | Which of the two stores was meant is the author's statement. |
+| W-LEX-4 | requires change | The rule shows the author a character the text hides; what to write instead is the author's choice. |
+| W-NAME-3 | requires change | The new name is the author's choice. |
+| W-WORLD-1 | requires change | Where the `&World` handle comes from is a choice of structure. |
+| W-IFC-1 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-2 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-3 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-4 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-5 | requires change | A release is the author's statement. |
+| W-IFC-6 | requires change | The label is declared by its author. |
+| W-IFC-7 | requires change | Endorsing a model answer is the author's statement. |
+| W-TX-1 | requires change | The order of effects and failures is the author's statement. |
+| W-CAP-3 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-4 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-5 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-PIN-1 | requires change | A pin or a dependency is changed by its owner. |
+| W-CTFN-1 | requires change | Constant-time code is restructured by its author. |
+| W-CTFN-2 | requires change | The emitter target is the author's choice. |
+| W-CTX-2 | requires change | The context of a text is declared by its author. |
+| W-CTX-3 | requires change | Where a model call stands is a choice of structure. |
+| W-TPL-1 | requires change | How a template is rendered is the author's statement. |
+| W-TPL-2 | requires change | The template's text is the author's. |
+| W-CON-1 | requires change | A contract is the author's statement. |
+| W-CON-2 | requires change | A contract is the author's statement. |
+| W-GHOST-1 | requires change | Where a ghost value flows is the author's statement. |
+| W-DEC-1 | requires change | A measure is the author's statement. |
+| W-IFLET-1 | requires change | The comparison is the author's statement. |
+| W-LAW-1 | requires change | The impl's laws are the author's to meet. |
+| W-LEN-1 | requires change | `len_bytes` or `len_chars` is a choice of unit. |
+| W-TRI-1 | requires change | A release path is the author's statement. |
+
 **Read receipt.** Under which rule do two unguarded steps in one region whose patterns overlap require change?
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
@@ -3036,11 +3173,15 @@ the order given, one line is printed:
 
 ```
 ok FILE
-requires change FILE: line N: RULE message[; line M: RULE message ...]
+recommended FILE: line N: RULE message
+requires change FILE: line N: RULE message [METHOD][; line M: RULE message [METHOD] ...]
 ```
 
-Every `requires change` report names its rule from section 7. Exit status 1 if any file
-requires change, else 0.
+Every `requires change` report names its rule from section 7 and ends with
+the rule's method from the table of 7.1: `[altered by rce fmt]` when
+`rce fmt` writes the change (10.6), else `[requires change]`. A
+`recommended` line follows the `ok` line of an admitted file, one per
+recommended change. Exit status 1 if any file requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -3370,11 +3511,25 @@ numbers dropped. The formatter is a function fmt on texts with:
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
 A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
-under `fmt` with the same reason. `fmt` does not type check: a file that requires
-change under `rce check` can still be formatted. With `--check`, no file is written;
-each file that would change is printed as `would reformat FILE` and the
-status is 1. Without it, each changed file is written and printed as
-`formatted FILE`.
+under `fmt` with the same reason. A file that requires change under `rce check`
+can still be formatted.
+
+**Altered rules.** Before the layout, `fmt` writes the rewrite of every
+report whose rule's method is *altered* (7.1): W-UNUSED-1 and W-DROP-1. The
+rewrites are those of the table of 7.1. A new name is the first of `n`,
+`n1`, `n2`, … that is not already a name in the text. Each rewrite is
+written only when the static reports of the new text are those of the old
+text less the one it answers; otherwise the report is printed as
+`requires change FILE: line N: RULE message [not altered: …]` and the
+status is 1. No line is added or removed, and a second run writes nothing
+(`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+step changes exactly the places its rewrites name.
+
+With `--check`, no file is written; each rewrite is printed as
+`would alter FILE: line N: RULE what`, each file whose layout would change
+as `would reformat FILE`, and the status is 1. Without it, each rewrite is
+printed as `altered FILE: line N: RULE what`, and each changed file is
+written and printed as `formatted FILE`.
 
 **`rce fmt --nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
@@ -3422,7 +3577,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t), the canonical layout of 10.6 without the altered rewrites, or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
