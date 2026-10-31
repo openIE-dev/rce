@@ -1,2 +1,2 @@
-requires change spin.rce: line 7: W-INT-1 check: trap: loop bound
+requires change spin.rce: line 7: W-INT-1 check: trap: loop bound [requires change]
 exit status: 1

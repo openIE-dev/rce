@@ -127,11 +127,32 @@ struct B {
     mut_ref: bool,
     /// not subject to the unused rule (arena names, fields)
     exempt: bool,
+    /// the lines on which the binding is read or written
+    uses: Vec<usize>,
+    /// a name beginning with `_` that is read (W-UNUSED-1)
+    read_marked: bool,
+}
+
+/// A rename that `rce fmt` writes for a W-UNUSED-1 report (the method
+/// *altered*, 7.1): an unread binding `x` is named `_x`, and a binding `_x`
+/// that is read is named `x`. Names carry no meaning (T7), so the rename
+/// keeps the program's meaning. `to` is the name the rule gives; the
+/// formatter takes the first of `to`, `to1`, `to2`, ... that the text does
+/// not already use.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rename {
+    pub from: String,
+    pub to: String,
+    /// the line of the binding
+    pub line: usize,
+    /// the line of the binding and every line that reads or writes it
+    pub lines: Vec<usize>,
 }
 
 struct W<'a> {
     scopes: Vec<Vec<B>>,
     errs: Vec<String>,
+    renames: Vec<Rename>,
     variants: &'a HashSet<String>,
     modnames: &'a HashMap<String, usize>,
     fields: HashSet<String>,
@@ -157,7 +178,17 @@ impl<'a> W<'a> {
     fn pop(&mut self) {
         let s = self.scopes.pop().unwrap();
         for b in s {
+            let mut lines = vec![b.line];
+            lines.extend(b.uses.iter().copied());
+            lines.sort();
+            lines.dedup();
+            if b.read_marked {
+                let base = b.name.trim_start_matches('_');
+                let to = if base.is_empty() || base.starts_with(|c: char| c.is_ascii_digit()) { format!("v{base}") } else { base.to_string() };
+                self.renames.push(Rename { from: b.name.clone(), to, line: b.line, lines: lines.clone() });
+            }
             if !b.read && !b.exempt && b.name != "_" && !b.name.starts_with('_') {
+                self.renames.push(Rename { from: b.name.clone(), to: format!("_{}", b.name), line: b.line, lines });
                 self.errs.push(err(
                     b.line,
                     "W-UNUSED-1",
@@ -183,13 +214,15 @@ impl<'a> W<'a> {
         } else if let Some(l0) = self.modnames.get(name) {
             self.errs.push(err(line, "W-NAME-3", format!("`{name}` shadows the module-level name declared at line {l0}")));
         }
-        self.scopes.last_mut().unwrap().push(B { name: name.into(), line, read: false, mut_ref, exempt });
+        self.scopes.last_mut().unwrap().push(B { name: name.into(), line, read: false, mut_ref, exempt, uses: vec![], read_marked: false });
     }
     fn read(&mut self, n: &str, line: usize) {
         for s in self.scopes.iter_mut().rev() {
             if let Some(b) = s.iter_mut().rev().find(|b| b.name == n) {
                 b.read = true;
+                b.uses.push(line);
                 if n.starts_with('_') && !b.exempt {
+                    b.read_marked = true;
                     self.errs.push(err(line, "W-UNUSED-1", format!("`{n}` begins with `_` (deliberately unused) and is read")));
                 }
                 return;
@@ -197,9 +230,10 @@ impl<'a> W<'a> {
         }
         self.free.insert(n.to_string());
     }
-    fn write(&mut self, n: &str) {
+    fn write(&mut self, n: &str, line: usize) {
         for s in self.scopes.iter_mut().rev() {
             if let Some(b) = s.iter_mut().rev().find(|b| b.name == n) {
+                b.uses.push(line);
                 if b.mut_ref {
                     b.read = true;
                 }
@@ -291,13 +325,13 @@ impl<'a> W<'a> {
     }
     fn lhs(&mut self, e: &Expr, root: bool) {
         match e {
-            Expr::Name(n, _) => {
+            Expr::Name(n, l) => {
                 if root {
-                    self.write(n)
+                    self.write(n, *l)
                 } else {
                     // a write through a field or element is an effect on the
                     // value, so the root counts as used
-                    self.read_quiet(n)
+                    self.read_quiet(n, *l)
                 }
             }
             Expr::Member(b, _, _) | Expr::TupleMember(b, _, _) => self.lhs(b, false),
@@ -313,10 +347,11 @@ impl<'a> W<'a> {
             other => self.expr(other),
         }
     }
-    fn read_quiet(&mut self, n: &str) {
+    fn read_quiet(&mut self, n: &str, line: usize) {
         for s in self.scopes.iter_mut().rev() {
             if let Some(b) = s.iter_mut().rev().find(|b| b.name == n) {
                 b.read = true;
+                b.uses.push(line);
                 return;
             }
         }
@@ -712,6 +747,16 @@ thread_local! {
 /// W-ASSIGN-1 (straight-line stores only) and W-NAME-3. W-DROP-1 needs types
 /// and is in `check.rs`.
 pub fn hygiene(m: &Module) -> Vec<String> {
+    walk(m).0
+}
+
+/// The renames `rce fmt` writes for the W-UNUSED-1 reports on bindings
+/// (an unused `use` is altered by the formatter from its line).
+pub fn unused_renames(m: &Module) -> Vec<Rename> {
+    walk(m).1
+}
+
+fn walk(m: &Module) -> (Vec<String>, Vec<Rename>) {
     ENC_LINES.with(|s| {
         let mut set = s.borrow_mut();
         set.clear();
@@ -791,6 +836,7 @@ pub fn hygiene(m: &Module) -> Vec<String> {
     let mut w = W {
         scopes: vec![],
         errs: vec![],
+        renames: vec![],
         variants: &variants,
         modnames: &modnames,
         fields: HashSet::new(),
@@ -887,7 +933,7 @@ pub fn hygiene(m: &Module) -> Vec<String> {
     }
     errs.sort();
     errs.dedup();
-    errs
+    (errs, std::mem::take(&mut w.renames))
 }
 
 fn example(w: &mut W, ex: &Example) {

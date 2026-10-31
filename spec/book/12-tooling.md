@@ -65,11 +65,15 @@ the order given, one line is printed:
 
 ```
 ok FILE
-requires change FILE: line N: RULE message[; line M: RULE message ...]
+recommended FILE: line N: RULE message
+requires change FILE: line N: RULE message [METHOD][; line M: RULE message [METHOD] ...]
 ```
 
-Every `requires change` report names its rule from section 7. Exit status 1 if any file
-requires change, else 0.
+Every `requires change` report names its rule from section 7 and ends with
+the rule's method from the table of 7.1: `[altered by rce fmt]` when
+`rce fmt` writes the change (10.6), else `[requires change]`. A
+`recommended` line follows the `ok` line of an admitted file, one per
+recommended change. Exit status 1 if any file requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -399,11 +403,27 @@ numbers dropped. The formatter is a function fmt on texts with:
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
 A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
-under `fmt` with the same reason. `fmt` does not type check: a file that requires
-change under `rce check` can still be formatted. With `--check`, no file is written;
-each file that would change is printed as `would reformat FILE` and the
-status is 1. Without it, each changed file is written and printed as
-`formatted FILE`.
+under `fmt` with the same reason. A file that requires change under `rce check`
+can still be formatted.
+
+**Altered rules.** Before the layout, `fmt` writes the rewrite of every
+report whose rule's method is *altered* (7.1): W-UNUSED-1 and W-DROP-1. The
+rewrites are those of the table of 7.1. A new name is the first of `n`,
+`n1`, `n2`, … that is not already a name in the text. Each rewrite is
+written only when the static reports of the new text are those of the old
+text less the one it answers; otherwise the report is printed as
+`requires change FILE: line N: RULE message [not altered: …]` and the
+status is 1. No line is added or removed, except that a match arm written
+on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
+`P` with the one statement `let _ = e`, since `let` is not an expression. A
+second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+step changes exactly the places its rewrites name.
+
+With `--check`, no file is written; each rewrite is printed as
+`would alter FILE: line N: RULE what`, each file whose layout would change
+as `would reformat FILE`, and the status is 1. Without it, each rewrite is
+printed as `altered FILE: line N: RULE what`, and each changed file is
+written and printed as `formatted FILE`.
 
 **`rce fmt --nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
@@ -451,7 +471,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t), the canonical layout of 10.6 without the altered rewrites, or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -759,4 +779,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 58f388ddfbe9129c5b462befa3b30d3f919479f8c88dd2dbdde4aabb81428ff0 -->
+<!-- body-sha256: 5556bcf8874f54cf7e025c1a6ed9da54b1004927ffa2b8d0215930b24e193074 -->

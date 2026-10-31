@@ -1,0 +1,11 @@
+# rce-version: 0.9
+# expect: W-DROP-1
+fn f(x: i64) -> i64
+    return x
+
+fn main()
+    let v = some(3)
+    match v
+        some(k) -> f(k)
+        none -> emit "none"
+    emit "done"

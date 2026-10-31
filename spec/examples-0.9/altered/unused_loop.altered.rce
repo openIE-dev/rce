@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+fn main()
+    var n = 0
+    for _i in 0..3
+        n += 2
+    emit n.tostr()

@@ -1,0 +1,8 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+fn twice(_k: i64) -> i64
+    return _k + _k
+
+fn main()
+    let _x = twice(4)
+    emit _x.tostr()

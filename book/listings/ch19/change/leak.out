@@ -1,2 +1,2 @@
-requires change leak.rce: line 9: W-IFC-1 an `emit` is public and the value is labeled {pii (from event Show.code)}
+requires change leak.rce: line 9: W-IFC-1 an `emit` is public and the value is labeled {pii (from event Show.code)} [requires change]
 exit status: 1

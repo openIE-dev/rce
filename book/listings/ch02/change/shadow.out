@@ -1,2 +1,2 @@
-requires change shadow.rce: line 4: W-NAME-3 `cost` shadows a name declared at line 2 in an enclosing scope
+requires change shadow.rce: line 4: W-NAME-3 `cost` shadows a name declared at line 2 in an enclosing scope [requires change]
 exit status: 1
