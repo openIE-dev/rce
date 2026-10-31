@@ -1,0 +1,9 @@
+intent "twice and double give the same number"
+    check twice(4) == 8
+    check double(4) == 8
+
+fn twice(n: u32) -> u32
+    return n + n
+
+fn double(n: u32) -> u32
+    return n * 3

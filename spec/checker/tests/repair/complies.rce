@@ -1,0 +1,5 @@
+intent "the successor"
+    check succ(1) == 2
+
+fn succ(n: u32) -> u32
+    return n + 1

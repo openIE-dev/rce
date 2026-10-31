@@ -179,6 +179,7 @@ file would require change under W-INT-1.
 | `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
+| `rce repair [json] [bound N] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, one small edit) judged by the checker, with no model call (spec 10.13) |
 | `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |
 | `rce lsp` | language server on standard input and output |
 

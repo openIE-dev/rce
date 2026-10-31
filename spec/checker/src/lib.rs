@@ -40,6 +40,7 @@ pub mod parse;
 pub mod raft;
 pub mod rcedb;
 pub mod refine;
+pub mod repair;
 pub mod repl;
 pub mod sandbox;
 pub mod specdata;

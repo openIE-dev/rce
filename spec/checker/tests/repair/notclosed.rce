@@ -1,0 +1,5 @@
+intent "a greeting"
+    check greet() == "hello"
+
+fn greet() -> text
+    return "hellx"
