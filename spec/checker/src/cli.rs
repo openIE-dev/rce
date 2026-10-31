@@ -1311,19 +1311,37 @@ fn program_binding(log: &str, src: &str, write: bool) -> Result<Option<String>, 
 }
 
 fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
+    // HC-28: the host loop reports its status to its terminal (OSC 7501);
+    // the report is not an effect, and a failure is reported as `error`
+    let stem = std::path::Path::new(&a[1]).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut st = crate::status::Status::new(matches!(a[0].as_str(), "run" | "serve"), &stem);
+    let r = host_body(a, input, out, err, &mut st);
+    if let Err(e) = &r {
+        st.error(e);
+    }
+    r
+}
+
+fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write, st: &mut crate::status::Status) -> Result<i32, String> {
     use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
     let (sub, file, log) = (a[0].as_str(), &a[1], a.get(3).ok_or("--log D")?);
     let src = read_file(file)?;
     let d = diagnostics(&src, &HashSet::new());
     if !d.is_empty() {
-        writeln!(out, "requires change {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+        let d: Vec<String> = d.into_iter().map(|x| x.1).collect();
+        st.error(&format!("requires change: {}", d[0]));
+        writeln!(out, "requires change {file}: {}", d.join("; ")).map_err(w)?;
         return Ok(REQUIRES_CHANGE);
     }
     let m = crate::program(&src)?;
+    if let Some(p) = &m.path {
+        st.retitle(&p.join("."));
+    }
     // HC-27: a log is bound to the program that wrote it.
     if matches!(sub, "run" | "serve" | "replay") {
         if let Some(why) = program_binding(log, &src, sub != "replay")? {
+            st.error("requires change: HC-27, the log was written by another program");
             writeln!(out, "requires change {file}: {why}").map_err(w)?;
             return Ok(REQUIRES_CHANGE);
         }
@@ -1542,11 +1560,15 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if let Some(start) = chan_start.take() {
                 start();
             }
+            // HC-28: open, and waiting for input
+            st.idle(h.len(), h.state_hash());
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out, http.as_mut())?;
-                let live = h.state_hash().to_string();
+                let code = serve_loop(&mut h, &src, out, http.as_mut(), st)?;
+                let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
-                return validate_run(&m, log, &live, code, err);
+                let code = validate_run(&m, log, &live, code, err)?;
+                st.done(n, &live);
+                return Ok(code);
             }
             // HC-24: the lines of the input, as bytes, so a line that is not
             // UTF-8 is held like any line that is not events of the module
@@ -1560,6 +1582,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             };
             let mut kept = false;
             for b in batches {
+                st.working();
                 let before = h.len();
                 let admitted = match std::str::from_utf8(&b).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|t| h.admit(&src, t)) {
                     Ok(a) => a,
@@ -1589,12 +1612,18 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                         }
                     }
                 }
+                out.flush().map_err(w)?;
+                st.idle(h.len(), h.state_hash());
             }
             writeln!(out, "durable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash()).map_err(w)?;
             writeln!(out, "{}", show_state(h.state())).map_err(w)?;
-            let live = h.state_hash().to_string();
+            let (live, n) = (h.state_hash().to_string(), h.len());
             drop(h);
-            validate_run(&m, log, &live, if kept { REQUIRES_CHANGE } else { OK }, err)
+            // a kept step is an outcome recorded in D, not a stop of the
+            // host: the run ends `done` and exits 1 (10.3)
+            let code = validate_run(&m, log, &live, if kept { REQUIRES_CHANGE } else { OK }, err)?;
+            st.done(n, &live);
+            Ok(code)
         }
         _ => Err(format!("rce host: unknown subcommand `{sub}`")),
     }
@@ -1701,7 +1730,7 @@ pub const FRAME_MS: u64 = 16;
 /// Each drain performs at most DRAIN_MAX requests and the next round
 /// starts at once while requests are queued, so a stop is read between
 /// drains even when results keep requesting effects.
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>) -> Result<i32, String> {
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::host::Host;
     use std::sync::mpsc;
@@ -1781,6 +1810,12 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                 Ok(x) => batch.push(x),
                 Err(_) => break,
             }
+        }
+        // HC-28: a round with an input from outside is work; a frame tick
+        // is the host's own clock and leaves the reported state as it is
+        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. })));
+        if work {
+            st.working();
         }
         let mut adm = vec![];
         let mut answers: Vec<(mpsc::Sender<crate::adapters::http::Reply>, u64)> = vec![];
@@ -1909,6 +1944,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         if exit || end {
             break 'serve;
         }
+        st.idle(h.len(), h.state_hash());
         if let (Some(t), Some(s)) = (stopping, http.as_deref()) {
             let idle = s.active() == 0 && open.as_ref().is_none_or(|o| o.borrow().is_empty());
             if idle || t.elapsed() >= Duration::from_millis(STOP_MS) {
