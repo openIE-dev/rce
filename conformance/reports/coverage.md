@@ -1,6 +1,6 @@
 # Clause coverage
 
-Language profile: 205 of 205 normative clauses have at least one test (100.0%). 1979 tests.
+Language profile: 206 of 206 normative clauses have at least one test (100.0%). 1990 tests.
 
 ## Tests by area
 
@@ -16,14 +16,14 @@ Language profile: 205 of 205 normative clauses have at least one test (100.0%). 
 | numbers | 1168 |
 | proposed | 4 |
 | text-unicode | 12 |
-| tooling | 8 |
-| types-checking | 101 |
+| tooling | 10 |
+| types-checking | 110 |
 
 ## Profiles
 
 | profile | clauses | covered |
 |---|---|---|
-| language | 205 | 205 |
+| language | 206 | 206 |
 | tooling | 7 | 5 |
 | retired | 2 | 1 |
 | handler-spec | 14 | 8 |
@@ -39,7 +39,7 @@ none
 | clause | kind | chapter | tests | reference |
 |---|---|---|---|---|
 | CH00-M-61b6ac06 | modal | 00-overview.md:3 | 1344 | {'pass': 1344} |
-| CH02-M-84a53b7d | modal | 02-lexical.md:99 | 53 | {'pass': 53} |
+| CH02-M-84a53b7d | modal | 02-lexical.md:114 | 53 | {'pass': 53} |
 | R1 | rule | 03-syntax.md:242 | 1 | {'pass': 1} |
 | R2 | rule | 03-syntax.md:245 | 1 | {'pass': 1} |
 | R3 | rule | 03-syntax.md:249 | 2 | {'pass': 2} |
@@ -63,7 +63,7 @@ none
 | CH06-M-7c164794 | modal | 06-regions-effects-extensions.md:285 | 1 | {'pass': 1} |
 | CH07-M-0a0bd71f | modal | 07-form-evaluation.md:3 | 1344 | {'pass': 1344} |
 | CH07-M-265230fb | modal | 07-form-evaluation.md:34 | 102 | {'pass': 102} |
-| E1 | rule | 07-form-evaluation.md:121 | 6 | {'pass': 6} |
+| E1 | rule | 07-form-evaluation.md:241 | 6 | {'pass': 6} |
 | N1 | rule | 07-form-evaluation.md:166 | 1136 | {'pass': 1136} |
 | N2 | rule | 07-form-evaluation.md:177 | 555 | {'pass': 555} |
 | N3 | rule | 07-form-evaluation.md:196 | 1135 | {'pass': 1135} |
@@ -72,7 +72,7 @@ none
 | F3 | rule | 07-form-evaluation.md:219 | 30 | {'pass': 30} |
 | F4 | rule | 07-form-evaluation.md:224 | 86 | {'pass': 86} |
 | F5 | rule | 07-form-evaluation.md:239 | 2 | {'pass': 2} |
-| F6 | rule | 07-form-evaluation.md:247 | 4 | {'pass': 4} |
+| F6 | rule | 07-form-evaluation.md:365 | 4 | {'pass': 4} |
 | F7 | rule | 07-form-evaluation.md:257 | 1135 | {'pass': 1135} |
 | F8 | rule | 07-form-evaluation.md:260 | 170 | {'pass': 170} |
 | F9 | rule | 07-form-evaluation.md:264 | 1135 | {'pass': 1135} |
@@ -81,14 +81,14 @@ none
 | N6 | rule | 07-form-evaluation.md:310 | 2 | {'pass': 2} |
 | N7 | rule | 07-form-evaluation.md:314 | 20 | {'pass': 20} |
 | N8 | rule | 07-form-evaluation.md:335 | 88 | {'pass': 88} |
-| N9 | rule | 07-form-evaluation.md:342 | 1 | {'pass': 1} |
+| N9 | rule | 07-form-evaluation.md:476 | 1 | {'pass': 1} |
 | N10 | rule | 07-form-evaluation.md:346 | 12 | {'pass': 12} |
 | N11 | rule | 07-form-evaluation.md:348 | 5 | {'pass': 5} |
 | CH08-M-286d2fd4 | modal | 08-steps-loops-concurrency.md:97 | 10 | {'pass': 10} |
 | CH08-M-cbd85cbd | modal | 08-steps-loops-concurrency.md:97 | 10 | {'pass': 10} |
 | CH08-M-51f39d7d | modal | 08-steps-loops-concurrency.md:211 | 4 | {'pass': 4} |
 | CH08-M-9a15157f | modal | 08-steps-loops-concurrency.md:218 | 21 | {'pass': 21} |
-| CH09-M-82e65964 | modal | 09-wellformedness.md:3 | 339 | {'pass': 339} |
+| CH09-M-82e65964 | modal | 09-wellformedness.md:3 | 345 | {'pass': 345} |
 | W-LEX-1 | rule | 09-wellformedness.md:11 | 36 | {'pass': 36} |
 | W-LEX-2 | rule | 09-wellformedness.md:12 | 7 | {'pass': 7} |
 | W-LEX-3 | rule | 09-wellformedness.md:13 | 25 | {'pass': 25} |
@@ -98,7 +98,7 @@ none
 | W-MOD-1 | rule | 09-wellformedness.md:22 | 1 | {'pass': 1} |
 | W-MOD-2 | rule | 09-wellformedness.md:22 | 1 | {'pass': 1} |
 | W-MOD-3 | rule | 09-wellformedness.md:25 | 1 | {'pass': 1} |
-| W-SAFE-1 | rule | 09-wellformedness.md:28 | 13 | {'pass': 13} |
+| W-SAFE-1 | rule | 09-wellformedness.md:29 | 13 | {'pass': 13} |
 | W-FFI-1 | rule | 09-wellformedness.md:31 | 3 | {'pass': 3} |
 | W-TY-1 | rule | 09-wellformedness.md:36 | 13 | {'pass': 13} |
 | W-TY-2 | rule | 09-wellformedness.md:37 | 2 | {'pass': 2} |
@@ -116,6 +116,7 @@ none
 | W-REC-1 | rule | 09-wellformedness.md:62 | 9 | {'pass': 9} |
 | W-CT-1 | rule | 09-wellformedness.md:69 | 3 | {'pass': 3} |
 | W-INT-1 | rule | 09-wellformedness.md:71 | 13 | {'pass': 13} |
+| W-INT-2 | rule | 09-wellformedness.md:72 | 2 | {'pass': 2} |
 | W-SIMD-1 | rule | 09-wellformedness.md:72 | 2 | {'pass': 2} |
 | W-LIN-1 | rule | 09-wellformedness.md:74 | 6 | {'pass': 6} |
 | W-DEV-1 | rule | 09-wellformedness.md:77 | 3 | {'pass': 3} |
@@ -128,13 +129,13 @@ none
 | W-CTX-1 | rule | 09-wellformedness.md:95 | 1 | {'pass': 1} |
 | W-SEC-1 | rule | 09-wellformedness.md:98 | 2 | {'pass': 2} |
 | W-CAP-1 | rule | 09-wellformedness.md:101 | 1 | {'pass': 1} |
-| W-CAP-2 | rule | 09-wellformedness.md:104 | 1 | {'pass': 1} |
+| W-CAP-2 | rule | 09-wellformedness.md:105 | 1 | {'pass': 1} |
 | T1 | theorem | 10-theorems.md:29 | 1357 | {'pass': 1357} |
 | T2 | theorem | 10-theorems.md:30 | 15 | {'pass': 15} |
 | T3 | theorem | 10-theorems.md:31 | 103 | {'pass': 103} |
 | T4 | theorem | 10-theorems.md:32 | 1254 | {'pass': 1254} |
 | T5 | theorem | 10-theorems.md:33 | 1345 | {'pass': 1345} |
-| T6 | theorem | 10-theorems.md:34 | 29 | {'pass': 29} |
+| T6 | theorem | 10-theorems.md:34 | 38 | {'pass': 38} |
 | T7 | theorem | 10-theorems.md:35 | 8 | {'pass': 8} |
 | T8 | theorem | 10-theorems.md:36 | 45 | {'pass': 45} |
 | T9 | theorem | 10-theorems.md:37 | 1255 | {'pass': 1255} |
@@ -155,7 +156,7 @@ none
 | T41 | theorem | 10-theorems.md:52 | 30 | {'pass': 30} |
 | T15 | theorem | 10-theorems.md:53 | 2 | {'pass': 2} |
 | CH11-M-7fed7576 | modal | 11-decisions.md:29 | 11 | {'pass': 11} |
-| S1 | rule | 11-decisions.md:133 | 1 | {'pass': 1} |
+| S1 | rule | 11-decisions.md:172 | 1 | {'pass': 1} |
 | S2 | rule | 11-decisions.md:135 | 1 | {'pass': 1} |
 | S3 | rule | 11-decisions.md:138 | 2 | {'pass': 2} |
 | S4 | rule | 11-decisions.md:141 | 1 | {'pass': 1} |
@@ -182,7 +183,7 @@ none
 | W-LVAR-2 | rule | 14-draft06-concurrency.md:409 | 1 | {'pass': 1} |
 | W-ATOM-1 | rule | 14-draft06-concurrency.md:474 | 1 | {'pass': 1} |
 | W-ATOM-2 | rule | 14-draft06-concurrency.md:474 | 1 | {'pass': 1} |
-| W-NODE-1 | rule | 14-draft06-concurrency.md:477 | 1 | {'pass': 1} |
+| W-NODE-1 | rule | 14-draft06-concurrency.md:586 | 1 | {'pass': 1} |
 | T16 | theorem | 14-draft06-concurrency.md:602 | 43 | {'pass': 43} |
 | T17 | theorem | 14-draft06-concurrency.md:603 | 42 | {'pass': 42} |
 | T18 | theorem | 14-draft06-concurrency.md:604 | 92 | {'pass': 92} |
@@ -196,7 +197,7 @@ none
 | T25 | theorem | 14-draft06-concurrency.md:612 | 25 | {'pass': 25} |
 | T26 | theorem | 14-draft06-concurrency.md:613 | 6 | {'pass': 6} |
 | T27 | theorem | 14-draft06-concurrency.md:614 | 3 | {'pass': 3} |
-| T28 | theorem | 14-draft06-concurrency.md:615 | 3 | {'pass': 3} |
+| T28 | theorem | 14-draft06-concurrency.md:724 | 3 | {'pass': 3} |
 | T29 | theorem | 14-draft06-concurrency.md:616 | 1 | {'pass': 1} |
 | T29q | theorem | 14-draft06-concurrency.md:617 | 1 | {'pass': 1} |
 | T29s | theorem | 14-draft06-concurrency.md:618 | 2 | {'pass': 2} |
@@ -207,12 +208,12 @@ none
 | CH16-M-262166d9 | modal | 16-host-contract.md:3 | 30 | {'pass': 30} |
 | HC-1 | rule | 16-host-contract.md:45 | 30 | {'pass': 30} |
 | HC-2 | rule | 16-host-contract.md:52 | 3 | {'pass': 3} |
-| HC-3 | rule | 16-host-contract.md:55 | 2 | {'pass': 2} |
+| HC-3 | rule | 16-host-contract.md:61 | 2 | {'pass': 2} |
 | HC-4 | rule | 16-host-contract.md:60 | 16 | {'pass': 16} |
-| HC-5 | rule | 16-host-contract.md:65 | 3 | {'pass': 3} |
+| HC-5 | rule | 16-host-contract.md:76 | 3 | {'pass': 3} |
 | HC-6 | rule | 16-host-contract.md:83 | 1 | {'pass': 1} |
 | HC-7 | rule | 16-host-contract.md:128 | 20 | {'pass': 20} |
-| HC-7a | rule | 16-host-contract.md:131 | 1 | {'pass': 1} |
+| HC-7a | rule | 16-host-contract.md:170 | 1 | {'pass': 1} |
 | HC-8 | rule | 16-host-contract.md:138 | 27 | {'pass': 27} |
 | HC-9 | rule | 16-host-contract.md:141 | 26 | {'pass': 26} |
 | CH16-M-bf12d963 | modal | 16-host-contract.md:153 | 30 | {'pass': 30} |
@@ -220,25 +221,25 @@ none
 | HC-16 | rule | 16-host-contract.md:173 | 25 | {'pass': 25} |
 | HC-17 | rule | 16-host-contract.md:183 | 25 | {'pass': 25} |
 | HC-18 | rule | 16-host-contract.md:201 | 30 | {'pass': 30} |
-| HC-19 | rule | 16-host-contract.md:209 | 30 | {'pass': 30} |
-| HC-18a | rule | 16-host-contract.md:217 | 30 | {'pass': 30} |
-| HC-20 | rule | 16-host-contract.md:249 | 21 | {'pass': 21} |
+| HC-19 | rule | 16-host-contract.md:248 | 30 | {'pass': 30} |
+| HC-18a | rule | 16-host-contract.md:258 | 30 | {'pass': 30} |
+| HC-20 | rule | 16-host-contract.md:290 | 21 | {'pass': 21} |
 | HC-10 | rule | 16-host-contract.md:384 | 30 | {'pass': 30} |
 | HC-11 | rule | 16-host-contract.md:425 | 1 | {'pass': 1} |
-| HC-12 | rule | 16-host-contract.md:431 | 91 | {'pass': 91} |
+| HC-12 | rule | 16-host-contract.md:867 | 91 | {'pass': 91} |
 | HC-13 | rule | 16-host-contract.md:475 | 1 | {'pass': 1} |
 | HC-14 | rule | 16-host-contract.md:485 | 1 | {'pass': 1} |
 | CH16-M-a84fabb6 | modal | 16-host-contract.md:644 | 2 | {'pass': 2} |
 | W-STEP-3 | rule | 05-types-ownership.md:231 | 1 | {'pass': 1} |
 | W-VIS-1 | rule | 09-wellformedness.md:23 | 1 | {'pass': 1} |
-| W-OWN-2 | rule | 09-wellformedness.md:46 | 2 | {'pass': 2} |
+| W-OWN-2 | rule | 09-wellformedness.md:46 | 11 | {'pass': 11} |
 | W-OWN-3 | rule | 09-wellformedness.md:47 | 1 | {'pass': 1} |
 | W-REG-1 | rule | 09-wellformedness.md:48 | 1 | {'pass': 1} |
 | W-STEP-2 | rule | 09-wellformedness.md:55 | 2 | {'pass': 2} |
 | W-STEP-4 | rule | 09-wellformedness.md:57 | 1 | {'pass': 1} |
-| W-CRDT-1 | rule | 09-wellformedness.md:110 | 5 | {'pass': 5} |
-| W-SCOPE-1 | rule | 09-wellformedness.md:110 | 1 | {'pass': 1} |
-| W-SES-4 | rule | 09-wellformedness.md:110 | 6 | {'pass': 6} |
+| W-CRDT-1 | rule | 09-wellformedness.md:119 | 5 | {'pass': 5} |
+| W-SCOPE-1 | rule | 09-wellformedness.md:119 | 1 | {'pass': 1} |
+| W-SES-4 | rule | 09-wellformedness.md:119 | 6 | {'pass': 6} |
 | W-INTR-1 | rule | 09-wellformedness.md:111 | 1 | {'pass': 1} |
 | W-RT-1 | rule | 09-wellformedness.md:111 | 1 | {'pass': 1} |
 | W-SUP-1 | rule | 09-wellformedness.md:111 | 2 | {'pass': 2} |

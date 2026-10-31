@@ -10,7 +10,7 @@ exact.
 The CRC-32 check uses the standard test input `"123456789"`, whose CRC-32
 is `0xCBF43926`.
 
-Limits in draft 0.5: there are no bit-width signal types and no hardware
+Limits in the current draft: there are no bit-width signal types and no hardware
 description emitter.
 
 Check this folder with `rce test *.rce`, or the whole repository with

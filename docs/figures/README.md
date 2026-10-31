@@ -2,8 +2,8 @@
 
 Figures for the RCE specification, with the scripts and data that produce
 them. Every PNG has its generating script under `src/`; diagrams also ship
-as SVG. Figures marked **[opinion]** encode the author's judgement rather
-than a measurement or a specification rule.
+as SVG. Figures marked **[opinion]** encode a judgement of the RCE project
+rather than a measurement or a specification rule.
 
 ## Diagrams of the specification
 

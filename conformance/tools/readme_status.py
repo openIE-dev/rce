@@ -74,7 +74,7 @@ def block():
             continue
         t, n = tally[a], len(res[a]["results"])
         fails = f", {t['fail']} of them fail" if t.get("fail") else ""
-        L.append(f"- {EMITTER_NAMES[a]} emitter: not run in this baseline. `reports/results-{a}.json` holds the statuses of an earlier run ({n} results{fails}), made before answers were recorded; none of them is compared with the reference or counted as a pass.")
+        L.append(f"- {EMITTER_NAMES[a]} emitter: not run in this baseline. `reports/results-{a}.json` holds the statuses of an earlier run ({n} results{fails}), made before answers were recorded; none of them is compared with the reference or counted as a pass. Runs of this emitter by a workflow, whose results files are workflow artifacts and not in `reports/`, are recorded under \"Whole-trace emit baseline\" below.")
     for a, label in (("wasm-playground", "Wasm playground"), ("lean-core", "Lean core model")):
         t = tally[a]
         L.append(f"- {label}: {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res[a]['results'])} results.")
