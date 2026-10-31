@@ -391,8 +391,8 @@ kept, because it says what the rule was and what it is now. The canonical JSON
 text of 6.1.1 and its vectors, and the claim counts of the published text, are
 kept as published. The figures quoted in the overview, the syntax chapter and
 the tooling chapter are the printed output of `rce-spec-check` on this tree,
-checked by `scripts/claim-counts.py --check`.
+checked by `scripts/claim-counts.py check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831 -->
+<!-- body-sha256: ebbf77ef787a4497ed66e4fca238dfc4accd3e99a178ee78c8831a08bb730045 -->

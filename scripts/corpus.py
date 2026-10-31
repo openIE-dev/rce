@@ -18,12 +18,14 @@ with a behaviour change the examples did not catch (`rce equiv` finds a
 distinguishing sequence; the trace heads decide only for a program with no
 explorable Form). Each accepted mutant records what decided it.
 
-    scripts/corpus.py --rce PATH/TO/rce --out DIR
+    scripts/corpus.py [mutants N] [typed-depth N] [typed-depth-with-examples N] [equiv-fuel N] PATH/TO/rce DIR
 
 writes DIR/forms.jsonl, DIR/negatives.jsonl and DIR/summary.json. The run is
 a pure function of the checkout and the seed. Every row names the commit.
 """
-import argparse, gzip, hashlib, json, math, os, re, subprocess, sys, time
+import gzip, hashlib, json, math, os, re, subprocess, sys, time
+from types import SimpleNamespace
+from positional import read
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -258,14 +260,15 @@ def first_code(text):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--rce", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--mutants", type=int, default=3, help="whitespace-token mutants per accepted program")
-    ap.add_argument("--typed-depth", type=int, default=2, help="mutants per typed operator per accepted program")
-    ap.add_argument("--typed-depth-with-examples", type=int, default=2, help="the same for programs with example lines (whose mutants can be scored)")
-    ap.add_argument("--equiv-fuel", type=int, default=2000, help="states rce equiv explores when a mutant's trace heads differ from its parent's")
-    a = ap.parse_args()
+    # mutants N: whitespace-token mutants per accepted program; typed-depth N:
+    # mutants per typed operator per accepted program; typed-depth-with-examples N:
+    # the same for programs with example lines (whose mutants can be scored);
+    # equiv-fuel N: states rce equiv explores when a mutant's trace heads
+    # differ from its parent's. Words, then the operands RCE and OUT (PC-1).
+    w, (rce_path, out_dir) = read("scripts/corpus.py", {"mutants": 1, "typed-depth": 1, "typed-depth-with-examples": 1, "equiv-fuel": 1}, "RCE OUT", 2, 2,
+                                  removed={"--rce": 0, "--out": 1})
+    a = SimpleNamespace(rce=rce_path, out=out_dir, mutants=int(w.get("mutants", 3)), typed_depth=int(w.get("typed-depth", 2)),
+                        typed_depth_with_examples=int(w.get("typed-depth-with-examples", 2)), equiv_fuel=int(w.get("equiv-fuel", 2000)))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     rce = Rce(a.rce)
@@ -291,7 +294,7 @@ def main():
         if r.returncode != 0:
             kept.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
             continue
-        nameless = rce.run("fmt", "--nameless", file).stdout
+        nameless = rce.run("fmt", "nameless", file).stdout
         if not nameless.strip():
             kept.append({"path": rel, "origin": origin, "why": "no nameless projection"})
             continue
@@ -312,7 +315,7 @@ def main():
             prog = text[len(runtimes[t]):] if prefix_ok else text
             marker = "#" if t == "python" else "//"
             row["code"][t] = {"tokens": len(tokens(prog, marker)), "bytes": len(prog.encode()), "gz_bits": gz_bits(prog), "runtime_prefix_verbatim": prefix_ok}
-        tr = rce.run("trace", "--json", file)
+        tr = rce.run("trace", file)
         if tr.returncode == 0:
             try:
                 j = json.loads(tr.stdout)
@@ -387,13 +390,13 @@ def main():
             if code == "W-INT-1":
                 mut_stats["caught_by_examples"] += 1
         else:
-            nl = rce.run("fmt", "--nameless", str(f)).stdout
+            nl = rce.run("fmt", "nameless", str(f)).stdout
             same = sha(nl) == r["shape_hash"]
             row.update(verdict="accept", shape_hash=sha(nl), same_shape_as_parent=same)
             if same:
                 row["outcome"] = "accept_same_shape"
             else:
-                tr = rce.run("trace", "--json", str(f))
+                tr = rce.run("trace", str(f))
                 heads = []
                 if tr.returncode == 0:
                     try:
@@ -415,7 +418,7 @@ def main():
                     # program has no explorable Form, and the heads decide.
                     parent = tmpdir / f"parent-{r['shape_hash'][:12]}.rce"
                     parent.write_text(r["source"], encoding="utf-8")
-                    eq = rce.run("equiv", "--fuel", str(a.equiv_fuel), str(parent), str(f))
+                    eq = rce.run("equiv", "fuel", str(a.equiv_fuel), str(parent), str(f))
                     parent.unlink()
                     if eq.returncode == 0:
                         row["outcome"], row["decided_by"] = "accept_equivalent", "rce_equiv"

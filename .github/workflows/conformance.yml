@@ -80,4 +80,4 @@ jobs:
         # a try); a program that hangs still fails
         env:
           RCE_TEST_TIMEOUT: "600"
-        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" python harness/run.py adapters/emit-scala.json tests "$RUNNER_TEMP/results-emit-scala.json" --jobs 4
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" python harness/run.py jobs 4 adapters/emit-scala.json tests "$RUNNER_TEMP/results-emit-scala.json"

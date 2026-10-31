@@ -6,7 +6,7 @@
 #   (--build-arg REGISTRY=mirror.gcr.io/library pulls the same
 #   official base images from a mirror)
 #   docker run --rm -p 8080:8080 -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
-#     rce host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080
+#     rce host serve http 0.0.0.0:8080 /srv/notes_http.rce /data/notes
 ARG REGISTRY=docker.io/library
 FROM ${REGISTRY}/rust:1-bookworm AS build
 WORKDIR /src
@@ -23,4 +23,4 @@ VOLUME /data
 # ends the loop cleanly with rce as PID 1. TLS peers are pinned by key, so
 # the image needs no CA store.
 ENTRYPOINT ["rce"]
-CMD ["--version"]
+CMD ["version"]

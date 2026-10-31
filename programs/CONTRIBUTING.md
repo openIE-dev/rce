@@ -20,7 +20,7 @@ New programs, better explanations and fixes are all welcome.
 2. Add a line for it to the folder's README and to the table in the main
    README.
 3. Run `RCE=/path/to/rce scripts/check.sh`. If you add a `.cmd` transcript,
-   generate its `.out` with `scripts/check.sh --bless` and read the result
+   generate its `.out` with `scripts/check.sh bless` and read the result
    before committing.
 
 Programs follow the current draft of the specification. Do not use syntax

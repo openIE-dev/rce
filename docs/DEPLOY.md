@@ -18,7 +18,7 @@ image.
   pins one commit, where COMMIT is the 12-hex-digit short hash of the
   release `rce-<commit>`. Only the 30 newest commit releases remain (the
   release workflow deletes older ones), so an older commit cannot be pinned
-  this way. `rce --version` prints the commit.
+  this way. `rce version` prints the commit.
 - Container: `ghcr.io/openie-dev/rce:latest`, or `ghcr.io/openie-dev/rce:<commit>`
   to pin, where `<commit>` is the full 40-hex-digit commit hash. The image runs `rce` as an unprivileged user with the working
   directory `/srv` and the volume `/data`. To build it yourself:
@@ -39,7 +39,7 @@ With the container:
 docker run -d --name notes -p 8080:8080 \
   -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
   ghcr.io/openie-dev/rce:latest \
-  host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080
+  host serve http 0.0.0.0:8080 /srv/notes_http.rce /data/notes
 
 curl -i http://127.0.0.1:8080/health                     # HTTP/1.1 200 OK
 curl -X POST --data 'first note' http://127.0.0.1:8080/notes
@@ -47,7 +47,12 @@ curl http://127.0.0.1:8080/notes                         # [{"id":1,"text":"firs
 ```
 
 Without a container, the same command runs the installed binary:
-`rce host serve notes_http.rce --log /var/lib/notes --http 127.0.0.1:8080`.
+`rce host serve http 127.0.0.1:8080 notes_http.rce /var/lib/notes`.
+The grant words (`http`, `fs`, `net` and the others) come before the
+program and the log, and no argument starts with `-`: a command line that
+still gives a removed flag, such as `--log`, exits with status 2 and prints
+its new spelling, so a unit or container command written for an earlier
+`rce` fails at start instead of running.
 A systemd unit needs only that `ExecStart=`, `Restart=on-failure`, a user
 that owns the log directory, and `KillSignal=SIGTERM` (the default).
 
@@ -69,7 +74,7 @@ not in D and does not change replay or the state hash.
   the entry in progress, and D is complete.
 - A new process on the same log continues where the last one stopped. A
   restart is itself recorded, and ids are never reused.
-- `rce host replay FILE --log D` re-derives every state hash of D with every
+- `rce host replay FILE D` re-derives every state hash of D with every
   adapter disconnected and prints `replay ok: N entries, ...` with the final
   state. Run it after a restore, or on a copy of D to audit it.
 - To back up, stop the service, copy the log directory, and check the copy
@@ -98,5 +103,5 @@ before D is opened. Layout and comments are not part of the hash.
   derives with a method call or an operator before comparing it (a path
   segment of `target.split("/")`, `x + 1 > 9`) is not followed, so a branch
   reached only that way can stay unexplored, and the exploration stops at
-  `--fuel` states ("to the explored bound"). Read an erratum as holding on
+  `fuel` states ("to the explored bound"). Read an erratum as holding on
   that alphabet before rebinding a log.

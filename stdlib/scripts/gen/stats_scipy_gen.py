@@ -7,9 +7,11 @@ Distribution values are checked by relative error against SciPy with a
 tolerance per family (REL below); quantiles are bit for bit against
 numpy.quantile; test statistics and p-values by relative error.
 
-Run with the SciPy venv python. Usage: stats_scipy_gen.py [--measure] [--out DIR]
+Run with the SciPy venv python. Usage: stats_scipy_gen.py [measure] [out DIR]
 """
 import os, struct, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
+from positional import read  # noqa: E402  (positional-cli.md PC-1)
 import numpy as np
 import scipy
 from scipy import stats as S, special as SP
@@ -232,8 +234,9 @@ const STV: List[f64] = stx_draws()
     return out
 
 def main():
-    measure = '--measure' in sys.argv
-    outdir = sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv else 'tests/num'
+    w, _ = read('stats_scipy_gen.py', {'measure': 0, 'out': 1}, '', 0, 0)
+    measure = 'measure' in w
+    outdir = w.get('out', 'tests/num')
     shards = []
     dc = dist_cases()
     # comptime fuel is per file: a quantile (bracketing and bisection over

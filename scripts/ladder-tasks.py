@@ -135,7 +135,7 @@ def main(argv):
                 if codes != {"W-INT-1"}:
                     stats["other_rule"] += 1
                     continue
-                e = subprocess.run([rce, "equiv", "--fuel", "2000", str(f), str(g)], capture_output=True, text=True)
+                e = subprocess.run([rce, "equiv", "fuel", "2000", str(f), str(g)], capture_output=True, text=True)
                 if e.returncode == 0:
                     stats["equivalent"] += 1
                     continue

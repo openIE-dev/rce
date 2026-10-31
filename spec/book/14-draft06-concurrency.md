@@ -628,8 +628,8 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   `actor_kept_outcomes_match` (the Rust, Python and JavaScript runtimes take
   the same decisions as the reference, with and without a window) and
   `restart_inputs_replay_on_every_target` (each runtime prints its
-  decisions with `--restart-log`, replays a logged list given as
-  `--restart=TICK|SUP|CHILD|ID|STOP|RESET,...` under a changed bound
+  decisions with `restart-log`, replays a logged list given as
+  `restart TICK|SUP|CHILD|ID|STOP|RESET,...` under a changed bound
   exactly as the reference does, and diverges on a mismatched decision).
   Stable ids and upgrades. Derivation. A logged decision names actors
   by id, and replay applies it to the actor with that id, so a log
@@ -675,7 +675,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   line and adds a function, an actor type and a supervisor; removal and
   reorder traps; the version 0 per-decision check; on the reference and
   on the Rust, Python, JavaScript and Scala runtimes, which print the
-  header with `--restart-log` and take it as `--restart-tree=S/c,...`).
+  header with `restart-log` and take it as `restart-tree S/c,...`).
   The run log of `fn
   main` is not D: actors run by `rce run`, not by the host of Appendix E
   (HC-6).
@@ -824,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: c31f7a72b58278b52c6ffa13d2984b06563e73d695e5db7c670c9b4da5e2060f -->
+<!-- body-sha256: 62e6ddd483f6f4259708c203b44642455cde6fcfe34c3abc75cf28dc658bd730 -->

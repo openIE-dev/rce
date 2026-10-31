@@ -34,9 +34,9 @@ jobs:
         run: |
           set -eu
           run() { docker run -d --name notes -p 8080:8080 -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
-                    rce:ci host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080; }
+                    rce:ci host serve http 0.0.0.0:8080 /srv/notes_http.rce /data/notes; }
           up() { for _ in $(seq 50); do curl -fs http://127.0.0.1:8080/health >/dev/null && return 0; sleep 0.2; done; docker logs notes; return 1; }
-          docker run --rm rce:ci --version
+          docker run --rm rce:ci version
           run; up
           curl -fs -X POST --data 'first note' http://127.0.0.1:8080/notes
           docker stop notes && docker rm notes
@@ -44,7 +44,7 @@ jobs:
           test "$(curl -fs http://127.0.0.1:8080/notes)" = '[{"id":1,"text":"first note"}]'
           docker stop notes && docker rm notes
           docker run --rm -v rce-data:/data -v "$PWD/programs/network:/srv:ro" rce:ci \
-            host replay /srv/notes_http.rce --log /data/notes | tee replay.txt
+            host replay /srv/notes_http.rce /data/notes | tee replay.txt
           grep -q '^replay ok' replay.txt
 
   install-script:

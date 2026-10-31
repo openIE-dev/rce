@@ -119,7 +119,7 @@ form one program and must be accepted; the 12 syntax rejects, the 49
 programs in `spec/examples/change/types/` and the 16 in
 `spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
-`scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
+`scripts/claim-counts.py check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 590 productions,
@@ -624,7 +624,7 @@ declaration and no conflict to resolve at parse time.
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
    current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
-   conflicts (`scripts/claim-counts.py --check` compares these numbers with
+   conflicts (`scripts/claim-counts.py check` compares these numbers with
    the output of `rce-spec-check`);
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
@@ -1508,7 +1508,7 @@ extremes of i64, u64 and binary64, the sort data of RFC 8785 section 3.2.3,
 five of the number rows of RFC 8785 Appendix B, and the
 bytes behind one `state_hash` and one `hash`. Two programs check it:
 `spec/checker/tests/canonical_json.rs` against the reference implementation,
-and `scripts/canonical-json-vectors.py --check`, an encoder written from
+and `scripts/canonical-json-vectors.py check`, an encoder written from
 this subsection alone. A third implementation is conformant when it
 reproduces every canonical text and digest.
 
@@ -1523,7 +1523,7 @@ and this subsection were found by the vectors and are fixed.
   (`interp::shortest_e`, used by `float_json`, `float_text` and
   `emit/rt.rs`). The vectors `float-1424953923781206.2` and the four
   `float-tie-*` vectors (round down, round up, and their negatives) pass.
-- *Second writer.* `rce trace --json` now writes text through the same
+- *Second writer.* `rce trace` now writes text through the same
   `jstr` as the hashed writer, so U+0008 and U+000C print as `\u0008` and
   `\u000c` and a trace shows the bytes that were hashed. The test
   `the_trace_writer_agrees_with_the_hashed_writer` covers every vector.
@@ -1915,7 +1915,7 @@ Two modules that differ only in it have the same outcomes, outputs, ids
 and log hashes (6.1 hashes the positional forms, T7; the finding of
 2026-10-22 that the hashes covered names is resolved, see C.15). A
 projection (10.5) renders the concept record's names by
-default; `rce fmt --nameless` (10.6) is the projection that renders
+default; `rce fmt nameless` (10.6) is the projection that renders
 positional names instead, which is the text the name-free keys of 6.6 are
 computed from.
 
@@ -2172,7 +2172,7 @@ P_c replaces every guard over Σd by its predicate symbol and every data
 update by a symbolic update, giving a symbolic finite automaton over the
 guard predicates of 6.4 (D'Antoni and Veanes 2014). dim_c(P) is the Nerode
 index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P). The symbolic
-quotient is not implemented; `rce dim --control` (10.11) computes the
+quotient is not implemented; `rce dim control` (10.11) computes the
 control quotient of the explored concrete machine instead.
 
 **Canonical control form.** Let M_c be the minimal machine of P_c, its
@@ -2322,7 +2322,7 @@ Each rule of this section, of Appendix C and of Appendix F guides a program
 that does not meet it into Form by exactly one of three methods:
 
 - **Altered.** The rule has one rewrite, determined by the text, that keeps
-  the program's meaning. `rce fmt FILE` writes it and `rce fmt --check FILE`
+  the program's meaning. `rce fmt FILE` writes it and `rce fmt check FILE`
   lists it (10.6). Until it is written the text requires change, and
   `rce check` ends the report with `[altered by rce fmt]` (10.2). A rewrite
   that would add or change another report is not written; `rce fmt` then
@@ -2531,7 +2531,7 @@ Classical.choice). Status per theorem:
 | T58 | proved on the Form of `RCE/Form.lean`, for one program and for two: a bisimulation forces equal behaviours and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`, `bisim2_beh`, `beh_bisim2` |
 | T59 | proved over an explicit finite alphabet (the explored alphabet of 10.11: the declared events over the boundary sets of 6.3 and the literals harvested from the steps), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
-| T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
+| T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 | T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
@@ -3115,7 +3115,7 @@ kept, because it says what the rule was and what it is now. The canonical JSON
 text of 6.1.1 and its vectors, and the claim counts of the published text, are
 kept as published. The figures quoted in the overview, the syntax chapter and
 the tooling chapter are the printed output of `rce-spec-check` on this tree,
-checked by `scripts/claim-counts.py --check`.
+checked by `scripts/claim-counts.py check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
@@ -3150,12 +3150,12 @@ and shows that the step of the third event keeps the state, with exit status 1.
    (6.9) as the reference checker `rce-check`. A file accepted by one is
    accepted by all.
 4. **Exit status.** 0 means success. 1 means a program requires change, an
-   example or check failed, a run reached a kept step, or `fmt --check`
+   example or check failed, a run reached a kept step, or `fmt check`
    found a file to change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
-   when exploration reached `--fuel` before either equivalence or a
+   when exploration reached `fuel` before either equivalence or a
    distinguishing event sequence was established (10.11). 4 means a run
    the host cannot perform: `fn main` needs task threads and the host
    cannot start one (10.3).
@@ -3174,7 +3174,7 @@ class of each method) are not typed into the checker a second time: it
 reads them from `spec/data/spec-data.json`, which `rce-spec-data`
 generates from this book. The two tables are cut from it into
 `spec/data/spec-tables.json`, the file compiled into `rce`, the checker
-and its wasm build; `rce-spec-data --check` fails when either file
+and its wasm build; `rce-spec-data check` fails when either file
 differs from what the book gives.
 
 ### 10.2 `rce check FILE|DIR...`
@@ -3412,19 +3412,19 @@ element of a list comprehension and of `map`, `filter` and `fold`. A
 temporary introduced by the emitter's own lowering is not charged. The
 limit is 50,000,000; it is reset before each observation, as the reference
 starts a new evaluator for each, and running out traps with the message
-"comptime fuel exhausted". The argument `--fuel=N` sets the limit to N and
-`--fuel-trace` prints `fuel K` after each observation, K being the ticks
-used. These two arguments exist for the test below; the default program
+"comptime fuel exhausted". The words `fuel N` set the limit to N and
+`fuel-trace` prints `fuel K` after each observation, K being the ticks
+used. These two words exist for the test below; the default program
 takes no argument.
 
-**The log D.** With the argument `--trace`, an emitted program also prints
+**The log D.** With the word `trace`, an emitted program also prints
 the log D (6.1) of each example. Before the line of each event that δ
 applied or kept comes its entry, `d applied HASH BODY` or `d kept HASH
 BODY`, where BODY is the canonical JSON of `{event, prev_hash, seq,
 state_hash}` over the positional forms and HASH is its SHA-256; after the
 example's last event comes `trace HEAD`, the hash of the last entry (64
 zeros when there is none). `emit::observe_trace` computes the same lines
-with the reference evaluator, the fuel lines of `--fuel-trace` included.
+with the reference evaluator, the fuel lines of `fuel-trace` included.
 The head commits to the events and the state hashes only. The state shown
 after each event, the outputs, the reason an event was kept and the fuel
 are not hashed, so a trace is compared whole: every line of an example's
@@ -3447,7 +3447,7 @@ it agreed on all 54 programs of that corpus and at all 1,366 swept limits
 (a run that covered Scala alone).
 
 
-**Running `fn main`.** Run with the argument `--run`, an emitted program
+**Running `fn main`.** Run with the word `run`, an emitted program
 instead evaluates `fn main` with tasks, channels, `select`, actors and
 `par` on a runtime of its own: every task is a thread (a worker in
 JavaScript), and one scheduler admits their moves tick by tick in the
@@ -3461,7 +3461,7 @@ of its function and one per argument); actor handlers share the
 scheduler's pool; a `par` branch or `for ... par` chunk starts from its
 parent's remaining fuel, and the branches are charged back in source
 order, so the trap falls where the reference's sequential run puts it.
-With `--trace` as well, the program prints the trace of `fn main` (10.9)
+With `trace` as well, the program prints the trace of `fn main` (10.9)
 before the outcome line: per entry of the run's log, in order, the line
 `d applied HASH BODY` (`d kept HASH BODY` for a `Kept` entry), BODY the
 canonical JSON of `{event, prev_hash, seq, state_hash}` of that step and
@@ -3485,7 +3485,7 @@ outcome.
 
 - In the observations, channels, `spawn`, `select`, actors and `extern`
   functions trap with the same message as in the reference evaluator
-  ("not available at comptime"); they run only under `--run`. `extern`
+  ("not available at comptime"); they run only under `run`. `extern`
   functions trap there too.
 - A `par` whose branches wait on an lvar runs its branches at the same
   time in the reference (`ParMode::Threads`). Derivation. The governing
@@ -3523,7 +3523,7 @@ outcome.
   not been run.
 - The Scala output has been checked with Scala 3.10.0 only, on OpenJDK 27
   (the examples corpus) and OpenJDK 21 (the conformance suite). With
-  `--run` it runs `fn main` through its task runtime, the same tick
+  `run` it runs `fn main` through its task runtime, the same tick
   scheduler as the other targets, and prints that there is nothing to run
   when no `fn main()` is declared. A `par` runs its branches in source
   order on one thread (by restart when they wait on lvars), as the
@@ -3534,7 +3534,7 @@ For an unknown target, or a program that one of these emitters does not
 translate, `rce emit` prints nothing on standard output, prints the reason
 on standard error, and exits with status 2. It never prints a partial file.
 
-### 10.6 `rce fmt [--check] FILE...`
+### 10.6 `rce fmt [check] FILE...`
 
 `rce fmt` rewrites each file into canonical layout. Let tok(t) be the token
 sequence of text t produced by the lexer and layout pass of 2.6, with line
@@ -3569,13 +3569,13 @@ on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
 second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
 step changes exactly the places its rewrites name.
 
-With `--check`, no file is written; each rewrite is printed as
+With `check`, no file is written; each rewrite is printed as
 `would alter FILE: line N: RULE what`, each file whose layout would change
 as `would reformat FILE`, and the status is 1. Without it, each rewrite is
 printed as `altered FILE: line N: RULE what`, and each changed file is
 written and printed as `formatted FILE`.
 
-**`rce fmt --nameless FILE`** prints the name-free projection of one file
+**`rce fmt nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
 is replaced by a positional name in order of first declaration, by kind:
 regions `r0, r1, …`, events `e0, …`, errors `x0, …`, functions `f0, …`,
@@ -3598,7 +3598,7 @@ field, since a receiver's type is not known to the projection; it is still
 renamed where it names a local. Function calls by name are renamed at their
 call sites. The projection is deterministic and
 idempotent, and it has the same outcomes, outputs, ids and log hashes as
-the source: `rce trace --json` of the two is equal step for step except
+the source: `rce trace` of the two is equal step for step except
 in the readable `event` field, since 6.1 hashes the positional forms
 (T7). A name the
 projection does not recognise as declared is left as written, so the
@@ -3670,7 +3670,7 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 ### 10.8 What is not yet implemented
 
 - The program emitters do not run concurrency or actors in their
-  observations, only under `--run`, and never run `extern` functions
+  observations, only under `run`, and never run `extern` functions
   (10.5).
 - The language server resolves names within one document, without block
   scope, and counts columns in Unicode scalar values (10.7). It has no
@@ -3702,7 +3702,7 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   construct not yet printed do not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
-### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
+### 10.9 `rce trace FILE [EVENTS]`: reference traces (informative)
 
 The trace format lets an independent projector (another compiler or
 runtime of the same Form) show that it agrees with the reference
@@ -3710,10 +3710,10 @@ evaluator step by step. It adds no meaning: every field is a field of the
 log D of 6.1, so a trace is the log, and conformance to 6.1 implies
 conformance to the trace.
 
-`rce trace --json FILE` prints one trace per `example` of the module, in
+`rce trace FILE` prints one trace per `example` of the module, in
 source order (the same logs `rce emit form` puts in `logs`), then, when
-the module declares `fn main()`, the trace of its run (below); with
-`--streams PATH` it prints one trace per event list of PATH (one list per
+the module declares `fn main()`, the trace of its run (below);
+`rce trace streams FILE PATH` prints one trace per event list of PATH (one list per
 line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
 carrying their number; with EVENTS
@@ -3793,7 +3793,7 @@ trace's `outcome` is `"done"`, `"deadlock"` or {`stopped`: REASON}, as
 `rce run` ends. An entry's event is display text, which names declared
 types (`Ping(n: 7, reply: <chan>)`), so renaming a declaration changes the
 hashes of a main trace, where an example's (T7) stay the same. With
-`--trace`, an emitted program run with `--run` prints the trace of
+`trace`, an emitted program run with `run` prints the trace of
 `fn main` as lines of D (10.5). The core evaluator (10.12) does not run
 `fn main` on the tick runtime, so it prints no trace of `fn main`.
 
@@ -3822,7 +3822,7 @@ field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
 checks that the fixtures are current, that every step is on the 6.1
 chain, and that the runner finds a planted divergence.
 
-### 10.10 `rce index [--vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)
+### 10.10 `rce index [vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)
 
 `rce index` checks the files as one program (10.2) and prints one JSON
 object (format `rce-catalog/1`, compact, sorted keys) with one entry per
@@ -3839,7 +3839,7 @@ position do not change it), `checked` (the verdict of its file) and
 `lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
 `pending_files` maps each file that requires change to its diagnostics. With
-`--vectors N`, `vectors` maps a lowered brick's hash to up to N
+`vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
 (an input that needs more than 200000 interpreter steps gives none, as the
@@ -3857,7 +3857,7 @@ an instance, plus 2 when the arguments match only in another order. Ties
 break by module and name. Both commands are deterministic: equal inputs
 give equal output bytes.
 
-### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
+### 10.11 `rce dim [fuel N] [control] [json] FILE`: behaviours and redundancy (informative)
 
 `rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
 Form, with its `use` imports linked. It explores reach(P) breadth-first
@@ -3895,7 +3895,7 @@ Cartesian product of its columns in field order, the first field varying
 slowest, cut at 4,096 instances per event; an instance that a refined type
 refuses at construction (T35) is not explored and is listed.
 
-Exploration stops at `--fuel` states (default 100,000) and reports whether
+Exploration stops at `fuel` states (default 100,000) and reports whether
 the bound was reached. On the explored graph it runs partition refinement (Hopcroft)
 with the per-step output of λ as the initial partition, giving the number
 of distinct behaviours among explored states, which is dim(P) exactly when
@@ -3908,12 +3908,12 @@ behaviours          1206     dim(P) (exact)
 redundancy          3.37     bits: log2(states) - log2(behaviours)
   region Counter    0.00
   region Audit      3.37
-control states      17       dim_c(P)          [--control]
-shape_ctl           sha256:…                   [--control]
+control states      17       dim_c(P)          [control]
+shape_ctl           sha256:…                   [control]
 ```
 
 A region's redundancy is computed from the projection of the explored
-graph onto that region's fields. `--control` computes the control quotient
+graph onto that region's fields. `control` computes the control quotient
 of 6.10 on the same explored graph: each step is labelled by its control
 outcome only (the kept step's error, by declaration index; else the
 constructors of what was emitted, by declaration index or type class) and
@@ -3926,7 +3926,7 @@ states by first visit in breadth-first order from s₀ with events in
 canonical order, one line per (state, event) with the successor's number
 and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
-`rce fmt --nameless`).
+`rce fmt nameless`).
 The report also says whether some explored step has a λ output (6.1): an
 emitted value, or the record of a kept step (`has_output` in the JSON, with
 `emits` and `keeps` reported separately, since a kept step and an emitted
@@ -3938,12 +3938,12 @@ definition, so its redundancy is its whole state: the state is in D and
 readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
-`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
+`json` prints the same as one JSON object (format `rce-dim/1`, compact,
 sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
-`rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
+`rce equiv [fuel N] [json] A B` asks whether two programs have the same
 behaviour (6.10): it links both and explores both from their initial
 states over the same event instances (the explored alphabet above, with
 the harvested literals of A and B joined per event, by declaration index,
@@ -3966,7 +3966,7 @@ differ only on a payload value outside that alphabet (a target that only
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 
-`rce change [--fuel N] OLD NEW` classifies a change to a program by the
+`rce change [fuel N] OLD NEW` classifies a change to a program by the
 classes of C.15 and proposal CC-2, comparing the two programs under one
 text: it prints both program hashes (equal hashes mean a renaming
 or a reformatting, the same program), the `rce api-diff` rows (F.4.3) and
@@ -3976,7 +3976,7 @@ explored bound" when a bound was reached); *meaning change* when a
 behaviour changed (status 1: the program's meaning changed); *interface change*
 when behaviour is kept but an export is broken (status 1: callers must
 change); *undecided* when `rce equiv` is undecided (status 3: raise
-`--fuel`); *compatible* or *breaking* from the rows alone when neither
+`fuel`); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
@@ -4770,8 +4770,8 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   `actor_kept_outcomes_match` (the Rust, Python and JavaScript runtimes take
   the same decisions as the reference, with and without a window) and
   `restart_inputs_replay_on_every_target` (each runtime prints its
-  decisions with `--restart-log`, replays a logged list given as
-  `--restart=TICK|SUP|CHILD|ID|STOP|RESET,...` under a changed bound
+  decisions with `restart-log`, replays a logged list given as
+  `restart TICK|SUP|CHILD|ID|STOP|RESET,...` under a changed bound
   exactly as the reference does, and diverges on a mismatched decision).
   Stable ids and upgrades. Derivation. A logged decision names actors
   by id, and replay applies it to the actor with that id, so a log
@@ -4817,7 +4817,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   line and adds a function, an actor type and a supervisor; removal and
   reorder traps; the version 0 per-decision check; on the reference and
   on the Rust, Python, JavaScript and Scala runtimes, which print the
-  header with `--restart-log` and take it as `--restart-tree=S/c,...`).
+  header with `restart-log` and take it as `restart-tree S/c,...`).
   The run log of `fn
   main` is not D: actors run by `rce run`, not by the host of Appendix E
   (HC-6).
@@ -5243,7 +5243,7 @@ nested over 1000 levels is not lowered (catalog readers parse past JSON
 libraries' usual 128 levels, with a stated bound). Every construct not lowered is recorded in the
 catalog with its line and construct, never approximated.
 
-`rce index --vectors N` records the reference evaluator's results on N
+`rce index vectors N` records the reference evaluator's results on N
 generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
 evaluates each term on them and reports agreement. Agreement is tested on
 vectors (`spec/checker/tests/brick.rs`), not proved.
@@ -5505,9 +5505,9 @@ adapter.
   installed, so it names each restriction at the granularity the target
   enforces and never one the target did not install. The reference
   (`sandbox.rs`) lists every address an adapter may use with how it is
-  used: connected to (`--net`, `--peer`), bound after the target is
-  entered (`--net`, and a `--http` address whose bind is still being
-  retried), or bound before (`--http`, `--chan`), whose listener is then
+  used: connected to (`net`, `peer`), bound after the target is
+  entered (`net`, and a `http` address whose bind is still being
+  retried), or bound before (`http`, `chan`), whose listener is then
   only accepted on. It makes the rules and the line from that one list.
   On macOS the Seatbelt profile denies all network use, then allows
   binding and inbound connections on the port of each listening grant and
@@ -5522,7 +5522,7 @@ adapter.
   port"; a listener bound before entering needs no rule; below ABI 4 the
   line says that Landlock does not restrict the network. seccomp does not
   permit new IP sockets unless some grant is connected to or bound after
-  entering, so with `--http` alone neither the host nor a PTY child can
+  entering, so with `http` alone neither the host nor a PTY child can
   open a socket; otherwise no layer restricts UDP, and the line says so.
   The channel adapters start their threads after the target is entered, so
   Landlock covers them as well. The Seatbelt rules follow Apple's profile
@@ -5542,10 +5542,10 @@ adapter.
   `Host::main_event`, `conc::RunCfg.events`,
   `tests/host_sched.rs` `program_events_feed_the_live_task_and_replay`,
   `tests/conc06b_run.rs` `program_events_feed_the_running_task`; the
-  emitted runtimes take the same inputs as `--event=TICK|Name|f=v,...`,
+  emitted runtimes take the same inputs as `event TICK|Name|f=v,...`,
   a field's value given by its declared type as a decimal integer,
   `true`/`false` or text, and log `Input(..)` and `Unhandled(..)` with
-  `--actor-log`; a malformed event is an input error, exit status 2,
+  `actor-log`; a malformed event is an input error, exit status 2,
   not a program trap; `tests/emit_run.rs`
   `program_events_agree_on_every_target` on the Rust, Python,
   JavaScript and Scala runtimes); `host.Step` {cause, i, node, tick, what} logs one scheduler
@@ -5946,7 +5946,7 @@ both enter D and reach the program as inputs.
 
 ### E.4b The net adapter and the HTTP event host (HC-23 to HC-26)
 
-- **HC-23 The net adapter.** `--net HOST:PORT`, given once per address,
+- **HC-23 The net adapter.** `net HOST:PORT`, given once per address,
   grants TCP as effects. Authority is the granted addresses, compared by
   their exact text (HC-5); a request that names an address not granted, or
   an id the adapter did not issue, fails. Each request has one result
@@ -5976,8 +5976,8 @@ both enter D and reach the program as inputs.
   and polls with `Tick`, one connection at a time
   (`spec/checker/tests/host/notes_net.rce`); the HTTP event host below
   serves the same program without polling.
-- **HC-24 HTTP requests are inputs.** `rce host serve FILE --log D --http
-  HOST:PORT` (one address, under `serve` only) binds the address before
+- **HC-24 HTTP requests are inputs.** `rce host serve http HOST:PORT
+  FILE D` (one address, under `serve` only) binds the address before
   the OS target is entered (HC-5a) and appends `host.HttpListen` {addr and
   the limits of HC-25}, or {addr, error} when the bind failed; a failed
   bind is retried every second, and the bind that succeeds appends
@@ -6038,7 +6038,7 @@ both enter D and reach the program as inputs.
   when they are UTF-8 (E.4c HD-3). With no `Input` declared, or one the line
   cannot be built into, `host.Kept` records the line in D, as text when
   it is UTF-8 and as its bytes otherwise; `rce host run` holds its lines
-  the same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
+  the same way. Only a storage fault (HS-3) stops the loop. With `http` the end of stdin does not end the loop;
   SIGTERM or SIGINT stops accepting connections, waits at most STOP_MS
   (5,000 ms) for the open requests, takes the final barrier and validates
   the run (HC-8). PTY children start with no signal blocked.
@@ -6174,7 +6174,7 @@ did not, not by restricting what a module may declare.
   performed and its result is recorded in D as `host.Kept`, not
   delivered; the result answers its request, so a restart does not
   interrupt it (HC-22).
-- **HD-2 HTTP.** `--http` serves any module. `HttpRequest`,
+- **HD-2 HTTP.** `http` serves any module. `HttpRequest`,
   `HttpMalformed` and the result `HttpRespondDone` are matched by field
   name like any delivery, the body by HD-3, and the request `HttpRespond`
   is read by field name: names, values and body are empty when the struct
@@ -6306,7 +6306,7 @@ JSON. The host entries are:
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
-| `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `--http`, and when a retried bind succeeds (HC-24) |
+| `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `http`, and when a retried bind succeeds (HC-24) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -7582,7 +7582,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   {kind: "advisory", hash, reason, issued_by, seq}, signature}` with the
   Ed25519 signature (RFC 8032, via `ring`) over the SHA-256 of the canonical
   JSON of the `advisory` object, by the key trusted for `issued_by` (given on
-  the command line, `--key ISSUER=HEXPUBKEY`); `seq` of one issuer must
+  the command line, `key ISSUER HEXPUBKEY`); `seq` of one issuer must
   increase. The lockfile's unsafe list is the pinned module and dependency
   hashes that carry a verified advisory; the tool prints them as `UNSAFE` and
   the manifest still checks (an advisory never changes what a hash means).

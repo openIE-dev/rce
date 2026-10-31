@@ -123,7 +123,7 @@ for t, mx, acks in wf:
     print('check wr(%s, %d, [%s]) == WrOut(chunks: %s, sent: %d, done: %s)' % (q(t), mx, ', '.join(map(str, acks)), ql(ch), sent, 'true' if done else 'false'))
 print('check bad_acks()')
 
-print('# file paths (the --fs adapter rule)')
+print('# file paths (the fs adapter rule)')
 ps = ['a.txt', 'd/a.txt', './a', '.', '..', '../a', 'a/..', 'a/../b', '/etc/passwd', '/', '', 'a//b', 'a/', '...', '..a', 'a..', 'é/€', 'a/./b', '.hidden', ' ']
 for p in ps:
     for lst in (False, True):

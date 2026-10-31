@@ -2,7 +2,7 @@
 """Count every figure the prose quotes from the source, and check the prose.
 
   scripts/claim-counts.py            print the counts as JSON
-  scripts/claim-counts.py --check    fail when a quoted figure disagrees with the source
+  scripts/claim-counts.py check      fail when a quoted figure disagrees with the source
 
 A count is a count: this script never reports that a test passes. Pass/fail
 needs a run; the only run it uses is `rce-spec-check` (the grammar and
@@ -13,6 +13,22 @@ Lean: the module count is a file count; the audit count needs
 (the text printed by `lake env lean audit/Audit.lean`).
 """
 import json, os, pathlib, re, subprocess, sys
+
+
+def words(allowed, usage):
+    """The words of this script's command line (spec/proposals/positional-cli.md,
+    PC-1): each one of `allowed`, at most once. A removed flag `--W` names its
+    new spelling and exits 2 (decision 2); anything else is a usage error."""
+    a = sys.argv[1:]
+    for x in a:
+        if x.startswith("-"):
+            w = x.lstrip("-").split("=")[0]
+            sys.stderr.write(f"{x.split('=')[0]} was removed; write: {usage.split(' [')[0]} {w}\n" if w in allowed else f"usage: {usage}\n")
+            sys.exit(2)
+    if any(x not in allowed for x in a) or len(set(a)) != len(a):
+        sys.stderr.write(f"usage: {usage}\n")
+        sys.exit(2)
+    return set(a)
 
 root = pathlib.Path(__file__).resolve().parent.parent
 spec = root / "spec"
@@ -130,8 +146,9 @@ def check(c):
 
 
 def main():
+    w = words({"check"}, "scripts/claim-counts.py [check]")
     c = counts()
-    if "--check" in sys.argv:
+    if "check" in w:
         errs = check(c)
         for e in errs:
             print("MISMATCH:", e)

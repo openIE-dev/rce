@@ -5,25 +5,25 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 | File | Body SHA-256 | Read-receipt question |
 |---|---|---|
-| `00-overview.md` | `7e384e15ee67f436c7a8cd88928b40f57ac7dab844897bd7848df1c8fa8f484b` | In the overview's tiny example, what is the name of the event? |
+| `00-overview.md` | `c2e9145f50a8a9ffa3f30fe5e2b9fed41067ec95c2630b66681bafe43ecf72ac` | In the overview's tiny example, what is the name of the event? |
 | `01-notation.md` | `a521503afcfbe33debdf95f67ba7d2b35759e82e0c4f7ec2a5157fa2585874d1` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
 | `02-lexical.md` | `b48794be4b4fba7520cbc7764d17fc9bf7ce3a2979375ed708f18ef63dd502fe` | Which code point is the horizontal tab, as written in this section? |
-| `03-syntax.md` | `90fe10b3aa097327e2661efbb342052335cc4b1507154dcde90fd2f3f857f23a` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
+| `03-syntax.md` | `17203e1adc917bd4a8f5bf953ff8ed993671c39176c5bd064772c6c73ac8703a` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
 | `04-programs.md` | `f176cdbdab83223bd6e746a60ee394053648bbe43bb5f1afe1fec87c22fbb3ff` | What is the outermost scope called? (one word) |
 | `05-types-ownership.md` | `f3e970007bb2faf57da1674ca03cb6cc103a163c3fcbad7da4add6bc741e1baf` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb` | What kind of channel does a capacity of 0 give? (one word) |
-| `07-form-evaluation.md` | `c4765869e945dca69fceef55a29bff6571f4905257bc63107ec7dfa0edc40e66` | Which JavaScript function is named for rounding to binary32? |
-| `08-steps-loops-concurrency.md` | `fe341f6a675a5e9cc0ed690c586c94ace1728954b9e7d6c1634634b45fa4230c` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `c8fe36deaaec46aaf012062797642bafc2ba8cf235e5c15aa17bd6fde819e7ec` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
-| `10-theorems.md` | `0827a0cecea9f014e17e0fd134d7bc2009c6a0979a5f3eeff4123228d4cbc962` | What is the deep embedding of the emitted Rust subset called? |
-| `11-decisions.md` | `f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `e3ee970335891a217e0cc67cedfbc9db49c4b92c64a41d74f8536c0bdcd30c99` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `07-form-evaluation.md` | `2b3344a046f82366a7cdd55da681cdbb746739153fe1250057430391c5de8397` | Which JavaScript function is named for rounding to binary32? |
+| `08-steps-loops-concurrency.md` | `37a6b2eb111a41d9e711ee5c4d22e4afac865b2c68e2d3f8f9bc7624e95ce697` | Name-free hashing uses indices named after which logician? (two words) |
+| `09-wellformedness.md` | `f3a0cdbb5432c7fe84f9406ca809f796ab258130766e69d844563b0ce6a1c60a` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
+| `10-theorems.md` | `6d6be4c963419a95f1e9f8abc03f57ba39611012fa203e691e5d8f10dba7fe18` | What is the deep embedding of the emitted Rust subset called? |
+| `11-decisions.md` | `ebbf77ef787a4497ed66e4fca238dfc4accd3e99a178ee78c8831a08bb730045` | The decisions list says it decides gaps in which file? |
+| `12-tooling.md` | `8ea10bae22fe96321f394524dda68ab6fe7cf566dc13260762e0771f59fe63c9` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `c31f7a72b58278b52c6ffa13d2984b06563e73d695e5db7c670c9b4da5e2060f` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
-| `15-handler-spec-profile.md` | `aae630976deb0a9785fa66664bfaa6b662998b4d70aa6cb978085e45c087dc5f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `4f740d4cdc060ffde1e2722fdaa3102caac181dbc44b26ca9db22120bace5574` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `d758122e6b3bc467c6c7cc553e72dc63cb7c3a6ae67ecb968045950837b14b53` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
+| `14-draft06-concurrency.md` | `62e6ddd483f6f4259708c203b44642455cde6fcfe34c3abc75cf28dc658bd730` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
+| `15-handler-spec-profile.md` | `fad7eeeb89f4f794212ec8699e52d99e0f345f5dff6edfb02af7c3dc3dbbec30` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
+| `16-host-contract.md` | `1f4d54eebb61188596a59cf49348564930491ced030eb4407ef8b50e736eb508` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `17-draft09.md` | `4870b5eb4c4da34715387cdbf76f6d4729decc3890cb2735267a32ddbfd64dc1` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: c4c4f2d98547ff16abe9e918587e96d309935ba078c8e403da2565b3c47cde46 -->
+<!-- body-sha256: a8fb1df83d68ba95fd8e3208fb1fffdad1f241122b4ff88b4265be63bce8633d -->

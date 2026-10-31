@@ -167,7 +167,7 @@ extremes of i64, u64 and binary64, the sort data of RFC 8785 section 3.2.3,
 five of the number rows of RFC 8785 Appendix B, and the
 bytes behind one `state_hash` and one `hash`. Two programs check it:
 `spec/checker/tests/canonical_json.rs` against the reference implementation,
-and `scripts/canonical-json-vectors.py --check`, an encoder written from
+and `scripts/canonical-json-vectors.py check`, an encoder written from
 this subsection alone. A third implementation is conformant when it
 reproduces every canonical text and digest.
 
@@ -182,7 +182,7 @@ and this subsection were found by the vectors and are fixed.
   (`interp::shortest_e`, used by `float_json`, `float_text` and
   `emit/rt.rs`). The vectors `float-1424953923781206.2` and the four
   `float-tie-*` vectors (round down, round up, and their negatives) pass.
-- *Second writer.* `rce trace --json` now writes text through the same
+- *Second writer.* `rce trace` now writes text through the same
   `jstr` as the hashed writer, so U+0008 and U+000C print as `\u0008` and
   `\u000c` and a trace shows the bytes that were hashed. The test
   `the_trace_writer_agrees_with_the_hashed_writer` covers every vector.
@@ -492,4 +492,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: c4765869e945dca69fceef55a29bff6571f4905257bc63107ec7dfa0edc40e66 -->
+<!-- body-sha256: 2b3344a046f82366a7cdd55da681cdbb746739153fe1250057430391c5de8397 -->

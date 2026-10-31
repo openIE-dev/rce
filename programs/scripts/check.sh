@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Check every program in this repository with the real RCE checker.
 #
-#   scripts/check-listings.sh           check everything
-#   scripts/check-listings.sh --bless   also rewrite the expected .out files
+#   scripts/check.sh           check everything
+#   scripts/check.sh bless     also rewrite the expected .out files
 #
 # Rules:
 #   * NAME.rce outside a change/ directory must pass `rce test`.
@@ -17,7 +17,13 @@
 set -u
 RCE="${RCE:-rce}"
 BLESS=0
-[ "${1:-}" = "--bless" ] && BLESS=1
+# positional (positional-cli.md PC-1): the one word is `bless`
+case "${1:-}" in
+  "") ;;
+  bless) BLESS=1 ;;
+  -*) echo "$1 was removed; write: programs/scripts/check.sh bless" >&2; exit 2 ;;
+  *) echo "usage: programs/scripts/check.sh [bless]" >&2; exit 2 ;;
+esac
 cd "$(dirname "$0")/.." || exit 2
 fail=0
 pass=0

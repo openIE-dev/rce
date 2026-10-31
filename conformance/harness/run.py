@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Run rce-conformance against one implementation through its adapter.
 
-  harness/run.py ADAPTER [TESTS [OUT]]
-  harness/run.py --adapter adapters/reference.json [--tests tests] [--filter AREA]
-                 [--out reports/results-NAME.json] [--jobs N]
+  harness/run.py [quiet] [jobs N] [filter AREA] [known-failures FILE] [stop-on-fail] ADAPTER [TESTS [OUT]]
 
-The first spelling takes positional arguments only: the adapter file, the
-test directory (default `tests`) and the results file (default
-`reports/results-NAME.json`), with one job per processor. The options of the
-second spelling are kept for the tools that use them (`tools/mutate.py`,
-`tools/run-all.sh`).
+Words, then operands (spec/proposals/positional-cli.md, PC-1): the adapter
+file, the test directory (default `tests`) and the results file (default
+`reports/results-NAME.json`), with one job per processor unless `jobs N`.
+`quiet` prints less; `filter AREA` runs the tests whose id starts with AREA;
+`known-failures FILE` names the test ids expected to fail (findings), and the
+run exits 0 iff the failing set equals it; `stop-on-fail` stops at the first
+failing test (mutation runs). No argument starts with `-`: a removed flag
+prints its new spelling and exits 2.
 
 An adapter is any program that speaks rce-adapter/1 (see ADAPTERS.md) on
 stdin/stdout. The adapter file names its command line and which ops it
@@ -26,7 +27,8 @@ results file also records the adapter's `hello` answer, which names the
 implementation and, for an emitter, the checker that emitted and the
 target's toolchain.
 """
-import argparse, concurrent.futures as cf, hashlib, json, os, pathlib, select, shlex, subprocess, sys, time
+import concurrent.futures as cf, hashlib, json, os, pathlib, select, shlex, subprocess, sys, time
+from types import SimpleNamespace
 TIMEOUT = float(os.environ.get("RCE_TEST_TIMEOUT", "120"))
 sys.path.insert(0, os.path.dirname(__file__))
 import rcetest
@@ -271,7 +273,7 @@ def judge_cli(t, spec):
             return "fail", f"{n} stdout lines != {m['lines']}: {out[-300:]}"
     return "pass", ""
 
-STOP = None  # set when --stop-on-fail: (threading.Event, ids to ignore)
+STOP = None  # set when stop-on-fail: (threading.Event, ids to ignore)
 
 def run_chunk(spec, tests, ops):
     a = Adapter(spec); res = []
@@ -297,24 +299,14 @@ def run_chunk(spec, tests, ops):
     return res
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("positional", nargs="*", metavar="ADAPTER [TESTS [OUT]]")
-    ap.add_argument("--adapter")
-    ap.add_argument("--tests")
-    ap.add_argument("--filter")
-    ap.add_argument("--out")
-    ap.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
-    ap.add_argument("--quiet", action="store_true")
-    ap.add_argument("--known-failures", help="file of test ids expected to fail (findings); exit 0 iff the failing set equals it")
-    ap.add_argument("--stop-on-fail", action="store_true", help="mutation runs: stop at the first failing test")
-    a = ap.parse_args()
-    if a.positional:   # ADAPTER [TESTS [OUT]], never mixed with the options that name the same things
-        if len(a.positional) > 3 or a.adapter or a.tests or a.out:
-            ap.error("give ADAPTER [TESTS [OUT]] or --adapter/--tests/--out, not both")
-        a.adapter, a.tests, a.out = (a.positional + [None, None])[:3]
-    if not a.adapter:
-        ap.error("no adapter: give ADAPTER or --adapter")
-    a.tests = a.tests or str(ROOT / "tests")
+    sys.path.insert(0, str(ROOT.parent / "scripts"))
+    from positional import read
+    w, ops = read("harness/run.py", {"quiet": 0, "jobs": 1, "filter": 1, "known-failures": 1, "stop-on-fail": 0}, "ADAPTER [TESTS [OUT]]", 1, 3,
+                  removed={"--adapter": 0, "--tests": 1, "--out": 2}, fill={1: "tests"})
+    ops = ops + [None, None]
+    a = SimpleNamespace(adapter=ops[0], tests=ops[1] or str(ROOT / "tests"), out=ops[2], filter=w.get("filter"),
+                        jobs=int(w.get("jobs", os.cpu_count() or 2)), quiet="quiet" in w,
+                        known_failures=w.get("known-failures"), stop_on_fail="stop-on-fail" in w)
     if a.stop_on_fail:
         import threading
         global STOP

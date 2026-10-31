@@ -4,7 +4,7 @@ little-endian, computed with MPFR at 9000 bits (gmpy2). Prints the RCE
 functions c_two_opi (2/pi, b = 4200), c_pio2 (pi/2, 2100), c_ln2 (ln 2,
 2100), c_log2e, c_log10e, c_log10_2, c_ln10 (2100), c_pi, c_ln2x, c_2osqrtpi, c_hl2pi (4200), c_euler (Euler's gamma, 2100), c_g2
 (gamma^2/2 + pi^2/12, 2100), c_stir
-(|B_2k| / (2k (2k-1)), k = 1..20, 4200); math.rce must contain those it defines verbatim (--check FILE)."""
+(|B_2k| / (2k (2k-1)), k = 1..20, 4200); math.rce must contain those it defines verbatim (`math_const.py check FILE`)."""
 import sys, gmpy2
 gmpy2.get_context().precision = 9000
 pi = gmpy2.const_pi()
@@ -37,8 +37,14 @@ def stir():
     return '# |B_2k| / (2k (2k-1)) * 2^4200 floored, for k + 1 = 1..20 (Stirling)\nfn c_stir(k: i64) -> List[i64]\n' + ''.join(rows) + '    return []\n'
 out = [text(*c) for c in C] + [stir()]
 C = C + [('c_stir', None, 0)]
-if '--check' in sys.argv:
-    src = open(sys.argv[-1]).read()
+# positional (spec/proposals/positional-cli.md PC-1): `check FILE`, or nothing
+if any(a.startswith('-') for a in sys.argv[1:]):
+    sys.stderr.write('%s was removed; write: math_const.py check FILE\n' % next(a for a in sys.argv[1:] if a.startswith('-')))
+    sys.exit(2)
+if sys.argv[1:2] == ['check'] and len(sys.argv) == 3:
+    src = open(sys.argv[2]).read()
     bad = [c[0] for c, t in zip(C, out) if 'fn %s(' % c[0] in src and t not in src]
     print('ok' if not bad else 'MISMATCH ' + ' '.join(bad)); sys.exit(1 if bad else 0)
+elif len(sys.argv) > 1:
+    sys.stderr.write('usage: math_const.py [check FILE]\n'); sys.exit(2)
 print('\n'.join(out))

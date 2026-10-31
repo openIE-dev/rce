@@ -58,7 +58,7 @@ bounds nesting depth, while the reference counts ticks across the whole
 run, so tick counts are not comparable through `eval`. `RCE/Core/Count.lean`
 adds `evalC`, which threads a tick counter (one per node, one on call
 entry), with `evalC_sound`, `runC_total` and tick vectors; S6 compares
-`ticksUsed` with the reference's `--fuel-trace`.
+`ticksUsed` with the reference's `fuel-trace`.
 
 Added in the S1 remainder batch:
 

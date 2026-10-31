@@ -1,5 +1,5 @@
 # A long-running account service, driven by the host one event at a time
-# (`rce host run accounts.rce --log D`, one line of events per stdin line).
+# (`rce host run accounts.rce D`, one line of events per stdin line).
 # The run has no end; each step is bounded: at most MAX_ACCOUNTS accounts
 # exist, and the one loop (a fee charged to every account) runs over them.
 # A transfer writes the debit before it checks the credit, so a credit that

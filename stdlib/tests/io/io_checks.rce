@@ -280,7 +280,7 @@ check wr("\na😀za\n€ 😀 \r\r\n\r bé\raa", 8, [8, 4, 8, 8, 1]) == WrOut(ch
 check wr(" zé\né\né", 6, [4, 6]) == WrOut(chunks: [" zé\n", "\né\né"], sent: 10, done: true)
 check wr("é\r😀\nb\r€\réb\nz", 1, [2, 1, -1, 4, 1, 1, -1, 1, 3, 1, 2, 1, -1, 1, 1]) == WrOut(chunks: ["é", "\r", "😀", "😀", "\n", "b", "\r", "\r", "€", "\r", "é", "b", "\n", "\n", "z"], sent: 19, done: true)
 check bad_acks()
-# file paths (the --fs adapter rule)
+# file paths (the fs adapter rule)
 check pok("a.txt", false) == true
 check pok("a.txt", true) == true
 check pok("d/a.txt", false) == true

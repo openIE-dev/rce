@@ -278,7 +278,7 @@ declaration and no conflict to resolve at parse time.
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
    current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
-   conflicts (`scripts/claim-counts.py --check` compares these numbers with
+   conflicts (`scripts/claim-counts.py check` compares these numbers with
    the output of `rce-spec-check`);
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
@@ -301,4 +301,4 @@ the file exactly when the Rust parser does, on every CI run.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 90fe10b3aa097327e2661efbb342052335cc4b1507154dcde90fd2f3f857f23a -->
+<!-- body-sha256: 17203e1adc917bd4a8f5bf953ff8ed993671c39176c5bd064772c6c73ac8703a -->

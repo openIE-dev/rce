@@ -42,11 +42,11 @@ jobs:
       # every figure the prose quotes (grammar and example counts from
       # rce-spec-check, built above) must equal the source
       - name: Check the quoted counts (claim-counts)
-        run: python3 ../../scripts/claim-counts.py --check
+        run: python3 ../../scripts/claim-counts.py check
       - name: Check the conformance README status block equals reports/
-        run: python3 ../../conformance/tools/readme_status.py --check
+        run: python3 ../../conformance/tools/readme_status.py check
       - name: Check the rce-form/1 fixtures are what their generator writes
-        run: python3 ../../spec/examples/form/make.py --check
+        run: python3 ../../spec/examples/form/make.py check
       - name: T7 on every corpus program (rce equiv against the name-free projection)
         run: bash ../../scripts/t7-equiv.sh
       - name: Clippy

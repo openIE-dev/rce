@@ -101,7 +101,7 @@ These remain, each with the change that would remove it:
   an `i128`. Proposed: `event_from_json` and `state_json` in every
   runtime, on the canonical JSON of 6.1.
 - **The process configures the module.** The Python and JavaScript
-  runtimes read `--fuel=`, `--trace` and `--fuel-trace` from the process's
+  runtimes read the words `fuel N`, `trace` and `fuel-trace` from the process's
   arguments when they load, and the Python runtime raises the recursion
   limit of the whole process to 1,000,000. A host started with such an
   argument changes the program. `delta` does not reset the fuel itself, so

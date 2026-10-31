@@ -11,8 +11,8 @@ Programs that talk to other programs.
 `server.rce` has no tests of its own: it shows the shape of an actor and
 is only type checked.
 
-`notes_http.rce` runs on the host with `rce host serve notes_http.rce
---log D --http 127.0.0.1:8080`. The host frames each request (Appendix E
+`notes_http.rce` runs on the host with `rce host serve http 127.0.0.1:8080
+notes_http.rce D`. The host frames each request (Appendix E
 HC-24 to HC-26) and the program answers it with `HttpRespond`; its
 examples test every answer without a network.
 

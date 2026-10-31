@@ -273,7 +273,7 @@ nested over 1000 levels is not lowered (catalog readers parse past JSON
 libraries' usual 128 levels, with a stated bound). Every construct not lowered is recorded in the
 catalog with its line and construct, never approximated.
 
-`rce index --vectors N` records the reference evaluator's results on N
+`rce index vectors N` records the reference evaluator's results on N
 generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
 evaluates each term on them and reports agreement. Agreement is tested on
 vectors (`spec/checker/tests/brick.rs`), not proved.
@@ -435,4 +435,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: aae630976deb0a9785fa66664bfaa6b662998b4d70aa6cb978085e45c087dc5f -->
+<!-- body-sha256: fad7eeeb89f4f794212ec8699e52d99e0f345f5dff6edfb02af7c3dc3dbbec30 -->

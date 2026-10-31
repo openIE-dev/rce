@@ -26,12 +26,14 @@ It also counts the program's other obligations (`check` lines, `requires`
 and `ensures` contracts, refined types) to say which, if any, constrain
 behaviour beyond the examples.
 
-    scripts/table-control.py --rce PATH/TO/rce --out DIR
+    scripts/table-control.py PATH/TO/rce DIR
 
 writes DIR/controls.jsonl, DIR/summary.json and the controls under
 DIR/controls/. The run is a pure function of the checkout (no randomness).
 """
-import argparse, importlib.util, json, re, subprocess
+import importlib.util, json, re, subprocess
+from types import SimpleNamespace
+from positional import read
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -255,7 +257,7 @@ def trace(rce, path, streams, tmp):
     """[(outcome, projected state)] per stream, or None when the program cannot be traced."""
     sf = tmp / "streams.txt"
     sf.write_text("\n".join(streams) + "\n")
-    r = rce.run("trace", "--json", str(path), "--streams", str(sf))
+    r = rce.run("trace", "streams", str(path), str(sf))
     if r.returncode != 0:
         return None
     try:
@@ -292,10 +294,9 @@ def obligations(src):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--rce", required=True)
-    ap.add_argument("--out", required=True)
-    a = ap.parse_args()
+    # the operands RCE and OUT (positional-cli.md PC-1)
+    _, (rce_path, out_dir) = read("scripts/table-control.py", {}, "RCE OUT", 2, 2, removed={"--rce": 0, "--out": 1})
+    a = SimpleNamespace(rce=rce_path, out=out_dir)
     out = Path(a.out)
     (out / "controls").mkdir(parents=True, exist_ok=True)
     tmp = out / ".tmp"
@@ -311,7 +312,7 @@ def main():
         orig.write_text(src, encoding="utf-8")
         if rce.run("check", str(orig)).returncode != 0:
             continue
-        nl = rce.run("fmt", "--nameless", str(orig)).stdout
+        nl = rce.run("fmt", "nameless", str(orig)).stdout
         if not nl.strip() or corpus.sha(nl) in seen:
             continue
         seen.add(corpus.sha(nl))

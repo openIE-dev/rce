@@ -73,8 +73,9 @@ def run(work, sample, seed):
         e = dict(os.environ, RCE_MUTANT=str(k), RCE_TEST_TIMEOUT="20")
         out = work / f"res-{k}.json"
         # past the baseline, stop at the first failure the unmutated build does not have
-        stop = ["--stop-on-fail", "--known-failures", str(basef)] if k else []
-        subprocess.run([sys.executable, str(ROOT / "harness" / "run.py"), "--adapter", str(sp), "--quiet", "--out", str(out)] + stop,
+        stop = ["stop-on-fail", "known-failures", str(basef)] if k else []
+        # words, then ADAPTER TESTS OUT (positional-cli.md PC-1)
+        subprocess.run([sys.executable, str(ROOT / "harness" / "run.py"), "quiet"] + stop + [str(sp), str(ROOT / "tests"), str(out)],
                        env=e, capture_output=True, text=True, cwd=ROOT)
         r = json.load(open(out)); out.unlink()
         return {x["path"] for x in r["results"] if x["status"] in ("fail", "error")}

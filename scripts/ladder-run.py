@@ -76,7 +76,7 @@ def main(argv):
             if ho and ho == hf:
                 row["equivalence"] = "restored"
             else:
-                e = subprocess.run([rce, "equiv", "--fuel", "2000", str(orig), str(fixed)], capture_output=True, text=True)
+                e = subprocess.run([rce, "equiv", "fuel", "2000", str(orig), str(fixed)], capture_output=True, text=True)
                 row["equiv_exit"] = e.returncode
                 row["equivalence"] = {0: "behaviour-equal", 1: "examples only", 3: "undecided"}.get(e.returncode, "not compared")
                 if row["equivalence"] == "not compared":

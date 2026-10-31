@@ -50,7 +50,7 @@ types keeps the state, with `BadRow`. Read commands append nothing (HS-8):
 An emitted store is a projection of D and never feeds back into it: the
 foreign engine's durability and ordering do not reach δ. A runnable example is `run.sh rcedb` in the examples of the host runtime.
 
-## Serving HTTP: `rce host serve FILE --log D --http HOST:PORT`
+## Serving HTTP: `rce host serve http HOST:PORT FILE D`
 
 `rce host serve` is the host loop. It admits each input into D as it
 arrives, performs the effects the step emits, and admits each effect's
@@ -60,7 +60,7 @@ is written to standard output. When the loop ends, D is replayed with
 every adapter disconnected, and the run counts only if replay gives the
 state hash the live run had.
 
-With `--http HOST:PORT` the host listens on that address itself and turns
+With `http HOST:PORT` the host listens on that address itself and turns
 each request of the Hypertext Transfer Protocol (HTTP/1.1) into one
 input. The listing declares the request, the malformed request, the
 response and its result with the host's own shapes, so each is delivered
@@ -76,7 +76,7 @@ fields by name, and records in D what it did not deliver and why
 Each request arrives as `HttpRequest(id, method, target, version, names,
 values, body)`. The `id` is the sequence number of the request's own entry
 in D, and the step answers by emitting `HttpRespond` with the same `req`. Run
-`rce host serve hello_http.rce --log D --http 127.0.0.1:8080` and, in
+`rce host serve http 127.0.0.1:8080 hello_http.rce D` and, in
 another terminal, `curl -i http://127.0.0.1:8080/hello` prints:
 
 ```text
@@ -152,7 +152,7 @@ tour, and the version that stops at zero without saying so is offered to
 it:
 
 ```text
-$ rce host replay ../tour/sloppy.rce --log counter.log
+$ rce host replay ../tour/sloppy.rce counter.log
 {{#include ../listings/ch16/bound_log.out}}
 ```
 
@@ -173,7 +173,7 @@ the working directory `/srv` and the volume `/data` for logs:
 docker run -d --name notes -p 8080:8080 \
   -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
   ghcr.io/openie-dev/rce:latest \
-  host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080
+  host serve http 0.0.0.0:8080 /srv/notes_http.rce /data/notes
 ```
 
 The state is always the replay of D, so D is the only thing to keep.
@@ -182,9 +182,9 @@ after the entry in progress; a new process on the same log continues where
 the last one stopped. To back up, stop the service, copy the log directory
 and check the copy with `rce host replay`.
 
-## The net adapter: `--net HOST:PORT`
+## The net adapter: `net HOST:PORT`
 
-`--net HOST:PORT` grants connections of the Transmission Control
+`net HOST:PORT` grants connections of the Transmission Control
 Protocol (TCP) as effects, at that exact address:
 `NetConnect`, `NetListen`, `NetAccept`, `NetSend`, `NetRecv` and
 `NetClose`, each with one result event (HC-23). `NetRecv` returns the
@@ -195,9 +195,9 @@ on each `Tick`, so it serves one connection per frame. For HTTP the
 event host above does the framing, serves connections concurrently and
 needs no `Tick`.
 
-## Media capture and playback: `--media DIR`
+## Media capture and playback: `media DIR`
 
-`rce host run` and `rce host serve` take `--media DIR` to connect the
+`rce host run` and `rce host serve` take `media DIR` to connect the
 media adapters. A program requests them with three output kinds, each
 with one result event (HC-3):
 
@@ -219,10 +219,10 @@ capturing again. In a call, frames travel between peers through a
 selective forwarding unit (SFU), a relay that forwards each frame to the
 other subscribers of its track without reading it; chapter 17 describes it.
 
-## Redacted replay: `rce host replay FILE --log D --redact F,...`
+## Redacted replay: `rce host replay redact F,... FILE D`
 
 `rce host replay` re-derives every state hash of D with every adapter
-disconnected and prints the final state. With `--redact F,G` the fields
+disconnected and prints the final state. With `redact F,G` the fields
 named F and G are printed as `<redacted sha256:H>`, where H is the first
 six bytes of the SHA-256 digest of the field's value in canonical form.
 Redaction changes only what is printed: D, the replay and every state
@@ -237,8 +237,8 @@ holds the secrets and stays on the device that wrote it.
 topic threads, direct messages and groups, reactions, presence, file
 shares and call rooms, as one replicated RCE state. Every change is an
 operation applied locally and sent to peers over remote channels (P4,
-the host's channel adapter, enabled with `--chan HOST:PORT` and
-`--peer HOST:PORT`, with Transport Layer Security (TLS) under `--tls`).
+the host's channel adapter, enabled with `chan HOST:PORT` and
+`peer HOST:PORT`, with Transport Layer Security (TLS) under `tls`).
 Replicas order messages by (Lamport clock, author) and so converge.
 Direct messages are end-to-end encrypted (E2EE) as chapter 17 describes.
 `apps/chat.rce` is generated from `apps/chat-app.rce` and
@@ -262,4 +262,4 @@ topic)`, one tab-separated line per message (`view`, the message key,
 the author, the flags `new`, `edited`, `deleted` and `e2e`, the text)
 ending with `view-end`, and `Unread`, one line per thread with messages
 from others after the read marker. Run it with
-`python3 scripts/chat-ui.py --me ann --log /tmp/ann.log [--chan ADDR --peer ADDR ...]`.
+`python3 scripts/chat-ui.py [chan ADDR] [peer ADDR]... ann /tmp/ann.log`.

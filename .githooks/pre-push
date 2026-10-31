@@ -18,7 +18,7 @@ while read -r lref lsha rref rsha; do
   git archive "$lsha" spec scripts rcedb lib apps | tar -x -C "$scratch/tree"
   cp "$top/scripts/regen-spec.sh" "$scratch/tree/scripts/"
   echo "pre-push: checking spec artefacts of ${lsha:0:9} ($range)" >&2
-  if ! CARGO_TARGET_DIR="$scratch/target" bash "$scratch/tree/scripts/regen-spec.sh" --check >&2; then
+  if ! CARGO_TARGET_DIR="$scratch/target" bash "$scratch/tree/scripts/regen-spec.sh" check >&2; then
     echo "pre-push: not performed: ${lref} -> ${rref}: the spec artefacts are stale; run scripts/regen-spec.sh, commit the result, push again" >&2
     status=1
   fi

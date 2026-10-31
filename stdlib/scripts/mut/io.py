@@ -1,6 +1,6 @@
 # Mutation test for lib/io/io.rce: each mutant must fail the comptime
 # checks or, for mutants marked host, the file-adapter host checks
-# (tests/io/io_host.rce under rce host run --fs). Usage: RCE=path/to/rce python3 scripts/mut/io.py
+# (tests/io/io_host.rce under rce host run fs DIR). Usage: RCE=path/to/rce python3 scripts/mut/io.py
 import os, re, subprocess, sys, tempfile
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory() as d:
             flat = subprocess.run([sys.executable, os.path.join(root, 'scripts/flatten.py'), mf, os.path.join(root, 'tests/io/io_checks.rce'), os.path.join(root, 'tests/io/io_host.rce')], capture_output=True, text=True).stdout
             ff = os.path.join(d, 'f%d.rce' % i); open(ff, 'w').write(flat)
             fs = os.path.join(d, 'fs%d' % i); os.mkdir(fs)
-            r = subprocess.run([RCE, 'host', 'run', ff, '--log', os.path.join(d, 'log%d' % i), '--fs', fs], input='\n'.join(events) + '\n', capture_output=True, text=True)
+            r = subprocess.run([RCE, 'host', 'run', 'fs', fs, ff, os.path.join(d, 'log%d' % i)], input='\n'.join(events) + '\n', capture_output=True, text=True)
             dead = ('good = %d, bad = 0 }' % len(events)) not in r.stdout
         killed += dead
         print('%s %2d %s' % ('killed' if dead else 'SURVIVED', i, a.strip().split('\n')[0]), flush=True)

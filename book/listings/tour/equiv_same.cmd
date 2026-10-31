@@ -1,1 +1,1 @@
-equiv --fuel 1000 counter.rce tally.rce
+equiv fuel 1000 counter.rce tally.rce

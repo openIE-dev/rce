@@ -40,12 +40,12 @@ A public container image holds the same binary: `ghcr.io/openie-dev/rce`,
 tagged `latest` and with each full commit hash. Chapter 16 uses it to run a program
 as a service.
 
-Check that `rce` runs. `rce --version` prints the commit it was built
+Check that `rce` runs. `rce version` prints the commit it was built
 from, the specification draft it implements and the release label, and
 with no arguments `rce` prints the list of commands:
 
 ```sh
-rce --version
+rce version
 rce
 ```
 
@@ -99,6 +99,6 @@ fn main()
 
 - `rce run FILE` runs `fn main()` and shows what it emits.
 - `rce check FILE` checks a program without running it.
-- `scripts/install.sh` installs a released `rce`; `rce --version` names the
+- `scripts/install.sh` installs a released `rce`; `rce version` names the
   commit it was built from.
 - Blocks are marked by indentation with spaces.

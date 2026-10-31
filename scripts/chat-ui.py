@@ -6,7 +6,10 @@ events; every change is an event in the host's log D, so the session replays
 with `rce host replay`. The UI holds no chat state of its own: it renders the
 View query (thread with keys and flags) and the Unread query.
 
-  python3 chat-ui.py --me ann --log /tmp/ann.log [--chan ADDR --peer ADDR ...]
+  python3 chat-ui.py [chan ADDR] [peer ADDR]... [poll S] [rce PATH] [app PATH] ME LOG
+
+for example `python3 chat-ui.py chan 127.0.0.1:7001 peer 127.0.0.1:7002 ann /tmp/ann.log`
+(spec/proposals/positional-cli.md: words, then the operands ME and LOG).
 
 Commands:
   /open CONV TOPIC    switch to a thread (marks it read)
@@ -18,7 +21,8 @@ Commands:
   /quit
 Lines starting with an event (e.g. `Poll`) are passed through.
 """
-import argparse, os, queue, re, subprocess, sys, threading, time
+import os, queue, re, subprocess, sys, threading, time
+from positional import read
 
 US = "\x1f"
 
@@ -28,8 +32,9 @@ def q(s):
 
 
 class Host:
-    def __init__(self, rce, app, args):
-        self.p = subprocess.Popen([rce, "host", "serve", app] + args, stdin=subprocess.PIPE,
+    def __init__(self, rce, grants, app, log):
+        # positional (PC-1): the grant words, then FILE and the log D
+        self.p = subprocess.Popen([rce, "host", "serve"] + grants + [app, log], stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, text=True, bufsize=1)
         self.out = queue.Queue()
         threading.Thread(target=self._pump, daemon=True).start()
@@ -61,23 +66,17 @@ class Host:
 
 def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--me", required=True)
-    ap.add_argument("--log", required=True)
-    ap.add_argument("--rce", default=os.path.join(here, "spec/checker/target/release/rce"))
-    ap.add_argument("--app", default=os.path.join(here, "apps/chat.rce"))
-    ap.add_argument("--chan")
-    ap.add_argument("--peer", action="append", default=[])
-    ap.add_argument("--poll", type=float, default=1.0, help="seconds between Poll inputs (0: off)")
-    a = ap.parse_args()
-    hargs = ["--log", a.log]
-    if a.chan:
-        hargs += ["--chan", a.chan]
-    for p in a.peer:
-        hargs += ["--peer", p]
-    h = Host(a.rce, a.app, hargs)
-    peers = ", ".join(q(p.split("=")[0]) for p in a.peer)
-    h.send(f"Setup(me: {q(a.me)}, peers: [{peers}])")
+    # poll S: seconds between Poll inputs (0: off)
+    w, (me, log) = read("scripts/chat-ui.py", {"chan": 1, "peer": 1, "poll": 1, "rce": 1, "app": 1}, "ME LOG", 2, 2,
+                        removed={"--me": 0, "--log": 1}, many=("peer",))
+    rce = w.get("rce", os.path.join(here, "spec/checker/target/release/rce"))
+    app = w.get("app", os.path.join(here, "apps/chat.rce"))
+    poll = float(w.get("poll", 1.0))
+    peer = w.get("peer", [])
+    grants = (["chan", w["chan"]] if "chan" in w else []) + [x for p in peer for x in ("peer", p)]
+    h = Host(rce, grants, app, log)
+    peers = ", ".join(q(p) for p in peer)
+    h.send(f"Setup(me: {q(me)}, peers: [{peers}])")
     cur = {"conv": "general", "topic": "", "keys": []}
     lock = threading.Lock()
 
@@ -102,8 +101,8 @@ def main():
             print("no such message"); return None
 
     def poller():
-        while a.poll > 0:
-            time.sleep(a.poll)
+        while poll > 0:
+            time.sleep(poll)
             with lock:
                 if h.p.stdin.closed:
                     return
@@ -124,7 +123,7 @@ def main():
                 cur["conv"], cur["topic"] = m[1], m[2] if len(m) > 2 else ""
                 render(); h.do("read", cur["conv"], cur["topic"]); continue
             if m[0] == "/dms" and len(m) == 2:
-                cur["conv"], cur["topic"] = "dm:" + ",".join(sorted([a.me, m[1]])), ""
+                cur["conv"], cur["topic"] = "dm:" + ",".join(sorted([me, m[1]])), ""
                 render(); continue
             if m[0] == "/read":
                 h.do("read", cur["conv"], cur["topic"]); continue

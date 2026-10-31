@@ -961,7 +961,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   {kind: "advisory", hash, reason, issued_by, seq}, signature}` with the
   Ed25519 signature (RFC 8032, via `ring`) over the SHA-256 of the canonical
   JSON of the `advisory` object, by the key trusted for `issued_by` (given on
-  the command line, `--key ISSUER=HEXPUBKEY`); `seq` of one issuer must
+  the command line, `key ISSUER HEXPUBKEY`); `seq` of one issuer must
   increase. The lockfile's unsafe list is the pinned module and dependency
   hashes that carry a verified advisory; the tool prints them as `UNSAFE` and
   the manifest still checks (an advisory never changes what a hash means).
@@ -1138,4 +1138,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: d758122e6b3bc467c6c7cc553e72dc63cb7c3a6ae67ecb968045950837b14b53 -->
+<!-- body-sha256: 4870b5eb4c4da34715387cdbf76f6d4729decc3890cb2735267a32ddbfd64dc1 -->

@@ -12,7 +12,7 @@
 #
 # Fuel tests. A `_fuel.rce` file defines zero-parameter functions named
 # `probe_<group>_<n>`. The file is emitted as Python by `rce emit python`
-# and run with `--fuel-trace` (spec 26.11: one tick per evaluated
+# and run with the word `fuel-trace` (spec 26.11: one tick per evaluated
 # expression, statement and call). Every probe of one group must use
 # exactly the same fuel. A group is called with different secret inputs, so
 # equal fuel means the number of evaluated steps does not depend on them.
@@ -41,7 +41,7 @@ for f in tests/crypto/*_checks.rce tests/crypto/*_fuel.rce; do
     fi;;
   *_fuel.rce)
     "$RCE" emit python "$o" > "$o.py"
-    python3 "$o.py" --fuel-trace > "$o.out" 2>&1 || { echo "FAIL $f: run error"; tail -5 "$o.out"; fail=$((fail+1)); continue; }
+    python3 "$o.py" fuel-trace > "$o.out" 2>&1 || { echo "FAIL $f: run error"; tail -5 "$o.out"; fail=$((fail+1)); continue; }
     if python3 - "$o.out" "$f" <<'PY'
 import sys, re, collections
 g = collections.defaultdict(list)

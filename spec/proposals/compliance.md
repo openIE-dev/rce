@@ -18,7 +18,7 @@ In plain words:
 2. δ is total (T2): every state and every input has an outcome. That outcome is of exactly one of two kinds. It is *applied* when the selected steps compute the next state. It is *kept* when a step's contract holds the state as it was: λ outputs the reason, and D records the input with it. The text today calls the second kind "refused". That word names an act of turning an input away, which the Form never performs. The input is in D, hashed and chained, and the fold continues from the kept state.
 3. Nothing offered to RCE is outside the Form. A text, construct, language, paradigm or fabric that the Form does not yet hold is brought into compliance with it: fitted, lifted, given its named form, bounded, held as a hole, or held at a reserved place until the Form grows to hold it through the gate of CONTRIBUTING rule 1. Every tool answers with the thing's place in the Form, or with the path to that place.
 4. Some records are not the record the Form derives: a forged hash, a log that replay re-derives differently, a stale pin, a stated example that the Form does not give. Such a record is reported at the first position where it differs and is kept exactly as found. That is the Form complying with its own record, and the wording says so.
-5. The language gains no construct. One keyword is renamed, and the reserved list loses a word. On the host, PR #31's `host.Kept` entry (named `host.Unfit` while PR #31 was open) also holds offered inputs, HC-21's `host.Refused` is renamed `host.StepKept`, and `host.MainInput` gains one field. The tools gain one mode, `rce fmt --fit`. The hash of every δ entry of D is unchanged.
+5. The language gains no construct. One keyword is renamed, and the reserved list loses a word. On the host, PR #31's `host.Kept` entry (named `host.Unfit` while PR #31 was open) also holds offered inputs, HC-21's `host.Refused` is renamed `host.StepKept`, and `host.MainInput` gains one field. The tools gain one mode, `rce fmt fit`. The hash of every δ entry of D is unchanged.
 6. Today the words fill 6,254 text lines in 950 files of rce main, with 401 more on PR #31 and further lines in the paper, the site and the decks. Section 6 gives the new word for every use, section 8 every behaviour that changes, and section 11 the migration.
 
 ## 1. Definition
@@ -317,10 +317,10 @@ The marks of E.2a and HC-10b record how an input came (`late`, `typed`). After a
 
 | Kind | What it does | Text changes | Applied by | Until it is taken |
 |---|---|---|---|---|
-| `rewrite` | A change with exactly one result that keeps the meaning of every part already in Form: layout, a renaming (T7), a conversion whose rounding N4 fixes, `.copy()`, `let _ = e` | yes | `rce fmt --fit`; an LSP code action | the text is `fit`; tools evaluate φ(t) |
-| `complete` | Writes a missing part whose outcome is defined (a trap arm, a release, a trap-bodied method) and reports what it wrote as a hole | yes | `rce fmt --fit` | as `rewrite` |
-| `lift` | Maps a construct of another language or paradigm to its named form, by a row of the lift table (COMP-10) | yes | `rce fmt --fit`; a language front end | as `rewrite` |
-| `bound` | Writes a bound that makes a cycle total; reaching it is the kept outcome with cause `fuel` (6.7) | yes | `rce fmt --fit` (with LOOP_LIMIT) | as `rewrite` |
+| `rewrite` | A change with exactly one result that keeps the meaning of every part already in Form: layout, a renaming (T7), a conversion whose rounding N4 fixes, `.copy()`, `let _ = e` | yes | `rce fmt fit`; an LSP code action | the text is `fit`; tools evaluate φ(t) |
+| `complete` | Writes a missing part whose outcome is defined (a trap arm, a release, a trap-bodied method) and reports what it wrote as a hole | yes | `rce fmt fit` | as `rewrite` |
+| `lift` | Maps a construct of another language or paradigm to its named form, by a row of the lift table (COMP-10) | yes | `rce fmt fit`; a language front end | as `rewrite` |
+| `bound` | Writes a bound that makes a cycle total; reaching it is the kept outcome with cause `fuel` (6.7) | yes | `rce fmt fit` (with LOOP_LIMIT) | as `rewrite` |
 | `choice` | Two or more readings, or a statement only the author can make: a declaration, an export, a capability, a release. Every reading is listed and none is applied. The position may be held as a hole (`intent-holes.md`). | by the author | the author | the position is open |
 | `gate` | The Form grows to hold the construct through CONTRIBUTING rule 1. The report names the F.12 row or the proposal. | after the gate | the gate | the position is open |
 | `form` | Holds the construct in a named form whose claims are stated (COMP-9) | no | — | a note; the text is in Form |
@@ -332,7 +332,7 @@ A `lift` is determined when the lift table has one row for the construct. When i
 
 - φ is deterministic and idempotent: φ(φ(t)) = φ(t).
 - Every tool builds the Form of φ(t) and reports each path it applied.
-- `rce fmt --fit` and the LSP code action write φ(t), so the repository keeps one spelling (CONTRIBUTING rule 2), and `rce check` reports `fit` until they have.
+- `rce fmt fit` and the LSP code action write φ(t), so the repository keeps one spelling (CONTRIBUTING rule 2), and `rce check` reports `fit` until they have.
 - The CC-1 program hash names φ(t).
 - A text with an open `choice` or `gate` position is reported with every reading. The tools that evaluate build its Form once each open position is closed. Whether an open position may meanwhile be evaluated as a hole is open question 2.
 
@@ -411,7 +411,7 @@ Today line 5 reads `5 Dec refused: Underflow`, there is no line 6, and the exit 
 ```
 $ rce check door.rce
 fit door.rce: line 4: W-LEX-1 tab in indentation (fit rewrite: indent with 4 spaces); line 9: W-NAME-1 `Opne` is not declared (fit choice: `Open`, declared at line 2, or declare `Opne`)
-$ rce fmt --fit door.rce
+$ rce fmt fit door.rce
 $ rce check door.rce
 fit door.rce: line 9: W-NAME-1 `Opne` is not declared (fit choice: `Open`, declared at line 2, or declare `Opne`)
 ```
@@ -652,7 +652,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 `kept` is a contextual word, as `where` and `by` are (`lalr.rs:397-399`). In outcome position, `kept` followed by `:` is the keyword. Everywhere else it is a name, so the local `kept` of `stdlib/lib/data/cdc.rce:343-348` stays as written. `refused` leaves the reserved list of 2.4, so the list is one word shorter. A bare name `kept` as the whole outcome expression is written `(kept)`; no program of the repository has one. The earlier spelling `-> refused:` is reported as W-SYN-1 with the path `rewrite` to `kept:`.
 
-*Enforced by:* `rce-spec-check --features tree-sitter`. It requires 0 LALR(1) conflicts, with `kept` in `lalr::CONTEXTUAL`, and agreement of the LALR(1) tables, the Rust parser and tree-sitter on every example. `tree-sitter/src/scanner.c` reads `kept` as the keyword when the next token is `:` and the outcome keyword is valid, beside its handling of `where` and `by` (`scanner.c:196-220`). The grammar gains the `trap` alternative, which on main it lacks (`grammar.js:36` accepts only `NAME`).
+*Enforced by:* `rce-spec-check` built with cargo's `--features tree-sitter`. It requires 0 LALR(1) conflicts, with `kept` in `lalr::CONTEXTUAL`, and agreement of the LALR(1) tables, the Rust parser and tree-sitter on every example. `tree-sitter/src/scanner.c` reads `kept` as the keyword when the next token is `:` and the outcome keyword is valid, beside its handling of `where` and `by` (`scanner.c:196-220`). The grammar gains the `trap` alternative, which on main it lacks (`grammar.js:36` accepts only `NAME`).
 
 **COMP-3 A closed list of reasons.** 6.2 lists every trap text with its cause (4.3). Every reason written by the reference evaluator, the concurrency evaluator, the host or an emitted runtime is a declared error name or a listed trap text. Run-time fuel exhaustion is written `fuel exhausted` on every runtime.
 
@@ -662,7 +662,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 *Enforced by:* `Host::apply_named` (`host.rs:1094-1106`), the window acknowledgement (`host.rs:1189-1196`, with `WindowAck.rejected` renamed `WindowAck.held`), the serve loop (`cli.rs:1444-1450`) and example construction (`interp.rs:2586-2594, 3236-3240`); `tests/host_contract.rs::every_offered_input_has_an_entry`, which offers malformed, undeclared, late, oversized and out-of-range inputs to each adapter and checks one entry each and that replay equals the live run; `tests/refined.rs`; and `tests/cli.rs::run_records_every_event`.
 
-**COMP-5 Every run folds every event.** `rce run`, `rce trace` (EVENTS and `--streams`), host replay, the serve loop and every emitted runtime apply each event to the state the previous outcome left. After a kept outcome the fold continues from the kept state. An example log folds every event of its example, and the example states the outcome of its last event.
+**COMP-5 Every run folds every event.** `rce run`, `rce trace` (EVENTS and `streams`), host replay, the serve loop and every emitted runtime apply each event to the state the previous outcome left. After a kept outcome the fold continues from the kept state. An example log folds every event of its example, and the example states the outcome of its last event.
 
 *Enforced by:* `cli.rs:93, 148-151`, `interp.rs:3279`, `cli.rs:485` and `interp.rs:2607-2614`; `tests/traces.rs`, whose pin at line 204 ("a refused first event ends the stream") becomes a pin of the full fold; `tests/cli.rs`; the outputs under `book/listings`; and `tests/emit_run.rs` for the Rust, Python, JavaScript and Scala runtimes.
 
@@ -672,11 +672,11 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 **COMP-7 Every report names its path.** Each rule of section 7 and of Appendices C to F has a path column in its rule table, giving the kind of 4.8 and the path. Every diagnostic has the form of 4.8. The LSP diagnostic carries the same path in `data.fit` as {kind, text, edits}.
 
-*Enforced by:* `rce-spec-data --check`, which requires a `fit` field for every row of `w_rules` and `w_rules_06`; and `tests/fit_reports.rs`, which runs every fixture under `spec/examples/fit/` and checks the form of each report.
+*Enforced by:* `rce-spec-data check`, which requires a `fit` field for every row of `w_rules` and `w_rules_06`; and `tests/fit_reports.rs`, which runs every fixture under `spec/examples/fit/` and checks the form of each report.
 
-**COMP-8 One fit function.** Every tool builds the Form of the fitted text φ(t) (Definition 5) and reports each path it applied. `rce fmt --fit FILE…` writes φ(t), `rce fmt --fit --check` lists the paths, and the language server offers each path as a code action, one action per reading of a `choice`. φ is deterministic and idempotent, and the CC-1 program hash names φ(t). A `rewrite` changes only layout or names, or is a rewrite listed in 8.2 whose fitted text `rce equiv` (6.10) shows equal to a reference written by hand. No tool applies a reading of a `choice`.
+**COMP-8 One fit function.** Every tool builds the Form of the fitted text φ(t) (Definition 5) and reports each path it applied. `rce fmt fit FILE…` writes φ(t), `rce fmt fit check FILE…` lists the paths, and the language server offers each path as a code action, one action per reading of a `choice`. φ is deterministic and idempotent, and the CC-1 program hash names φ(t). A `rewrite` changes only layout or names, or is a rewrite listed in 8.2 whose fitted text `rce equiv` (6.10) shows equal to a reference written by hand. No tool applies a reading of a `choice`.
 
-*Enforced by:* `rce fmt --fit`, which takes over `scripts/fix-hygiene.py`, `fix-unused-loops.py`, `fix-embedded.py` and `rename-reserved.py`; `bin/spec_check.rs`, which requires each fixture `X.rce` under `spec/examples/fit/` with a determined path to have a sibling `X.fit.rce` that equals `rce fmt --fit X.rce` and is in Form; and `tests/fit.rs`, which checks that `rce hash` agrees on each such pair and that no tool applies a reading of any `choice` fixture.
+*Enforced by:* `rce fmt fit`, which takes over `scripts/fix-hygiene.py`, `fix-unused-loops.py`, `fix-embedded.py` and `rename-reserved.py`; `bin/spec_check.rs`, which requires each fixture `X.rce` under `spec/examples/fit/` with a determined path to have a sibling `X.fit.rce` that equals `rce fmt fit X.rce` and is in Form; and `tests/fit.rs`, which checks that `rce hash` agrees on each such pair and that no tool applies a reading of any `choice` fixture.
 
 **COMP-9 Named forms carry their own claims.** Each named form has a row in a `forms` table of section 8 of the specification: the form, the rule that defines it, and the theorems claimed for it. The theorem table gains a column "claimed for", so each theorem is claimed for a definition only in a form that has it. The Form JSON lists each definition held in a named form under `forms`, as {definition hash, named form}. `rce check` prints the named forms of a module as notes, with the theorems not claimed for them.
 
@@ -725,7 +725,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 | Status | Meaning |
 |---|---|
 | 0 | The command completed. Every input has its outcome, kept outcomes included, and every run has its run outcome. Every text is in Form as written; notes are allowed. Every claim and record holds. |
-| 1 | Something is outstanding: a path of kind `rewrite`, `complete`, `lift` or `bound` not yet written (`rce check`, `rce fmt --check`); an open `choice` or `gate` position; a claim or record that differs; a construct pending in a target (`rce emit`). |
+| 1 | Something is outstanding: a path of kind `rewrite`, `complete`, `lift` or `bound` not yet written (`rce check`, `rce fmt check`); an open `choice` or `gate` position; a claim or record that differs; a construct pending in a target (`rce emit`). |
 | 2 | A usage error. |
 
 `rce run`, `trace`, `emit`, `dim` and `host` build the Form of φ(t) when every open path is determined. They print the paths first and continue.
@@ -738,7 +738,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 
 **COMP-19 One vocabulary.** Every word in the repository for an input outcome, a run outcome, a static report, a claim verdict or a record verdict is the compliance term of section 6. This covers normative text, diagnostics, command output, data keys, event names, host entry types, identifiers, test names and file names. The words of the search pattern occur only in the quotations and third-party terms listed in `scripts/vocab-allow.tsv`, one row per path glob and line pattern with its reason, and in stored records read under COMP-20.
 
-*Enforced by:* `scripts/vocab.py --check`, a step of `scripts/ci-tests.sh`. Its `--inventory` mode prints the line inventory per repository area.
+*Enforced by:* `scripts/vocab.py check`, a step of `scripts/ci-tests.sh`. Its word `inventory` prints the line inventory per repository area.
 
 **COMP-20 Hashes and history.** The hashes of δ entries do not change. A hashed name changes once, in the commit that renames it, together with:
 
@@ -746,7 +746,7 @@ Outcome = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 - (b) a map from each earlier hash to its new one, committed beside the pins (`spec/proposals/compliance-repin.tsv`);
 - (c) for stored records that are history (a host D, signed receipts, registered runs), a reader that reads the earlier spelling as the same kind, while the writer writes only the new one. A published or signed record is never rewritten.
 
-*Enforced by:* `tests/form_signature.rs` (golden hashes unchanged); `stdlib/lib/MANIFEST.json` with `rce manifest-check`; `scripts/claim-counts.py --check`; `conformance/tools/validate.py`, which checks clause ids against the map; `tests/host_contract.rs::stored_records_are_read_by_kind`; and the `ide-receipt` test `a_chain_written_before_the_rename_verifies`.
+*Enforced by:* `tests/form_signature.rs` (golden hashes unchanged); `stdlib/lib/MANIFEST.json` with `rce manifest-check`; `scripts/claim-counts.py check`; `conformance/tools/validate.py`, which checks clause ids against the map; `tests/host_contract.rs::stored_records_are_read_by_kind`; and the `ide-receipt` test `a_chain_written_before_the_rename_verifies`.
 
 **COMP-21 The change keeps every Form.** Every text that has a Form before this change has the same Form after it, up to the `rewrite` of the renamed keyword, and every example that holds before it holds after it, with the same log.
 
@@ -769,7 +769,7 @@ This section covers every case the maps class (ii), and the static rules whose p
 | C6. A construct an emitter does not translate | `rce emit` exits 2 (`cli.rs:1004-1014`). | `pending FILE: target T does not yet print construct C (line N)`, status 1; the construct is printed from its definition once `one-emitter.md` section 11 covers it. | COMP-14 |
 | HC-24: "An input refused before it is logged" | Printed, never in D (PR16:606). | One record per offered input (4.7): the fitted event, `Input(data)` when declared, or `host.Kept`, delivered as `HttpMalformed` where HD-2 says so. | COMP-4 |
 | HC-5, HS-6 | An effect without a capability, and a result that cannot be bound, are not delivered (16:73, 16:528-532). | A `failed` result with the reason (HC-3), logged; the path names the capability or the declaration. | COMP-4 |
-| E.4c, delivery by declaration (PR #31) | At 96f4538f a module that did not declare the host's shapes was "Refused at start". At a374226b E.4c already started on any such module, and its rule now named HD-2 reads "`--http` serves any module": PR #31 already holds these cases. | PR #31 names its entry `host.Kept` (formerly `host.Unfit`) and its rules HD-1 to HD-4 (formerly HF-1 to HF-4); the use of `host.Kept` is extended (4.7). HD-1 to HD-4 otherwise stand as written on PR #31. | COMP-16 |
+| E.4c, delivery by declaration (PR #31) | At 96f4538f a module that did not declare the host's shapes was "Refused at start". At a374226b E.4c already started on any such module, and its rule now named HD-2 reads "`http` serves any module": PR #31 already holds these cases. | PR #31 names its entry `host.Kept` (formerly `host.Unfit`) and its rules HD-1 to HD-4 (formerly HF-1 to HF-4); the use of `host.Kept` is extended (4.7). HD-1 to HD-4 otherwise stand as written on PR #31. | COMP-16 |
 | Handler-spec keywords and kinds (15:75) | Unknown keywords are not read; duration defaults apply silently. | Unknown keywords and kinds are held as opaque named declarations, with a note. Each default becomes a recorded path, as 17:13 requires ("never silently ignored"). | COMP-7 |
 | An undeclared endpoint (15:105) | Not admitted. | Held as a hole, as escalation endpoints already are. | COMP-7 |
 | A stale promotion record (15:321) | Not promoted, with no path. | The record carries the staleness and the path (`rce currency --mark`). | COMP-15 |
@@ -1046,9 +1046,9 @@ The ledger row on effect handlers is read the same way. A resumable handler is n
 | Case | In compliance |
 |---|---|
 | tree-sitter on main has no alternative for the `trap` form, although 3.2 and the Rust parser (`parse.rs:1062-1075`) read it; editors mark a valid form of the specification as an error, and the cross-check agrees only because no file on main uses that form | The rule of COMP-2, with the alternative PR #31 adds (`grammar.js:36`, `scanner.c:196`, corpus `declarations.txt:98`), carried with the rename. |
-| The report channel (12:65-69, 12:397-398; 17:221, 17:793) | Each line names the rule, the line and the path (4.8). `rce fmt --fit` or an LSP code action writes determined paths. LSP severity follows the kind. 17:793 reads "A diagnostic names the true rule and its path." |
+| The report channel (12:65-69, 12:397-398; 17:221, 17:793) | Each line names the rule, the line and the path (4.8). `rce fmt fit` or an LSP code action writes determined paths. LSP severity follows the kind. 17:793 reads "A diagnostic names the true rule and its path." |
 | `tests/nameless.rs:75-77` | Parses the trace JSON and compares outcome kinds (COMP-1). |
-| `scripts/fix-hygiene.py`, `fix-unused-loops.py`, `fix-embedded.py`, `rename-reserved.py` | Their determined rewrites move into `rce fmt --fit`, so one checker applies them (10.1 item 3). |
+| `scripts/fix-hygiene.py`, `fix-unused-loops.py`, `fix-embedded.py`, `rename-reserved.py` | Their determined rewrites move into `rce fmt fit`, so one checker applies them (10.1 item 3). |
 | `rce v09-status` | Becomes `rce reserved` (COMP-13). |
 | The book (chapters 1, 2, 3, 5, 7, 9 and 13) | The listings that show a refusal show the path: chapter 1's tab is W-LEX-1 `rewrite`; chapter 2's mixed numeric types are W-TY-3; chapter 3's chained comparison is a `lift`; chapter 5's unhandled event is a W-STEP-2 note; chapter 7 is W-MATCH-1 `complete`; chapter 9 is W-OWN-1 and W-OWN-2; chapter 13 is W-REC-1 `bound`. `ch05/refused/unhandled_event` moves to a listing in Form, with its note. |
 
@@ -1135,7 +1135,7 @@ Not hashed, but pinned byte for byte, and changed in the same commit as the name
 5. **`openie-research-experiments`, one commit**: a README line stating that published records stay as found, and new rows from the corpus generator.
 6. **The engine**, one commit by its owner.
 
-The bulk of the change is mechanical. A token-aware rename map, which extends `scripts/rename-reserved.py`, and `rce fmt --fit` apply it. Prose and messages are reworded by hand from section 6. The same discipline of tool-driven change in one repository is documented for interface migration [Cox 2011], for large-scale refactoring [Wright et al. 2013] and for atomic changes in a single repository [Potvin and Levenberg 2016].
+The bulk of the change is mechanical. A token-aware rename map, which extends `scripts/rename-reserved.py`, and `rce fmt fit` apply it. Prose and messages are reworded by hand from section 6. The same discipline of tool-driven change in one repository is documented for interface migration [Cox 2011], for large-scale refactoring [Wright et al. 2013] and for atomic changes in a single repository [Potvin and Levenberg 2016].
 
 ### 11.2 `openIE-dev/rce` main
 
@@ -1164,10 +1164,10 @@ Hit lines at d2b28e76, with the number of files in parentheses. The class splits
 ### 11.3 The checks the commit passes
 
 - `cargo test --release` and `cargo clippy --release --all-targets` in `spec/checker`;
-- `rce-spec-check --features tree-sitter`;
+- `rce-spec-check` built with cargo's `--features tree-sitter`;
 - `rce-book build`, which must leave no difference;
-- `rce-spec-data --check`;
-- `scripts/claim-counts.py --check`;
+- `rce-spec-data check`;
+- `scripts/claim-counts.py check`;
 - `lake build` and `scripts/lean-audit.sh`;
 - the conformance harness against the reference adapter;
 - `stdlib/scripts/check.sh` with `rce manifest-check`;
@@ -1175,7 +1175,7 @@ Hit lines at d2b28e76, with the number of files in parentheses. The class splits
 - `book/scripts/check-listings.sh`;
 - `scripts/t7-equiv.sh`;
 - the `ide` tests and the playground build;
-- `scripts/vocab.py --check`.
+- `scripts/vocab.py check`.
 
 The summary line of `rce-spec-check`, today `checker: accepted 62/62 examples, refused 12/12 syntax rejects, refused 64/64 ill-typed or inadmissible (16 of them inadmissible)`, becomes:
 
@@ -1311,7 +1311,7 @@ The suffix `_no_typing` states what those theorems prove: the typing judgement h
 
 1. **Program hashes independent of spelling.** CC-1 hashes unnamed items, examples among them, by their masked text, so respelling a keyword changes program hashes. The alternative encodes an example's outcome kind, and keywords in general, by position, as T7 does for names. Then no later respelling would move a program hash, at the cost of one more change of the `rce-program/1` identifier. The same question arises for the outcome words and trap texts inside the hashed payloads of `host.MainEnd` and `host.Step`: carried positionally, they would leave the hashes of D unchanged under a later rewording, at the cost of payloads that are read through the table of 6.2. Whether to make either change in the commit of 11.1 step 2, or separately, is open.
 2. **Evaluating an open position as a hole.** `rce run` could hold an unresolved name as a hole whose evaluation is the kept outcome `trap("hole: NAME")`, typed at the JSON-shaped value type [Siek and Taha 2006]. Whether T6 holds for a hole of unknown type depends on the typing rules of `intent-holes.md`, and is open.
-3. **A name-free derived outcome.** The derived `outcome` and the λ record name a declared error by name. They are not hashed, so T7 holds either way. `rce equiv` and `rce dim --control` already compare a kept outcome by the error's declaration index (10.11). Whether D's derived field carries the index, the name, or both is open: readability favours the name, uniformity with the hashed forms the index.
+3. **A name-free derived outcome.** The derived `outcome` and the λ record name a declared error by name. They are not hashed, so T7 holds either way. `rce equiv` and `rce dim control` already compare a kept outcome by the error's declaration index (10.11). Whether D's derived field carries the index, the name, or both is open: readability favours the name, uniformity with the hashed forms the index.
 4. **Universality for each source language.** The ASM theses give step-for-step simulation for algorithms that satisfy their postulates [Gurevich 2000; Blass and Gurevich 2003], and COMP-12 checks round trips on a corpus. For source constructs that interact without bound inside one step, such as a blocking call inside an expression, it is open whether behavioural equivalence (6.10) holds between the source and its lift, or only equivalence up to the logged answers and the `fuel` outcome. Its general statement, a proof for any one language, and the criterion for when a source language counts as held (agreement of `shape_ctl` with a Form written by hand, as the Go probe shows; replay of the source program's own tests through the lifted Form) are open.
 5. **Claims of named forms not yet proved.** The main case is the multi-shot handler composition of 8.9: T6 for the clones of captured state that each logged resume makes, the ground of the ledger row of 22 October 2026. Until each is proved, the "claimed for" column reads "stated".
 6. **The size of D under adversarial input.** COMP-4 records every offered input. SIZE_LIMIT bounds the size of one `host.Kept` entry, but not their number. Whether the kept entries of one admission window may be compacted into one entry that carries a Merkle root of their bytes (HS-12), without losing replay equality (T37, T40), is open.
