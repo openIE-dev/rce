@@ -6163,6 +6163,30 @@ delivers depends on the adapters it is granted.
   program's own text, not the library modules it uses, which the checker's
   build pins (F.5.3).
 
+### E.4e What the host reports to its terminal (HC-28)
+
+- **HC-28 The host reports its status, and the report is not an effect.**
+  `rce host run` and `rce host serve` write their status to stderr as
+  records of OSC 7501 (an operating system command sequence), the Program
+  Status Protocol that libghostty-vt parses and Herdr (herdr.dev) shows:
+  `ESC ] 7501 ; state=S:app=rce:title=T:msg=M ESC \`, where T is the
+  module name and M a short line of text, each in standard base64 with
+  padding. S is `idle` once the host has opened D and waits for input,
+  `working` while it admits an input from outside and steps the program,
+  `idle` again once the entries are appended to D, `done` when the host
+  stops cleanly (at the end of the input, and for `rce host serve` also on
+  SIGTERM, SIGINT or an emitted `Exit`, HC-24), and `error` when it stops
+  on a failure or on a program that requires change. The `idle` message
+  gives the number of entries of D and the first 12 hex digits of the
+  state hash. A round of the host loop that holds only a frame tick (HD-4),
+  the host's own clock, writes no record. A record is written only when S
+  changes. The host never reports `blocked`, since it asks no person
+  anything. Records are written only when stderr is a terminal;
+  `RCE_STATUS=on` writes them whatever stderr is, and `RCE_STATUS=off`
+  writes none. A report is not in D, no program reads it, and replay and
+  the state hash do not depend on it, so D is the same byte for byte with
+  reports and without them.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -6418,6 +6442,8 @@ is cited by a test.
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
+| HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports` |
 | HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)

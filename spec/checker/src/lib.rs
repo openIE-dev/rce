@@ -49,6 +49,7 @@ pub mod mpst_async;
 pub mod session_prio;
 pub mod specread;
 pub mod stdlib;
+pub mod status;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
