@@ -31,7 +31,7 @@ fn check_accepts_or_requires_change() {
         (
             0,
             format!(
-                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 2 example lines are the only obligations on the steps; \
+                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 3 example lines are the only obligations on the steps; \
                  their lookup-table control (6.9) meets them, so they do not constrain behaviour beyond the listed examples\n"
             ),
             String::new()
@@ -56,7 +56,7 @@ fn check_usage_and_missing_file() {
 }
 
 #[test]
-fn run_events_prints_each_state_and_stops_at_kept() {
+fn run_events_prints_each_state_and_goes_on_past_kept() {
     let (c, out, _) = rce(&["run", COUNTER, "Inc, Inc, Dec"]);
     assert_eq!(c, 0);
     assert_eq!(
@@ -67,7 +67,7 @@ fn run_events_prints_each_state_and_stops_at_kept() {
     assert_eq!(c, 1);
     assert_eq!(
         out,
-        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n"
+        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n2 Inc Counter { n = 1 }\n"
     );
 }
 
@@ -98,7 +98,7 @@ fn test_reports_counts_and_failures() {
     assert_eq!(c, 0);
     assert_eq!(
         out,
-        format!("ok {COUNTER} (2 examples, 0 checks)\n1 passed, 0 failed\n")
+        format!("ok {COUNTER} (3 examples, 0 checks)\n1 passed, 0 failed\n")
     );
     let wrong = std::fs::read_to_string(COUNTER)
         .unwrap()

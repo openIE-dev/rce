@@ -20,8 +20,9 @@ const EVS: &str = r#"Put(key: "b", val: "2"), Put(key: "a", val: "1"), Delete(ke
 fn program_entries_agree_with_reference_trace() {
     let (p, src) = ex("55_rcedb.rce");
     let m = parse(&src).unwrap();
-    // the reference trace stops at the first kept step; use the applied prefix
-    let evs = r#"Put(key: "b", val: "2"), Put(key: "a", val: "1"), Scan(start: ""), Delete(key: "a")"#;
+    // the reference trace goes on past the kept `Delete(key: "zz")`, as the
+    // host does (HC-21), so the two logs agree entry for entry
+    let evs = EVS;
     let t: Value = serde_json::from_str(&trace(&p.to_string_lossy(), &src, Some(evs)).unwrap()).unwrap();
     let want: Vec<String> = t["traces"][0]["steps"].as_array().unwrap().iter().map(|s| s["state_hash"].as_str().unwrap().to_string()).collect();
     let want_ev: Vec<String> = t["traces"][0]["steps"].as_array().unwrap().iter().map(|s| s["event"].to_string()).collect();

@@ -229,15 +229,27 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> kept: X` the last step is
-kept with the error X, for `-> kept: trap("K")` the last step is
-kept by the trap K (earlier events must be applied in both cases), and for
-`-> e` the event list is fully applied and then
+a final step whose outcome is o. The fold is the one of `rce run` and of
+the host (HC-21): a step that keeps the state leaves it unchanged (T8) and
+the next event is applied to that state, so an earlier event of ē may be
+kept or applied and the proposition is about the last step and the state
+after it. For `-> kept: X` the last step is kept with the error X, for
+`-> kept: trap("K")` the last step is kept by the trap K, and for `-> e`
+the last step is applied and then
 
 - if the program has exactly one region with exactly one field f, the
   value of f equals ⟦e⟧;
 - otherwise e must be a `bool` expression over the final state, with fields
   in scope by name (or `R.f` when ambiguous), and must be true.
+
+Example: the counter `spec/examples/01_counter.rce` states
+`example Dec, Inc -> 1`: `Dec` is kept with `Underflow`, the state stays
+s₀, and `Inc` applies to it. Until the change of 2026-10-31 (ledger), an example held
+only when every event before the last was applied, and `rce run` and
+`rce trace` ended at the first kept step; the examples that held then hold
+now, with the same traces, and an example whose earlier event is kept is
+now a statement about the fold that goes on past it. An author who wants an
+earlier step stated writes the prefix as an example of its own.
 
 `check e` (in an intent or at comptime) is the proposition ⟦e⟧ = true,
 evaluated at comptime. A program is admitted only if every example and check
@@ -251,10 +263,12 @@ no emitted program can be held to it.
 finitely many event lists folded from s₀, so they say nothing about any
 other list. The *lookup-table control* of a module M is M with one more
 field per region, the region's position in the trie of the example event
-lists (each list restricted to the events the region has a step for): each
-step of M applies only at a position that has a child for its event and
-moves the position to that child (where M selects no step of the region,
-the control only moves the position), and an event at a position with no
+lists (each list restricted to the events the region has a step for and
+that M applies when it folds the list): a step that M keeps, the control
+keeps with the same error; each step that M applies, the control applies
+only at a position that has a child for its event and moves the position
+to that child (where M selects no step of the region, the control only
+moves the position), and an event that M applies at a position with no
 child for it is kept with an error of its own. The control equals M on every prefix of every example
 list, so it meets every example of M, and it keeps the state on every other
 list. A `check` is a proposition about comptime values and functions, and a
@@ -339,4 +353,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811 -->
+<!-- body-sha256: 6589124d862f2d00926c070cf9ca1e1b5966945b0a21d5914af00b7f75aed583 -->

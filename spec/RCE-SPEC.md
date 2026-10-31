@@ -2065,15 +2065,27 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> kept: X` the last step is
-kept with the error X, for `-> kept: trap("K")` the last step is
-kept by the trap K (earlier events must be applied in both cases), and for
-`-> e` the event list is fully applied and then
+a final step whose outcome is o. The fold is the one of `rce run` and of
+the host (HC-21): a step that keeps the state leaves it unchanged (T8) and
+the next event is applied to that state, so an earlier event of ē may be
+kept or applied and the proposition is about the last step and the state
+after it. For `-> kept: X` the last step is kept with the error X, for
+`-> kept: trap("K")` the last step is kept by the trap K, and for `-> e`
+the last step is applied and then
 
 - if the program has exactly one region with exactly one field f, the
   value of f equals ⟦e⟧;
 - otherwise e must be a `bool` expression over the final state, with fields
   in scope by name (or `R.f` when ambiguous), and must be true.
+
+Example: the counter `spec/examples/01_counter.rce` states
+`example Dec, Inc -> 1`: `Dec` is kept with `Underflow`, the state stays
+s₀, and `Inc` applies to it. Until the change of 2026-10-31 (ledger), an example held
+only when every event before the last was applied, and `rce run` and
+`rce trace` ended at the first kept step; the examples that held then hold
+now, with the same traces, and an example whose earlier event is kept is
+now a statement about the fold that goes on past it. An author who wants an
+earlier step stated writes the prefix as an example of its own.
 
 `check e` (in an intent or at comptime) is the proposition ⟦e⟧ = true,
 evaluated at comptime. A program is admitted only if every example and check
@@ -2087,10 +2099,12 @@ no emitted program can be held to it.
 finitely many event lists folded from s₀, so they say nothing about any
 other list. The *lookup-table control* of a module M is M with one more
 field per region, the region's position in the trie of the example event
-lists (each list restricted to the events the region has a step for): each
-step of M applies only at a position that has a child for its event and
-moves the position to that child (where M selects no step of the region,
-the control only moves the position), and an event at a position with no
+lists (each list restricted to the events the region has a step for and
+that M applies when it folds the list): a step that M keeps, the control
+keeps with the same error; each step that M applies, the control applies
+only at a position that has a child for its event and moves the position
+to that child (where M selects no step of the region, the control only
+moves the position), and an event that M applies at a position with no
 child for it is kept with an error of its own. The control equals M on every prefix of every example
 list, so it meets every example of M, and it keeps the state on every other
 list. A `check` is a proposition about comptime values and functions, and a
@@ -2975,7 +2989,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the third event, whose step keeps the state, with exit status 1.
+and shows that the step of the third event keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -3061,20 +3075,22 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
-is `k EVENT kept: ERROR`, no later event is applied, and the status is
-1. Otherwise the status is 0. An event name that is not declared is a usage
+is `k EVENT kept: ERROR`, sₖ = sₖ₋₁ (T8), and the next event is applied to
+that state, as on the host (HC-21). The status is 1 when the step of some
+event keeps the state, and 0 otherwise. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
 ```
-$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
+$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec, Inc"
 0 (initial) Counter { n = 0 }
 1 Inc Counter { n = 1 }
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
 5 Dec kept: Underflow
+6 Inc Counter { n = 1 }
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
@@ -3537,8 +3553,10 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A kept step is the last step of its trace, with the unchanged state's
-hash (T8). A projector conforms on a module when, for every trace, its
+A kept step is a step of its trace, with outcome {`kept`: error name}
+and the unchanged state's hash (T8), and the next event is applied to
+that unchanged state, as on the host (HC-21); a trace ends only with its
+event list. A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
@@ -4538,6 +4556,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 | `state_hash` and the entry `hash` over the positional forms (6.1, T7) | erratum, outside programs | the finding of 2026-10-22: the Lean model of T7 hashes declaration indices, the checker and the four runtimes hashed the canonical JSON keyed by region, field and type names, so a renamed program had different log hashes. The hashes now cover the positional forms and a renamed program has the same hashes, as T7 states. No program's outputs, states or outcomes change; every trace fixture, the conformance pins and the trace format (`rce-trace/2`) change, which is the log format and not a program's meaning |
+| a kept step does not end a run, a trace or an example (6.9, 10.3, 10.9) | erratum for runs and traces, extension for examples | T3 folds every event and HC-21 applies the next input after a kept step; `rce run`, `rce trace`, `rce run-core` and the emitted runtimes ended at the first kept step, so they now meet T3. An example whose earlier event is kept required change under W-INT-1 before and now holds when its last step and final state are as it states; every example that held before holds with the same trace, so no valid program changes meaning |
 
 The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
 what made the earlier text a different release. Every other row is an erratum, an extension or a
