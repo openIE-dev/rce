@@ -53,8 +53,8 @@ $ rce run door.rce "Open, Close, Lock, Unlock, Open"
 {{#include ../listings/ch05/door_ok.out}}
 ```
 
-A step that keeps the state leaves it unchanged, and the run stops there:
-nothing after it is applied:
+A step that keeps the state leaves it unchanged, and the next event is
+applied to that unchanged state:
 
 ```text
 $ rce run door.rce "Lock, Open, Close"
