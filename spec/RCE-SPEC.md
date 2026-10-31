@@ -4004,6 +4004,96 @@ of the host; the reference's run of `fn main` needs a thread per task, so
 on a host without threads (WASI preview 1) it is absent (10.3, 10.9), and
 that slice is what makes the run possible there.
 
+### 10.13 `rce repair [json] [bound N] FILE [MODULE...]`: the exact-proposer ladder (informative)
+
+`rce repair` takes a program FILE that requires change (an example or
+check does not hold, or a static rule reports it) and proposes a changed
+program. FILE is checked together with the MODULEs, which are the
+program's other modules (10.2). The command is a ladder of **exact
+proposers**: each rung builds candidate programs by a fixed rule from the
+program, the MODULEs and the built-in library alone, and the checker, the
+same gate as `rce check` (6.9), judges each candidate. The ladder stops at
+the first candidate the checker admits; since the gate runs every
+example and check, an admitted candidate is one whose examples and checks
+all hold. No rung calls a model (10.1, item 2). A candidate is the
+canonical text of an edited module (the source printer of `unparse.rs`),
+never a text written by hand, and a candidate equal to one already judged
+is judged once.
+
+Terms. A **definition** is a function, a method of an `impl`, a step, an
+actor, a constant or a state declaration. A **site** is one expression
+of a definition. Intent, example and check items, and `check`, `requires`
+and `ensures` statements, are never edited: they are what a candidate is
+judged by. The **name-free signature** of a function is its number of
+generic parameters, its parameter types and its result type, without the
+names of the function and its parameters.
+
+Order of definitions. First the definitions that contain a line the
+report of FILE names (a static rule); then, breadth first, the
+definitions reachable from the checks that do not hold (the functions
+they call, and what those call) and, when an example does not hold, the
+steps, actors and state declarations and what they call; then every
+other definition, in source order. Sites within a definition are visited
+in preorder.
+
+The rungs, in order:
+
+- **a. Reuse.** The body of one function becomes the body of another
+  function with the same name-free signature, from FILE, the MODULEs or
+  the built-in library (`rce lib`), with its parameters renamed to the
+  receiving function's. A donor with the same name as the receiving
+  function comes first, then donors by module and name; donors with equal
+  name-free projections (10.6) are tried once, and a donor equal to the
+  receiving function is not tried.
+- **b. Lookup by type.** The brick catalog (10.10) of FILE, the MODULEs
+  and the library modules FILE uses is searched (`rce search` order) for
+  (1) a function of the same type as a definition, whose body then becomes
+  `return h(p1, ..., pn)` on its own parameters, and (2) a function of the
+  same type as the callee of a call, which then replaces that callee. Only
+  functions FILE can name are proposed: its own, and those of a module it
+  uses, through the module's alias.
+- **c. Altered rules.** Skipped. The rewrites of the altered rules
+  (proposed in pull request #85) are not in this checker; the report says
+  so on a `skipped` line.
+- **d. Bounded enumeration.** One small edit at one site: a binary
+  operator replaced by each other operator of its class (`+ - * / %`,
+  `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
+  ordering comparison swapped, an integer literal n replaced by n + 1,
+  n - 1, 0 and 1 (each value at least 0 and different from n), a boolean
+  literal negated, two arguments of a call with two to four arguments
+  swapped (each pair once), and a condition (of `if`, `elif`, `while`, a
+  guard or an `if` expression) negated, or its `not` removed. These edits
+  never add or rename a name, so they act alike on a program and on its
+  name-free projection. At most N candidates (`bound N`, default 2000)
+  are judged in this rung; the bound counts checker calls, not edits
+  skipped as duplicates.
+
+Rungs a, b and d are not bounded by `bound`: a and b judge at most one
+candidate per donor or catalog hit.
+
+Output: the rung that closed the program (`a reuse`, `b lookup by type`,
+`d bounded enumeration`, or `none` when FILE already complies with the
+Form), the edit (it names the line of FILE), the diff of the canonical
+texts (`-` the old lines and `+` the new, with line numbers of the
+canonical text), the number of candidates each rung judged with
+`0 model calls`, the `skipped` rungs, and the checker's verdict on the
+result: `ok FILE: admitted; E examples and C checks hold`, or, when no
+candidate is admitted, the report on FILE and `not closed FILE`. With
+`json` the same is one JSON object (format `rce-repair/1`) that also holds
+the repaired text, `model_calls` (always 0), `canonical_same_report`
+(whether the canonical text of FILE gets the report FILE gets, line
+numbers aside) and `attempts`, one record per candidate judged: rung,
+definition, edit and the checker's verdict. Exit status 0 when the
+program is closed or already complies, 1 when it is not closed, 2 on a
+usage error. The command is deterministic: equal inputs give equal
+output bytes and the same exit status.
+
+An admitted candidate passes the examples and checks; that does not make
+it the program that was meant. `rce equiv` (10.11) and the program hash of
+`rce hash` (10.8) say whether a repair has the behaviour or the
+definitions of a known original; `scripts/ladder-run.py` reports that
+split for the task sets that `scripts/ladder-tasks.py` writes.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
 ---
