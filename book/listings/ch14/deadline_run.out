@@ -1,0 +1,2 @@
+emit "no value within 3 ticks"
+exit status: 0

@@ -1,0 +1,11 @@
+fn sum_squares(n: i64) -> i64
+    var s: i64 = 0
+    with budget 50
+        for i in 0..n
+            s += i * i
+    else as e
+        s = -(e.limit as i64)
+    s
+
+check sum_squares(3) == 5
+check sum_squares(1000) == -50

@@ -1,0 +1,24 @@
+# Recursion on integers: `bound` limits the active calls, `decreases` names a measure.
+fn gcd(a: u64, b: u64) -> u64 bound 100
+    if b == 0
+        return a
+    return gcd(b, a % b)
+
+fn sum_to(n: u64) -> u64 bound 1000
+    decreases n
+    if n == 0
+        return 0
+    return n + sum_to(n - 1)
+
+fn ticks(start: u64) -> u64
+    var k: u64 = start
+    var t: u64 = 0
+    while k > 0 bound 100
+        decreases k
+        k -= 1
+        t += 2
+    return t
+
+check gcd(12, 18) == 6
+check sum_to(10) == 55
+check ticks(5) == 10

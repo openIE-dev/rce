@@ -1,0 +1,11 @@
+struct Order
+    id: u64
+    item: text
+    count: i64
+
+fn receipt(o: &Order) -> text
+    return text.t"Order {o.id}: {o.count} x {o.item} {{paid}}"
+
+const TEA: Order = Order(id: 7, item: "tea", count: 2)
+
+check receipt(&TEA) == "Order 7: 2 x tea {paid}"

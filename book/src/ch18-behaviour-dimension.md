@@ -137,6 +137,63 @@ chapter 4, has more reachable states than `rce dim` will visit. It stops at
 the behaviours it found as a lower bound. Exploration is deterministic:
 the same program and the same fuel give the same report, byte for byte.
 
+## Changing a program
+
+Behaviour is also what decides whether a change to a program is safe.
+Three commands answer the question from different sides.
+
+`rce hash` names each definition by a hash of its text with every declared
+name replaced by its position. Here is a second version of the counter of
+the tour, whose `Dec` is written as two steps instead of one:
+
+```rce
+{{#include ../listings/ch18/counter_v2.rce}}
+```
+
+```text
+$ rce hash counter_v2.rce
+{{#include ../listings/ch18/hash_v2.out}}
+```
+
+`Inc` and `Dec` have the same hash: without their names, two events with no
+payload are the same definition. `pub` marks an *export*, a definition that
+other programs can name. The last line is the hash of the whole program. `rce api-diff OLD NEW`
+compares the exports of two versions, one row per change, each
+`compatible` or `breaking`.
+
+`rce change OLD NEW` puts the two together: both program hashes, the
+`api-diff` rows and the check of `rce equiv`. It decides an *erratum* when
+every export is compatible and every behaviour is kept:
+
+```text
+$ rce change --fuel 1000 ../tour/counter.rce counter_v2.rce
+{{#include ../listings/ch18/change_erratum.out}}
+```
+
+A *meaning change* when a behaviour changed, with the sequence that shows
+it:
+
+```text
+$ rce change --fuel 1000 ../tour/counter.rce ../tour/sloppy.rce
+{{#include ../listings/ch18/change_meaning.out}}
+```
+
+And an *interface change* when the behaviour is kept but an export a
+caller could name is gone. The renamed counter of the tour behaves the same,
+but every name a caller used has changed:
+
+```text
+$ rce change --fuel 1000 ../tour/counter.rce ../tour/tally.rce
+{{#include ../listings/ch18/change_rename.out}}
+```
+
+The counter grows without end, so each verdict holds "to the explored
+bound". When the bound is reached before the two programs are told apart
+or shown equal, the verdict is *undecided*, with exit status 3: raise
+`--fuel`. The decision is the tool's, read off the two programs, not a
+version number someone typed. Chapter 16 shows where it is used: a log may
+be rebound to a changed program only after an erratum.
+
 ## What you learned
 
 - A program's behaviour is what it emits on every event sequence; two
@@ -146,3 +203,6 @@ the same program and the same fuel give the same report, byte for byte.
 - `rce dim` counts the behaviours a program can be in and reports the
   redundancy of its state per region, in bits; `--control` counts the
   control states and hashes their canonical form as `shape_ctl`.
+- `rce hash`, `rce api-diff` and `rce change` say whether a change keeps
+  the exports and the behaviour: erratum, meaning change or interface
+  change.

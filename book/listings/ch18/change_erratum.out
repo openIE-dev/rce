@@ -1,0 +1,8 @@
+program             4631c798c37181944d74d4c6a90fdfc273747787b15df8388f524550327c4cb5
+                    a8374f2c4d3a0420f18870c5dfc0df15adec88465b3d552861d60dbe0f489127
+api                 no export changed
+behaviour alphabet            2        event instances explored
+behaviour states              1000 / 1000
+behaviour verdict             equivalent  same behaviour on the explored alphabet (to the explored bound)
+verdict             erratum to the explored bound  every export compatible and every behaviour kept as far as explored
+exit status: 0

@@ -1,0 +1,16 @@
+intent "a counter that never goes below zero"
+    example Inc, Inc, Dec -> 1
+    example Dec -> kept: Underflow
+
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+error Underflow
+
+step Counter on Inc -> n + 1
+step Counter on Dec if n == 0
+    fail Underflow
+step Counter on Dec -> n - 1

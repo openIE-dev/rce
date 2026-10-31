@@ -1,0 +1,5 @@
+fn wait_forever() -> u64
+    var k: u64 = 0
+    while true bound 10
+        k += 1
+    return k

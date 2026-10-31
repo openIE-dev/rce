@@ -1,0 +1,2 @@
+requires change plain_len.rce: line 1: W-LEN-1 text has no unqualified `len`: use `len_bytes` or `len_chars` (F.5.2) [requires change]
+exit status: 1

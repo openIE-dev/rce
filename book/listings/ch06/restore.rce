@@ -1,0 +1,16 @@
+error TooMany
+
+# Adds one item to the basket, then fails when the basket is over its limit.
+fn add_item(basket: &mut List[text], item: text, limit: usize) -> usize ! TooMany
+    basket.push(item)
+    if basket.len() > limit
+        fail TooMany
+    return basket.len()
+
+fn try_add(limit: usize) -> usize
+    var basket: List[text] = ["tea"]
+    let _ = add_item(&mut basket, "jam", limit) catch 0
+    return basket.len()
+
+check try_add(5) == 2
+check try_add(1) == 1

@@ -1,0 +1,2 @@
+requires change world_in_helper.rce: line 3: W-WORLD-1 `checksum_of` takes a &World, but only `fn main` and task functions (those with a channel parameter) may hold one [requires change]; line 3: W-EFF-1 `crc32` is a foreign function: only main and task functions may call it [requires change]
+exit status: 1

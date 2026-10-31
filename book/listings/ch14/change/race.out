@@ -1,0 +1,2 @@
+requires change race.rce: line 4: W-PAR-1 branch `one` writes `total`, which overlaps `total` used by branch `two` (race) [requires change]; line 7: W-PAR-1 branch `two` writes `total`, which overlaps `total` used by branch `one` (race) [requires change]
+exit status: 1

@@ -41,9 +41,16 @@ Three ideas run through the whole book:
 **Reality Code Engine, draft 0.9.** The specification is published for
 review and can still change. There is one language: the specification at
 one commit. Drafts 0.5 to 0.9 are labels of past commits of that language,
-not alternatives. A `# rce-version:` line is a release label. It is
-tolerated, ignored and not hashed, and it is not a per-module language
-selection. This book teaches sections 2 to 10 of that one text. What exists
+not alternatives, and every rule applies to every module. A `# rce-version:`
+line is a release label. It is tolerated, ignored and not hashed, and it is
+not a per-module language selection.
+
+This book teaches sections 2 to 10 of that one text, the concurrency of its
+Appendix C and the parts of its Appendix F (the draft 0.9 rules) that the
+reference checker implements. `rce v09-status` prints, rule by rule, which
+Appendix F rules the checker implements and which it does not; a construct
+the checker does not implement *requires change* with the rule W-RES-1
+(reserved, not implemented), and this book does not teach it. What exists
 today:
 
 - the specification, with its grammar checked by machine;
@@ -51,9 +58,13 @@ today:
   example, with the whole standard library built in (`use enc`, `use
   data.events`: nothing to install);
 - emitters that translate a checked program to Rust, Python, JavaScript
-  and Scala, which agree with the reference; emitting every language by table, and lifts that bring programs in
-  those languages into the Form, are the design of
-  `spec/proposals/rce-form.md` (one Go pattern is lifted by a probe today).
+  and Scala, which agree with the reference; emitting every language by
+  table, and lifts that bring programs in those languages into the Form,
+  are the design of `spec/proposals/rce-form.md` (one Go pattern is lifted
+  by a probe today);
+- a host runtime in the same `rce` binary that runs a program as a service
+  against a durable log (chapter 16), released as prebuilt binaries and as
+  a container image (chapter 1).
 
 What does not exist yet: a production compiler and a fast runtime. The
 reference interpreter defines what programs mean. It is not built for speed.
@@ -84,5 +95,6 @@ fn half(x: u64) -> u64 = x / 2
 A line that starts with `$` is a command you type. The lines below it are
 what `rce` printed. The book also shows the exit status, because `rce` uses
 it to say how a command ended: 0 means success, 1 means the program
-requires change, a step kept the state, or a test failed, and 2 means the
-command itself was used wrongly.
+requires change, a step kept the state, or a test failed, 2 means the
+command itself was used wrongly, and 3 means a question that `rce equiv` or
+`rce change` could not decide within its bound (chapter 18).
