@@ -1,15 +1,15 @@
 # Proposal: positional command lines (no flags)
 
-Status: proposed, 2026-10-31. Design only: no code changes in this
-proposal. The implementation is one later change, made after the open pull
+Status: accepted 2026-10-31, implementation pending. Design only: no code
+changes in this proposal. The implementation is one later change, made after the open pull
 requests that touch the same files have merged (section 4).
 
 AGENTS.md already states the rule: "Commands take positional arguments
 only." The tools do not follow it yet. This proposal lists every place
 where they do not (section 1), gives one grammar for every command
 (section 2), says what output changes (section 3), and plans the change
-that removes the flags (section 4). Section 5 lists the questions the
-owner has to answer.
+that removes the flags (section 4). Section 5 records the owner's
+decisions on the questions this proposal left open.
 
 ## 0. Terms
 
@@ -238,11 +238,19 @@ The other rules follow from it or close the edge cases:
   or disappears when only one mode is left: `rce trace` prints only JSON,
   so `--json` goes and nothing replaces it.
 - **PC-4. Bounds and grants are setting words.** `fuel 1000`, `depth 8`,
-  `vectors 4`, `fs DIR`, `http HOST:PORT`. A value keeps its spelling of
-  today (`HOST:PORT`, `HOST:PORT=KEY`, `ISSUER=HEXPUBKEY`, `F,G`,
-  `TICK|Name|f=v,...`). A word may be given once, except those the usage
-  line marks repeatable (`net`, `peer`, `key`, and the emitted program's
-  `link`, `restart`, `event`).
+  `vectors 4`, `fs DIR`, `http HOST:PORT`. A setting word takes a fixed
+  number of values, one or two. Two things that a flag's value joined with
+  `=` are two values (decision 4 of section 5): `key ISSUER HEXPUBKEY`,
+  `peer HOST:PORT KEY`. Other values keep their spelling of today
+  (`HOST:PORT`, `F,G`, and the event and restart specifications of the
+  emitted programs, `TICK|Name|f=v,...`, whose `=` gives a field its value
+  inside one event, not a second thing). A word may be given once, except
+  those the usage line marks repeatable (`net`, `peer`, `key`, and the
+  emitted program's `link`, `restart`, `event`). One word changes the
+  number of values of another: after `tls`, every `peer` takes two values,
+  the address and the Ed25519 key pinned for it (HC-23); without `tls`, a
+  `peer` takes the address alone. So `tls` comes before the first `peer`,
+  the one place where the order of words matters.
 - **PC-5. The name of a word is the flag's name without its dashes.**
   `--fuel-trace` becomes `fuel-trace`, `--no-generate` becomes
   `no-generate`. The exceptions are the ones PC-2 and PC-3 force
@@ -284,8 +292,8 @@ The owner's sketch put grants after the operands
    pass serves every binary.
 
 The order reads as "serve, over HTTP on 0.0.0.0:8080, the program
-notes_http.rce on the log /data/notes". Section 5 asks the owner whether to
-keep it.
+notes_http.rce on the log /data/notes". The owner kept it (decision 1 of
+section 5).
 
 ### 2.3 Why `fuel 1000`
 
@@ -297,7 +305,7 @@ Three forms were considered for a numeric bound:
   list of files; with two bounds the reader has to remember which comes
   first. Declined.
 - **`fuel=1000`.** Excluded by the owner, and `=` already appears inside
-  values (`ISSUER=KEY`, `f=v`).
+  event specifications (`f=v`).
 - **A setting word, `fuel 1000`.** It names what the number bounds, the
   value is always taken as the value, and `fuel` cannot be a path with a
   directory or an extension. Chosen.
@@ -322,7 +330,7 @@ Defaults stay: `fuel` 100,000 states, `depth` 8, `vectors` 0.
 | `rce fingerprint [--depth N] [--fuel N] [--json] FILE...` | `rce fingerprint [json] [depth N] [fuel N] FILE...` |
 | `rce change [--fuel N] OLD NEW` | `rce change [fuel N] OLD NEW` |
 | `rce lib [MODULE]`, `hash`, `manifest DIR`, `api-diff OLD NEW`, `v09-status`, `lsp`, `search CATALOG QUERY`, `unform FORM.json` | unchanged |
-| `rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEX]...` | `rce manifest-check [advisories FILE] [key ISSUER=HEX]... MANIFEST` |
+| `rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEX]...` | `rce manifest-check [advisories FILE] [key ISSUER HEX]... MANIFEST` |
 | `rce index [--vectors N] FILE\|DIR...` | `rce index [vectors N] FILE\|DIR...` |
 | `rce host run FILE --log D [GRANTS] [EVENTS]` | `rce host run [GRANT...] FILE D [EVENTS]` |
 | `rce host serve FILE --log D [GRANTS] [--http HOST:PORT]` | `rce host serve [GRANT...] [http HOST:PORT] FILE D` |
@@ -334,12 +342,13 @@ Defaults stay: `fuel` 100,000 states, `depth` 8, `vectors` 0.
 
 GRANT is one of `fs DIR`, `blob DIR`, `media DIR`, `wasm DIR`,
 `net HOST:PORT` (repeatable), `chan HOST:PORT`, `tls`,
-`peer HOST:PORT[=KEY]` (repeatable) and `pty`. Examples:
+`peer HOST:PORT` (repeatable; `peer HOST:PORT KEY` after `tls`, PC-4) and
+`pty`. Examples:
 
 ```sh
 rce host serve http 0.0.0.0:8080 /srv/notes_http.rce /data/notes
 rce host serve chan 127.0.0.1:7001 peer 127.0.0.1:7002 apps/chat.rce a.log
-rce host serve chan 0.0.0.0:7001 tls peer 10.0.0.2:7001=9f0c...e1 apps/chat.rce a.log
+rce host serve chan 0.0.0.0:7001 tls peer 10.0.0.2:7001 9f0c...e1 apps/chat.rce a.log
 rce host run fs /tmp/root net 127.0.0.1:9000 io_host.rce d.log "Roll(n: 2)"
 rce host replay redact priv,ek,dk pqxdh.rce pq.log
 rce dim control json door.rce
@@ -405,7 +414,8 @@ Exit statuses do not change: 0 success, 1 requires change or a kept step
 or a difference found by `check`, 2 usage error, 3 undecided (10.1). Two
 cases move between them because the grammar moves: `rce trace FILE`, a
 usage error (2) today, becomes the trace (0); and every removed flag
-becomes a usage error (2). `rce help` and `rce version` exit 0 as
+becomes a usage error (2), with one new line of output that names its
+new spelling (decision 2 of section 5). `rce help` and `rce version` exit 0 as
 `--help` and `--version` do.
 
 Output that names a flag has to change, and only that:
@@ -413,7 +423,8 @@ Output that names a flag has to change, and only that:
 - `USAGE_TEXT` and the usage lines of `rce-book`, `rce-ide`, `rce-mcp`
   and the calibrate command, printed from the tables of PC-8;
 - the error texts `--fuel N: N is a count of states`, `--depth N: ...`,
-  `--vectors N: not a count`, `--key ISSUER=HEXPUBKEY`, `--log D`,
+  `--vectors N: not a count`, `--key ISSUER=HEXPUBKEY` (now
+  `key ISSUER HEXPUBKEY`), `--log D`,
   `--http: one listening address per host`, `--http needs rce host serve`,
   `--tls: every --peer needs a pinned key`, `--peer X: not a 32-byte hex
   key`, `--chan ADDR: ...` (`cli.rs`, `dim.rs`), which become `fuel N: ...`
@@ -473,8 +484,8 @@ and the other open pull requests that touch `cli.rs`, the host tests or
    test) instead of a comment.
 7. The IDE (`rce-ide`, `rce-mcp`, the IDE build of `rce`, `acp-client` and
    `mock-acp-agent`, which spawn `rce-mcp`), its README and `ide/docs/PARITY.md`,
-   and the scripts of section 1.5, unless the owner splits them off
-   (section 5).
+   and the scripts of section 1.5, in the same change (decision 3 of
+   section 5): after it, nothing in the repository takes a flag.
 8. Open proposals that name a flag use the new spelling. The ledger, dated
    release notes (`ide/release/NOTES-*.md`, `RELEASE.md`) and dated
    surveys keep their words, as the vocabulary check already allows.
@@ -498,8 +509,8 @@ Risks of removing without aliases, and what limits each:
 - **Branches open at the time of the change** that add a flag use fail the
   check of 4.3 after they merge `main`, and are fixed there.
 - **Old commands in prose outside the repository** (issues, chat logs)
-  stop working. A removed flag prints a usage error that names the new
-  spelling if the owner allows it (section 5); it never runs the command.
+  stop working. A removed flag prints its new spelling and exits 2
+  (decision 2 of section 5); it never runs the command.
 
 ### 4.2 Tree-sitter grammar, language server and IDE
 
@@ -525,7 +536,8 @@ Two checks, both run by `ci.yml`, both positional themselves:
      command it came from, so the text and the parser agree;
    - each of the 42 flags of sections 1.1 to 1.3, given in its old place
      to `cli::main`, to each `CARGO_BIN_EXE_*` binary and to an emitted
-     program of every available target, exits 2 and writes no file;
+     program of every available target, exits 2, prints the line of decision 2 that names its new spelling, and
+     writes no file;
    - PC-7: a file named `fuel` given as `./fuel` to `rce dim` is read as
      a file, and given as `fuel` is read as the word.
 2. **A scan of the tree**, `scripts/check-flags.py`, which fails when any
@@ -551,19 +563,23 @@ Two checks, both run by `ci.yml`, both positional themselves:
    the day of the change it reports 0; on `main` today it would report
    the 813 occurrences that sections 1.1 to 1.3 count.
 
-## 5. Open questions for the owner
+## 5. Decisions
 
-1. **Order of grants.** Words before operands as proposed
-   (`rce host serve http 0.0.0.0:8080 FILE D`), or FILE and D first as
-   in the owner's sketch? The second needs either EVENTS behind a word
-   (`events "Inc, Dec"`) or a rule that event names start with a capital
-   letter.
-2. **The message for a removed flag.** May a removed flag print a usage
-   error that names its new spelling (`--fuel: write fuel 1000 before the
-   files`), exit 2 and run nothing, or only the plain usage text?
-3. **Scope of the one change.** The IDE binaries (35 flags) and the
-   repository scripts (about 35 flags) in the same change as `rce`, or in
-   changes of their own right after it?
-4. **Values that join two things with `=`** (`peer ADDR=KEY`,
-   `key ISSUER=HEX`): keep them as one value, as proposed, or split them
-   into two values (`key ISSUER HEX`)?
+The owner decided the four questions this proposal left open, on
+2026-10-31:
+
+1. **Words before operands.** Grant words come before FILE and D, as
+   section 2.2 proposes: `rce host serve http 0.0.0.0:8080 notes.rce
+   /data/notes`.
+2. **A removed flag names its new spelling.** Given a removed flag, a
+   binary prints one line naming the new spelling, for example
+   `--check was removed; write: rce fmt check x.rce`, exits 2 and runs
+   nothing. This is not an alias: the old spelling never does what it
+   did. The test of section 4.3 checks the line and the status for each
+   removed flag.
+3. **One cut-over.** The IDE binaries (section 1.4) and the repository
+   scripts (section 1.5) change in the same change as `rce`, so nothing in
+   the repository is left with a flag.
+4. **Two things, two arguments.** A value that joined two things with `=`
+   becomes two arguments: `key ISSUER HEX` for `rce manifest-check`, and
+   `peer ADDR KEY` for a pinned peer under `tls` (PC-4).
