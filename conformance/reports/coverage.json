@@ -1,7 +1,7 @@
 {
  "format": "rce-coverage/1",
- "clauses": 205,
- "covered": 205,
+ "clauses": 206,
+ "covered": 206,
  "percent": 100.0,
  "tests_by_area": {
   "concurrency": 253,
@@ -14,10 +14,10 @@
   "numbers": 1168,
   "proposed": 4,
   "text-unicode": 12,
-  "tooling": 8,
-  "types-checking": 101
+  "tooling": 10,
+  "types-checking": 110
  },
- "tests_total": 1979,
+ "tests_total": 1990,
  "per_clause": [
   {
    "id": "CH00-M-61b6ac06",
@@ -33,7 +33,7 @@
    "id": "CH02-M-84a53b7d",
    "kind": "modal",
    "chapter": "02-lexical.md",
-   "line": 99,
+   "line": 114,
    "tests": 53,
    "reference": {
     "pass": 53
@@ -273,7 +273,7 @@
    "id": "E1",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 121,
+   "line": 241,
    "tests": 6,
    "reference": {
     "pass": 6
@@ -363,7 +363,7 @@
    "id": "F6",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 247,
+   "line": 365,
    "tests": 4,
    "reference": {
     "pass": 4
@@ -453,7 +453,7 @@
    "id": "N9",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 342,
+   "line": 476,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -524,9 +524,9 @@
    "kind": "modal",
    "chapter": "09-wellformedness.md",
    "line": 3,
-   "tests": 339,
+   "tests": 345,
    "reference": {
-    "pass": 339
+    "pass": 345
    }
   },
   {
@@ -623,7 +623,7 @@
    "id": "W-SAFE-1",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
-   "line": 28,
+   "line": 29,
    "tests": 13,
    "reference": {
     "pass": 13
@@ -800,6 +800,16 @@
    }
   },
   {
+   "id": "W-INT-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 72,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
    "id": "W-SIMD-1",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
@@ -923,7 +933,7 @@
    "id": "W-CAP-2",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
-   "line": 104,
+   "line": 105,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -984,9 +994,9 @@
    "kind": "theorem",
    "chapter": "10-theorems.md",
    "line": 34,
-   "tests": 29,
+   "tests": 38,
    "reference": {
-    "pass": 29
+    "pass": 38
    }
   },
   {
@@ -1193,7 +1203,7 @@
    "id": "S1",
    "kind": "rule",
    "chapter": "11-decisions.md",
-   "line": 133,
+   "line": 172,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -1463,7 +1473,7 @@
    "id": "W-NODE-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 477,
+   "line": 586,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -1603,7 +1613,7 @@
    "id": "T28",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 615,
+   "line": 724,
    "tests": 3,
    "reference": {
     "pass": 3
@@ -1713,7 +1723,7 @@
    "id": "HC-3",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 55,
+   "line": 61,
    "tests": 2,
    "reference": {
     "pass": 2
@@ -1733,7 +1743,7 @@
    "id": "HC-5",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 65,
+   "line": 76,
    "tests": 3,
    "reference": {
     "pass": 3
@@ -1763,7 +1773,7 @@
    "id": "HC-7a",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 131,
+   "line": 170,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -1843,7 +1853,7 @@
    "id": "HC-19",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 209,
+   "line": 248,
    "tests": 30,
    "reference": {
     "pass": 30
@@ -1853,7 +1863,7 @@
    "id": "HC-18a",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 217,
+   "line": 258,
    "tests": 30,
    "reference": {
     "pass": 30
@@ -1863,7 +1873,7 @@
    "id": "HC-20",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 249,
+   "line": 290,
    "tests": 21,
    "reference": {
     "pass": 21
@@ -1893,7 +1903,7 @@
    "id": "HC-12",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 431,
+   "line": 867,
    "tests": 91,
    "reference": {
     "pass": 91
@@ -1954,9 +1964,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 46,
-   "tests": 2,
+   "tests": 11,
    "reference": {
-    "pass": 2
+    "pass": 11
    }
   },
   {
@@ -2003,7 +2013,7 @@
    "id": "W-CRDT-1",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "tests": 5,
    "reference": {
     "pass": 5
@@ -2013,7 +2023,7 @@
    "id": "W-SCOPE-1",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "tests": 1,
    "reference": {
     "pass": 1
@@ -2023,7 +2033,7 @@
    "id": "W-SES-4",
    "kind": "rule",
    "chapter": "09-wellformedness.md",
-   "line": 110,
+   "line": 119,
    "tests": 6,
    "reference": {
     "pass": 6
@@ -2074,8 +2084,8 @@
  "unknown_clause_ids_in_tests": {},
  "profiles": {
   "language": {
-   "clauses": 205,
-   "covered": 205
+   "clauses": 206,
+   "covered": 206
   },
   "tooling": {
    "clauses": 7,
