@@ -1,0 +1,12 @@
+struct Auditor
+label pii by Auditor
+
+state Desk
+    shown: u64 = 0
+
+event Reveal(code: u64 @ {pii}, approved: bool @ {}, cap: Cap[Auditor])
+
+step Desk on Reveal(code: c, approved: ok, cap: _)
+    if ok
+        emit release c
+        shown += 1

@@ -1,0 +1,2 @@
+requires change dead_store.rce: line 3: W-ASSIGN-1 the value stored in `p` is overwritten before any read
+exit status: 1

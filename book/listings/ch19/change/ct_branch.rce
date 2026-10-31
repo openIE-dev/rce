@@ -1,0 +1,5 @@
+ct fn same_tag(key: List[i64] @ {secret}, tag: List[i64]) -> bool
+    for i in 0..4
+        if key[i] != tag[i]
+            return false
+    return true

@@ -1,0 +1,9 @@
+fn price(base: u64, member: bool) -> u64
+    var p: u64 = 0
+    p = base
+    p = base - base / 10
+    if member
+        p -= 5
+    return p
+
+check price(100, true) == 85

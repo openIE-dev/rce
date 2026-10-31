@@ -44,7 +44,8 @@ You need the `rce` command from the
 
 ```sh
 git clone https://github.com/openIE-dev/rce
-(cd rce/spec/checker && cargo build --release)
+cd rce
+(cd spec/checker && cargo build --release --bin rce)
 RCE=$PWD/spec/checker/target/release/rce book/scripts/check-listings.sh
 ```
 

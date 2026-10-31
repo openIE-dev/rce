@@ -1,0 +1,9 @@
+fn racy(xs: &[i64]) -> i64
+    var total: i64 = 0
+    par
+        branch one
+            for x in xs
+                total += x
+        branch two
+            total = 0
+    total
