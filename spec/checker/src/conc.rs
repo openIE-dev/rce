@@ -1587,6 +1587,12 @@ pub struct Entry {
     pub vc: Vec<u64>,
     /// for a delivery: the index of the entry that sent the message
     pub cause: Option<usize>,
+    /// in a traced run (`run_main_traced`), the state of the run when the
+    /// entry was written, as the canonical JSON of its positional form
+    /// (10.9): `[tick, [[actor id, [field values]], ...]]`, the live actors
+    /// in id order, each field value positional (6.1, T7), in declaration
+    /// order; `None` in an untraced run
+    pub state: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1680,6 +1686,34 @@ struct Sched<'a> {
     restart_log: Vec<RestartIn>,
     restart_replay: Option<VecDeque<RestartIn>>,
     stop: Option<Outcome>,
+    /// record the state of the run with every entry (`Entry::state`)
+    trace: bool,
+    /// set when a task thread could not be started (`NO_TASK_THREADS`)
+    no_threads: Option<String>,
+}
+
+/// The start of the failure of a run of `fn main` on a host that cannot
+/// start a task thread (10.3): WASI preview 1 (`wasm32-wasip1`) has no
+/// threads, and the tick runtime runs each task on its own thread.
+pub const NO_TASK_THREADS: &str = "fn main needs task threads, which this host does not provide";
+
+/// Whether an error of `run_main` is the failure to start a task thread.
+pub fn is_no_task_threads(e: &str) -> bool {
+    e.starts_with(NO_TASK_THREADS)
+}
+
+thread_local! {
+    /// how many more task threads a run started from this thread may start;
+    /// `None`: no limit but the host's (`refuse_task_threads_after`)
+    static TASK_THREADS_LEFT: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+/// Let runs of `fn main` started from the calling thread start at most `n`
+/// task threads, and fail to start any further one as a host without
+/// threads does; `None` lifts the limit. Tests use it to check the failure
+/// of `NO_TASK_THREADS` on a host that has threads.
+pub fn refuse_task_threads_after(n: Option<usize>) {
+    TASK_THREADS_LEFT.with(|c| c.set(n));
 }
 
 fn sup(a: &mut [u64], b: &[u64]) {
@@ -1730,29 +1764,49 @@ impl<'a> Sched<'a> {
                 (Some(_), Some(rec)) => tree_migrates(rec, &sup_tree(m)).err().map(Outcome::Stopped),
                 _ => None,
             },
+            trace: false,
+            no_threads: None,
         }
+    }
+
+    /// The positional state of the run now (`Entry::state`).
+    fn state_json(&self) -> String {
+        use crate::interp::{FV, form_value_pos};
+        let actors = self
+            .actors
+            .iter()
+            .map(|(id, a)| {
+                let fs = a.fields.iter().map(|(_, v, _)| form_value_pos(v, self.m)).collect();
+                FV::List(vec![FV::Text(id.clone()), FV::List(fs)])
+            })
+            .collect();
+        FV::List(vec![FV::Int(self.tick as i128), FV::List(actors)]).json()
     }
 
     fn local(&mut self, node: usize, what: String) -> usize {
         self.vcs[node][node] += 1;
+        let state = self.trace.then(|| self.state_json());
         self.log.push(Entry {
             tick: self.tick,
             node,
             what,
             vc: self.vcs[node].clone(),
             cause: None,
+            state,
         });
         self.log.len() - 1
     }
     fn deliver_entry(&mut self, node: usize, what: String, m: &Msg) -> usize {
         sup(&mut self.vcs[node], &m.vc);
         self.vcs[node][node] += 1;
+        let state = self.trace.then(|| self.state_json());
         self.log.push(Entry {
             tick: self.tick,
             node,
             what,
             vc: self.vcs[node].clone(),
             cause: Some(m.entry),
+            state,
         });
         self.log.len() - 1
     }
@@ -1765,6 +1819,8 @@ impl<'a> Sched<'a> {
         }
     }
 
+    /// Start the thread of a task. When the host cannot start it, the error
+    /// is `NO_TASK_THREADS`, the host and the reason.
     #[allow(clippy::too_many_arguments)]
     fn spawn_task<'s, 'e>(
         &mut self,
@@ -1775,17 +1831,27 @@ impl<'a> Sched<'a> {
         prio: u8,
         parent: Option<usize>,
         scope: u64,
-    ) where
+    ) -> Result<(), String>
+    where
         'a: 's,
     {
+        let refused = TASK_THREADS_LEFT.with(|c| match c.get() {
+            Some(0) => true,
+            Some(n) => {
+                c.set(Some(n - 1));
+                false
+            }
+            None => false,
+        });
         let (req_tx, req_rx) = mpsc::channel::<Req>();
         let (rep_tx, rep_rx) = mpsc::channel::<RepMsg>();
         let m = self.m;
         let pm = self.cfg.par_mode;
         let tid = id.clone();
-        std::thread::Builder::new()
-            .stack_size(256 << 20)
-            .spawn_scoped(s, move || {
+        let started = if refused {
+            Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+        } else {
+            std::thread::Builder::new().stack_size(256 << 20).spawn_scoped(s, move || {
                 let mut it = Interp::new(m);
                 it.cx.id = tid;
                 it.cx.par_mode = pm;
@@ -1811,7 +1877,18 @@ impl<'a> Sched<'a> {
                     dl: vec![],
                 });
             })
-            .expect("task thread");
+        };
+        if let Err(e) = started {
+            // the target's name: on WASI `std::env::consts::OS` is empty
+            let host = if cfg!(all(target_os = "wasi", target_env = "p1")) {
+                "wasm32-wasip1".to_string()
+            } else if cfg!(target_os = "wasi") {
+                "wasm32-wasi".to_string()
+            } else {
+                format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)
+            };
+            return Err(format!("{NO_TASK_THREADS} ({host}: {e})"));
+        }
         self.slots.push(Slot {
             id,
             prio,
@@ -1827,6 +1904,7 @@ impl<'a> Sched<'a> {
             released: false,
             since: 0,
         });
+        Ok(())
     }
 
     fn order(&self) -> Vec<usize> {
@@ -2623,7 +2701,12 @@ impl<'a> Sched<'a> {
                         return Outcome::Stopped(format!("trap: no task function {f}"));
                     };
                     self.local(0, format!("Spawn(task {id}, priority {prio})"));
-                    self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope);
+                    if let Err(e) = self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope) {
+                        // the spawning task is cancelled when the run is wound up
+                        self.slots[i].st = St::Ready(rep);
+                        self.no_threads = Some(e.clone());
+                        return Outcome::Stopped(e);
+                    }
                 }
                 self.slots[i].st = St::Ready(rep);
             }
@@ -2657,6 +2740,16 @@ impl<'a> Sched<'a> {
 
 /// Run `fn main()` of `m` on the tick runtime (6.8 and chapter C).
 pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
+    run_main_with(m, cfg, false)
+}
+
+/// `run_main`, with the state of the run recorded in every entry of its
+/// log (`Entry::state`): the run of `fn main` in the reference trace (10.9).
+pub fn run_main_traced(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
+    run_main_with(m, cfg, true)
+}
+
+fn run_main_with(m: &Module, cfg: &RunCfg, trace: bool) -> Result<RunResult, String> {
     let main = m
         .items
         .iter()
@@ -2667,8 +2760,14 @@ pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
         .ok_or("nothing to run: declare `fn main()`")?;
     let (outcome, sch) = std::thread::scope(|s| {
         let mut sch = Sched::new(m, cfg);
-        sch.spawn_task(s, main, vec![], hid("main"), 0, None, 0);
-        let o = sch.run(s);
+        sch.trace = trace;
+        let o = match sch.spawn_task(s, main, vec![], hid("main"), 0, None, 0) {
+            Ok(()) => sch.run(s),
+            Err(e) => {
+                sch.no_threads = Some(e.clone());
+                Outcome::Stopped(e)
+            }
+        };
         // stop every task thread that is still waiting
         let tick = sch.tick;
         for sl in sch.slots.iter_mut() {
@@ -2691,6 +2790,9 @@ pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
         }
         (o, sch)
     });
+    if let Some(e) = sch.no_threads {
+        return Err(e);
+    }
     Ok(RunResult {
         outputs: sch.outputs,
         outcome,

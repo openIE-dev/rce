@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+use std.math
+
+fn main()
+    emit "hi"

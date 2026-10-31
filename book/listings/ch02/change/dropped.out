@@ -1,2 +1,2 @@
-requires change dropped.rce: line 4: W-DROP-1 an expression statement whose value is i64 is not admitted; bind it to `_` to drop it on purpose
+requires change dropped.rce: line 4: W-DROP-1 an expression statement whose value is i64 is not admitted; bind it to `_` to drop it on purpose [altered by rce fmt]
 exit status: 1

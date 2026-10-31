@@ -114,6 +114,7 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
                 };
                 json!({"verdict": "accept", "outputs": outputs, "outcome": outcome})
             }
+            Err(e) if conc::is_no_task_threads(&e) => json!({"verdict": "accept", "error": e}),
             Err(e) => json!({"verdict": "accept", "error": format!("{e}: give events, or declare `fn main()`")}),
         };
     }
@@ -122,9 +123,11 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
     }
     match cli::run(src, events) {
         Ok(r) => {
-            let outcome = outcome_of(&r.lines, r.kept);
+            // the outcome of a run is that of its last step: an earlier kept
+            // step is a line of the outputs, and the run went on (6.9)
+            let outcome = outcome_of(&r.lines, r.last_kept);
             let mut lines = r.lines.clone();
-            if r.kept {
+            if r.last_kept {
                 lines.pop();
             }
             json!({"verdict": "accept", "outputs": lines, "outcome": outcome})
@@ -138,9 +141,11 @@ fn trace(src: &str, events: Option<&str>) -> Value {
     let head = match cli::trace("t.rce", src, events) {
         Ok(t) => {
             let v: Value = serde_json::from_str(&t).unwrap_or(Value::Null);
+            // the head of the last example's (or the events') log; the
+            // trace of `fn main` (source "main") is not an example's
             v["traces"]
                 .as_array()
-                .and_then(|t| t.last())
+                .and_then(|t| t.iter().rfind(|t| t["source"] != "main"))
                 .and_then(|t| t["steps"].as_array())
                 .and_then(|s| s.last())
                 .map(|s| s["hash"].clone())

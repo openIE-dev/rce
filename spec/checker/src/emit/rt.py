@@ -1058,7 +1058,7 @@ def run_events(s, events, d):
         try: s2, outs = delta(s, ev)
         except Kept as r:
             if TRACE: d.add(name, ev, s, True)
-            print("%d %s kept: %s" % (k, show(ev), r.r)); return
+            print("%d %s kept: %s" % (k, show(ev), r.r)); continue
         s = s2
         if TRACE: d.add(name, ev, s, False)
         print("%d %s %s" % (k, show(ev), show_state(s)))
@@ -1705,6 +1705,15 @@ class Sched:
     def __init__(s, links):
         s.slots = []; s.chans = {}; s.staged = []; s.outputs = []; s.rng = 0x5eed | 1; s.tick = 0; s.stop = None; s.max_ticks = 100000
         s.actors = {}; s.mail_staged = []; s.txns = []; s.txn_staged = []; s.held_links = []; s.parted = []; s.links = links; s.restarts = {}; s.alog = []; s.rlog = []; s.rrep = restart_inputs(); s.events = event_inputs()
+        # the log D of the run, as the reference writes it (conc::Entry):
+        # (entry text, positional state of the run when written, with --trace)
+        s.tlog = []
+    def ent(s, what):
+        s.tlog.append((what, s.state_json() if TRACE else None))
+    def alog_add(s, what):
+        s.alog.append(what); s.ent(what)
+    def state_json(s):
+        return fv_json([s.tick, [[aid, [form_value_pos(v) for _, v in a.fields]] for aid, a in sorted(s.actors.items())]])
     def spawn_task(s, f, args, tid, prio, parent, scope):
         sl = _Slot(tid, prio, parent, scope)
         th = threading.Thread(target=_task_body, args=(sl, f, args), daemon=True)
@@ -1742,7 +1751,9 @@ class Sched:
     def route(s, frm, target, m):
         to = NODE_OF.get(target.ty, 0) if type(target) is Actor else 0
         key = (min(frm, to), max(frm, to))
-        if frm != to and key in s.parted: s.held_links.append((frm, to, target, m)); return
+        if frm != to and key in s.parted:
+            s.ent("Held(%s -> %s)" % (NODE_NAMES[frm], NODE_NAMES[to]))
+            s.held_links.append((frm, to, target, m)); return
         if type(target) is Actor: s.mail_staged.append((target.id, target.ty, m))
         elif type(target) is Chan:
             c = s.chan(target)
@@ -1765,7 +1776,7 @@ class Sched:
         return ("ok", None)
     def on_crash(s, aid, reason):
         # restart as input (C.11.11)
-        s.alog.append("Kept(%s)" % reason)
+        s.alog_add("Kept(%s)" % reason)
         ty = s.actors[aid].ty
         sv = SUPERVISORS.get(ty)
         if sv is None: return
@@ -1793,9 +1804,9 @@ class Sched:
         s.rlog.append(dec)
         c = sum(1 for r in s.rlog if r[1] == sup and r[2] == child and (RESTART_WINDOW == 0 or tick - r[0] < RESTART_WINDOW))
         if dec[4]:
-            s.alog.append("Stopped(supervisor %s)" % sup)
+            s.alog_add("Stopped(supervisor %s)" % sup)
             s.stop = ("stopped", "supervisor %s stopped: child %s restarted more than %d times" % (sup, child, bound)); return
-        s.alog.append("Restart(%s, %s, %s, tick %d, %d)" % (child, aid, reason, tick, c))
+        s.alog_add("Restart(%s, %s, %s, tick %d, %d)" % (child, aid, reason, tick, c))
         for a2 in dec[5]:
             if a2 in s.actors: s.actors[a2].fields = actor_init(s.actors[a2].ty)
     def commit_handler(s, aid, r):
@@ -1803,8 +1814,10 @@ class Sched:
         fs, outs, sends = r
         node = s.actors[aid].node
         s.actors[aid].fields = fs
-        s.outputs.extend(outs)
-        for t, v in sends: s.route(node, t, v)
+        for o in outs:
+            s.ent("Emit(%s)" % show(o)); s.outputs.append(o)
+        for t, v in sends:
+            s.ent("Send(%s)" % show(v)); s.route(node, t, v)
     def actors_phase(s):
         progress = False; busy = set()
         txns, s.txns = s.txns, []
@@ -1812,6 +1825,7 @@ class Sched:
             progress = True; results = []; kept = None
             for aid, ty, m in txn:
                 s.ensure_actor(aid, ty); busy.add(aid)
+                s.ent("Deliver(%s)" % show(m))
                 r = s.handler(aid, m)
                 if r[0] == "err": kept = r[1]; break
                 results.append((aid, r[1]))
@@ -1819,7 +1833,7 @@ class Sched:
                 failed = len(results)
                 for k, (aid, _, _) in enumerate(txn):
                     if k == failed: s.on_crash(aid, kept)
-                    else: s.alog.append("Kept(%s)" % kept)
+                    else: s.alog_add("Kept(%s)" % kept)
                 if s.stop is not None: break
                 continue
             for aid, r in results: s.commit_handler(aid, r)
@@ -1828,6 +1842,7 @@ class Sched:
             a = s.actors[aid]
             if not a.mailbox: continue
             m = a.mailbox.pop(0); progress = True
+            s.ent("Deliver(%s)" % show(m))
             r = s.handler(aid, m)
             if r[0] == "ok": s.commit_handler(aid, r[1])
             else: s.on_crash(aid, r[1])
@@ -1838,9 +1853,9 @@ class Sched:
         # live actor that handles it, in actor id order; else Unhandled
         evs = [e[1] for e in s.events if e[0] == s.tick]
         for v in evs:
-            s.alog.append("Input(%s)" % show(v))
+            s.alog_add("Input(%s)" % show(v))
             to = [(aid, a.ty) for aid, a in sorted(s.actors.items()) if v.n in ACTOR_EVENTS.get(a.ty, [])]
-            if not to: s.alog.append("Unhandled(%s)" % show(v))
+            if not to: s.alog_add("Unhandled(%s)" % show(v))
             for aid, ty in to: s.mail_staged.append((aid, ty, v))
         return bool(evs)
     def links_phase(s):
@@ -1850,8 +1865,10 @@ class Sched:
             x, y = NODE_NAMES.index(a), NODE_NAMES.index(b)
             anyl = True; key = (min(x, y), max(x, y))
             if part:
+                s.ent("Partition(%s, %s)" % (a, b))
                 if key not in s.parted: s.parted.append(key)
             else:
+                s.ent("Heal(%s, %s)" % (a, b))
                 s.parted = [k for k in s.parted if k != key]
                 held, s.held_links = s.held_links, []
                 for f, t, target, m in held:
@@ -1862,7 +1879,7 @@ class Sched:
         r = s.slots[i].result
         reason = r[1] if r is not None and r[0] == "err" else ""
         return Rec("TaskFailed", [("task", s.slots[i].id), ("reason", reason)])
-    def pick_select(s, arms, key, nondet):
+    def pick_select(s, i, arms, key, nondet):
         ready = []
         for k, a in enumerate(arms):
             ok = False
@@ -1882,7 +1899,9 @@ class Sched:
                 if (st + j) % n in ready: return (st + j) % n
         M = 2**64 - 1
         s.rng ^= (s.rng << 13) & M; s.rng ^= s.rng >> 7; s.rng ^= (s.rng << 17) & M
-        return ready[s.rng % len(ready)]
+        arm = ready[s.rng % len(ready)]
+        s.ent("Choice(task %s, select line %d, execution %d, arm %d)" % (s.slots[i].id, key[0], key[1], arm))
+        return arm
     def handle(s, i, req):
         op, dl = req
         sl = s.slots[i]
@@ -1892,13 +1911,14 @@ class Sched:
                     c = sl.holding; sl.holding = None
                     if c in s.chans: s.chans[c].held = [x for x in s.chans[c].held if x[1] != i]
                 sl.released = False; sl.since = 0
+                s.ent("Cancelled(task %s)" % sl.id)
                 return ("cancel", fid)
         if sl.cancel: return ("cancel", CANCEL_TASK)
         k = op[0]
-        if k == "emit": s.outputs.append(op[1]); return ("val", UNIT)
+        if k == "emit": s.ent("Emit(%s)" % show(op[1])); s.outputs.append(op[1]); return ("val", UNIT)
         if k == "send":
             target, v = op[1], op[2]
-            if type(target) is Actor: s.route(0, target, v); return ("val", UNIT)
+            if type(target) is Actor: s.ent("Send(%s)" % show(v)); s.route(0, target, v); return ("val", UNIT)
             c = s.chan(target)
             if c is None: return None
             if sl.holding is not None:
@@ -1906,30 +1926,36 @@ class Sched:
                 return None
             if s.chans[c].closed:
                 s.stop = ("stopped", "trap: send on a closed channel"); return ("cancel", CANCEL_TASK)
+            s.ent("Send(%s)" % show(v))
             if s.space(c): s.staged.append((c, v)); return ("val", UNIT)
+            s.ent("Backpressure")
             s.chans[c].held.append((v, i)); sl.holding = c
             return None
         if k == "recv":
             c = s.chan(op[1])
             if c is None: return None
             has, closed = s.readable(c)
-            if has: return ("val", Opt(s.take(c)[0]))
-            if closed: return ("val", NONE)
+            if has:
+                m = s.take(c)[0]; s.ent("Recv(%s)" % show(m))
+                return ("val", Opt(m))
+            if closed: s.ent("Recv(none)"); return ("val", NONE)
             return None
         if k == "close":
             c = s.chan(op[1])
             if c is None: return None
-            s.chans[c].closed = True; return ("val", UNIT)
+            s.chans[c].closed = True; s.ent("Close"); return ("val", UNIT)
         if k == "select":
             arms, key, nondet = op[1], op[2], op[3]
-            a = s.pick_select(arms, key, nondet)
+            a = s.pick_select(i, arms, key, nondet)
             if a is not None:
                 sl.since = 0
                 arm = arms[a]
                 if arm[0] == "recv":
                     m = s.take(s.chan(arm[1]))
+                    s.ent("Recv(none)" if m is None else "Recv(%s)" % show(m[0]))
                     return ("arm", a, NONE if m is None else Opt(m[0]))
                 if arm[0] == "send":
+                    s.ent("Send(%s)" % show(arm[2]))
                     s.staged.append((s.chan(arm[1]), arm[2])); return ("arm", a, None)
                 return ("arm", a, None)
             for j, arm in enumerate(arms):
@@ -1964,9 +1990,11 @@ class Sched:
                 if st.closed or len(st.buf) + staged + need > st.cap: return None
             txn = []
             for t, v in sends:
+                s.ent("Send(%s)" % show(v))
                 if type(t) is Actor: txn.append((t.id, t.ty, v))
                 else: s.staged.append((s.chan(t), v))
             if txn: s.txn_staged.append(txn)
+            s.ent("Atomic")
             return ("val", UNIT)
         return None
     def finish_task(s, i, r):
@@ -1975,6 +2003,7 @@ class Sched:
         else: res = ("err", why(r[1]))
         failed = r[0] == "err" and type(r[1]) is not Cancel
         sl = s.slots[i]; sl.result = res
+        s.ent("Done(task %s)" % sl.id)
         if i == 0:
             if res[0] == "err": return ("stopped", res[1])
         elif failed:
@@ -2018,6 +2047,7 @@ class Sched:
                 if req[0][0] == "spawn" and rep[0] == "spawned":
                     _, f, args, prio, site, idx, scope = req[0]
                     if f not in FNS: return ("stopped", "trap: no task function " + f)
+                    s.ent("Spawn(task %s, priority %d)" % (rep[1], prio))
                     s.spawn_task(f, args, rep[1], prio, i, scope)
                 sl.st = ("ready", rep)
             for c, m in s.staged: s.chans[c].buf.append(m)
@@ -2037,6 +2067,21 @@ class Sched:
 def actor_init(ty):
     f = ACTOR_INIT.get(ty)
     return f() if f is not None else []
+def print_main_trace(tlog):
+    # --run --trace: the run's D as the trace of fn main (10.9): one line
+    # `d applied|kept HASH BODY` per entry, BODY the canonical JSON of
+    # {event, prev_hash, seq, state_hash} with event {payload, type} from
+    # the entry text `K` or `K(A)`, then `trace HEAD`
+    prev = D_GENESIS
+    for seq, (what, st) in enumerate(tlog):
+        k, sep, a = what.partition("(")
+        payload = jstr(a[:-1]) if sep and a.endswith(")") else "null"
+        ev = '{"payload":' + payload + ',"type":' + jstr(k) + '}'
+        body = '{"event":' + ev + ',"prev_hash":"' + prev + '","seq":' + str(seq) + ',"state_hash":"' + d_sha(st) + '"}'
+        h = d_sha(body)
+        print("d " + ("kept" if k == "Kept" and payload != "null" else "applied") + " " + h + " " + body)
+        prev = h
+    print("trace " + prev)
 def run_tasks(main):
     links = []
     for a in sys.argv:
@@ -2062,6 +2107,7 @@ def run_tasks(main):
     if "--restart-log" in sys.argv:
         print("restartlog v1 tree=" + ",".join(SUP_TREE))
         for r in s.rlog: print("restartin %d|%s|%s|%s|%d|%s" % (r[0], r[1], r[2], r[3], 1 if r[4] else 0, ",".join(r[5])))
+    if TRACE: print_main_trace(s.tlog)
     if o[0] == "done": print("outcome Done")
     elif o[0] == "deadlock": print("outcome Deadlock")
     else: print("outcome Stopped: " + o[1])

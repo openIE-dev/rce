@@ -35,11 +35,12 @@ RCE=spec/checker/target/release/rce python3 examples/interop/check.py
 ```
 
 For each program and event stream of `streams.json` (eight programs of
-`spec/examples/`, eleven streams), the expected bytes are what
+`spec/examples/`, twelve streams), the expected bytes are what
 `rce run FILE EVENTS` prints. Each host prints the transcript of the
 stream it was sent, and passes only when the transcript equals those bytes.
-A stream with a kept step ends with it, because `rce run` stops at the
-first kept step while a host goes on with the state unchanged. A host whose
+A kept step keeps the state and the next event is applied to it, in
+`rce run` as in every host (HC-21), so a stream may go on past a kept
+step. A host whose
 toolchain or library is missing is reported as not run, never as passed;
 `INTEROP_REQUIRE=python,rust,...` makes it a failure, as the `interop`
 workflow does. The React host needs `npm ci` in `js/`; the FastAPI host

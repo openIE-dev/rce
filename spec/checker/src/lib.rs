@@ -6,6 +6,7 @@
 pub const GIT_COMMIT: &str = env!("RCE_GIT_COMMIT");
 
 pub mod adapters;
+pub mod alter;
 pub mod anf;
 pub mod apidiff;
 pub mod borrow;
@@ -40,6 +41,7 @@ pub mod parse;
 pub mod raft;
 pub mod rcedb;
 pub mod refine;
+pub mod repair;
 pub mod repl;
 pub mod sandbox;
 pub mod specdata;
@@ -48,6 +50,7 @@ pub mod mpst_async;
 pub mod session_prio;
 pub mod specread;
 pub mod stdlib;
+pub mod status;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;

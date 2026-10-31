@@ -33,11 +33,13 @@ fn data_has_every_table() {
     for r in ["W-REC-1", "W-TY-1", "W-SAFE-1", "W-MOD-2", "W-NAME-1", "W-LOOP-1"] {
         assert!(w.contains_key(r), "{r} missing");
     }
-    // Every rule section 7 names has a text in section 7 or Appendix C.
+    // Every rule section 7 names (its table of methods, 7.1, names the rules
+    // of Appendix F too) has a text in section 7, Appendix C or Appendix F.
     let c = v["w_rules_06"]["rules"].as_object().unwrap();
+    let f = v["w_rules_09"]["rules"].as_object().unwrap();
     for r in v["w_rules"]["mentioned"].as_array().unwrap() {
         let r = r.as_str().unwrap();
-        assert!(w.contains_key(r) || c.contains_key(r), "{r} has no definition");
+        assert!(w.contains_key(r) || c.contains_key(r) || f.contains_key(r), "{r} has no definition");
     }
     let n = v["edges"]["rules"].as_object().unwrap();
     assert_eq!(n.len(), 11, "N1..N11: {:?}", n.keys().collect::<Vec<_>>());

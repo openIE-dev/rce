@@ -1,6 +1,7 @@
 intent "a counter that never goes negative"
     example Inc, Inc, Dec -> 1
     example Dec -> kept: Underflow
+    example Dec, Inc -> 1
 
 state Counter
     n: u64 = 0

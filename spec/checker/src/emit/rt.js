@@ -904,7 +904,7 @@ function runEvents(s, events, d) {
     try { ev = th(); } catch (e) { if (!isFlow(e)) throw e; say(k + " " + name + " " + why(e)); return; }
     if (ev === null) { say(k + " " + name + " not an event"); return; }
     let r;
-    try { r = delta(s, ev); } catch (e) { if (e instanceof Kept) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " kept: " + e.r); return; } throw e; }
+    try { r = delta(s, ev); } catch (e) { if (e instanceof Kept) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " kept: " + e.r); continue; } throw e; }
     s = r[0];
     if (TRACE) d.add(name, ev, s, false);
     say(k + " " + show(ev) + " " + showState(s));
@@ -1625,6 +1625,14 @@ class SchedJ {
   constructor(links) {
     Object.assign(this, { slots: [], chans: new Map(), staged: [], outputs: [], rng: BigInt(0x5eed | 1), tick: 0, stop: null, maxTicks: 100000,
       actors: new Map(), mailStaged: [], txns: [], txnStaged: [], heldLinks: [], parted: [], links, restarts: new Map(), alog: [], rlog: [], rrep: restartInputs(), events: eventInputs() });
+    // the log D of the run, as the reference writes it (conc::Entry):
+    // [entry text, positional state of the run when written, with --trace]
+    this.tlog = [];
+  }
+  ent(what) { this.tlog.push([what, TRACE ? this.stateJson() : null]); }
+  alogAdd(what) { this.alog.push(what); this.ent(what); }
+  stateJson() {
+    return fvJson([BigInt(this.tick), [...this.actors.keys()].sort().map((id) => [id, this.actors.get(id).fields.map(([, v]) => formValuePos(v))])]);
   }
   spawnTask(f, args, id, prio, parent, scope) {
     const sl = new SlotJ(id, prio, parent, scope);
@@ -1663,7 +1671,7 @@ class SchedJ {
   route(from, target, m) {
     const to = target instanceof Actor ? (NODE_OF[target.ty] ?? 0) : 0;
     const key = Math.min(from, to) + "," + Math.max(from, to);
-    if (from !== to && this.parted.includes(key)) { this.heldLinks.push([from, to, target, m]); return; }
+    if (from !== to && this.parted.includes(key)) { this.ent("Held(" + NODE_NAMES[from] + " -> " + NODE_NAMES[to] + ")"); this.heldLinks.push([from, to, target, m]); return; }
     if (target instanceof Actor) this.mailStaged.push([target.id, target.ty, m]);
     else if (target instanceof Chan) {
       const c = this.chan(target);
@@ -1686,7 +1694,7 @@ class SchedJ {
   }
   onCrash(id, reason) {
     // restart as input (C.11.11)
-    this.alog.push("Kept(" + reason + ")");
+    this.alogAdd("Kept(" + reason + ")");
     const ty = this.actors.get(id).ty;
     const sv = SUPERVISORS[ty];
     if (!sv) return;
@@ -1713,8 +1721,8 @@ class SchedJ {
     }
     this.rlog.push(dec);
     const c = this.rlog.filter((r) => r[1] === sup && r[2] === child && (RESTART_WINDOW === 0 || tick - r[0] < RESTART_WINDOW)).length;
-    if (dec[4]) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
-    this.alog.push("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
+    if (dec[4]) { this.alogAdd("Stopped(supervisor " + sup + ")"); this.stop = ["stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
+    this.alogAdd("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
     for (const aid of dec[5]) { const a = this.actors.get(aid); if (a) a.fields = actorInit(a.ty); }
   }
   commitHandler(id, r) {
@@ -1722,8 +1730,8 @@ class SchedJ {
     const [fs, outs, sends] = r;
     const a = this.actors.get(id);
     a.fields = fs;
-    this.outputs.push(...outs);
-    for (const [t, v] of sends) this.route(a.node, t, v);
+    for (const o of outs) { this.ent("Emit(" + show(o) + ")"); this.outputs.push(o); }
+    for (const [t, v] of sends) { this.ent("Send(" + show(v) + ")"); this.route(a.node, t, v); }
   }
   actorsPhase() {
     let progress = false;
@@ -1734,13 +1742,14 @@ class SchedJ {
       const results = []; let kept = null;
       for (const [id, ty, m] of txn) {
         this.ensureActor(id, ty); busy.add(id);
+        this.ent("Deliver(" + show(m) + ")");
         const r = this.handler(id, m);
         if (r[0] === "err") { kept = r[1]; break; }
         results.push([id, r[1]]);
       }
       if (kept !== null) {
         const failed = results.length;
-        txn.forEach(([id], k) => { if (k === failed) this.onCrash(id, kept); else this.alog.push("Kept(" + kept + ")"); });
+        txn.forEach(([id], k) => { if (k === failed) this.onCrash(id, kept); else this.alogAdd("Kept(" + kept + ")"); });
         if (this.stop !== null) break;
         continue;
       }
@@ -1751,6 +1760,7 @@ class SchedJ {
       const a = this.actors.get(id);
       if (!a.mailbox.length) continue;
       const m = a.mailbox.shift(); progress = true;
+      this.ent("Deliver(" + show(m) + ")");
       const r = this.handler(id, m);
       if (r[0] === "ok") this.commitHandler(id, r[1]); else this.onCrash(id, r[1]);
       if (this.stop !== null) break;
@@ -1762,9 +1772,9 @@ class SchedJ {
   eventsPhase() {
     const evs = this.events.filter((e) => e[0] === this.tick).map((e) => e[1]);
     for (const v of evs) {
-      this.alog.push("Input(" + show(v) + ")");
+      this.alogAdd("Input(" + show(v) + ")");
       const to = [...this.actors.keys()].sort().filter((id) => (ACTOR_EVENTS[this.actors.get(id).ty] || []).includes(v.n));
-      if (!to.length) this.alog.push("Unhandled(" + show(v) + ")");
+      if (!to.length) this.alogAdd("Unhandled(" + show(v) + ")");
       for (const id of to) this.mailStaged.push([id, this.actors.get(id).ty, v]);
     }
     return evs.length > 0;
@@ -1776,8 +1786,9 @@ class SchedJ {
       if (x < 0 || y < 0) continue;
       any = true;
       const key = Math.min(x, y) + "," + Math.max(x, y);
-      if (part) { if (!this.parted.includes(key)) this.parted.push(key); }
+      if (part) { this.ent("Partition(" + a + ", " + b + ")"); if (!this.parted.includes(key)) this.parted.push(key); }
       else {
+        this.ent("Heal(" + a + ", " + b + ")");
         this.parted = this.parted.filter((k) => k !== key);
         const held = this.heldLinks; this.heldLinks = [];
         for (const [f, t, target, m] of held) {
@@ -1791,7 +1802,7 @@ class SchedJ {
     const r = this.slots[i].result;
     return new Rec("TaskFailed", [["task", this.slots[i].id], ["reason", r !== null && r[0] === "err" ? r[1] : ""]]);
   }
-  pickSelect(arms, key, nondet) {
+  pickSelect(i, arms, key, nondet) {
     const ready = [];
     arms.forEach((a, k) => {
       let ok = false;
@@ -1806,7 +1817,9 @@ class SchedJ {
     }
     const M = (1n << 64n) - 1n;
     this.rng ^= (this.rng << 13n) & M; this.rng ^= this.rng >> 7n; this.rng ^= (this.rng << 17n) & M;
-    return ready[Number(this.rng % BigInt(ready.length))];
+    const arm = ready[Number(this.rng % BigInt(ready.length))];
+    this.ent("Choice(task " + this.slots[i].id + ", select line " + key[0] + ", execution " + key[1] + ", arm " + arm + ")");
+    return arm;
   }
   handle(i, req) {
     const [op, dl] = req;
@@ -1815,20 +1828,23 @@ class SchedJ {
       if (this.tick > e) {
         if (sl.holding !== null) { const c = sl.holding; sl.holding = null; const st = this.chans.get(c); if (st) st.held = st.held.filter((x) => x[1] !== i); }
         sl.released = false; sl.since = 0;
+        this.ent("Cancelled(task " + sl.id + ")");
         return ["cancel", fid];
       }
     }
     if (sl.cancel) return ["cancel", CANCEL_TASK];
     switch (op[0]) {
-      case "emit": this.outputs.push(op[1]); return ["val", UNIT];
+      case "emit": this.ent("Emit(" + show(op[1]) + ")"); this.outputs.push(op[1]); return ["val", UNIT];
       case "send": {
         const [, target, v] = op;
-        if (target instanceof Actor) { this.route(0, target, v); return ["val", UNIT]; }
+        if (target instanceof Actor) { this.ent("Send(" + show(v) + ")"); this.route(0, target, v); return ["val", UNIT]; }
         const c = this.chan(target);
         if (c === null) return null;
         if (sl.holding !== null) { if (sl.released) { sl.released = false; sl.holding = null; return ["val", UNIT]; } return null; }
         if (this.chans.get(c).closed) { this.stop = ["stopped", "trap: send on a closed channel"]; return ["cancel", CANCEL_TASK]; }
+        this.ent("Send(" + show(v) + ")");
         if (this.space(c)) { this.staged.push([c, v]); return ["val", UNIT]; }
+        this.ent("Backpressure");
         this.chans.get(c).held.push([v, i]); sl.holding = c;
         return null;
       }
@@ -1836,19 +1852,19 @@ class SchedJ {
         const c = this.chan(op[1]);
         if (c === null) return null;
         const [has, closed] = this.readable(c);
-        if (has) return ["val", new Opt(this.takeMsg(c)[0])];
-        if (closed) return ["val", NONE];
+        if (has) { const m = this.takeMsg(c)[0]; this.ent("Recv(" + show(m) + ")"); return ["val", new Opt(m)]; }
+        if (closed) { this.ent("Recv(none)"); return ["val", NONE]; }
         return null;
       }
-      case "close": { const c = this.chan(op[1]); if (c === null) return null; this.chans.get(c).closed = true; return ["val", UNIT]; }
+      case "close": { const c = this.chan(op[1]); if (c === null) return null; this.chans.get(c).closed = true; this.ent("Close"); return ["val", UNIT]; }
       case "select": {
         const [, arms, key, nondet] = op;
-        const a = this.pickSelect(arms, key, nondet);
+        const a = this.pickSelect(i, arms, key, nondet);
         if (a !== null) {
           sl.since = 0;
           const arm = arms[a];
-          if (arm[0] === "recv") { const m = this.takeMsg(this.chan(arm[1])); return ["arm", a, m === null ? NONE : new Opt(m[0])]; }
-          if (arm[0] === "send") { this.staged.push([this.chan(arm[1]), arm[2]]); return ["arm", a, null]; }
+          if (arm[0] === "recv") { const m = this.takeMsg(this.chan(arm[1])); this.ent(m === null ? "Recv(none)" : "Recv(" + show(m[0]) + ")"); return ["arm", a, m === null ? NONE : new Opt(m[0])]; }
+          if (arm[0] === "send") { this.ent("Send(" + show(arm[2]) + ")"); this.staged.push([this.chan(arm[1]), arm[2]]); return ["arm", a, null]; }
           return ["arm", a, null];
         }
         const d = arms.findIndex((x) => x[0] === "default");
@@ -1884,8 +1900,9 @@ class SchedJ {
           if (st.closed || BigInt(st.buf.length + staged + need) > st.cap) return null;
         }
         const txn = [];
-        for (const [t, v] of sends) { if (t instanceof Actor) txn.push([t.id, t.ty, v]); else this.staged.push([this.chan(t), v]); }
+        for (const [t, v] of sends) { this.ent("Send(" + show(v) + ")"); if (t instanceof Actor) txn.push([t.id, t.ty, v]); else this.staged.push([this.chan(t), v]); }
         if (txn.length) this.txnStaged.push(txn);
+        this.ent("Atomic");
         return ["val", UNIT];
       }
     }
@@ -1895,6 +1912,7 @@ class SchedJ {
     const res = r[0] === "ok" ? r : r[1] ? ["err", "cancelled"] : ["err", r[2]];
     const failed = r[0] === "err" && !r[1];
     const sl = this.slots[i]; sl.result = res;
+    this.ent("Done(task " + sl.id + ")");
     if (i === 0) { if (res[0] === "err") return ["stopped", res[1]]; }
     else if (failed) this.slots.forEach((t, k) => { if (k !== i && t.parent === sl.parent && t.scope === sl.scope) t.cancel = true; });
     for (const t of this.slots) if (t.parent === i) t.cancel = true;
@@ -1928,6 +1946,7 @@ class SchedJ {
         if (req[0][0] === "spawn" && rep[0] === "spawned") {
           const [, f, args, prio, , , scope] = req[0];
           if (!(f in FNS)) return ["stopped", "trap: no task function " + f];
+          this.ent("Spawn(task " + rep[1] + ", priority " + prio + ")");
           this.spawnTask(f, args, rep[1], prio, i, scope);
         }
         sl.st = ["ready", rep];
@@ -1950,6 +1969,23 @@ class SchedJ {
   }
 }
 function actorInit(ty) { const f = ACTOR_INIT[ty]; return f ? f() : []; }
+// --run --trace: the run's D as the trace of fn main (10.9): one line
+// `d applied|kept HASH BODY` per entry, BODY the canonical JSON of {event,
+// prev_hash, seq, state_hash} with event {payload, type} from the entry
+// text `K` or `K(A)`, then `trace HEAD`
+function mainTraceLines(tlog, lines) {
+  let prev = D_GENESIS;
+  tlog.forEach(([what, st], seq) => {
+    const p = what.indexOf("(");
+    const k = p < 0 ? what : what.slice(0, p);
+    const a = p >= 0 && what.endsWith(")") ? what.slice(p + 1, -1) : null;
+    const body = '{"event":{"payload":' + (a === null ? "null" : jstr(a)) + ',"type":' + jstr(k) + '},"prev_hash":"' + prev + '","seq":' + seq + ',"state_hash":"' + dSha(st) + '"}';
+    const h = dSha(body);
+    lines.push("d " + (k === "Kept" && a !== null ? "kept" : "applied") + " " + h + " " + body);
+    prev = h;
+  });
+  lines.push("trace " + prev);
+}
 function runTasks(main) {
   const links = [];
   for (const a of process.argv) if (a.startsWith("--link=")) { const p = a.slice(7).split(","); links.push([Number(p[0]), p[1] === "partition", p[2], p[3]]); }
@@ -1962,6 +1998,7 @@ function runTasks(main) {
   if (process.argv.includes("--actor-log")) for (const e of s.alog) lines.push("actorlog " + e);
   if (process.argv.includes("--restart-log")) lines.push("restartlog v1 tree=" + SUP_TREE.join(","));
   if (process.argv.includes("--restart-log")) for (const r of s.rlog) lines.push("restartin " + r[0] + "|" + r[1] + "|" + r[2] + "|" + r[3] + "|" + (r[4] ? 1 : 0) + "|" + r[5].join(","));
+  if (TRACE) mainTraceLines(s.tlog, lines);
   lines.push(o[0] === "done" ? "outcome Done" : o[0] === "deadlock" ? "outcome Deadlock" : "outcome Stopped: " + o[1]);
   process.stdout.write(lines.map((x) => x + "\n").join(""), () => process.exit(0));
 }

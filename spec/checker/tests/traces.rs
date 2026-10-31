@@ -201,11 +201,55 @@ fn streams_trace_every_list_in_one_run() {
     assert!(v["events"].is_null());
     let names: Vec<&str> = v["traces"].as_array().unwrap().iter().map(|t| t["source"].as_str().unwrap()).collect();
     assert_eq!(names, ["stream@0", "stream@1", "stream@2"]);
-    assert_eq!(v["traces"][1]["steps"].as_array().unwrap().len(), 1, "a first event whose step is kept ends the stream");
+    // a kept step keeps the state (T8) and the next event is applied to it
+    let st = v["traces"][1]["steps"].as_array().unwrap();
+    assert_eq!(st.len(), 2, "a kept first step does not end the stream");
+    assert_eq!(st[0]["outcome"]["kept"], "Underflow");
+    assert_eq!(st[1]["outcome"], "applied");
+    assert_eq!(st[0]["state_hash"], v["traces"][0]["steps"][1]["state_hash"], "the kept step has the initial state's hash");
     let one = trace(&c.to_string_lossy(), &src, Some("Inc, Inc, Inc")).unwrap();
     let o: serde_json::Value = serde_json::from_str(&one).unwrap();
     assert_eq!(o["events"], "Inc, Inc, Inc");
     assert_eq!(o["traces"][0]["source"], "events");
     assert_eq!(o["traces"][0]["steps"], v["traces"][2]["steps"], "a stream's chain is the chain of the same events traced alone");
     assert!(o.get("streams").is_none());
+}
+
+/// The trace of `fn main` (10.9) is the run that `rce run FILE` prints
+/// without events (10.3): for every example with a main trace, its `Emit`
+/// steps are the run's outputs in order and its outcome is the run's; the
+/// trace comes last, after the examples' traces; it is absent with EVENTS.
+#[test]
+fn main_trace_is_the_run_of_rce_run() {
+    let mut mains = 0;
+    for (n, t) in corpus().0 {
+        let v: serde_json::Value = serde_json::from_str(&t).unwrap();
+        let tr = v["traces"].as_array().unwrap();
+        let Some(k) = tr.iter().position(|t| t["source"] == "main") else { continue };
+        mains += 1;
+        assert_eq!(k, tr.len() - 1, "{n}: the main trace is the last");
+        assert!(!n.ends_with(".events.json"), "{n}: no main trace with EVENTS");
+        let src = std::fs::read_to_string(spec().join("examples").join(n.replace(".json", ".rce"))).unwrap();
+        let r = rce_spec_check::cli::run(&src, None).unwrap();
+        let emits: Vec<String> = tr[k]["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|s| s["event"]["type"] == "Emit")
+            .map(|s| format!("emit {}", s["event"]["payload"].as_str().unwrap()))
+            .collect();
+        let mut want: Vec<String> = r.lines.clone();
+        let end = match &tr[k]["outcome"] {
+            o if o == "done" => None,
+            o if o == "deadlock" => Some("deadlock".to_string()),
+            o => Some(format!("stopped: {}", o["stopped"].as_str().unwrap())),
+        };
+        if r.kept {
+            assert_eq!(want.pop(), end, "{n}: outcome");
+        } else {
+            assert_eq!(end, None, "{n}: outcome");
+        }
+        assert_eq!(emits, want, "{n}: outputs");
+    }
+    assert_eq!(mains, 5, "02, 13, 37, 40 and 48 declare fn main");
 }

@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+fn main()
+    let x = 1
+    emit "hi"

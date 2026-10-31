@@ -1,2 +1,2 @@
-requires change send_then_fail.rce: line 3: W-TX-1 `send_two`: `fail` after a channel, foreign or other non-undoable effect; return a Result value instead (F.4.4)
+requires change send_then_fail.rce: line 3: W-TX-1 `send_two`: `fail` after a channel, foreign or other non-undoable effect; return a Result value instead (F.4.4) [requires change]
 exit status: 1

@@ -31,7 +31,7 @@ fn check_accepts_or_requires_change() {
         (
             0,
             format!(
-                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 2 example lines are the only obligations on the steps; \
+                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 3 example lines are the only obligations on the steps; \
                  their lookup-table control (6.9) meets them, so they do not constrain behaviour beyond the listed examples\n"
             ),
             String::new()
@@ -56,7 +56,7 @@ fn check_usage_and_missing_file() {
 }
 
 #[test]
-fn run_events_prints_each_state_and_stops_at_kept() {
+fn run_events_prints_each_state_and_goes_on_past_kept() {
     let (c, out, _) = rce(&["run", COUNTER, "Inc, Inc, Dec"]);
     assert_eq!(c, 0);
     assert_eq!(
@@ -67,7 +67,7 @@ fn run_events_prints_each_state_and_stops_at_kept() {
     assert_eq!(c, 1);
     assert_eq!(
         out,
-        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n"
+        "0 (initial) Counter { n = 0 }\n1 Dec kept: Underflow\n2 Inc Counter { n = 1 }\n"
     );
 }
 
@@ -85,6 +85,46 @@ fn run_main_and_errors() {
     assert!(out.contains("Nope"), "{out}");
 }
 
+/// A host that cannot start a task thread (WASI preview 1 has none): `rce
+/// run` on `fn main` and the trace of `fn main` in `rce trace` fail with one
+/// line naming the limit and status 4, never a panic; `rce trace` still
+/// prints the example traces and a main trace `{outcome: {absent: R}}`.
+/// The limit is set on this test's thread, so other tests are not affected.
+#[test]
+fn main_without_task_threads_is_a_host_limit() {
+    use rce_spec_check::conc;
+    let spawn = "../examples/13_spawn_chan.rce";
+    // 0: the thread of main itself; 1: the task main spawns, during the run
+    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1)] {
+        conc::refuse_task_threads_after(Some(after));
+        let (c, out, err) = rce(&["run", file]);
+        assert_eq!((c, out.as_str()), (cli::HOST_LIMIT, ""), "{file} {after}: {err}");
+        assert_eq!(err.lines().count(), 1, "{err}");
+        assert!(err.starts_with(&format!("{file}: {}", conc::NO_TASK_THREADS)), "{err}");
+
+        conc::refuse_task_threads_after(Some(after));
+        let (c, out, err) = rce(&["trace", "--json", file]);
+        assert_eq!(c, cli::HOST_LIMIT, "{err}");
+        assert_eq!(err.lines().count(), 1, "{err}");
+        assert!(err.starts_with(&format!("{file}: no trace of fn main: {}", conc::NO_TASK_THREADS)), "{err}");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let ts = v["traces"].as_array().unwrap();
+        let main = ts.last().unwrap();
+        assert_eq!(main["source"], "main");
+        assert_eq!(main["steps"], json!([]));
+        assert!(main["outcome"]["absent"].as_str().unwrap().starts_with(conc::NO_TASK_THREADS));
+        // the example traces are those of a host with threads
+        conc::refuse_task_threads_after(None);
+        let (c, full, _) = rce(&["trace", "--json", file]);
+        assert_eq!(c, cli::OK);
+        let f: serde_json::Value = serde_json::from_str(&full).unwrap();
+        let fs = f["traces"].as_array().unwrap();
+        assert_eq!(ts[..ts.len() - 1], fs[..fs.len() - 1]);
+        assert_eq!(fs.last().unwrap()["source"], "main");
+    }
+    conc::refuse_task_threads_after(None);
+}
+
 #[test]
 fn run_is_deterministic() {
     let a = rce(&["run", COUNTER, "Inc, Dec, Inc"]);
@@ -98,7 +138,7 @@ fn test_reports_counts_and_failures() {
     assert_eq!(c, 0);
     assert_eq!(
         out,
-        format!("ok {COUNTER} (2 examples, 0 checks)\n1 passed, 0 failed\n")
+        format!("ok {COUNTER} (3 examples, 0 checks)\n1 passed, 0 failed\n")
     );
     let wrong = std::fs::read_to_string(COUNTER)
         .unwrap()

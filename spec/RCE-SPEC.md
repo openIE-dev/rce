@@ -2066,15 +2066,27 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> kept: X` the last step is
-kept with the error X, for `-> kept: trap("K")` the last step is
-kept by the trap K (earlier events must be applied in both cases), and for
-`-> e` the event list is fully applied and then
+a final step whose outcome is o. The fold is the one of `rce run` and of
+the host (HC-21): a step that keeps the state leaves it unchanged (T8) and
+the next event is applied to that state, so an earlier event of ē may be
+kept or applied and the proposition is about the last step and the state
+after it. For `-> kept: X` the last step is kept with the error X, for
+`-> kept: trap("K")` the last step is kept by the trap K, and for `-> e`
+the last step is applied and then
 
 - if the program has exactly one region with exactly one field f, the
   value of f equals ⟦e⟧;
 - otherwise e must be a `bool` expression over the final state, with fields
   in scope by name (or `R.f` when ambiguous), and must be true.
+
+Example: the counter `spec/examples/01_counter.rce` states
+`example Dec, Inc -> 1`: `Dec` is kept with `Underflow`, the state stays
+s₀, and `Inc` applies to it. Until the change of 2026-10-31 (ledger), an example held
+only when every event before the last was applied, and `rce run` and
+`rce trace` ended at the first kept step; the examples that held then hold
+now, with the same traces, and an example whose earlier event is kept is
+now a statement about the fold that goes on past it. An author who wants an
+earlier step stated writes the prefix as an example of its own.
 
 `check e` (in an intent or at comptime) is the proposition ⟦e⟧ = true,
 evaluated at comptime. A program is admitted only if every example and check
@@ -2088,10 +2100,12 @@ no emitted program can be held to it.
 finitely many event lists folded from s₀, so they say nothing about any
 other list. The *lookup-table control* of a module M is M with one more
 field per region, the region's position in the trie of the example event
-lists (each list restricted to the events the region has a step for): each
-step of M applies only at a position that has a child for its event and
-moves the position to that child (where M selects no step of the region,
-the control only moves the position), and an event at a position with no
+lists (each list restricted to the events the region has a step for and
+that M applies when it folds the list): a step that M keeps, the control
+keeps with the same error; each step that M applies, the control applies
+only at a position that has a child for its event and moves the position
+to that child (where M selects no step of the region, the control only
+moves the position), and an event that M applies at a position with no
 child for it is kept with an error of its own. The control equals M on every prefix of every example
 list, so it meets every example of M, and it keeps the state on every other
 list. A `check` is a proposition about comptime values and functions, and a
@@ -2301,6 +2315,143 @@ reference checker implements.
 Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
+
+### 7.1 How a rule guides a program into Form
+
+Each rule of this section, of Appendix C and of Appendix F guides a program
+that does not meet it into Form by exactly one of three methods:
+
+- **Altered.** The rule has one rewrite, determined by the text, that keeps
+  the program's meaning. `rce fmt FILE` writes it and `rce fmt --check FILE`
+  lists it (10.6). Until it is written the text requires change, and
+  `rce check` ends the report with `[altered by rce fmt]` (10.2). A rewrite
+  that would add or change another report is not written; `rce fmt` then
+  prints the report as requiring change.
+- **Recommended.** The program is admitted, and `rce check` prints a
+  `recommended` line that names the rule and the change (10.2).
+- **Requires change.** The program is not admitted until its author changes
+  it, because the change has more than one reading or states something only
+  the author can state (a type, a declaration, a bound, an authority).
+  `rce check` ends the report with `[requires change]`.
+
+A rule is altered only when the reference `rce fmt` writes its rewrite. The
+table gives every rule its method; the checker reads it from
+`spec/data/spec-data.json` (`w_methods`), and `tests/three_methods.rs`
+checks that every rule of the three lists has exactly one row and that the
+altered rows are the rules `rce fmt` rewrites. Name independence (T7,
+section 8) is the ground of a rewrite that renames.
+
+| Rule | Method | Reason |
+|---|---|---|
+| W-LEX-1 | requires change | A tab, a bare CR or bytes that are not UTF-8 have more than one reading (an indentation width, a line end, an encoding). |
+| W-LEX-2 | requires change | An inconsistent dedent has two block readings. |
+| W-LEX-3 | requires change | The type or the character the literal was meant to name is the author's. |
+| W-SYN-1 | requires change | A text outside the grammar of section 3 has no one reading. |
+| W-RES-1 | requires change | The construct is specified and not implemented; the author writes it with implemented constructs. |
+| W-NAME-1 | requires change | The author declares or imports the name, or names another. |
+| W-NAME-2 | requires change | Which declaration takes another name, and which name, is the author's choice. |
+| W-MOD-1 | requires change | A module's `pub` surface is its owner's to change. |
+| W-VIS-1 | requires change | It is the checker's name for W-MOD-1. |
+| W-MOD-2 | requires change | Which import breaks the cycle is the author's choice. |
+| W-MOD-3 | requires change | Which name changes is the author's choice. |
+| W-SAFE-1 | requires change | Each identifier has several forms in RCE (an owned value, a `state` field, the `extern` boundary). |
+| W-FFI-1 | requires change | A foreign boundary is declared by its author. |
+| W-TY-1 | requires change | A typing rule that fails has no one repair. |
+| W-TY-2 | requires change | The type that replaces the nested or borrowed one is the author's choice. |
+| W-TY-3 | requires change | The conversion and its rounding are the author's choice. |
+| W-PAT-1 | requires change | Whether the name was meant as the variant or as a binding is the author's statement. |
+| W-MATCH-1 | requires change | What the missing arms do is the author's statement. |
+| W-MATCH-2 | requires change | An unreachable arm marks an arm the author meant to reach, or one to remove. |
+| W-PLACE | requires change | Declaring the place with `var`, or writing another place, is the author's choice. |
+| W-OWN-1 | requires change | A copy, a borrow or another order of uses is the author's choice. |
+| W-OWN-2 | requires change | A copy in and out, or a snapshot, is the author's choice. |
+| W-OWN-3 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-REG-1 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-SPAWN-1 | requires change | Owning a copy, or passing a handle or an index, is the author's choice. |
+| W-STATE-1 | requires change | The region's fields are the author's to declare. |
+| W-STATE-2 | requires change | A constant initializer, or a computation moved to an input, is the author's choice. |
+| W-STATE-3 | requires change | The owned type of the field is the author's choice. |
+| W-STEP-1 | requires change | The author declares the region or the event, or names another. |
+| W-STEP-2 | requires change | A step for the event, or no such event, is the author's choice. |
+| W-STEP-3 | requires change | The field the block form names is the author's choice. |
+| W-STEP-4 | requires change | Which step was meant to run is the author's statement. |
+| W-EFF-1 | requires change | Moving the effect to a task, a step or `fn main` is a choice of structure. |
+| W-REC-1 | requires change | A measure or a `bound` is the author's statement. |
+| W-CT-1 | requires change | The comptime expression is the author's to change. |
+| W-INT-1 | requires change | An example or check that does not hold states another behaviour than the program has; which of the two is meant is the author's statement. |
+| W-INT-2 | recommended | The module is admitted; the report recommends obligations beyond the listed examples (6.9). |
+| W-SIMD-1 | requires change | The lengths and lane types are the author's. |
+| W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
+| W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
+| W-ITER-1 | requires change | Collecting the iterator, or another structure, is the author's choice. |
+| W-REF-1 | requires change | The predicate is the author's statement. |
+| W-LOOP-1 | requires change | The bound n is the author's statement. |
+| W-TRAIT-1 | requires change | The missing or differing methods are the author's to write. |
+| W-TRAIT-2 | requires change | Which impl remains, or a newtype, is the author's choice. |
+| W-TRAIT-3 | requires change | Implementing the trait, or another use, is the author's choice. |
+| W-CTX-1 | requires change | The context of a text is declared by its author. |
+| W-SEC-1 | requires change | A digest, an equality bit or a release is the author's choice. |
+| W-CAP-1 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-2 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-PAR-1 | requires change | Separating the branches' footprints is a choice of structure. |
+| W-PAR-2 | requires change | Moving the effect or the exit out of the `par` is a choice of structure. |
+| W-PAR-3 | requires change | Writing the body as a reduction or by slot is a choice of structure. |
+| W-PAR-4 | requires change | Moving the effect or the exit out of the loop body is a choice of structure. |
+| W-DL-1 | requires change | Moving the construct into `fn main` or a task function is a choice of structure. |
+| W-ND-1 | requires change | Moving the construct into `fn main` or a task function is a choice of structure. |
+| W-GRP-1 | requires change | Where the group runs is the author's choice. |
+| W-GRP-2 | requires change | Where the barrier stands is the author's choice. |
+| W-GRP-3 | requires change | Which lane writes which slot in which phase is the author's choice. |
+| W-SES-1 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-2 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-3 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-4 | requires change | The protocol and its uses are the author's statement. |
+| W-SES-5 | requires change | Which body passes which endpoint is the author's choice. |
+| W-SCOPE-1 | requires change | The scope of a task is a choice of structure. |
+| W-ATOM-1 | requires change | Moving the wait out of `atomic` is a choice of structure. |
+| W-ATOM-2 | requires change | The placement of the actors is the author's choice. |
+| W-CRDT-1 | requires change | The join's laws are the author's to meet. |
+| W-LVAR-1 | requires change | The order of `put` and `freeze` is the author's statement. |
+| W-LVAR-2 | requires change | The thresholds are the author's statement. |
+| W-NODE-1 | requires change | Placement is declared by the author. |
+| W-SUP-1 | requires change | Supervision is declared by the author. |
+| W-SUP-2 | requires change | Supervision is declared by the author. |
+| W-INTR-1 | requires change | The priority is the author's statement. |
+| W-RT-1 | requires change | The deadline is the author's statement. |
+| W-BUD-1 | requires change | The budget is the author's statement. |
+| W-UNUSED-1 | altered | An unread binding `x` is named `_x`, a binding `_x` that is read is named `x`, and an unread `use` takes a name that begins with `_` and links the same module; names carry no meaning (T7). |
+| W-UNUSED-2 | requires change | Which branch the constant condition was meant to choose is the author's statement. |
+| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did; an arm `P -> e` becomes a block arm holding `let _ = e`. |
+| W-ASSIGN-1 | requires change | Which of the two stores was meant is the author's statement. |
+| W-LEX-4 | requires change | The rule shows the author a character the text hides; what to write instead is the author's choice. |
+| W-NAME-3 | requires change | The new name is the author's choice. |
+| W-WORLD-1 | requires change | Where the `&World` handle comes from is a choice of structure. |
+| W-IFC-1 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-2 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-3 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-4 | requires change | A label is lowered only by its author's `release`; a tool never lowers one. |
+| W-IFC-5 | requires change | A release is the author's statement. |
+| W-IFC-6 | requires change | The label is declared by its author. |
+| W-IFC-7 | requires change | Endorsing a model answer is the author's statement. |
+| W-TX-1 | requires change | The order of effects and failures is the author's statement. |
+| W-CAP-3 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-4 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-CAP-5 | requires change | Authority is placed by the author; a tool never adds it. |
+| W-PIN-1 | requires change | A pin or a dependency is changed by its owner. |
+| W-CTFN-1 | requires change | Constant-time code is restructured by its author. |
+| W-CTFN-2 | requires change | The emitter target is the author's choice. |
+| W-CTX-2 | requires change | The context of a text is declared by its author. |
+| W-CTX-3 | requires change | Where a model call stands is a choice of structure. |
+| W-TPL-1 | requires change | How a template is rendered is the author's statement. |
+| W-TPL-2 | requires change | The template's text is the author's. |
+| W-CON-1 | requires change | A contract is the author's statement. |
+| W-CON-2 | requires change | A contract is the author's statement. |
+| W-GHOST-1 | requires change | Where a ghost value flows is the author's statement. |
+| W-DEC-1 | requires change | A measure is the author's statement. |
+| W-IFLET-1 | requires change | The comparison is the author's statement. |
+| W-LAW-1 | requires change | The impl's laws are the author's to meet. |
+| W-LEN-1 | requires change | `len_bytes` or `len_chars` is a choice of unit. |
+| W-TRI-1 | requires change | A release path is the author's statement. |
 
 **Read receipt.** Under which rule do two unguarded steps in one region whose patterns overlap require change?
 
@@ -2976,7 +3127,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the third event, whose step keeps the state, with exit status 1.
+and shows that the step of the third event keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -3005,7 +3156,9 @@ and stops at the third event, whose step keeps the state, with exit status 1.
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `--fuel` before either equivalence or a
-   distinguishing event sequence was established (10.11).
+   distinguishing event sequence was established (10.11). 4 means a run
+   the host cannot perform: `fn main` needs task threads and the host
+   cannot start one (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -3037,11 +3190,15 @@ the order given, one line is printed:
 
 ```
 ok FILE
-requires change FILE: line N: RULE message[; line M: RULE message ...]
+recommended FILE: line N: RULE message
+requires change FILE: line N: RULE message [METHOD][; line M: RULE message [METHOD] ...]
 ```
 
-Every `requires change` report names its rule from section 7. Exit status 1 if any file
-requires change, else 0.
+Every `requires change` report names its rule from section 7 and ends with
+the rule's method from the table of 7.1: `[altered by rce fmt]` when
+`rce fmt` writes the change (10.6), else `[requires change]`. A
+`recommended` line follows the `ok` line of an admitted file, one per
+recommended change. Exit status 1 if any file requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -3062,20 +3219,22 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
-is `k EVENT kept: ERROR`, no later event is applied, and the status is
-1. Otherwise the status is 0. An event name that is not declared is a usage
+is `k EVENT kept: ERROR`, sₖ = sₖ₋₁ (T8), and the next event is applied to
+that state, as on the host (HC-21). The status is 1 when the step of some
+event keeps the state, and 0 otherwise. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
 ```
-$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
+$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec, Inc"
 0 (initial) Counter { n = 0 }
 1 Inc Counter { n = 1 }
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
 5 Dec kept: Underflow
+6 Inc Counter { n = 1 }
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
@@ -3087,7 +3246,20 @@ trap. If there is no `fn main()`, the command says so and the status is 1.
 
 The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
-runtime.
+runtime. The body runs on the tick runtime of 6.8 and Appendix C, whose log
+of the run is the trace of `fn main` in `rce trace` (10.9).
+
+The reference tick runtime runs each task, `fn main` included, on its own
+thread of the host. A host that cannot start a thread, such as WASI
+preview 1 (`rce` built for `wasm32-wasip1`), cannot perform the run: the
+command prints nothing on standard output and one line on standard error,
+`FILE: fn main needs task threads, which this host does not provide
+(HOST: REASON)`, HOST being the host's architecture and system and REASON
+the host's error, and the status is 4. Whatever output the run had
+produced before the failing start is not printed. A scheduler that runs
+tasks as state machines, without threads, is the next slice of the
+proposal `one-emitter.md` (section 13, 10.12); with it this run needs no
+thread.
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -3289,11 +3461,21 @@ of its function and one per argument); actor handlers share the
 scheduler's pool; a `par` branch or `for ... par` chunk starts from its
 parent's remaining fuel, and the branches are charged back in source
 order, so the trap falls where the reference's sequential run puts it.
+With `--trace` as well, the program prints the trace of `fn main` (10.9)
+before the outcome line: per entry of the run's log, in order, the line
+`d applied HASH BODY` (`d kept HASH BODY` for a `Kept` entry), BODY the
+canonical JSON of `{event, prev_hash, seq, state_hash}` of that step and
+HASH its SHA-256, then `trace HEAD`.
 
 `spec/checker/tests/emit_run.rs` compares the three runtimes with
 `conc::run_main` on a corpus of task programs. Among them are the four
 concurrency examples 14, 15, 34 and 47, each run with a `fn main` from
-`spec/checker/tests/drivers/` appended to its unchanged text.
+`spec/checker/tests/drivers/` appended to its unchanged text. Its test
+`main_traces_agree_on_every_target` compares the traces of `fn main` of
+the three runtimes with the reference's, line for line, on 66 runs: that
+corpus, the supervised actors of the same file, example 37, two session
+programs of `spec/conc06b/accept/`, the partition cases and program
+events, which together write an entry of every kind of 10.9.
 `spec/checker/tests/fuel_run.rs` runs seven of these programs at every
 fuel limit where the reference's result changes and at the limit before
 it (258 runs over the three targets), and requires the same outputs and
@@ -3371,11 +3553,27 @@ numbers dropped. The formatter is a function fmt on texts with:
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
 A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
-under `fmt` with the same reason. `fmt` does not type check: a file that requires
-change under `rce check` can still be formatted. With `--check`, no file is written;
-each file that would change is printed as `would reformat FILE` and the
-status is 1. Without it, each changed file is written and printed as
-`formatted FILE`.
+under `fmt` with the same reason. A file that requires change under `rce check`
+can still be formatted.
+
+**Altered rules.** Before the layout, `fmt` writes the rewrite of every
+report whose rule's method is *altered* (7.1): W-UNUSED-1 and W-DROP-1. The
+rewrites are those of the table of 7.1. A new name is the first of `n`,
+`n1`, `n2`, … that is not already a name in the text. Each rewrite is
+written only when the static reports of the new text are those of the old
+text less the one it answers; otherwise the report is printed as
+`requires change FILE: line N: RULE message [not altered: …]` and the
+status is 1. No line is added or removed, except that a match arm written
+on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
+`P` with the one statement `let _ = e`, since `let` is not an expression. A
+second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+step changes exactly the places its rewrites name.
+
+With `--check`, no file is written; each rewrite is printed as
+`would alter FILE: line N: RULE what`, each file whose layout would change
+as `would reformat FILE`, and the status is 1. Without it, each rewrite is
+printed as `altered FILE: line N: RULE what`, and each changed file is
+written and printed as `formatted FILE`.
 
 **`rce fmt --nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
@@ -3423,7 +3621,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t), the canonical layout of 10.6 without the altered rewrites, or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -3513,7 +3711,8 @@ log D of 6.1, so a trace is the log, and conformance to 6.1 implies
 conformance to the trace.
 
 `rce trace --json FILE` prints one trace per `example` of the module, in
-source order (the same logs `rce emit form` puts in `logs`); with
+source order (the same logs `rce emit form` puts in `logs`), then, when
+the module declares `fn main()`, the trace of its run (below); with
 `--streams PATH` it prints one trace per event list of PATH (one list per
 line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
@@ -3530,7 +3729,7 @@ resolution of C.15), compact, with sorted keys:
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
-| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line), `"events"` or `"main"`; a `"main"` trace also has `outcome` (below) |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
@@ -3538,19 +3737,85 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A kept step is the last step of its trace, with the unchanged state's
-hash (T8). A projector conforms on a module when, for every trace, its
+A kept step is a step of its trace, with outcome {`kept`: error name}
+and the unchanged state's hash (T8), and the next event is applied to
+that unchanged state, as on the host (HC-21); a trace ends only with its
+event list. A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
 the whole state, equal hashes mean equal states without exchanging them.
 
+**The trace of `fn main`.** Its run is the one `rce run FILE` performs
+without EVENTS (10.3): `fn main()` on the tick runtime of 6.8 and
+Appendix C, with no link, event or restart input and the default seed of
+`select nondet`. The scheduler writes a log of the run (C.11.4), one entry
+per action, and a step of the trace is one entry, in the order written.
+Within a tick the order is the scheduler's: link inputs, then program
+events, then the actors (transactions, then one message per actor in id
+order), then each task's pending operation in task order (higher priority
+first, then id). Every choice in that order is a function of ids,
+payloads and per-`select` counters (6.8), so the trace is a function of
+the program, as the run is (T1), however the tasks are placed on threads.
+The text of an entry is `K` or `K(A)`, A showing values as `emit` lines
+do (10.3):
+
+| Entry | Written when |
+|---|---|
+| `Spawn(task ID, priority P)` | a spawn is admitted, before the new task first moves |
+| `Done(task ID)` | a task's function returns, traps, fails or is cancelled |
+| `Emit(V)` | a task emits V, or a committed handler emitted V |
+| `Send(V)` | a send of V is admitted: to a channel, to an actor, by a `select` arm, inside `atomic`, or by a committed handler |
+| `Backpressure` | the channel of a send is full: the sender is held (6.8) |
+| `Recv(V)`, `Recv(none)` | a receive or a `select` arm takes V, or finds the channel closed and empty |
+| `Close` | a channel is closed |
+| `Atomic` | the sends of an `atomic` block are admitted together (C.11.10) |
+| `Choice(task ID, select line L, execution K, arm A)` | a `select nondet` takes arm A (C.5) |
+| `Cancelled(task ID)` | a deadline of the task has passed at its communication step (C.6.2) |
+| `Deliver(V)` | an actor's handler takes the message V |
+| `Kept(R)` | an actor's handler kept its state for reason R, or another handler of the same transaction was not committed (T30) |
+| `Restart(CHILD, ID, R, tick T, K)`, `Stopped(supervisor S)` | a supervisor restarts a child or stops (C.11.11) |
+| `Input(V)`, `Unhandled(V)` | a program event arrives, and no actor handles it (HC-6) |
+| `Partition(A, B)`, `Heal(A, B)`, `Held(A -> B)` | a link input, and a message held at a partitioned link (C.11.4) |
+
+The last two rows need inputs of the run, so they occur only in a trace
+of a run given those inputs (`spec/checker/tests/emit_run.rs` gives them).
+A step's `event` is {`type`: K, `payload`: A}, with payload null for an
+entry `K`; its state is `[tick, actors]`: the tick at which the entry was
+written (the first tick is 1) and, for every live actor in id order,
+`[ID, [v₁, …]]`, its field values in declaration order in the positional
+form of 6.1. `hashed` holds the two, `state_hash` is the SHA-256 of the
+canonical JSON of the state, and `prev_hash` and `hash` chain from the
+genesis as an example's entries do. `outcome` is {`kept`: R} for a step
+`Kept(R)` and `"applied"` for every other step; as in an example's trace,
+a kept step does not end it: the trace ends where the run ends. The
+trace's `outcome` is `"done"`, `"deadlock"` or {`stopped`: REASON}, as
+`rce run` ends. An entry's event is display text, which names declared
+types (`Ping(n: 7, reply: <chan>)`), so renaming a declaration changes the
+hashes of a main trace, where an example's (T7) stay the same. With
+`--trace`, an emitted program run with `--run` prints the trace of
+`fn main` as lines of D (10.5). The core evaluator (10.12) does not run
+`fn main` on the tick runtime, so it prints no trace of `fn main`.
+
+On a host that cannot start a task thread (10.3, WASI preview 1) the run
+does not happen, and the trace of `fn main` is absent: it is
+`{"source": "main", "outcome": {"absent": REASON}, "steps": []}`, REASON
+being the line of 10.3 after `FILE: `. The other traces are printed as on
+any host, standard error has one line `FILE: no trace of fn main:
+REASON`, and the status is 4. A projector conforms on such a module only
+on a host that runs `fn main`; the cross-architecture parity job
+(`.github/workflows/xarch-parity.yml`) lists the five examples with
+`fn main()` as not compared on `wasm32-wasip1`, for this reason.
+
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
 machine), plus two event-list traces, `01_counter.events.json` (the
 counter on a longer list) and `16_multi_region.events.json` (two regions
-stepped by one event, which has no `example` lines). Examples without a
-state machine have an empty `traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+stepped by one event, which has no `example` lines). Five examples
+declare `fn main()`: 02, 13 and 37 run to `done`, and 40 and 48 stop at
+their first foreign call, which the reference evaluator does not execute
+(10.3). Examples without a state machine or `fn main()` have an empty
+`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
 standard library only) compares two trace files or two directories of
 them and prints `exact match` or the first divergence (trace, `seq`,
 field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
@@ -3728,6 +3993,106 @@ comparison are the reference trace (10.9), never this output. Exit status
 0 when the run ends; 1 when the checker reports that FILE requires change, when a core module
 is not well formed, or when the run halts; 2 when FILE uses a construct
 the lowering does not cover, or on an internal error.
+
+The core evaluator observes `fn main` as one call of its body, as the
+`main` block of the proposal's trace (ONE-5) does, not as a run on the
+tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
+supervisor (status 2), and the core has no scheduler, so `rce run-core`
+prints no trace of `fn main` (10.9). The next slice of the proposal is a
+scheduler in the core that runs tasks as state machines, without threads
+of the host; the reference's run of `fn main` needs a thread per task, so
+on a host without threads (WASI preview 1) it is absent (10.3, 10.9), and
+that slice is what makes the run possible there.
+
+### 10.13 `rce repair [json] [bound N] FILE [MODULE...]`: the exact-proposer ladder (informative)
+
+`rce repair` takes a program FILE that requires change (an example or
+check does not hold, or a static rule reports it) and proposes a changed
+program. FILE is checked together with the MODULEs, which are the
+program's other modules (10.2). The command is a ladder of **exact
+proposers**: each rung builds candidate programs by a fixed rule from the
+program, the MODULEs and the built-in library alone, and the checker, the
+same gate as `rce check` (6.9), judges each candidate. The ladder stops at
+the first candidate the checker admits; since the gate runs every
+example and check, an admitted candidate is one whose examples and checks
+all hold. No rung calls a model (10.1, item 2). A candidate is the
+canonical text of an edited module (the source printer of `unparse.rs`),
+never a text written by hand, and a candidate equal to one already judged
+is judged once.
+
+Terms. A **definition** is a function, a method of an `impl`, a step, an
+actor, a constant or a state declaration. A **site** is one expression
+of a definition. Intent, example and check items, and `check`, `requires`
+and `ensures` statements, are never edited: they are what a candidate is
+judged by. The **name-free signature** of a function is its number of
+generic parameters, its parameter types and its result type, without the
+names of the function and its parameters.
+
+Order of definitions. First the definitions that contain a line the
+report of FILE names (a static rule); then, breadth first, the
+definitions reachable from the checks that do not hold (the functions
+they call, and what those call) and, when an example does not hold, the
+steps, actors and state declarations and what they call; then every
+other definition, in source order. Sites within a definition are visited
+in preorder.
+
+The rungs, in order:
+
+- **a. Reuse.** The body of one function becomes the body of another
+  function with the same name-free signature, from FILE, the MODULEs or
+  the built-in library (`rce lib`), with its parameters renamed to the
+  receiving function's. A donor with the same name as the receiving
+  function comes first, then donors by module and name; donors with equal
+  name-free projections (10.6) are tried once, and a donor equal to the
+  receiving function is not tried.
+- **b. Lookup by type.** The brick catalog (10.10) of FILE, the MODULEs
+  and the library modules FILE uses is searched (`rce search` order) for
+  (1) a function of the same type as a definition, whose body then becomes
+  `return h(p1, ..., pn)` on its own parameters, and (2) a function of the
+  same type as the callee of a call, which then replaces that callee. Only
+  functions FILE can name are proposed: its own, and those of a module it
+  uses, through the module's alias.
+- **c. Altered rules.** Skipped. The rewrites of the altered rules
+  (7.1), which `rce fmt` writes (10.6, `alter.rs`), are not yet wired into
+  the ladder; the report says so on a `skipped` line.
+- **d. Bounded enumeration.** One small edit at one site: a binary
+  operator replaced by each other operator of its class (`+ - * / %`,
+  `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
+  ordering comparison swapped, an integer literal n replaced by n + 1,
+  n - 1, 0 and 1 (each value at least 0 and different from n), a boolean
+  literal negated, two arguments of a call with two to four arguments
+  swapped (each pair once), and a condition (of `if`, `elif`, `while`, a
+  guard or an `if` expression) negated, or its `not` removed. These edits
+  never add or rename a name, so they act alike on a program and on its
+  name-free projection. At most N candidates (`bound N`, default 2000)
+  are judged in this rung; the bound counts checker calls, not edits
+  skipped as duplicates.
+
+Rungs a, b and d are not bounded by `bound`: a and b judge at most one
+candidate per donor or catalog hit.
+
+Output: the rung that closed the program (`a reuse`, `b lookup by type`,
+`d bounded enumeration`, or `none` when FILE already complies with the
+Form), the edit (it names the line of FILE), the diff of the canonical
+texts (`-` the old lines and `+` the new, with line numbers of the
+canonical text), the number of candidates each rung judged with
+`0 model calls`, the `skipped` rungs, and the checker's verdict on the
+result: `ok FILE: admitted; E examples and C checks hold`, or, when no
+candidate is admitted, the report on FILE and `not closed FILE`. With
+`json` the same is one JSON object (format `rce-repair/1`) that also holds
+the repaired text, `model_calls` (always 0), `canonical_same_report`
+(whether the canonical text of FILE gets the report FILE gets, line
+numbers aside) and `attempts`, one record per candidate judged: rung,
+definition, edit and the checker's verdict. Exit status 0 when the
+program is closed or already complies, 1 when it is not closed, 2 on a
+usage error. The command is deterministic: equal inputs give equal
+output bytes and the same exit status.
+
+An admitted candidate passes the examples and checks; that does not make
+it the program that was meant. `rce equiv` (10.11) and the program hash of
+`rce hash` (10.8) say whether a repair has the behaviour or the
+definitions of a known original; `scripts/ladder-run.py` reports that
+split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
@@ -4574,6 +4939,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 | `state_hash` and the entry `hash` over the positional forms (6.1, T7) | erratum, outside programs | the finding of 2026-10-22: the Lean model of T7 hashes declaration indices, the checker and the four runtimes hashed the canonical JSON keyed by region, field and type names, so a renamed program had different log hashes. The hashes now cover the positional forms and a renamed program has the same hashes, as T7 states. No program's outputs, states or outcomes change; every trace fixture, the conformance pins and the trace format (`rce-trace/2`) change, which is the log format and not a program's meaning |
+| a kept step does not end a run, a trace or an example (6.9, 10.3, 10.9) | erratum for runs and traces, extension for examples | T3 folds every event and HC-21 applies the next input after a kept step; `rce run`, `rce trace`, `rce run-core` and the emitted runtimes ended at the first kept step, so they now meet T3. An example whose earlier event is kept required change under W-INT-1 before and now holds when its last step and final state are as it states; every example that held before holds with the same trace, so no valid program changes meaning |
 
 The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
 what made the earlier text a different release. Every other row is an erratum, an extension or a
@@ -5887,6 +6253,30 @@ delivers depends on the adapters it is granted.
   program's own text, not the library modules it uses, which the checker's
   build pins (F.5.3).
 
+### E.4e What the host reports to its terminal (HC-28)
+
+- **HC-28 The host reports its status, and the report is not an effect.**
+  `rce host run` and `rce host serve` write their status to stderr as
+  records of OSC 7501 (an operating system command sequence), the Program
+  Status Protocol that libghostty-vt parses and Herdr (herdr.dev) shows:
+  `ESC ] 7501 ; state=S:app=rce:title=T:msg=M ESC \`, where T is the
+  module name and M a short line of text, each in standard base64 with
+  padding. S is `idle` once the host has opened D and waits for input,
+  `working` while it admits an input from outside and steps the program,
+  `idle` again once the entries are appended to D, `done` when the host
+  stops cleanly (at the end of the input, and for `rce host serve` also on
+  SIGTERM, SIGINT or an emitted `Exit`, HC-24), and `error` when it stops
+  on a failure or on a program that requires change. The `idle` message
+  gives the number of entries of D and the first 12 hex digits of the
+  state hash. A round of the host loop that holds only a frame tick (HD-4),
+  the host's own clock, writes no record. A record is written only when S
+  changes. The host never reports `blocked`, since it asks no person
+  anything. Records are written only when stderr is a terminal;
+  `RCE_STATUS=on` writes them whatever stderr is, and `RCE_STATUS=off`
+  writes none. A report is not in D, no program reads it, and replay and
+  the state hash do not depend on it, so D is the same byte for byte with
+  reports and without them.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -6142,6 +6532,8 @@ is cited by a test.
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
+| HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports` |
 | HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)

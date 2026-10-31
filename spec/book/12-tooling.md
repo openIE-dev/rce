@@ -4,7 +4,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the third event, whose step keeps the state, with exit status 1.
+and shows that the step of the third event keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -33,7 +33,9 @@ and stops at the third event, whose step keeps the state, with exit status 1.
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `--fuel` before either equivalence or a
-   distinguishing event sequence was established (10.11).
+   distinguishing event sequence was established (10.11). 4 means a run
+   the host cannot perform: `fn main` needs task threads and the host
+   cannot start one (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -65,11 +67,15 @@ the order given, one line is printed:
 
 ```
 ok FILE
-requires change FILE: line N: RULE message[; line M: RULE message ...]
+recommended FILE: line N: RULE message
+requires change FILE: line N: RULE message [METHOD][; line M: RULE message [METHOD] ...]
 ```
 
-Every `requires change` report names its rule from section 7. Exit status 1 if any file
-requires change, else 0.
+Every `requires change` report names its rule from section 7 and ends with
+the rule's method from the table of 7.1: `[altered by rce fmt]` when
+`rce fmt` writes the change (10.6), else `[requires change]`. A
+`recommended` line follows the `ok` line of an admitted file, one per
+recommended change. Exit status 1 if any file requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -90,20 +96,22 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
-is `k EVENT kept: ERROR`, no later event is applied, and the status is
-1. Otherwise the status is 0. An event name that is not declared is a usage
+is `k EVENT kept: ERROR`, sₖ = sₖ₋₁ (T8), and the next event is applied to
+that state, as on the host (HC-21). The status is 1 when the step of some
+event keeps the state, and 0 otherwise. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
 ```
-$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
+$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec, Inc"
 0 (initial) Counter { n = 0 }
 1 Inc Counter { n = 1 }
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
 5 Dec kept: Underflow
+6 Inc Counter { n = 1 }
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
@@ -115,7 +123,20 @@ trap. If there is no `fn main()`, the command says so and the status is 1.
 
 The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
-runtime.
+runtime. The body runs on the tick runtime of 6.8 and Appendix C, whose log
+of the run is the trace of `fn main` in `rce trace` (10.9).
+
+The reference tick runtime runs each task, `fn main` included, on its own
+thread of the host. A host that cannot start a thread, such as WASI
+preview 1 (`rce` built for `wasm32-wasip1`), cannot perform the run: the
+command prints nothing on standard output and one line on standard error,
+`FILE: fn main needs task threads, which this host does not provide
+(HOST: REASON)`, HOST being the host's architecture and system and REASON
+the host's error, and the status is 4. Whatever output the run had
+produced before the failing start is not printed. A scheduler that runs
+tasks as state machines, without threads, is the next slice of the
+proposal `one-emitter.md` (section 13, 10.12); with it this run needs no
+thread.
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -317,11 +338,21 @@ of its function and one per argument); actor handlers share the
 scheduler's pool; a `par` branch or `for ... par` chunk starts from its
 parent's remaining fuel, and the branches are charged back in source
 order, so the trap falls where the reference's sequential run puts it.
+With `--trace` as well, the program prints the trace of `fn main` (10.9)
+before the outcome line: per entry of the run's log, in order, the line
+`d applied HASH BODY` (`d kept HASH BODY` for a `Kept` entry), BODY the
+canonical JSON of `{event, prev_hash, seq, state_hash}` of that step and
+HASH its SHA-256, then `trace HEAD`.
 
 `spec/checker/tests/emit_run.rs` compares the three runtimes with
 `conc::run_main` on a corpus of task programs. Among them are the four
 concurrency examples 14, 15, 34 and 47, each run with a `fn main` from
-`spec/checker/tests/drivers/` appended to its unchanged text.
+`spec/checker/tests/drivers/` appended to its unchanged text. Its test
+`main_traces_agree_on_every_target` compares the traces of `fn main` of
+the three runtimes with the reference's, line for line, on 66 runs: that
+corpus, the supervised actors of the same file, example 37, two session
+programs of `spec/conc06b/accept/`, the partition cases and program
+events, which together write an entry of every kind of 10.9.
 `spec/checker/tests/fuel_run.rs` runs seven of these programs at every
 fuel limit where the reference's result changes and at the limit before
 it (258 runs over the three targets), and requires the same outputs and
@@ -399,11 +430,27 @@ numbers dropped. The formatter is a function fmt on texts with:
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
 A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
-under `fmt` with the same reason. `fmt` does not type check: a file that requires
-change under `rce check` can still be formatted. With `--check`, no file is written;
-each file that would change is printed as `would reformat FILE` and the
-status is 1. Without it, each changed file is written and printed as
-`formatted FILE`.
+under `fmt` with the same reason. A file that requires change under `rce check`
+can still be formatted.
+
+**Altered rules.** Before the layout, `fmt` writes the rewrite of every
+report whose rule's method is *altered* (7.1): W-UNUSED-1 and W-DROP-1. The
+rewrites are those of the table of 7.1. A new name is the first of `n`,
+`n1`, `n2`, … that is not already a name in the text. Each rewrite is
+written only when the static reports of the new text are those of the old
+text less the one it answers; otherwise the report is printed as
+`requires change FILE: line N: RULE message [not altered: …]` and the
+status is 1. No line is added or removed, except that a match arm written
+on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
+`P` with the one statement `let _ = e`, since `let` is not an expression. A
+second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+step changes exactly the places its rewrites name.
+
+With `--check`, no file is written; each rewrite is printed as
+`would alter FILE: line N: RULE what`, each file whose layout would change
+as `would reformat FILE`, and the status is 1. Without it, each rewrite is
+printed as `altered FILE: line N: RULE what`, and each changed file is
+written and printed as `formatted FILE`.
 
 **`rce fmt --nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
@@ -451,7 +498,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t), the canonical layout of 10.6 without the altered rewrites, or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -541,7 +588,8 @@ log D of 6.1, so a trace is the log, and conformance to 6.1 implies
 conformance to the trace.
 
 `rce trace --json FILE` prints one trace per `example` of the module, in
-source order (the same logs `rce emit form` puts in `logs`); with
+source order (the same logs `rce emit form` puts in `logs`), then, when
+the module declares `fn main()`, the trace of its run (below); with
 `--streams PATH` it prints one trace per event list of PATH (one list per
 line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
@@ -558,7 +606,7 @@ resolution of C.15), compact, with sorted keys:
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
-| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line), `"events"` or `"main"`; a `"main"` trace also has `outcome` (below) |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
@@ -566,19 +614,85 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A kept step is the last step of its trace, with the unchanged state's
-hash (T8). A projector conforms on a module when, for every trace, its
+A kept step is a step of its trace, with outcome {`kept`: error name}
+and the unchanged state's hash (T8), and the next event is applied to
+that unchanged state, as on the host (HC-21); a trace ends only with its
+event list. A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
 the whole state, equal hashes mean equal states without exchanging them.
 
+**The trace of `fn main`.** Its run is the one `rce run FILE` performs
+without EVENTS (10.3): `fn main()` on the tick runtime of 6.8 and
+Appendix C, with no link, event or restart input and the default seed of
+`select nondet`. The scheduler writes a log of the run (C.11.4), one entry
+per action, and a step of the trace is one entry, in the order written.
+Within a tick the order is the scheduler's: link inputs, then program
+events, then the actors (transactions, then one message per actor in id
+order), then each task's pending operation in task order (higher priority
+first, then id). Every choice in that order is a function of ids,
+payloads and per-`select` counters (6.8), so the trace is a function of
+the program, as the run is (T1), however the tasks are placed on threads.
+The text of an entry is `K` or `K(A)`, A showing values as `emit` lines
+do (10.3):
+
+| Entry | Written when |
+|---|---|
+| `Spawn(task ID, priority P)` | a spawn is admitted, before the new task first moves |
+| `Done(task ID)` | a task's function returns, traps, fails or is cancelled |
+| `Emit(V)` | a task emits V, or a committed handler emitted V |
+| `Send(V)` | a send of V is admitted: to a channel, to an actor, by a `select` arm, inside `atomic`, or by a committed handler |
+| `Backpressure` | the channel of a send is full: the sender is held (6.8) |
+| `Recv(V)`, `Recv(none)` | a receive or a `select` arm takes V, or finds the channel closed and empty |
+| `Close` | a channel is closed |
+| `Atomic` | the sends of an `atomic` block are admitted together (C.11.10) |
+| `Choice(task ID, select line L, execution K, arm A)` | a `select nondet` takes arm A (C.5) |
+| `Cancelled(task ID)` | a deadline of the task has passed at its communication step (C.6.2) |
+| `Deliver(V)` | an actor's handler takes the message V |
+| `Kept(R)` | an actor's handler kept its state for reason R, or another handler of the same transaction was not committed (T30) |
+| `Restart(CHILD, ID, R, tick T, K)`, `Stopped(supervisor S)` | a supervisor restarts a child or stops (C.11.11) |
+| `Input(V)`, `Unhandled(V)` | a program event arrives, and no actor handles it (HC-6) |
+| `Partition(A, B)`, `Heal(A, B)`, `Held(A -> B)` | a link input, and a message held at a partitioned link (C.11.4) |
+
+The last two rows need inputs of the run, so they occur only in a trace
+of a run given those inputs (`spec/checker/tests/emit_run.rs` gives them).
+A step's `event` is {`type`: K, `payload`: A}, with payload null for an
+entry `K`; its state is `[tick, actors]`: the tick at which the entry was
+written (the first tick is 1) and, for every live actor in id order,
+`[ID, [v₁, …]]`, its field values in declaration order in the positional
+form of 6.1. `hashed` holds the two, `state_hash` is the SHA-256 of the
+canonical JSON of the state, and `prev_hash` and `hash` chain from the
+genesis as an example's entries do. `outcome` is {`kept`: R} for a step
+`Kept(R)` and `"applied"` for every other step; as in an example's trace,
+a kept step does not end it: the trace ends where the run ends. The
+trace's `outcome` is `"done"`, `"deadlock"` or {`stopped`: REASON}, as
+`rce run` ends. An entry's event is display text, which names declared
+types (`Ping(n: 7, reply: <chan>)`), so renaming a declaration changes the
+hashes of a main trace, where an example's (T7) stay the same. With
+`--trace`, an emitted program run with `--run` prints the trace of
+`fn main` as lines of D (10.5). The core evaluator (10.12) does not run
+`fn main` on the tick runtime, so it prints no trace of `fn main`.
+
+On a host that cannot start a task thread (10.3, WASI preview 1) the run
+does not happen, and the trace of `fn main` is absent: it is
+`{"source": "main", "outcome": {"absent": REASON}, "steps": []}`, REASON
+being the line of 10.3 after `FILE: `. The other traces are printed as on
+any host, standard error has one line `FILE: no trace of fn main:
+REASON`, and the status is 4. A projector conforms on such a module only
+on a host that runs `fn main`; the cross-architecture parity job
+(`.github/workflows/xarch-parity.yml`) lists the five examples with
+`fn main()` as not compared on `wasm32-wasip1`, for this reason.
+
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
 machine), plus two event-list traces, `01_counter.events.json` (the
 counter on a longer list) and `16_multi_region.events.json` (two regions
-stepped by one event, which has no `example` lines). Examples without a
-state machine have an empty `traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+stepped by one event, which has no `example` lines). Five examples
+declare `fn main()`: 02, 13 and 37 run to `done`, and 40 and 48 stop at
+their first foreign call, which the reference evaluator does not execute
+(10.3). Examples without a state machine or `fn main()` have an empty
+`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
 standard library only) compares two trace files or two directories of
 them and prints `exact match` or the first divergence (trace, `seq`,
 field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
@@ -757,6 +871,106 @@ comparison are the reference trace (10.9), never this output. Exit status
 is not well formed, or when the run halts; 2 when FILE uses a construct
 the lowering does not cover, or on an internal error.
 
+The core evaluator observes `fn main` as one call of its body, as the
+`main` block of the proposal's trace (ONE-5) does, not as a run on the
+tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
+supervisor (status 2), and the core has no scheduler, so `rce run-core`
+prints no trace of `fn main` (10.9). The next slice of the proposal is a
+scheduler in the core that runs tasks as state machines, without threads
+of the host; the reference's run of `fn main` needs a thread per task, so
+on a host without threads (WASI preview 1) it is absent (10.3, 10.9), and
+that slice is what makes the run possible there.
+
+### 10.13 `rce repair [json] [bound N] FILE [MODULE...]`: the exact-proposer ladder (informative)
+
+`rce repair` takes a program FILE that requires change (an example or
+check does not hold, or a static rule reports it) and proposes a changed
+program. FILE is checked together with the MODULEs, which are the
+program's other modules (10.2). The command is a ladder of **exact
+proposers**: each rung builds candidate programs by a fixed rule from the
+program, the MODULEs and the built-in library alone, and the checker, the
+same gate as `rce check` (6.9), judges each candidate. The ladder stops at
+the first candidate the checker admits; since the gate runs every
+example and check, an admitted candidate is one whose examples and checks
+all hold. No rung calls a model (10.1, item 2). A candidate is the
+canonical text of an edited module (the source printer of `unparse.rs`),
+never a text written by hand, and a candidate equal to one already judged
+is judged once.
+
+Terms. A **definition** is a function, a method of an `impl`, a step, an
+actor, a constant or a state declaration. A **site** is one expression
+of a definition. Intent, example and check items, and `check`, `requires`
+and `ensures` statements, are never edited: they are what a candidate is
+judged by. The **name-free signature** of a function is its number of
+generic parameters, its parameter types and its result type, without the
+names of the function and its parameters.
+
+Order of definitions. First the definitions that contain a line the
+report of FILE names (a static rule); then, breadth first, the
+definitions reachable from the checks that do not hold (the functions
+they call, and what those call) and, when an example does not hold, the
+steps, actors and state declarations and what they call; then every
+other definition, in source order. Sites within a definition are visited
+in preorder.
+
+The rungs, in order:
+
+- **a. Reuse.** The body of one function becomes the body of another
+  function with the same name-free signature, from FILE, the MODULEs or
+  the built-in library (`rce lib`), with its parameters renamed to the
+  receiving function's. A donor with the same name as the receiving
+  function comes first, then donors by module and name; donors with equal
+  name-free projections (10.6) are tried once, and a donor equal to the
+  receiving function is not tried.
+- **b. Lookup by type.** The brick catalog (10.10) of FILE, the MODULEs
+  and the library modules FILE uses is searched (`rce search` order) for
+  (1) a function of the same type as a definition, whose body then becomes
+  `return h(p1, ..., pn)` on its own parameters, and (2) a function of the
+  same type as the callee of a call, which then replaces that callee. Only
+  functions FILE can name are proposed: its own, and those of a module it
+  uses, through the module's alias.
+- **c. Altered rules.** Skipped. The rewrites of the altered rules
+  (7.1), which `rce fmt` writes (10.6, `alter.rs`), are not yet wired into
+  the ladder; the report says so on a `skipped` line.
+- **d. Bounded enumeration.** One small edit at one site: a binary
+  operator replaced by each other operator of its class (`+ - * / %`,
+  `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
+  ordering comparison swapped, an integer literal n replaced by n + 1,
+  n - 1, 0 and 1 (each value at least 0 and different from n), a boolean
+  literal negated, two arguments of a call with two to four arguments
+  swapped (each pair once), and a condition (of `if`, `elif`, `while`, a
+  guard or an `if` expression) negated, or its `not` removed. These edits
+  never add or rename a name, so they act alike on a program and on its
+  name-free projection. At most N candidates (`bound N`, default 2000)
+  are judged in this rung; the bound counts checker calls, not edits
+  skipped as duplicates.
+
+Rungs a, b and d are not bounded by `bound`: a and b judge at most one
+candidate per donor or catalog hit.
+
+Output: the rung that closed the program (`a reuse`, `b lookup by type`,
+`d bounded enumeration`, or `none` when FILE already complies with the
+Form), the edit (it names the line of FILE), the diff of the canonical
+texts (`-` the old lines and `+` the new, with line numbers of the
+canonical text), the number of candidates each rung judged with
+`0 model calls`, the `skipped` rungs, and the checker's verdict on the
+result: `ok FILE: admitted; E examples and C checks hold`, or, when no
+candidate is admitted, the report on FILE and `not closed FILE`. With
+`json` the same is one JSON object (format `rce-repair/1`) that also holds
+the repaired text, `model_calls` (always 0), `canonical_same_report`
+(whether the canonical text of FILE gets the report FILE gets, line
+numbers aside) and `attempts`, one record per candidate judged: rung,
+definition, edit and the checker's verdict. Exit status 0 when the
+program is closed or already complies, 1 when it is not closed, 2 on a
+usage error. The command is deterministic: equal inputs give equal
+output bytes and the same exit status.
+
+An admitted candidate passes the examples and checks; that does not make
+it the program that was meant. `rce equiv` (10.11) and the program hash of
+`rce hash` (10.8) say whether a repair has the behaviour or the
+definitions of a known original; `scripts/ladder-run.py` reports that
+split for the task sets that `scripts/ladder-tasks.py` writes.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 58f388ddfbe9129c5b462befa3b30d3f919479f8c88dd2dbdde4aabb81428ff0 -->
+<!-- body-sha256: e3ee970335891a217e0cc67cedfbc9db49c4b92c64a41d74f8536c0bdcd30c99 -->

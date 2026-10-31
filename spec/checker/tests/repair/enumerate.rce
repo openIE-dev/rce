@@ -1,0 +1,12 @@
+intent "the larger of two levels"
+    check larger(3, 5) == 5
+    check larger(7, 2) == 7
+
+struct Level
+    v: u8
+
+fn larger(a: u8, b: u8) -> u8
+    let x = Level(v: a)
+    if x.v < b
+        return x.v
+    return b

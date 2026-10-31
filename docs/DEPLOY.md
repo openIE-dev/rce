@@ -56,6 +56,13 @@ the log directory, no TCP bind or connect after the listener is open, no
 exec) and a seccomp filter. It works under Docker's default seccomp profile;
 no extra capability is needed.
 
+When stderr is a terminal, the host also reports its status there as OSC
+7501 records (HC-28), so a terminal that reads them, such as Herdr, shows
+the service as idle, working, done or in error. Under systemd, Docker without `-t`,
+and in a pipe, stderr is not a terminal and no record is written;
+`RCE_STATUS=on` writes them anyway and `RCE_STATUS=off` never. The report is
+not in D and does not change replay or the state hash.
+
 ## Stop, restart, back up
 
 - `docker stop` (SIGTERM) is the host loop's stop input: the loop ends after

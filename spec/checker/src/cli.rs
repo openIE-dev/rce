@@ -13,14 +13,17 @@ use std::io::{BufRead, Write};
 pub const OK: i32 = 0;
 /// A text that is not in Form: it requires change.
 pub const REQUIRES_CHANGE: i32 = 1;
-/// A run of an admitted program that ended with a step whose event did not
-/// apply: the state was kept. Not a statement about the code; same status as
-/// spec 10.1 gives every non-zero outcome of a run.
+/// A run of an admitted program in which a step's event did not apply: the
+/// state was kept. Not a statement about the code; same status as spec 10.1
+/// gives every non-zero outcome of a run.
 pub const STEP_KEPT: i32 = 1;
 pub const USAGE: i32 = 2;
 /// A question the command could not decide within its bound (10.1):
 /// `rce equiv` and `rce change` when exploration reached `--fuel` first.
 pub const UNDECIDED: i32 = 3;
+/// A run the host cannot perform (10.1): `fn main` needs task threads and
+/// the host starts none (`conc::NO_TASK_THREADS`, `wasm32-wasip1`).
+pub const HOST_LIMIT: i32 = 4;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
 /// `known` is the set of module paths `use` may resolve to.
@@ -86,17 +89,21 @@ fn show_state_redacted(s: &[Region], redact: &[&str]) -> String {
         .join("; ")
 }
 
-/// Outcome of `rce run`: the printed lines and whether the run ended with a
-/// kept step.
+/// Outcome of `rce run`: the printed lines and whether a step of the run
+/// kept the state (with events: any step; without: `main` did not finish).
 #[derive(Debug, PartialEq)]
 pub struct RunOut {
     pub lines: Vec<String>,
     pub kept: bool,
+    /// The last line is a kept step (with events) or the end of a `main`
+    /// that did not finish: the outcome of the run is in that line.
+    pub last_kept: bool,
 }
 
 /// `rce run FILE EVENTS`: apply δ to the initial state once per event, in
-/// order, printing the state and outputs after each. Stops at the first
-/// event whose step keeps the state. Without events, runs `fn main()` and prints its outputs.
+/// order, printing the state and outputs after each. A step that keeps the
+/// state (T8) is printed as kept and the next event is applied to the
+/// unchanged state, as on the host (HC-21). Without events, runs `fn main()` and prints its outputs.
 /// The module must be admitted first (as by `rce check`).
 pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let d = diagnostics(src, &HashSet::new());
@@ -109,8 +116,9 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let Some(evs) = events else {
         // fn main() runs on the tick runtime of chapter C (tasks, channels,
         // actors, par, budgets, deadlines)
-        let r = crate::conc::run_main(&m, &crate::conc::RunCfg::default())
-            .map_err(|e| format!("{e}: give events, or declare `fn main()`"))?;
+        let r = crate::conc::run_main(&m, &crate::conc::RunCfg::default()).map_err(|e| {
+            if crate::conc::is_no_task_threads(&e) { e } else { format!("{e}: give events, or declare `fn main()`") }
+        })?;
         for o in &r.outputs {
             lines.push(format!("emit {}", o.show()));
         }
@@ -125,7 +133,7 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
                 true
             }
         };
-        return Ok(RunOut { lines, kept });
+        return Ok(RunOut { lines, kept, last_kept: kept });
     };
     // The event list uses the syntax of an `example` line (3.x): parse it as one.
     let probe =
@@ -135,6 +143,7 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     };
     let mut s = it.initial_state().map_err(why)?;
     lines.push(format!("0 (initial) {}", show_state(&s)));
+    let (mut kept, mut last_kept) = (false, false);
     for (k, (evn, args)) in x.events.iter().enumerate() {
         it.scopes = vec![HashMap::new()];
         let ev: V = match it.construct(evn, args) {
@@ -152,17 +161,12 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
             }
             Err(r) => {
                 lines.push(format!("{} {} kept: {r}", k + 1, ev.show()));
-                return Ok(RunOut {
-                    lines,
-                    kept: true,
-                });
+                kept = true;
+                last_kept = k + 1 == x.events.len();
             }
         }
     }
-    Ok(RunOut {
-        lines,
-        kept: false,
-    })
+    Ok(RunOut { lines, kept, last_kept })
 }
 
 /// Number of `example` lines and `check` items in a module.
@@ -180,6 +184,39 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
         }
     }
     (e, c)
+}
+
+/// The reports of one file (joined by `; `, each starting `line N: `),
+/// each followed by its method from the table of 7.1: `[altered by rce
+/// fmt]` for a rule whose rewrite `rce fmt` writes, else `[requires
+/// change]` (10.2).
+pub fn with_methods(reports: &str) -> String {
+    let mut parts: Vec<String> = vec![];
+    for (k, r) in reports.split("; line ").enumerate() {
+        let r = if k == 0 { r.to_string() } else { format!("line {r}") };
+        match parts.last_mut() {
+            // a `;` inside a message, not between two reports
+            Some(last) if k > 0 && line_of(&r) == 1 && !r.starts_with("line 1:") => {
+                last.push_str("; ");
+                last.push_str(&r);
+            }
+            _ => parts.push(r),
+        }
+    }
+    parts
+        .iter()
+        .map(|r| format!("{r} [{}]", method_text(r)))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// The method of one report, as `rce check` prints it.
+pub fn method_text(report: &str) -> &'static str {
+    let rule = report.split_once(": ").and_then(|(_, m)| m.split(' ').next()).unwrap_or("");
+    match crate::specread::rule_method(rule) {
+        Some("altered") => "altered by rce fmt",
+        _ => "requires change",
+    }
 }
 
 /// The recommended changes of an admitted module (10.2). W-INT-2 (6.9): the
@@ -540,9 +577,10 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
 pub const TRACE_FORMAT: &str = "rce-trace/2";
 
 /// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
-/// Without EVENTS, one trace per `example` of the module (its log D, 6.1);
-/// with EVENTS, one trace of that event list. Each step carries the
-/// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
+/// Without EVENTS, one trace per `example` of the module (its log D, 6.1),
+/// then, when the module declares `fn main()`, the trace of its run on the
+/// tick runtime (`main_trace`); with EVENTS, one trace of that event list.
+/// Each step carries the canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
 /// the derived `outcome`, and `hashed`, the positional forms of the event
 /// and the state that the two hashes are over (6.1, T7); a trace stops at
 /// the first event whose step keeps the state.
@@ -561,6 +599,14 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
 /// never checked: these are event lists, not examples (used by
 /// `scripts/xarch-streams.py` for the determinism streams of T37).
 pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, String> {
+    trace_report(file, src, streams).map(|(t, _)| t)
+}
+
+/// `trace_streams`, with the reason the trace of `fn main` is absent: when
+/// the host cannot start a task thread (`conc::NO_TASK_THREADS`), the trace
+/// of `fn main` is `{source: "main", outcome: {absent: REASON}, steps: []}`
+/// and the second value is REASON; the other traces are unchanged.
+pub fn trace_report(file: &str, src: &str, streams: &[&str]) -> Result<(String, Option<String>), String> {
     let d = diagnostics(src, &HashSet::new());
     if !d.is_empty() {
         return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
@@ -619,6 +665,17 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     if let (Some(evs), true) = (events, traces.is_empty()) {
         return Err(format!("events: `{evs}` gives no trace (no state, or an unknown event)"));
     }
+    let mut absent = None;
+    if streams.is_empty() && has_main(&m) {
+        match main_trace(&m, &crate::conc::RunCfg::default()) {
+            Ok(t) => traces.push(t),
+            Err(e) if crate::conc::is_no_task_threads(&e) => {
+                traces.push(serde_json::json!({ "source": "main", "outcome": { "absent": e }, "steps": [] }));
+                absent = Some(e);
+            }
+            Err(e) => return Err(e),
+        }
+    }
     let name = std::path::Path::new(file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     let mut v = serde_json::json!({
         "format": TRACE_FORMAT,
@@ -630,7 +687,58 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     if streams.len() > 1 {
         v["streams"] = serde_json::json!(streams.len());
     }
-    Ok(crate::interp::canon_json(&v))
+    Ok((crate::interp::canon_json(&v), absent))
+}
+
+/// Whether a module declares `fn main()` with no parameters, the program
+/// that `rce run FILE` runs without events (10.3).
+pub fn has_main(m: &Module) -> bool {
+    m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()))
+}
+
+/// The trace of the run of `fn main()` on the tick runtime (10.3, 10.9):
+/// `{source: "main", outcome, steps}`. A step is one entry of the run's log
+/// D, in the order the scheduler writes them (C.11.4). An entry's text `K`
+/// or `K(A)` gives the event `{type: K, payload: A}` (payload null for
+/// `K`); the state is `[tick, actors]` (`conc::Entry::state`); `prev_hash`
+/// and `hash` chain from the genesis as an example's entries do (6.1);
+/// `outcome` is `{kept: A}` for a `Kept(A)` entry (an actor's handler that
+/// kept its state) and `"applied"` for every other entry. `outcome` of the
+/// trace is how the run ended: `"done"`, `"deadlock"` or `{stopped: REASON}`.
+pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::Value, String> {
+    let r = crate::conc::run_main_traced(m, cfg)?;
+    let mut prev = crate::interp::D_GENESIS.to_string();
+    let mut steps = vec![];
+    for (seq, e) in r.log.iter().enumerate() {
+        let (ty, payload) = match e.what.split_once('(') {
+            Some((k, a)) => (k, a.strip_suffix(')').map(String::from)),
+            None => (e.what.as_str(), None),
+        };
+        let event = serde_json::json!({ "type": ty, "payload": payload });
+        let sj = e.state.clone().ok_or("internal: a traced run wrote an entry without its state")?;
+        let state: serde_json::Value = serde_json::from_str(&sj).map_err(|x| format!("state json: {x}"))?;
+        let state_hash = crate::interp::d_sha(&sj);
+        let body = format!(
+            "{{\"event\":{},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{state_hash}\"}}",
+            crate::interp::canon_json(&event)
+        );
+        let hash = crate::interp::d_sha(&body);
+        let outcome = match (ty, &payload) {
+            ("Kept", Some(a)) => serde_json::json!({ "kept": a }),
+            _ => serde_json::json!("applied"),
+        };
+        steps.push(serde_json::json!({
+            "seq": seq, "event": event, "state_hash": state_hash, "prev_hash": prev, "hash": hash,
+            "outcome": outcome, "hashed": { "event": event, "state": state },
+        }));
+        prev = hash;
+    }
+    let outcome = match r.outcome {
+        crate::conc::Outcome::Done => serde_json::json!("done"),
+        crate::conc::Outcome::Deadlock => serde_json::json!("deadlock"),
+        crate::conc::Outcome::Stopped(e) => serde_json::json!({ "stopped": e }),
+    };
+    Ok(serde_json::json!({ "source": "main", "outcome": outcome, "steps": steps }))
 }
 
 /// Usage of the language commands of `rce` (10.2 to 10.7).
@@ -638,7 +746,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce check FILE|DIR...          parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)
   rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
   rce test FILE|DIR...           run every example and check; report per file
-  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
+  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples and fn main(), or of EVENTS
   rce trace --json FILE --streams PATH  one trace per event list in PATH (one per line), in one run
   rce emit TARGET FILE           TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js
                                  or scala (a program printing its observations)
@@ -647,7 +755,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce form-check FORM [VECTORS]  the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or
                                  `requires change RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
                                  rce-vectors/1 admission vectors, checked by FG15
-  rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce fmt [--check] FILE...      write the rewrites of the altered rules (7.1), then canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
@@ -663,6 +771,9 @@ pub const USAGE_TEXT: &str = "usage:
   rce index [--vectors N] FILE|DIR...  brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term
   rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
   rce unform FORM.json           the canonical source of a Form's terms (inverse of `rce emit form`)
+  rce repair [json] [bound N] FILE [MODULE...]  propose a change to FILE, which requires change, by exact proposers judged by the checker:
+                                 a reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,
+                                 default 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called
   rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
   rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--http HOST:PORT] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, each HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (--http, Appendix E HC-24), Display(data) is written to stdout, Exit or SIGTERM ends the loop
   rce host tls-id FILE --log D   the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with --peer ADDR=KEY under --tls)
@@ -750,7 +861,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     }
                     Err(e) => {
                         bad += 1;
-                        writeln!(out, "requires change {p}: {e}").map_err(w)?
+                        writeln!(out, "requires change {p}: {}", with_methods(&e)).map_err(w)?
                     }
                 }
             }
@@ -763,6 +874,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                         writeln!(out, "{l}").map_err(w)?;
                     }
                     if r.kept { STEP_KEPT } else { OK }
+                }
+                Err(e) if crate::conc::is_no_task_threads(&e) => {
+                    writeln!(err, "{}: {e}", rest[0]).map_err(w)?;
+                    HOST_LIMIT
                 }
                 Err(e) => {
                     writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
@@ -818,10 +933,16 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
         }
         Some("trace") if (rest.len() == 2 || rest.len() == 3) && rest[0] == "--json" => {
-            match trace(&rest[1], &read_file(&rest[1])?, rest.get(2).map(String::as_str)) {
-                Ok(t) => {
+            let streams: Vec<&str> = rest.get(2).map(String::as_str).into_iter().collect();
+            match trace_report(&rest[1], &read_file(&rest[1])?, &streams) {
+                Ok((t, None)) => {
                     writeln!(out, "{t}").map_err(w)?;
                     OK
+                }
+                Ok((t, Some(e))) => {
+                    writeln!(out, "{t}").map_err(w)?;
+                    writeln!(err, "{}: no trace of fn main: {e}", rest[1]).map_err(w)?;
+                    HOST_LIMIT
                 }
                 Err(e) => {
                     writeln!(out, "requires change {}: {e}", rest[1]).map_err(w)?;
@@ -1205,11 +1326,28 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let mut code = OK;
             for p in files {
                 let src = read_file(p)?;
-                match fmt_text(&src) {
+                // the rewrites of the rules whose method is altered (7.1),
+                // then the canonical layout
+                let (altered, done) = crate::alter::alter(&src);
+                let src_alt = if fmt_text(&altered).is_ok() { altered } else { src.clone() };
+                let done = if src_alt == src { vec![] } else { done };
+                for a in &done {
+                    let verb = if check { "would alter" } else { "altered" };
+                    writeln!(out, "{verb} {p}: line {}: {} {}", a.line, a.rule, a.what).map_err(w)?;
+                }
+                // a report of an altered rule whose rewrite would add or
+                // change another report is left for the author
+                for r in crate::alter::unaltered(&src_alt) {
+                    writeln!(out, "requires change {p}: {r} [not altered: the rewrite would add or change another report]").map_err(w)?;
+                    code = REQUIRES_CHANGE;
+                }
+                match fmt_text(&src_alt) {
                     Ok(n) if n == src => {}
                     Ok(n) => {
                         if check {
-                            writeln!(out, "would reformat {p}").map_err(w)?;
+                            if n != src_alt {
+                                writeln!(out, "would reformat {p}").map_err(w)?;
+                            }
                             code = REQUIRES_CHANGE;
                         } else {
                             std::fs::write(p, n).map_err(|e| format!("{p}: {e}"))?;
@@ -1247,6 +1385,39 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(out, "{r} {m}.{n} : {k}").map_err(w)?;
             }
             OK
+        }
+        Some("repair") if !rest.is_empty() => {
+            // rce repair [json] [bound N] FILE [MODULE...]   (10.13): words, then operands (PC-1)
+            let (mut json, mut bound, mut i) = (false, crate::repair::DEFAULT_BOUND, 0);
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "json" => {
+                        json = true;
+                        i += 1;
+                    }
+                    "bound" if i + 1 < rest.len() => {
+                        bound = rest[i + 1].parse().map_err(|_| format!("bound {}: N is a count of candidates", rest[i + 1]))?;
+                        i += 2;
+                    }
+                    _ => break,
+                }
+            }
+            let ops = &rest[i..];
+            if ops.is_empty() {
+                return Err("repair: a FILE is required".into());
+            }
+            if let Some(a) = ops.iter().find(|a| a.starts_with('-')) {
+                return Err(format!("repair: unexpected argument `{a}`"));
+            }
+            let src = read_file(&ops[0])?;
+            let others = load(&ops[1..])?;
+            let o = crate::repair::repair(&ops[0], &src, &others, bound);
+            if json {
+                writeln!(out, "{}", crate::repair::report_json(&ops[0], &o)).map_err(w)?;
+            } else {
+                write!(out, "{}", crate::repair::report(&ops[0], &o)).map_err(w)?;
+            }
+            if o.closed { OK } else { REQUIRES_CHANGE }
         }
         Some("lsp") if rest.is_empty() => serve_dyn(input, out),
         Some("help") | Some("--help") | Some("-h") => {
@@ -1315,19 +1486,37 @@ fn program_binding(log: &str, src: &str, write: bool) -> Result<Option<String>, 
 }
 
 fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
+    // HC-28: the host loop reports its status to its terminal (OSC 7501);
+    // the report is not an effect, and a failure is reported as `error`
+    let stem = std::path::Path::new(&a[1]).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut st = crate::status::Status::new(matches!(a[0].as_str(), "run" | "serve"), &stem);
+    let r = host_body(a, input, out, err, &mut st);
+    if let Err(e) = &r {
+        st.error(e);
+    }
+    r
+}
+
+fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write, st: &mut crate::status::Status) -> Result<i32, String> {
     use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
     let (sub, file, log) = (a[0].as_str(), &a[1], a.get(3).ok_or("--log D")?);
     let src = read_file(file)?;
     let d = diagnostics(&src, &HashSet::new());
     if !d.is_empty() {
-        writeln!(out, "requires change {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+        let d: Vec<String> = d.into_iter().map(|x| x.1).collect();
+        st.error(&format!("requires change: {}", d[0]));
+        writeln!(out, "requires change {file}: {}", d.join("; ")).map_err(w)?;
         return Ok(REQUIRES_CHANGE);
     }
     let m = crate::program(&src)?;
+    if let Some(p) = &m.path {
+        st.retitle(&p.join("."));
+    }
     // HC-27: a log is bound to the program that wrote it.
     if matches!(sub, "run" | "serve" | "replay") {
         if let Some(why) = program_binding(log, &src, sub != "replay")? {
+            st.error("requires change: HC-27, the log was written by another program");
             writeln!(out, "requires change {file}: {why}").map_err(w)?;
             return Ok(REQUIRES_CHANGE);
         }
@@ -1546,11 +1735,15 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if let Some(start) = chan_start.take() {
                 start();
             }
+            // HC-28: open, and waiting for input
+            st.idle(h.len(), h.state_hash());
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out, http.as_mut())?;
-                let live = h.state_hash().to_string();
+                let code = serve_loop(&mut h, &src, out, http.as_mut(), st)?;
+                let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
-                return validate_run(&m, log, &live, code, err);
+                let code = validate_run(&m, log, &live, code, err)?;
+                st.done(n, &live);
+                return Ok(code);
             }
             // HC-24: the lines of the input, as bytes, so a line that is not
             // UTF-8 is held like any line that is not events of the module
@@ -1564,6 +1757,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             };
             let mut kept = false;
             for b in batches {
+                st.working();
                 let before = h.len();
                 let admitted = match std::str::from_utf8(&b).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|t| h.admit(&src, t)) {
                     Ok(a) => a,
@@ -1593,12 +1787,18 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                         }
                     }
                 }
+                out.flush().map_err(w)?;
+                st.idle(h.len(), h.state_hash());
             }
             writeln!(out, "durable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash()).map_err(w)?;
             writeln!(out, "{}", show_state(h.state())).map_err(w)?;
-            let live = h.state_hash().to_string();
+            let (live, n) = (h.state_hash().to_string(), h.len());
             drop(h);
-            validate_run(&m, log, &live, if kept { REQUIRES_CHANGE } else { OK }, err)
+            // a kept step is an outcome recorded in D, not a stop of the
+            // host: the run ends `done` and exits 1 (10.3)
+            let code = validate_run(&m, log, &live, if kept { REQUIRES_CHANGE } else { OK }, err)?;
+            st.done(n, &live);
+            Ok(code)
         }
         _ => Err(format!("rce host: unknown subcommand `{sub}`")),
     }
@@ -1616,8 +1816,7 @@ pub fn form_full(m: &Module) -> Result<String, String> {
     let base = form_json(m);
     let terms = serde_json::to_string(m).map_err(|e| format!("terms: {e}"))?;
     let source = serde_json::to_string(&crate::unparse::unparse(m)).map_err(|e| e.to_string())?;
-    let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
-    let main = if has_main {
+    let main = if has_main(m) {
         match crate::conc::run_main(m, &crate::conc::RunCfg::default()) {
             Ok(r) => {
                 let outs: Vec<String> = r.outputs.iter().map(|o| interp::form_value(o, m).json()).collect();
@@ -1705,7 +1904,7 @@ pub const FRAME_MS: u64 = 16;
 /// Each drain performs at most DRAIN_MAX requests and the next round
 /// starts at once while requests are queued, so a stop is read between
 /// drains even when results keep requesting effects.
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>) -> Result<i32, String> {
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::host::Host;
     use std::sync::mpsc;
@@ -1785,6 +1984,12 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                 Ok(x) => batch.push(x),
                 Err(_) => break,
             }
+        }
+        // HC-28: a round with an input from outside is work; a frame tick
+        // is the host's own clock and leaves the reported state as it is
+        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. })));
+        if work {
+            st.working();
         }
         let mut adm = vec![];
         let mut answers: Vec<(mpsc::Sender<crate::adapters::http::Reply>, u64)> = vec![];
@@ -1913,6 +2118,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         if exit || end {
             break 'serve;
         }
+        st.idle(h.len(), h.state_hash());
         if let (Some(t), Some(s)) = (stopping, http.as_deref()) {
             let idle = s.active() == 0 && open.as_ref().is_none_or(|o| o.borrow().is_empty());
             if idle || t.elapsed() >= Duration::from_millis(STOP_MS) {

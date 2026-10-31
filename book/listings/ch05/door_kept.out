@@ -1,4 +1,5 @@
 0 (initial) Door { open = false, locked = false }
 1 Lock Door { open = false, locked = true }
 2 Open kept: Locked
+3 Close Door { open = false, locked = true }
 exit status: 1
