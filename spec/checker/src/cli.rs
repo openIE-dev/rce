@@ -680,7 +680,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce form-check FORM [VECTORS]  the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or
                                  `requires change RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
                                  rce-vectors/1 admission vectors, checked by FG15
-  rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce fmt [--check] FILE...      write the rewrites of the altered rules (7.1), then canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not

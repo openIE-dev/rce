@@ -1,2 +1,2 @@
-requires change wrong_example.rce: line 2: W-INT-1 example does not hold: final value is 2, expected 3
+requires change wrong_example.rce: line 2: W-INT-1 example does not hold: final value is 2, expected 3 [requires change]
 exit status: 1

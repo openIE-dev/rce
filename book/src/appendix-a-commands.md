@@ -8,7 +8,7 @@
 | `rce run FILE` | run `fn main()` and print what it emits |
 | `rce trace --json FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
 | `rce emit TARGET FILE` | `form`, `rust`, `python`, `js` or `scala` (the emit registry lists further targets) |
-| `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
+| `rce fmt [--check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
 | `rce equiv [--fuel N] [--json] A B` | whether two programs have the same behaviour on the explored events, with the shortest distinguishing sequence when not |
 | `rce fingerprint [--depth N] [--fuel N] [--json] FILE...` | a hash of what a program outputs on every event sequence up to N events long: programs `rce equiv` judges equivalent share it whatever their shape |
 | `rce change [--fuel N] OLD NEW` | classify a change: erratum (every export compatible, every behaviour kept), meaning change, interface change |

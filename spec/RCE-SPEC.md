@@ -2406,7 +2406,7 @@ section 8) is the ground of a rewrite that renames.
 | W-BUD-1 | requires change | The budget is the author's statement. |
 | W-UNUSED-1 | altered | An unread binding `x` is named `_x`, a binding `_x` that is read is named `x`, and an unread `use` takes a name that begins with `_` and links the same module; names carry no meaning (T7). |
 | W-UNUSED-2 | requires change | Which branch the constant condition was meant to choose is the author's statement. |
-| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did. |
+| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did; an arm `P -> e` becomes a block arm holding `let _ = e`. |
 | W-ASSIGN-1 | requires change | Which of the two stores was meant is the author's statement. |
 | W-LEX-4 | requires change | The rule shows the author a character the text hides; what to write instead is the author's choice. |
 | W-NAME-3 | requires change | The new name is the author's choice. |
@@ -3521,8 +3521,10 @@ rewrites are those of the table of 7.1. A new name is the first of `n`,
 written only when the static reports of the new text are those of the old
 text less the one it answers; otherwise the report is printed as
 `requires change FILE: line N: RULE message [not altered: …]` and the
-status is 1. No line is added or removed, and a second run writes nothing
-(`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+status is 1. No line is added or removed, except that a match arm written
+on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
+`P` with the one statement `let _ = e`, since `let` is not an expression. A
+second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
 step changes exactly the places its rewrites name.
 
 With `--check`, no file is written; each rewrite is printed as

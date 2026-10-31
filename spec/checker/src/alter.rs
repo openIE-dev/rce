@@ -14,7 +14,8 @@
 //! the new text are those of the old text less the report it answers: no
 //! report is added and none changes. A rewrite that would add one is not
 //! written, and its report stays. No line is added or removed, so the line
-//! numbers of every other report hold. The rewrite is deterministic, and a
+//! numbers of every other report hold, except where an arm written on one
+//! line becomes a block (W-DROP-1 in `P -> e`, where `let` cannot stand). The rewrite is deterministic, and a
 //! second run finds nothing to rewrite (`tests/three_methods.rs`).
 use std::collections::HashSet;
 
@@ -22,7 +23,8 @@ use std::collections::HashSet;
 /// checks that this is the set of rules whose method is `altered` in 7.1.
 pub const RULES: &[&str] = &["W-DROP-1", "W-UNUSED-1"];
 
-/// One rewrite written: the line, the rule and what was written.
+/// One rewrite written: the line (of the text as it was when the rewrite
+/// was written), the rule and what was written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Alteration {
     pub line: usize,
@@ -123,11 +125,7 @@ fn idents(src: &str) -> Vec<Ident> {
                 b')' | b'}' => {
                     stack.pop();
                 }
-                b']' => {
-                    if stack.pop().is_some_and(|(o, g)| o == b'[' && g) {
-                        mark = "]fn".into();
-                    }
-                }
+                b']' if stack.pop().is_some_and(|(o, g)| o == b'[' && g) => mark = "]fn".into(),
                 _ => {}
             }
             if !c.is_ascii_whitespace() {
@@ -216,6 +214,15 @@ fn rule_of(report: &str) -> Option<&str> {
     code.starts_with("W-").then_some(code)
 }
 
+/// A report as it reads after a line is added after line `at`.
+fn shift(report: &str, at: usize) -> String {
+    let l = crate::cli::line_of(report);
+    match report.strip_prefix(&format!("line {l}:")) {
+        Some(rest) if l > at => format!("line {}:{rest}", l + 1),
+        _ => report.to_string(),
+    }
+}
+
 /// One round: every report of an altered rule in `src`, each rewrite tried
 /// on the text as the earlier ones left it.
 fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> String {
@@ -231,14 +238,27 @@ fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> Stri
             continue; // answered by an earlier rewrite (a `_x` read on several lines)
         }
         let line = crate::cli::line_of(&target);
-        let mut tries: Vec<(String, String, &'static str)> = vec![];
+        // (new text, what was written, rule, the line after which a line was added)
+        let mut tries: Vec<(String, String, &'static str, Option<usize>)> = vec![];
         match rule_of(&target) {
             Some("W-DROP-1") => {
                 if let Some((s, t)) = line_text(&text, line) {
                     for k in statement_starts(t) {
                         let mut n = text.clone();
                         n.insert_str(s + k, "let _ = ");
-                        tries.push((n, "the expression statement is written `let _ = …`".into(), "W-DROP-1"));
+                        tries.push((n, "the expression statement is written `let _ = …`".into(), "W-DROP-1", None));
+                    }
+                    // a match arm on one line takes an expression, not `let`:
+                    // the arm's body becomes a block of one statement
+                    let lead = t.len() - t.trim_start().len();
+                    for k in statement_starts(t).into_iter().skip(1) {
+                        let head = t[..k].trim_end();
+                        if let Some(pat) = head.strip_suffix("->") {
+                            let mut n = text.clone();
+                            let body = format!("{}\n{}let _ = {}", pat.trim_end(), " ".repeat(lead + 4), &t[k..]);
+                            n.replace_range(s..s + t.len(), &body);
+                            tries.push((n, "the arm's expression statement is written `let _ = …` in a block".into(), "W-DROP-1", Some(line)));
+                        }
                     }
                 }
             }
@@ -256,7 +276,7 @@ fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> Stri
                         let lead = &t[..t.len() - t.trim_start().len()];
                         let mut n = text.clone();
                         n.replace_range(s..s + t.len(), &format!("{lead}{} as {a}", head.trim_start()));
-                        tries.push((n, format!("`use` is written with the name `{a}`"), "W-UNUSED-1"));
+                        tries.push((n, format!("`use` is written with the name `{a}`"), "W-UNUSED-1", None));
                     }
                 }
             }
@@ -265,16 +285,29 @@ fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> Stri
                 for r in renames.iter().filter(|r| r.from == named && r.lines.contains(&line)) {
                     let to = fresh(&r.to, taken);
                     let n = rename(&text, &r.from, &to, &r.lines);
-                    tries.push((n, format!("`{}` is named `{to}`", r.from), "W-UNUSED-1"));
+                    tries.push((n, format!("`{}` is named `{to}`", r.from), "W-UNUSED-1", None));
                 }
             }
             _ => {}
         }
-        for (n, what, rule) in tries {
+        for (n, what, rule, added) in tries {
+            let base: Vec<String> = match added {
+                Some(at) => old.iter().map(|r| shift(r, at)).collect(),
+                None => old.clone(),
+            };
+            let target = match added {
+                Some(at) => shift(&target, at),
+                None => target.clone(),
+            };
             if let Some(new) = reports(&n)
-                && answers(&old, &new, &target)
+                && answers(&base, &new, &target)
             {
                 done.push(Alteration { line, rule, what });
+                if added.is_some() {
+                    // the line numbers of the other reports moved: the next
+                    // round reads them again
+                    return n;
+                }
                 text = n;
                 old = new;
                 break;
@@ -297,13 +330,15 @@ pub fn alter(src: &str) -> (String, Vec<Alteration>) {
     let taken: HashSet<String> = idents(src).iter().map(|i| src[i.start..i.end].to_string()).collect();
     let mut done = vec![];
     let mut text = src.to_string();
-    for _ in 0..4 {
+    // each round writes at least one rewrite or ends the loop; a round that
+    // adds a line ends early, so the bound is the number of reports
+    let bound = reports(src).map(|r| r.len()).unwrap_or(0) + 1;
+    for _ in 0..bound {
         let n = round(&text, &taken, &mut done);
         if n == text {
             break;
         }
         text = n;
     }
-    done.sort_by_key(|a| a.line);
     (text, done)
 }

@@ -413,8 +413,10 @@ rewrites are those of the table of 7.1. A new name is the first of `n`,
 written only when the static reports of the new text are those of the old
 text less the one it answers; otherwise the report is printed as
 `requires change FILE: line N: RULE message [not altered: …]` and the
-status is 1. No line is added or removed, and a second run writes nothing
-(`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
+status is 1. No line is added or removed, except that a match arm written
+on one line, `P -> e`, whose `e` is a W-DROP-1 report becomes the block arm
+`P` with the one statement `let _ = e`, since `let` is not an expression. A
+second run writes nothing (`tests/three_methods.rs`). Item 1 holds for the layout step; the altered
 step changes exactly the places its rewrites name.
 
 With `--check`, no file is written; each rewrite is printed as
@@ -742,4 +744,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: e2fb4364f9cdb0828765f2b0d956df0d6b3e3761c91579a74b2bf160659ef6cf -->
+<!-- body-sha256: 186e01dbce993a99eb7a45de612b645a31f743e977ad5c08cab45e68fb8d726a -->

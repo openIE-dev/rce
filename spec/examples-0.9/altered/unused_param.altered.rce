@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+fn f(a: i64, _b: i64) -> i64
+    return a
+
+fn main()
+    emit f(1, 2).tostr()

@@ -1,2 +1,2 @@
-requires change shop/orders.rce: line 2: W-NAME-1 unknown module `shop.pricing`; line 10: W-NAME-1 unknown name `pricing`
+requires change shop/orders.rce: line 2: W-NAME-1 unknown module `shop.pricing` [requires change]; line 10: W-NAME-1 unknown name `pricing` [requires change]
 exit status: 1

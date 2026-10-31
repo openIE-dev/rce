@@ -1,2 +1,2 @@
-requires change use_after_move.rce: line 5: W-OWN-1 `s` is used after it was moved
+requires change use_after_move.rce: line 5: W-OWN-1 `s` is used after it was moved [requires change]
 exit status: 1

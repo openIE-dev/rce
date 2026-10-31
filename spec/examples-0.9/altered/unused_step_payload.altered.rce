@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+state Account
+    balance: i64 = 0
+
+event Deposit(amount: i64, memo: i64)
+
+step Account on Deposit(amount: amount, memo: _memo) -> balance + amount
+
+example Deposit(amount: 5, memo: 1), Deposit(amount: 7, memo: 2) -> 12

@@ -227,7 +227,7 @@ section 8) is the ground of a rewrite that renames.
 | W-BUD-1 | requires change | The budget is the author's statement. |
 | W-UNUSED-1 | altered | An unread binding `x` is named `_x`, a binding `_x` that is read is named `x`, and an unread `use` takes a name that begins with `_` and links the same module; names carry no meaning (T7). |
 | W-UNUSED-2 | requires change | Which branch the constant condition was meant to choose is the author's statement. |
-| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did. |
+| W-DROP-1 | altered | `let _ = e` evaluates `e` and drops its value, as the expression statement did; an arm `P -> e` becomes a block arm holding `let _ = e`. |
 | W-ASSIGN-1 | requires change | Which of the two stores was meant is the author's statement. |
 | W-LEX-4 | requires change | The rule shows the author a character the text hides; what to write instead is the author's choice. |
 | W-NAME-3 | requires change | The new name is the author's choice. |
@@ -263,4 +263,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: 2e9c268e7aa37ea4cda4dc14fc3134ef5107c605496a4654296e330286a71189 -->
+<!-- body-sha256: c8fe36deaaec46aaf012062797642bafc2ba8cf235e5c15aa17bd6fde819e7ec -->
