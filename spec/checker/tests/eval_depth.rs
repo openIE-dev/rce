@@ -11,13 +11,13 @@ fn rce_test(file: &str) -> String {
 
 #[test]
 fn deep_recursion_under_the_limit_runs() {
-    let out = rce_test("tests/depth/ok_7000.rce");
+    let out = rce_test("tests/depth/under_limit.rce");
     assert!(out.starts_with("ok "), "{out}");
 }
 
 #[test]
 fn deep_recursion_over_the_limit_is_the_defined_trap() {
-    let out = rce_test("tests/depth/trap_10000.rce");
+    let out = rce_test("tests/depth/over_limit.rce");
     assert!(out.contains("trap: evaluation depth"), "{out}");
 }
 
@@ -25,7 +25,7 @@ fn deep_recursion_over_the_limit_is_the_defined_trap() {
 fn the_limit_holds_on_a_small_host_stack() {
     // the same program in process, on a 256 KiB thread: stacker grows the
     // stack on the heap, so the outcome is the trap, not an overflow
-    let src = std::fs::read_to_string("tests/depth/trap_10000.rce").unwrap();
+    let src = std::fs::read_to_string("tests/depth/over_limit.rce").unwrap();
     let r = std::thread::Builder::new()
         .stack_size(256 * 1024)
         .spawn(move || {

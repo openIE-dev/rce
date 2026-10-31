@@ -1,0 +1,15 @@
+# Recursion under the evaluation-depth limit (interp::EVAL_DEPTH) runs to its
+# result on every host, including wasm32 (see tests/eval_depth.rs).
+fn down(n: i64) -> i64 bound 100000000
+    if n <= 0
+        return 0
+    return 1 + down(n - 1)
+
+check down(7000) == 7000
+#--- rce-test
+# id: evaluation-fuel/harvested/under-limit-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested checker/tests/depth/under_limit.rce
+#---

@@ -4734,8 +4734,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/ok-7000-accept.rce",
-   "id": "evaluation-fuel/harvested/ok-7000-accept",
+   "path": "tests/evaluation-fuel/harvested/under-limit-accept.rce",
+   "id": "evaluation-fuel/harvested/under-limit-accept",
    "area": "evaluation-fuel",
    "clauses": [
     "CH03-M-28cdd241",
@@ -4858,8 +4858,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/trap-10000-change.rce",
-   "id": "evaluation-fuel/harvested/trap-10000-change",
+   "path": "tests/evaluation-fuel/harvested/over-limit-change.rce",
+   "id": "evaluation-fuel/harvested/over-limit-change",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -9041,8 +9041,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/generated/mut-bigint-ok-7000-accept.rce",
-   "id": "lexing-parsing/generated/mut-bigint-ok-7000-accept",
+   "path": "tests/lexing-parsing/generated/mut-bigint-under-limit-accept.rce",
+   "id": "lexing-parsing/generated/mut-bigint-under-limit-accept",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
