@@ -79,8 +79,17 @@ before D is opened. Layout and comments are not part of the hash.
 - For a change that `rce change OLD NEW` classifies as an erratum, write the
   new hash to `D.program` (the refusal prints it) and restart; that write is
   the record of the decision.
-- `rce change` checks behaviour on the event alphabet it explores, not on
-  every input. A change in how an unexplored request is answered (in a
-  test, a wrong method's status changed from 405 to 501) can be classified
-  as an erratum, so read its verdict as holding on that alphabet before
-  rebinding a log.
+- `rce change` checks behaviour on the event alphabet it explores
+  (specification 10.11): each payload field's boundary values, plus the
+  literals that the steps, and the functions they pass the field to,
+  compare the field with (`==`, `!=`, `<`, `<=`, `>`, `>=`, `match` arms),
+  their integer neighbours, and a text that none of them equals. Both
+  programs are explored over the literals of both. So a wrong method's
+  status changed from 405 to 501 in `programs/network/notes_http.rce` is a
+  meaning change: the request `("", "/health")` reaches the branch, and the
+  report names it. The check is still not every input: a value the program
+  derives with a method call or an operator before comparing it (a path
+  segment of `target.split("/")`, `x + 1 > 9`) is not followed, so a branch
+  reached only that way can stay unexplored, and the exploration stops at
+  `--fuel` states ("to the explored bound"). Read an erratum as holding on
+  that alphabet before rebinding a log.

@@ -2,9 +2,10 @@
 //! in and the redundancy of its state.
 //!
 //! Exploration: breadth-first from s₀ over every declared event, with
-//! payloads drawn from the boundary set of 6.3 per field type (the T35
-//! refinement fragment is not read yet: a refined field gets its base type's
-//! boundary set). Partition refinement: Moore's iterative algorithm on the
+//! payloads drawn per field from the boundary set of 6.3 of its base type
+//! and the field's harvested values (`harvest`, 10.11): the literals the
+//! steps compare the field with, including those of a refined type's
+//! predicate. Partition refinement: Moore's iterative algorithm on the
 //! explored graph with the per-step output of λ as the initial partition.
 //! It is quadratic in the worst case where Hopcroft is n log n; it is kept
 //! because its order of operations is obviously deterministic and the graphs
@@ -27,9 +28,9 @@
 //! in breadth-first order from s0 with events in canonical order
 //! (Reis, Moreira and Almeida 2005) and `shape_ctl` is its SHA-256.
 
-use crate::ast::{Arg, Expr, Item, Module, Ty};
+use crate::ast::{Arg, Body, Expr, FnDecl, Item, Module, Param, Pat, SelArm, Stmt, Ty};
 use crate::interp::{state_json, why, Interp, Region, V};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 /// One concrete event instance: its name and the literal arguments used to
 /// construct it, kept so the report can name a distinguishing event.
@@ -109,9 +110,553 @@ fn boundary(t: &Ty, aliases: &HashMap<String, Ty>) -> Option<Vec<Expr>> {
     }
 }
 
+/// The most harvested values one field adds to its boundary set (10.11):
+/// the smallest ones in value order are kept.
+pub const HARVEST_MAX: usize = 64;
+
+/// A literal a step compares an event field against (10.11), as a value.
+/// Ordered by kind, then by value (integers numerically, floats by their
+/// total order, texts by their bytes), so a harvested set has one order.
+#[derive(Clone, Debug)]
+pub enum Lit {
+    Int(i128),
+    Float(f64),
+    Text(String),
+}
+
+impl Lit {
+    fn rank(&self) -> u8 {
+        match self {
+            Lit::Int(_) => 0,
+            Lit::Float(_) => 1,
+            Lit::Text(_) => 2,
+        }
+    }
+}
+
+impl PartialEq for Lit {
+    fn eq(&self, o: &Self) -> bool {
+        self.cmp(o).is_eq()
+    }
+}
+impl Eq for Lit {}
+impl PartialOrd for Lit {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+impl Ord for Lit {
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        match (self, o) {
+            (Lit::Int(a), Lit::Int(b)) => a.cmp(b),
+            (Lit::Float(a), Lit::Float(b)) => a.total_cmp(b),
+            (Lit::Text(a), Lit::Text(b)) => a.as_bytes().cmp(b.as_bytes()),
+            _ => self.rank().cmp(&o.rank()),
+        }
+    }
+}
+
+/// The literals harvested per event (declaration index) and payload field
+/// (position): the alphabet's additions to the boundary sets (10.11).
+pub type Harvest = Vec<Vec<BTreeSet<Lit>>>;
+
+/// Where a name's value comes from: the field `(event, position)` it is
+/// bound to, directly or through `copy`, `&`, a cast or a branch of an `if`.
+type Field = (usize, usize);
+
+struct Harvester<'a> {
+    fns: HashMap<&'a str, &'a FnDecl>,
+    consts: HashMap<&'a str, Lit>,
+    out: Harvest,
+    /// (function, parameter position, field): each analysed once, which
+    /// bounds the walk through calls, recursive ones included
+    seen: BTreeSet<(String, usize, Field)>,
+}
+
+fn lit_of(e: &Expr, consts: &HashMap<&str, Lit>) -> Option<Lit> {
+    match e {
+        Expr::Int(i, _) => Some(Lit::Int(*i)),
+        Expr::Float(f, _) => Some(Lit::Float(*f)),
+        Expr::Str(s, _) => Some(Lit::Text(s.clone())),
+        Expr::Neg(x, _) => match lit_of(x, consts)? {
+            Lit::Int(i) => Some(Lit::Int(-i)),
+            Lit::Float(f) => Some(Lit::Float(-f)),
+            Lit::Text(_) => None,
+        },
+        Expr::Name(n, _) => consts.get(n.as_str()).cloned(),
+        _ => None,
+    }
+}
+
+impl<'a> Harvester<'a> {
+    fn new(m: &'a Module) -> Self {
+        let mut fns = HashMap::new();
+        let mut consts = HashMap::new();
+        for it in &m.items {
+            match it {
+                Item::Fn(f) => {
+                    fns.insert(f.sig.name.as_str(), f);
+                }
+                Item::Const { name, e, .. } => {
+                    if let Some(l) = lit_of(e, &HashMap::new()) {
+                        consts.insert(name.as_str(), l);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Harvester { fns, consts, out: vec![], seen: BTreeSet::new() }
+    }
+
+    fn record(&mut self, f: Field, l: Lit) {
+        self.out[f.0][f.1].insert(l);
+    }
+
+    /// The field an expression's value is, when it is a bound name or one
+    /// of the direct forms around it.
+    fn tie(e: &Expr, ties: &HashMap<String, Field>) -> Option<Field> {
+        match e {
+            Expr::Name(n, _) => ties.get(n).copied(),
+            Expr::SelfRef(_) => ties.get("self").copied(),
+            Expr::Borrow(_, x, _) | Expr::Cast(x, _, _) => Self::tie(x, ties),
+            Expr::Call(c, args, _, _) if args.len() == 1 && matches!(&**c, Expr::Name(n, _) if n == "copy") => Self::tie(&args[0].e, ties),
+            Expr::If(_, a, b, _) => Self::tie(a, ties).or_else(|| Self::tie(b, ties)),
+            _ => None,
+        }
+    }
+
+    fn pat_lits(&mut self, p: &Pat, f: Field) {
+        match p {
+            Pat::Lit(e) => {
+                if let Some(l) = lit_of(e, &self.consts) {
+                    self.record(f, l);
+                }
+            }
+            Pat::Range(a, _, b) => {
+                for e in [a, b] {
+                    if let Some(l) = lit_of(e, &self.consts) {
+                        self.record(f, l);
+                    }
+                }
+            }
+            Pat::Alt(ps) => ps.iter().for_each(|q| self.pat_lits(q, f)),
+            _ => {}
+        }
+    }
+
+    /// A pattern matched against a value of field `f` binds its name to `f`.
+    fn pat_bind(p: &Pat, f: Option<Field>, ties: &mut HashMap<String, Field>) {
+        if let Pat::Path(v) = p
+            && v.len() == 1
+        {
+            match f {
+                Some(f) => ties.insert(v[0].clone(), f),
+                None => ties.remove(&v[0]),
+            };
+        }
+    }
+
+    fn expr(&mut self, e: &Expr, ties: &HashMap<String, Field>) {
+        match e {
+            Expr::Bin(op, a, b, _) => {
+                if matches!(op.as_str(), "==" | "!=" | "<" | "<=" | ">" | ">=") {
+                    for (x, y) in [(a, b), (b, a)] {
+                        if let (Some(f), Some(l)) = (Self::tie(x, ties), lit_of(y, &self.consts)) {
+                            self.record(f, l);
+                        }
+                    }
+                }
+                self.expr(a, ties);
+                self.expr(b, ties);
+            }
+            Expr::Call(c, args, _, _) => {
+                if let Expr::Name(n, _) = &**c
+                    && let Some(&fd) = self.fns.get(n.as_str())
+                {
+                    let names: Vec<(Option<&String>, &String)> = fd
+                        .sig
+                        .params
+                        .iter()
+                        .filter_map(|p| match p {
+                            Param::Named { label, name, .. } => Some((label.as_ref(), name)),
+                            _ => None,
+                        })
+                        .collect();
+                    for (i, a) in args.iter().enumerate() {
+                        let Some(f) = Self::tie(&a.e, ties) else { continue };
+                        let pos = match &a.label {
+                            Some(l) => names.iter().position(|(lb, nm)| lb.unwrap_or(nm) == l),
+                            None => Some(i),
+                        };
+                        if let Some(pos) = pos.filter(|&p| p < names.len())
+                            && self.seen.insert((n.clone(), pos, f))
+                        {
+                            let mut inner = HashMap::new();
+                            inner.insert(names[pos].1.clone(), f);
+                            match &fd.body {
+                                Body::Arrow(x) => self.expr(x, &inner),
+                                Body::Block(ss) => self.stmts(ss, &mut inner),
+                            }
+                        }
+                    }
+                }
+                self.expr(c, ties);
+                args.iter().for_each(|a| self.expr(&a.e, ties));
+            }
+            Expr::Tuple(xs, _) | Expr::List(xs, _) => xs.iter().for_each(|x| self.expr(x, ties)),
+            Expr::Index(x, xs, _) => {
+                self.expr(x, ties);
+                xs.iter().for_each(|y| self.expr(y, ties));
+            }
+            Expr::Map(kv, _) => kv.iter().for_each(|(k, v)| {
+                self.expr(k, ties);
+                self.expr(v, ties);
+            }),
+            Expr::ListRepeat(a, b, _) | Expr::Catch(a, _, b, _) => {
+                self.expr(a, ties);
+                self.expr(b, ties);
+            }
+            Expr::ListComp(a, _, b, c, _) => {
+                self.expr(a, ties);
+                self.expr(b, ties);
+                if let Some(c) = c {
+                    self.expr(c, ties);
+                }
+            }
+            Expr::Slice(a, b, c, _) => {
+                self.expr(a, ties);
+                for x in [b, c].into_iter().flatten() {
+                    self.expr(x, ties);
+                }
+            }
+            Expr::Try(a, b, _) => {
+                self.expr(a, ties);
+                if let Some(b) = b {
+                    self.expr(b, ties);
+                }
+            }
+            Expr::If(c, a, b, _) => {
+                self.expr(c, ties);
+                self.expr(a, ties);
+                self.expr(b, ties);
+            }
+            Expr::Member(x, _, _)
+            | Expr::TupleMember(x, _, _)
+            | Expr::Neg(x, _)
+            | Expr::BitNot(x, _)
+            | Expr::Borrow(_, x, _)
+            | Expr::Recv(x, _)
+            | Expr::Comptime(x, _)
+            | Expr::Cast(x, _, _)
+            | Expr::Not(x, _)
+            | Expr::Lambda(_, x, _) => self.expr(x, ties),
+            _ => {}
+        }
+    }
+
+    fn stmts(&mut self, ss: &[Stmt], ties: &mut HashMap<String, Field>) {
+        for s in ss {
+            self.stmt(s, ties);
+        }
+    }
+
+    fn stmt(&mut self, s: &Stmt, ties: &mut HashMap<String, Field>) {
+        match s {
+            Stmt::Let(p, _, e, _) => {
+                self.expr(e, ties);
+                let f = Self::tie(e, ties);
+                Self::pat_bind(p, f, ties);
+            }
+            Stmt::Var(n, _, e, _) => {
+                self.expr(e, ties);
+                match Self::tie(e, ties) {
+                    Some(f) => ties.insert(n.clone(), f),
+                    None => ties.remove(n),
+                };
+            }
+            Stmt::Assign(_, place, e) => {
+                self.expr(e, ties);
+                self.expr(place, ties);
+                if let Expr::Name(n, _) = place {
+                    ties.remove(n);
+                }
+            }
+            Stmt::Match(x, arms, _) => {
+                self.expr(x, ties);
+                // a tuple scrutinee is matched position by position
+                let parts: Vec<Option<Field>> = match x {
+                    Expr::Tuple(xs, _) => xs.iter().map(|y| Self::tie(y, ties)).collect(),
+                    _ => vec![Self::tie(x, ties)],
+                };
+                for arm in arms {
+                    let mut t = ties.clone();
+                    match (&arm.pat, x) {
+                        (Pat::Tuple(ps), Expr::Tuple(..)) if ps.len() == parts.len() => {
+                            for (q, f) in ps.iter().zip(&parts) {
+                                if let Some(f) = f {
+                                    self.pat_lits(q, *f);
+                                }
+                                Self::pat_bind(q, *f, &mut t);
+                            }
+                        }
+                        (p, _) if parts.len() == 1 => {
+                            if let Some(f) = parts[0] {
+                                self.pat_lits(p, f);
+                            }
+                            Self::pat_bind(p, parts[0], &mut t);
+                        }
+                        _ => {}
+                    }
+                    if let Some(g) = &arm.guard {
+                        self.expr(g, &t);
+                    }
+                    self.stmts(&arm.body, &mut t);
+                }
+            }
+            Stmt::If(bs, els) => {
+                for (c, b) in bs {
+                    self.expr(c, ties);
+                    self.stmts(b, &mut ties.clone());
+                }
+                if let Some(b) = els {
+                    self.stmts(b, &mut ties.clone());
+                }
+            }
+            Stmt::While(c, inv, b) => {
+                self.expr(c, ties);
+                if let Some(i) = inv {
+                    self.expr(i, ties);
+                }
+                self.stmts(b, &mut ties.clone());
+            }
+            Stmt::Loop(c, b) => {
+                if let Some(c) = c {
+                    self.expr(c, ties);
+                }
+                self.stmts(b, &mut ties.clone());
+            }
+            Stmt::For(p, e, b, _) => {
+                self.expr(e, ties);
+                let mut t = ties.clone();
+                Self::pat_bind(p, None, &mut t);
+                self.stmts(b, &mut t);
+            }
+            Stmt::Arena(_, e, b, _) | Stmt::Device(_, e, b, _) => {
+                if let Some(e) = e {
+                    self.expr(e, ties);
+                }
+                self.stmts(b, &mut ties.clone());
+            }
+            Stmt::Comptime(b) => self.stmts(b, &mut ties.clone()),
+            Stmt::Select(arms, _) => {
+                for a in arms {
+                    match a {
+                        SelArm::Recv(_, e, b) | SelArm::After(e, b) => {
+                            self.expr(e, ties);
+                            self.stmts(b, &mut ties.clone());
+                        }
+                        SelArm::Send(x, y, b) => {
+                            self.expr(x, ties);
+                            self.expr(y, ties);
+                            self.stmts(b, &mut ties.clone());
+                        }
+                        SelArm::Default(b) => self.stmts(b, &mut ties.clone()),
+                    }
+                }
+            }
+            Stmt::Expr(e) | Stmt::Emit(e) | Stmt::Fail(e) | Stmt::Spawn(e) | Stmt::Check(e) | Stmt::Yield(e, _) => self.expr(e, ties),
+            Stmt::Send(a, b) => {
+                self.expr(a, ties);
+                self.expr(b, ties);
+            }
+            Stmt::Return(Some(e), _) => self.expr(e, ties),
+            _ => {}
+        }
+    }
+
+    /// A step (or actor handler) on event `ev`: its pattern binds fields,
+    /// its literal sub-patterns are harvested, then its guard and body.
+    fn step(&mut self, ev: usize, fields: &[(String, Ty)], pat: &Pat, guard: Option<&Expr>, body: &Body) {
+        let mut ties = HashMap::new();
+        if let Pat::Ctor(_, args) = pat {
+            for (i, (lb, q)) in args.iter().enumerate() {
+                let pos = match lb {
+                    Some(l) => fields.iter().position(|(n, _)| n == l),
+                    None => Some(i),
+                };
+                let Some(pos) = pos.filter(|&p| p < fields.len()) else { continue };
+                self.pat_lits(q, (ev, pos));
+                Self::pat_bind(q, Some((ev, pos)), &mut ties);
+            }
+        }
+        if let Some(g) = guard {
+            self.expr(g, &ties);
+        }
+        match body {
+            Body::Arrow(x) => self.expr(x, &ties),
+            Body::Block(ss) => self.stmts(ss, &mut ties),
+        }
+    }
+}
+
+/// Literal harvesting (10.11): for each event field, the literals that the
+/// program compares it against. A value is followed from the step pattern
+/// that binds the field through `let`/`var` bindings of the forms `x`,
+/// `copy(x)`, `&x`, `x as T` and `if c then x else y`, into match arms of
+/// that value (or of a tuple position holding it) and into the parameters
+/// of the module's functions it is passed to; the literals it meets in
+/// `==`, `!=`, `<`, `<=`, `>`, `>=`, in literal and range patterns, and in
+/// the predicate of a refined field type (with `self` the field) are
+/// recorded. A constant whose value is a literal counts as that literal.
+pub fn harvest(m: &Module) -> Harvest {
+    let mut h = Harvester::new(m);
+    let events: Vec<(&String, &Vec<(String, Ty)>)> = m
+        .items
+        .iter()
+        .filter_map(|i| match i {
+            Item::Event { name, payload, .. } => Some((name, payload)),
+            _ => None,
+        })
+        .collect();
+    h.out = events.iter().map(|(_, p)| vec![BTreeSet::new(); p.len()]).collect();
+    let ev_index = |n: &[String]| n.last().and_then(|n| events.iter().position(|(e, _)| *e == n));
+    for it in &m.items {
+        match it {
+            Item::Step { pat, guard, body, .. } => {
+                if let Pat::Ctor(n, _) = pat
+                    && let Some(ev) = ev_index(n)
+                {
+                    h.step(ev, events[ev].1, pat, guard.as_ref(), body);
+                }
+            }
+            Item::Actor { handlers, .. } => {
+                for hd in handlers {
+                    if let Pat::Ctor(n, _) = &hd.pat
+                        && let Some(ev) = ev_index(n)
+                    {
+                        h.step(ev, events[ev].1, &hd.pat, hd.guard.as_ref(), &hd.body);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    // the predicate of a refined field type, with `self` the field
+    for (ev, (_, payload)) in events.iter().enumerate() {
+        for (pos, (_, t)) in payload.iter().enumerate() {
+            if let Ty::Path(p, args) = t
+                && args.is_empty()
+                && p.len() == 1
+                && let Some(Item::TypeAlias { pred: Some(e), .. }) = m.items.iter().find(|i| matches!(i, Item::TypeAlias { name, .. } if *name == p[0]))
+            {
+                let mut ties = HashMap::new();
+                ties.insert("self".to_string(), (ev, pos));
+                h.expr(e, &ties);
+            }
+        }
+    }
+    h.out
+}
+
+/// The union of two harvests, event by declaration index and field by
+/// position, so `rce equiv` explores both programs over one alphabet.
+fn union(a: &Harvest, b: &Harvest) -> Harvest {
+    let mut out = a.clone();
+    for (ev, fs) in b.iter().enumerate() {
+        if ev >= out.len() {
+            out.push(fs.clone());
+            continue;
+        }
+        for (pos, s) in fs.iter().enumerate() {
+            if pos >= out[ev].len() {
+                out[ev].push(s.clone());
+            } else {
+                out[ev][pos].extend(s.iter().cloned());
+            }
+        }
+    }
+    out
+}
+
+/// The integer range of a base type, for clamping harvested neighbours.
+fn int_range(t: &str) -> Option<(i128, i128)> {
+    Some(match t {
+        "i8" => (i8::MIN as i128, i8::MAX as i128),
+        "i16" => (i16::MIN as i128, i16::MAX as i128),
+        "i32" => (i32::MIN as i128, i32::MAX as i128),
+        "i64" => (i64::MIN as i128, i64::MAX as i128),
+        "u8" => (0, u8::MAX as i128),
+        "u16" => (0, u16::MAX as i128),
+        "u32" => (0, u32::MAX as i128),
+        "u64" | "usize" => (0, u64::MAX as i128),
+        _ => return None,
+    })
+}
+
+/// The values a field's harvested literals add to its boundary set: for an
+/// integer type each literal and its two neighbours within the type's
+/// range; for a float type each literal and the literal ± 1; for text each
+/// literal. Values already in the boundary set are not repeated; at most
+/// `HARVEST_MAX` are added, the smallest first. For text, when every text
+/// of the boundary set is a harvested literal, the first of "a", "aa",
+/// "aaa", … that is not one is added after them.
+fn harvested_values(t: &Ty, aliases: &HashMap<String, Ty>, lits: &BTreeSet<Lit>, boundary: &[Expr]) -> Vec<Expr> {
+    let base = match t {
+        Ty::Path(p, args) if args.is_empty() && p.len() == 1 && aliases.contains_key(&p[0]) => {
+            return harvested_values(&aliases[&p[0]], aliases, lits, boundary);
+        }
+        Ty::Path(p, args) if args.is_empty() && p.len() == 1 => p[0].as_str(),
+        _ => return vec![],
+    };
+    let mut vals: BTreeSet<Lit> = BTreeSet::new();
+    if let Some((lo, hi)) = int_range(base) {
+        for l in lits {
+            if let Lit::Int(i) = l {
+                for v in [i.saturating_sub(1), *i, i.saturating_add(1)] {
+                    if lo <= v && v <= hi {
+                        vals.insert(Lit::Int(v));
+                    }
+                }
+            }
+        }
+    } else if base == "f64" || base == "f32" {
+        for l in lits {
+            if let Lit::Float(f) = l {
+                for v in [f - 1.0, *f, f + 1.0] {
+                    if v.is_finite() {
+                        vals.insert(Lit::Float(v));
+                    }
+                }
+            }
+        }
+    } else if base == "text" {
+        vals.extend(lits.iter().filter(|l| matches!(l, Lit::Text(_))).cloned());
+    }
+    let mut out: Vec<Expr> = vals
+        .into_iter()
+        .map(|l| match l {
+            Lit::Int(i) => Expr::Int(i, 0),
+            Lit::Float(f) => Expr::Float(f, 0),
+            Lit::Text(s) => Expr::Str(s, 0),
+        })
+        .filter(|e| !boundary.contains(e))
+        .take(HARVEST_MAX)
+        .collect();
+    // a text no comparison names, so the branch every literal misses is reached
+    if base == "text" && boundary.iter().all(|b| matches!(b, Expr::Str(s, _) if lits.contains(&Lit::Text(s.clone())))) {
+        let mut k = 1;
+        while lits.contains(&Lit::Text("a".repeat(k))) {
+            k += 1;
+        }
+        out.push(Expr::Str("a".repeat(k), 0));
+    }
+    out
+}
+
 /// Every concrete instance of the declared events, in declaration order
-/// (the name-free key of 6.6), payloads in the order of their boundary sets.
-fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
+/// (the name-free key of 6.6), payloads in the order of their boundary sets
+/// followed by the field's harvested values in value order.
+fn instances(m: &Module, harvest: &Harvest) -> (Vec<EvInst>, Vec<String>) {
     let mut out = vec![];
     let mut skipped = vec![];
     // type aliases, refined or not (5.1): a refined field gets its base type's
@@ -134,11 +679,17 @@ fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
             _ => None,
         })
         .collect();
-    'ev: for (name, payload) in decls {
+    'ev: for (ev, (name, payload)) in decls.into_iter().enumerate() {
         let mut columns: Vec<Vec<Expr>> = vec![];
-        for (_, t) in payload {
+        for (pos, (_, t)) in payload.iter().enumerate() {
             match boundary(t, &aliases) {
-                Some(b) => columns.push(b),
+                Some(mut b) => {
+                    if let Some(lits) = harvest.get(ev).and_then(|f| f.get(pos)) {
+                        let extra = harvested_values(t, &aliases, lits, &b);
+                        b.extend(extra);
+                    }
+                    columns.push(b)
+                }
                 None => {
                     skipped.push(format!("{name}: no boundary set for a field of type {t:?}"));
                     continue 'ev;
@@ -418,16 +969,16 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
 /// Breadth-first exploration of a program from its initial state over the
 /// boundary instances of its events (10.11), to at most `fuel` states.
 pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
-    explore_to(m, fuel, usize::MAX)
+    explore_to(m, fuel, usize::MAX, &harvest(m))
 }
 
 /// `explore` that expands only the states fewer than `max_depth` steps from
 /// s₀: a state at depth `max_depth` is stored but not stepped, and its row is
 /// unexplored (`None`, empty labels). `usize::MAX` is the whole exploration.
-fn explore_to(m: &Module, fuel: usize, max_depth: usize) -> Result<Graph, String> {
+fn explore_to(m: &Module, fuel: usize, max_depth: usize, harvest: &Harvest) -> Result<Graph, String> {
     let mut it = Interp::new(m);
     let s0 = it.initial_state().map_err(why)?;
-    let (evs, skipped) = instances(m);
+    let (evs, skipped) = instances(m, harvest);
     let has_state = m.items.iter().any(|i| matches!(i, Item::State { .. } | Item::Actor { .. }));
     if !has_state {
         return Err("a command (no state region) is one behaviour; nothing to explore".into());
@@ -662,8 +1213,10 @@ pub struct Equiv {
 /// bisimilarity). The verdict is over the explored alphabet; T59 bounds what
 /// trace agreement to a depth proves.
 pub fn equiv(a: &Module, b: &Module, fuel: usize) -> Result<Equiv, String> {
-    let ga = explore(a, fuel)?;
-    let gb = explore(b, fuel)?;
+    // one alphabet for both: the union of their harvested literals
+    let h = union(&harvest(a), &harvest(b));
+    let ga = explore_to(a, fuel, usize::MAX, &h)?;
+    let gb = explore_to(b, fuel, usize::MAX, &h)?;
     let sa: std::collections::BTreeSet<&String> = ga.keys.iter().collect();
     let sb: std::collections::BTreeSet<&String> = gb.keys.iter().collect();
     let only_a: Vec<String> = ga.keys.iter().zip(&ga.alphabet).filter(|(k, _)| !sb.contains(k)).map(|(_, s)| s.clone()).collect();
@@ -788,7 +1341,7 @@ pub fn fingerprint(m: &Module, depth: usize, fuel: usize) -> Result<Fingerprint,
     if depth == 0 {
         return Err("--depth n: n is at least 1".into());
     }
-    let g = explore_to(m, fuel, depth)?;
+    let g = explore_to(m, fuel, depth, &harvest(m))?;
     let k = g.keys.len();
     let n = g.states.len();
     // depth of each state (BFS from s0 over explored rows)

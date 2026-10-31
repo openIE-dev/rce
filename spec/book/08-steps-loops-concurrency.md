@@ -327,7 +327,7 @@ control quotient of the explored concrete machine instead.
 **Canonical control form.** Let M_c be the minimal machine of P_c, its
 states numbered by first visit in a breadth-first traversal from s₀ taking
 events in declaration order (the name-free key of 6.6) and payloads in the
-order of their boundary sets (Reis, Moreira and Almeida 2005: the
+order of their columns in the explored alphabet of 10.11 (Reis, Moreira and Almeida 2005: the
 canonical string of an initially connected DFA is unique and name-free by
 construction). `shape_ctl(P)` is the SHA-256 over the canonical JSON (6.1.1)
 of that string. `shape_ctl` equal means the same control behaviour up to
@@ -339,4 +339,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 3889de60f09ed86aaa28f6ba30f13e4119871f833ddd84312e04d027e9b6b811 -->
+<!-- body-sha256: 2d204e20fd1fe4c1ea64067c6c18e26830c00933c994eff77fe907c541871a3a -->

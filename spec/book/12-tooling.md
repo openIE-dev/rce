@@ -623,13 +623,43 @@ give equal output bytes.
 ### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
 
 `rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
-Form. It explores reach(P) breadth-first from s₀: at each state it applies
-every declared event with payloads drawn from each field's refinement type
-(T35 fragment: the bounds and the values next to them) or, for a field
-without one, from the boundary set of 6.3 (the type's minimum, −1, 0, 1,
-maximum; the empty text, list or map and one of one element). Exploration
-stops at `--fuel` states (default 100,000) and reports whether the bound
-was reached. On the explored graph it runs partition refinement (Hopcroft)
+Form, with its `use` imports linked. It explores reach(P) breadth-first
+from s₀: at each state it applies every instance of the *explored
+alphabet*, defined here. Each payload field has a column of candidate
+values: first the boundary set of 6.3 for the field's base type (the
+type's minimum, −1, 0, 1 and maximum for a signed integer; 0, 1 and the
+maximum for an unsigned one; −1.0, 0.0 and 1.0 for a float; `()`; `false` and
+`true`; the texts `""` and `"a"`; for `T?`, `none` and `some` of each
+value of T; for `List[T]`, the empty list and the list of the second value
+of T's set), then the field's *harvested values*. A field of another type
+has no boundary set, and its event is not explored (the report lists it).
+
+*Literal harvesting* finds the literals a program compares a field with.
+A field's value is followed from the step pattern (or actor handler) that
+binds it, through `let` and `var` bindings whose value is the name itself,
+`copy(x)`, `&x`, `x as T`, or `if c then x else y` with x or y followed,
+into the arms of a `match` on it (or on a tuple position that holds it),
+and into a parameter of a function of the module it is passed to, each
+(function, parameter, field) once. A literal (an integer, float or text
+literal, a negated one, or a constant whose value is one) is harvested
+when it meets a followed value in `==`, `!=`, `<`, `<=`, `>` or `>=`, as a
+literal or range-end pattern of a step pattern or a `match` arm, or in the
+predicate of the field's refined type (5.1) with `self` the field. A value
+computed by a method call or an operator (`t.split("/")`, `x + 1`) is not
+followed. The harvested values of an integer field are each harvested
+integer and its two neighbours within the type's range; of a float field,
+each harvested float and it ± 1.0; of a text field, each harvested text,
+and, when both `""` and `"a"` are harvested, the first of `"aa"`,
+`"aaa"`, … that is not, so some value of the column equals none of the
+literals. Values already in the column are not repeated; at most 64 are
+added per field, the smallest in value order, plus that one text. A field
+of another type harvests nothing. The instances of an event are the
+Cartesian product of its columns in field order, the first field varying
+slowest, cut at 4,096 instances per event; an instance that a refined type
+refuses at construction (T35) is not explored and is listed.
+
+Exploration stops at `--fuel` states (default 100,000) and reports whether
+the bound was reached. On the explored graph it runs partition refinement (Hopcroft)
 with the per-step output of λ as the initial partition, giving the number
 of distinct behaviours among explored states, which is dim(P) exactly when
 the bound was not reached and a lower bound otherwise. It prints, per
@@ -677,8 +707,11 @@ bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
 `rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
-behaviour (6.10): it explores both from their initial states over the same
-event instances, compares every step by its name-free output (emitted
+behaviour (6.10): it links both and explores both from their initial
+states over the same event instances (the explored alphabet above, with
+the harvested literals of A and B joined per event, by declaration index,
+and per field, by position, so `x < 5` and `x <= 4` are compared on the
+same values), compares every step by its name-free output (emitted
 values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
@@ -690,7 +723,9 @@ separates the initial states but no distinguishing sequence exists within
 the explored graph, the separation may come from the unexplored frontier,
 so the verdict is `undecided` with status 3, never `different`.
 The verdict is over the explored alphabet and, when a bound is reached, to
-that bound; T59 bounds what agreement to a depth proves. A program and its
+that bound; T59 bounds what agreement to a depth proves. Two programs that
+differ only on a payload value outside that alphabet (a target that only
+`t.split("/")` distinguishes, for example) are called equivalent. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 
@@ -724,4 +759,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: fa19d0b01673eacd9f5bfe7d05c1086d8d36b1fa8b7ebe292a66a5cbc7583c58 -->
+<!-- body-sha256: 58f388ddfbe9129c5b462befa3b30d3f919479f8c88dd2dbdde4aabb81428ff0 -->
