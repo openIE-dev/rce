@@ -5,7 +5,6 @@
 //! are rejected; the log replays to the same state hash.
 use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
-use std::path::Path;
 #[path = "support/flat.rs"]
 mod flat;
 

@@ -1,0 +1,6 @@
+**/target
+**/node_modules
+ide
+playground
+conformance/reports
+.git/objects/pack/*.pack

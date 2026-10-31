@@ -88,6 +88,22 @@ The [playground](https://openie-dev.github.io/rce/) runs the checker,
 compiled to WebAssembly, in the browser. [The RCE Book](https://openie-dev.github.io/rce/book/)
 teaches the language from first principles.
 
+## Install
+
+Every commit of `main` that passes CI is released as `rce-<commit>`, and
+`rce-latest` points at the newest; there is no typed version number, and
+`rce --version` prints the commit. To install the newest on Linux (x86_64,
+aarch64), macOS (Apple silicon) or Windows (Git Bash), checked against the
+release's SHA256SUMS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh
+```
+
+`sh install.sh COMMIT` installs one commit's release. The container image
+is `ghcr.io/openie-dev/rce` (tags `latest` and the full commit hash);
+[docs/DEPLOY.md](docs/DEPLOY.md) runs a program as a service with it.
+
 ## Build
 
 `rce` is built from source with [Rust](https://rustup.rs); `rustup` reads
@@ -102,8 +118,8 @@ cargo build --release
 install -m 755 target/release/rce ~/.local/bin/
 ```
 
-Prebuilt `rce` binaries with the desktop IDE are on the
-[releases page](https://github.com/openIE-dev/rce/releases).
+The desktop IDE, with its own copy of `rce`, is released separately under
+the `ide-v*` tags of the [releases page](https://github.com/openIE-dev/rce/releases).
 
 ## Quickstart
 

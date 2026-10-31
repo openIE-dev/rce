@@ -1,0 +1,58 @@
+name: deploy
+
+# The container image of deploy/Dockerfile, built and run as a service before
+# it can be released: programs/network/notes_http.rce serves HTTP from the
+# image, a note survives `docker stop` and a new container on the same log,
+# and `rce host replay` re-derives the live state hash.
+on:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - '.dockerignore'
+      - 'scripts/install.sh'
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          load: true
+          tags: rce:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Serve, stop, restart and replay notes_http
+        run: |
+          set -eu
+          run() { docker run -d --name notes -p 8080:8080 -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
+                    rce:ci host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080; }
+          up() { for _ in $(seq 50); do curl -fs http://127.0.0.1:8080/health >/dev/null && return 0; sleep 0.2; done; docker logs notes; return 1; }
+          docker run --rm rce:ci --version
+          run; up
+          curl -fs -X POST --data 'first note' http://127.0.0.1:8080/notes
+          docker stop notes && docker rm notes
+          run; up
+          test "$(curl -fs http://127.0.0.1:8080/notes)" = '[{"id":1,"text":"first note"}]'
+          docker stop notes && docker rm notes
+          docker run --rm -v rce-data:/data -v "$PWD/programs/network:/srv:ro" rce:ci \
+            host replay /srv/notes_http.rce --log /data/notes | tee replay.txt
+          grep -q '^replay ok' replay.txt
+
+  install-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: The install script parses and passes shellcheck
+        run: |
+          sh -n scripts/install.sh
+          if command -v shellcheck >/dev/null; then shellcheck -s sh scripts/install.sh; fi

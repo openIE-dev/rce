@@ -1,0 +1,122 @@
+name: release
+
+# Every commit of main that passes ci is released: the `rce` binary for five
+# platforms and the container image. A release is named by its commit, never
+# by a typed version: `rce-<commit>` stays for pinning, and `rce-latest` is
+# recreated to point at the newest. scripts/install.sh installs from it.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    name: build ${{ matrix.name }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { name: linux-x86_64,   os: ubuntu-latest,    target: "",            exe: rce }
+          - { name: linux-aarch64,  os: ubuntu-24.04-arm, target: "",            exe: rce }
+          - { name: macos-aarch64,  os: macos-latest,     target: "",            exe: rce }
+          - { name: windows-x86_64, os: windows-latest,   target: "",            exe: rce.exe }
+          - { name: wasm32-wasip1,  os: ubuntu-latest,    target: wasm32-wasip1, exe: rce.wasm }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - name: Toolchain (spec/checker/rust-toolchain.toml)
+        working-directory: spec/checker
+        run: rustup show && if [ -n "${{ matrix.target }}" ]; then rustup target add ${{ matrix.target }}; fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+          key: release-${{ matrix.name }}
+      - name: Build rce
+        working-directory: spec/checker
+        run: cargo build --release --locked --bin rce ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+      - name: Package
+        run: |
+          dir=spec/checker/target/${{ matrix.target && format('{0}/', matrix.target) || '' }}release
+          mkdir -p out/rce
+          cp "$dir/${{ matrix.exe }}" out/rce/
+          cp LICENSE-APACHE LICENSE-MIT COPYRIGHT out/rce/
+          if [ "${{ matrix.target }}" = "" ]; then out/rce/${{ matrix.exe }} --version | tee out/rce/VERSION; fi
+          tar -C out -czf rce-${{ matrix.name }}.tar.gz rce
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rce-${{ matrix.name }}
+          path: rce-${{ matrix.name }}.tar.gz
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum rce-*.tar.gz > SHA256SUMS && cat SHA256SUMS
+      - name: Release rce-<commit> and move rce-latest to it
+        run: |
+          short=${SHA:0:12}
+          notes="rce built from openIE-dev/rce commit $SHA, after ci passed on it. Install: curl -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install.sh | sh"
+          gh release view "rce-$short" >/dev/null 2>&1 || \
+            gh release create "rce-$short" dist/* --target "$SHA" --title "rce $short" --notes "$notes" --latest=false
+          gh release delete rce-latest --cleanup-tag --yes >/dev/null 2>&1 || true
+          gh release create rce-latest dist/* --target "$SHA" --title "rce latest ($short)" --notes "$notes" --latest=false
+      - name: Keep the 30 newest commit releases
+        run: |
+          gh release list --limit 200 --json tagName,createdAt --jq '[.[] | select(.tagName | test("^rce-[0-9a-f]{12}$"))] | sort_by(.createdAt) | reverse | .[30:] | .[].tagName' |
+            while read -r t; do gh release delete "$t" --cleanup-tag --yes; done
+
+  image:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Image ghcr.io/openie-dev/rce, tagged by commit and latest
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/openie-dev/rce:${{ env.SHA }}
+            ghcr.io/openie-dev/rce:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
