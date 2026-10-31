@@ -9,36 +9,37 @@ and lineage of the surface; the gaps it left are decided in spec section
 
 The surface is the text a person writes when authoring natively in RCE. It
 is not a language beside the Form; it is a notation for the Form
-P = (S, E, δ, D, λ) (FORM.md), so every construct below names the Form
-element it denotes. flowG is the parent of RCE: it was the first pass at
+P = (S, E, δ, D, λ) of a program, defined in spec 6.1
+(`spec/book/07-form-evaluation.md`), so every construct below names the
+Form element it denotes. flowG is the parent of RCE: it was the first pass at
 one shared form for all code, on the idea that the syntax of every
 language converges on one computer language, and RCE is the newer pass at
 that form. flowG reads a program as a graph of nodes joined by typed
 wires; its kernel, the closed vocabulary of 22 node primitives in 6
-categories and 11 wire kinds (`openIE-dev/flow-g`), is to be the
-vocabulary of the graph view of the Form, in which the Form is read as
-such a graph.
+categories and 11 wire kinds (`openIE-dev/flow-g`), is proposed as the
+vocabulary of the graph view of the Form (`spec/proposals/rce-form.md`
+§12, a proposal; the view is not built).
 
-Design goal: the best of Rust, Zig, Go, Swift and Python in one surface,
-with no garbage collector, memory safety by construction, native code at
-the speed of hand-written C or Rust, and the shortest path from human
-intent to a complete program.
+Design goal (a goal, not a measured result): the best of Rust, Zig, Go,
+Swift and Python in one surface, with no garbage collector, memory safety
+by construction, native code at the speed of hand-written C or Rust, and
+the shortest path from human intent to a complete program.
 
 ## 1. What each source language contributes
 
 | From | Feature | Surface construct | Form element |
 |---|---|---|---|
-| Rust | ownership, borrowing, no GC [1][2] | every value has one owner; `&` shared and `&mut` exclusive borrows; drop at scope end | S is an owned value tree; δ consumes S and returns S', so aliasing of mutable state cannot be written |
-| Rust | traits, algebraic data types, `match` exhaustiveness [1] | `kind`, `trait`, total `match` | event and state sums; δ is total over E |
-| Zig | `comptime` [3] | `comptime` blocks and parameters | evaluated during lowering; results become constants in the Form IR (FORM.md part 2) |
-| Zig | explicit allocators [3] | `with arena { ... }`; region-typed collections | regions of the Form; one region is freed per step, so allocation cost is visible and bounded |
+| Rust | ownership, borrowing, no GC [1][2] | every value has one owner; `&` shared and `&mut` exclusive borrows; drop at scope end (spec 5.5, 5.6) | S is an owned value tree; δ consumes S and returns S', so aliasing of mutable state cannot be written |
+| Rust | traits, algebraic data types, `match` exhaustiveness [1] | `kind`, `trait`, total `match` (spec 5.9) | event and state sums; δ is total over E |
+| Zig | `comptime` [3] | `comptime` blocks and parameters (spec 5.10) | evaluated during compilation; results become constants of the Form |
+| Zig | explicit allocators [3] | `with arena r [bound n]`; region-typed values `T @r` (spec 5.7) | regions; each step body runs in an implicit region freed when the step returns, and a bound makes the capacity of a region explicit |
 | Zig | error unions [3] | `T ! E`, `try`, `catch` | an error is an output in λ and an event in D, never an unlogged throw |
-| Go | goroutines, channels, `select` [4][5] | `spawn`, `chan`, `select` | each spawn is a region; each send is an event in D; `select` resolves by the name-free content-hash order (FORM.md law 2), so concurrency replays identically |
-| Swift | value types, copy on write [6] | `struct` is a value; `class` does not exist | S is a value; sharing is a borrow; copy on write is a lowering choice |
-| Swift | protocols with associated types, argument labels [6] | `trait` with associated types; labeled arguments | interface contracts in the fit file |
-| Swift | actors [7] | `actor` | a Form region with its own mailbox (law 3, no silent drop) |
+| Go | goroutines, channels, `select` [4][5] | `spawn`, `chan`, `select` (spec 5.8, 6.8) | each spawn is a task with a name-free id; each tick is logged in D with one entry per communication action; `select` takes the first ready arm scanning cyclically from a per-statement counter (spec 6.8), so concurrency replays identically |
+| Swift | value types, copy on write [6] | `struct` is a value; `class` does not exist (a text that uses it requires change) | S is a value; sharing is a borrow; copy on write is a lowering choice |
+| Swift | protocols with associated types, argument labels [6] | `trait` with associated types; labeled arguments | interface contracts, checked statically (W-TRAIT-1, W-TRAIT-2) |
+| Swift | actors [7] | `actor` | a region with its own mailbox; no message is dropped silently (spec 6.1, 6.8) |
 | Python | readability [8] | indentation blocks, few sigils, `for x in xs`, comprehensions | none; pure notation |
-| (RCE) | intent capture | `intent` blocks: the statement of what is wanted, in prose plus typed examples | contracts and oracles of the Form IR; examples become checks at the gate |
+| (RCE) | intent capture | `intent` blocks: the statement of what is wanted, in prose plus typed examples | examples become checks at the gate (W-INT-1) |
 
 ## 2. A program
 
@@ -65,19 +66,22 @@ before the program is admitted.
 
 ## 3. Memory and speed
 
-There is no garbage collector and no reference counting in the generated
-code. The step is a pure function from an owned state and an event to an
-owned state; the emitter (form/emit_rust.rs) produces Rust that the Rust
-borrow checker re-checks, and rustc/LLVM produce native code. Per-step
-regions (Zig's arena pattern) make allocation a bump and a reset.
-Concurrency compiles to Go-style lightweight tasks on the host, while the
+The language rules give no garbage collector and no reference counting:
+the step is a pure function from an owned state and an event to an owned
+state (spec 6.4). `rce emit rust` (spec 10.5; the emitters are in
+`spec/checker/src/emit/`) prints a Rust program that rustc, with its own
+borrow checker, compiles to native code; the task statements of spec 6.8
+are emitted onto the tick runtime `spec/checker/src/emit/rt.rs`, where the
 logged order of events keeps replay deterministic.
 
-## 4. Status of the prototype
+## 4. What is in this repository
 
-`src/surface/` (prototype) parses the program above and emits Form IR,
-and from it the Rust crate. Benchmarks against hand-written C and Rust on
-Benchmarks Game kernels [9] are specified in `bench/surface/PREREG.md`.
+The surface above is the language the reference checker implements: the
+grammar is `spec/book/03-syntax.md`, and `spec/checker/` parses, checks,
+runs and emits it (`rce check`, `rce run`, `rce emit`). There is no
+separate surface prototype, and no benchmark of emitted code against
+hand-written C or Rust (for example on the Benchmarks Game kernels [9]) is
+in this repository; such a comparison is a plan, not a result.
 
 ## References
 

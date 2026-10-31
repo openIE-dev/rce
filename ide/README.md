@@ -12,8 +12,6 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
 
 *Where the IDE sits in RCE: it edits source and calls the reference checker; accepted programs become a Form with a hash-chained log, and `rce emit` projects them to other targets. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
-![Test and differential results, including 811 IDE tests](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
-
 - `crates/ide-receipt`: one receipt per action (action kind, gear, model, tokens in/out,
   E_sim, E_meas with source tag `rapl|nvml|powermetrics|jetson|estimated-remote`, delta,
   checker verdict, policy hash), BLAKE3 hash chain, ed25519 signature. JSONL ledger,
@@ -31,36 +29,45 @@ Honesty rules: an uncalibrated simulator predicts `None`; without a readable met
 
 Run: `cargo run -p rce-mcp -- --root DIR [--ledger FILE] [--key FILE] [--calibration FILE]`.
 
-## Binary-only releases (0.1.2 and later)
+## Source and releases
 
-From 0.1.2 on, rce-ide is published as prebuilt binaries on the
-[releases page](https://github.com/openIE-dev/rce-ide/releases). 0.1.3 and later
-are built from the private RCE engine (host runtime, `rce db`, `--media`,
-`--redact`, the chat and SFU apps) and embed the standard host libraries,
-whose source is public in `../stdlib`.
-The source in this repository, including `vendor/rce-spec`, is the 0.1.2
-snapshot and is not what the 0.1.3+ binaries are built from.
-The checker this directory builds against is `../spec/checker` of the same commit: the IDE is part of the rce repository since 23 October 2026, so the source here and the specification can no longer drift apart. The 0.1.2 snapshot sentence above describes the last separate release.
+The IDE is the `ide/` directory of the rce repository (since 23 October
+2026). It builds against the reference checker `../spec/checker` of the same
+commit as a path dependency, never a vendored or pinned copy, so the IDE and
+the specification cannot drift apart. Everything the checker does is public
+in this repository: the host runtime (`rce host`, Appendix E), RCEdb
+(`rce db`, with `../rcedb/`), the media and redaction options of
+`rce host`, the applications in `../apps/` and the standard library in
+`../stdlib/`.
 
-## Install (prebuilt binaries)
+The IDE build adds four programs: `rce-ide` (the desktop IDE, wgpu on
+Vulkan, Metal, DX12 or GL), `rce` (the reference checker CLI with one
+addition of the IDE's own, the energy-budget gate
+`rce test FILES.. --energy-budget J [--measured J | --measure] [--strict]`
+in `crates/rce-ide/src/ci.rs`; the `rce` of `../spec/checker` does not have
+it), `rce-lsp` (language server) and `rce-mcp` (MCP server for agents).
 
-Release archives contain four programs: `rce-ide` (the desktop IDE, wgpu on
-Vulkan, Metal, DX12 or GL), `rce` (the RCE checker CLI with the
-`rce test --energy-budget J` gate), `rce-lsp` (language server) and `rce-mcp`
-(MCP server for agents).
+Build from source (Rust 1.98.1, read from `rust-toolchain.toml`):
 
-1. Download the archive for your platform and `SHA256SUMS` from the release page.
-2. Verify: `sha256sum -c SHA256SUMS --ignore-missing` (Linux), or
-   `Get-FileHash rce-ide-*.zip -Algorithm SHA256` (Windows PowerShell) and compare.
-3. Unpack and put the binaries on your `PATH`:
+```sh
+git clone https://github.com/openIE-dev/rce
+cd rce/ide
+cargo build --release -p rce-ide -p rce-mcp
+install -m 755 target/release/rce target/release/rce-ide target/release/rce-lsp target/release/rce-mcp ~/.local/bin/
+```
 
-   ```sh
-   tar xzf rce-ide-0.1.2-x86_64-unknown-linux-gnu.tar.gz
-   cd rce-ide-0.1.2-x86_64-unknown-linux-gnu
-   install -m 755 rce rce-ide rce-lsp rce-mcp ~/.local/bin/
-   ```
+Then open a folder of `.rce` files: `rce-ide --root DIR --file main.rce [--history 50]`.
 
-4. Open a folder of `.rce` files: `rce-ide --root DIR --file main.rce [--history 50]`.
+Releases: v0.1.0 to v0.1.3 are on the
+[releases page of openIE-dev/rce-ide](https://github.com/openIE-dev/rce-ide/releases),
+the repository the IDE lived in before it moved here; they were built from
+that repository, not from this directory. New releases are built from this
+directory by `.github/workflows/ide-release.yml` and published on the
+[releases page of this repository](https://github.com/openIE-dev/rce/releases)
+when an `ide-v*` tag is pushed; none has been pushed yet. A release archive
+holds the four programs above, the README and the license files; verify it
+with `sha256sum -c SHA256SUMS --ignore-missing` (Linux), or
+`Get-FileHash rce-ide-*.zip -Algorithm SHA256` (Windows PowerShell) and compare.
 
 Platforms and requirements:
 
@@ -81,8 +88,6 @@ Notes:
 - `rce-ide telemetry probe` lists the energy meters and the GPU launch source
   found on this machine. Without a readable meter, energy is reported as
   simulated or missing, never guessed.
-- Build from source: Rust 1.98.1, `cargo build --release -p rce-ide -p rce-mcp`.
-  The checker is a path dependency on `../spec/checker` (the reference checker of this repository, never vendored or pinned).
 
 Graph view keys (pointer over the graph): F3 view, F4 layout, F6/F7/F8 colour,
 size and glow metric (or click the chips), Esc folds expanded files, Shift-drag

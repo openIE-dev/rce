@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Compiles every query in queries/ against the grammar and runs it over the
-# examples and highlight tests, then checks the version comment gate.
+# examples and highlight tests, then checks that `par` is reserved.
 set -eu
 cd "$(dirname "$0")/.."
 lib="$(mktemp -d)/rce.so"

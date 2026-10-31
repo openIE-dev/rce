@@ -1,9 +1,15 @@
-# RCE standard host libraries
+# RCE standard library
 
-Cryptography written in pure RCE, for programs that run on the RCE host
-runtime. Every function is deterministic: randomness never comes from
-the libraries, but enters a program as logged `Random` results, so a
-run replays bit for bit.
+The standard library of RCE, written in pure RCE and built into `rce`
+(`rce lib` lists every module): cryptography and secure messaging (SHA-2,
+X25519, Ed25519, ML-KEM, HPKE, MLS), exact arithmetic, collections,
+encodings, text, time, hashing, deterministic random streams, formatting,
+energy receipts, host input and output, effects, networking (URL, IDNA,
+HTTP, DNS), paths and other operating-system data, change feeds and data
+sync, user-interface data, correctly rounded math, dense linear algebra,
+special functions and statistics. Every function is deterministic:
+randomness never comes from the libraries, but enters a program as logged
+`Random` results, so a run replays bit for bit.
 
 | File | Contents |
 |---|---|
@@ -23,7 +29,7 @@ run replays bit for bit.
 | `lib/text/utf8.rce` | `text.utf8`: UTF-8 validation (Unicode Table 3-7), strict and U+FFFD-substituting decode, encode, code points and UTF-16 of text |
 | `lib/time/time.rce` | `time`: durations and instants (i64 ns, logged time only), proleptic Gregorian civil dates (Hinnant), weekdays, ISO weeks, month arithmetic, RFC 3339 format/parse with fixed offsets |
 | `lib/hash/blake3.rce` | `hash.blake3`: BLAKE3 hash, keyed hash, derive_key and extendable output (SHA-2 stays in `crypto`, SHA-3 in `pq`) |
-| `lib/rand/det.rce` | `rand.det`: seeded ChaCha20 (RFC 8439) streams: words, bits, unbiased `below`/`range`, bytes, shuffle, split; fresh seeds only through `from_entropy`, which takes a `Cap[Entropy]` (`# rce-version: 0.8`) |
+| `lib/rand/det.rce` | `rand.det`: seeded ChaCha20 (RFC 8439) streams: words, bits, unbiased `below`/`range`, bytes, shuffle, split; fresh seeds only through `from_entropy`, which takes a `Cap[Entropy]` (the capability types of spec 5.16) |
 | `lib/fmt/fmt.rce` | `fmt`: locale-free integer text in radixes 2..36 (strict parse, overflow is an error), padding and digit grouping, `{}`/`{N}` templates, and a linear-time regex (Thompson NFA run as a Pike VM: classes, `\d\w\s`, `* + ? {m,n}`, alternation, groups, anchors) |
 | `lib/energy/energy.rce` | `energy`: JCP v0.3 `jcp/2` receipts (JCR-1): canonical core, blake3 content id, COSE_Sign1 (EdDSA) seal and verify (checked against the JCP conformance/v1 vectors), did:key for Ed25519, strict decoding under the profile a receipt names (`jcp/1` opens, never minted), replay of a receipt stream into budget state and per-worker tallies; uses `enc`, `hash.blake3` and `crypto` |
 | `lib/io/io.rce` | `io`: request/result patterns over host adapters (HC-3, HC-10): result well-formedness, a request table pairing each `<Kind>Done` with the one request it answers (strays counted), a line reader over received chunks (CRLF, eof), a writer that cuts at character boundaries and resends after partial writes, and the `--fs` adapter path rule; no effects of its own |
@@ -116,8 +122,9 @@ imports it. `scripts/check.sh` runs every library's own checks
 `crypto` naming the top-level crypto, pq, hpke and mls modules; CI splits
 the libraries over parallel jobs this way). Runnable programs that use them are in
 [programs/ecosystem](../programs/ecosystem),
-and the specification describes them in Appendix F of the
-[RCE book](https://openie-dev.github.io/rce-book/ch17-media-calls-e2ee.html).
+and chapter 17 of The RCE Book,
+[Media, calls and end-to-end encryption](https://openie-dev.github.io/rce/book/ch17-media-calls-e2ee.html),
+describes them.
 
 Public-key steps (X25519, ML-KEM) are heavy: run one per input on the
 host (`rce host run`), where each input has its own fuel.

@@ -58,12 +58,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.target }}
+          # upload-artifact paths are relative to the repository root, not
+          # to the job's working directory; the ide workspace builds into ide/target.
           path: |
-            target/${{ matrix.target }}/release/rce
-            target/${{ matrix.target }}/release/rce-ide
-            target/${{ matrix.target }}/release/rce-lsp
-            target/${{ matrix.target }}/release/rce-mcp
-            target/${{ matrix.target }}/release/*.exe
+            ide/target/${{ matrix.target }}/release/rce
+            ide/target/${{ matrix.target }}/release/rce-ide
+            ide/target/${{ matrix.target }}/release/rce-lsp
+            ide/target/${{ matrix.target }}/release/rce-mcp
+            ide/target/${{ matrix.target }}/release/*.exe
           if-no-files-found: error
 
   publish:
@@ -78,7 +80,7 @@ jobs:
       - run: rustup show
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: ide/artifacts
       - name: Package
         run: |
           for d in artifacts/bin-*; do
@@ -87,9 +89,10 @@ jobs:
             cp $d/* target/$T/release/
             chmod +x target/$T/release/* || true
           done
+          case "$GITHUB_REF_NAME" in ide-v*) export V="${GITHUB_REF_NAME#ide-v}" ;; esac
           sh release/package.sh
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/ide-v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/dist/* --title "RCE IDE ${GITHUB_REF_NAME#v}" --notes-file release/RELEASE.md
+        run: gh release create "$GITHUB_REF_NAME" release/dist/* --title "RCE IDE ${GITHUB_REF_NAME#ide-v}" --notes-file release/RELEASE.md

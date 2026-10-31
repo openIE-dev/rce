@@ -16,7 +16,7 @@ is only type checked.
 HC-24 to HC-26) and the program answers it with `HttpRespond`; its
 examples test every answer without a network.
 
-Limits in draft 0.5: there are no bit-level packet layouts.
+Limits in the current draft: there are no bit-level packet layouts.
 
 Check this folder with `rce test *.rce`, or the whole repository with
 `scripts/check.sh`.

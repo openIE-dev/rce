@@ -68,13 +68,12 @@ pub fn emit(m: &Module, lang: Lang) -> Result<String, String> {
     // CC-4: the first line names the program (its hash, name-free) and the
     // checker that printed it, so an emitted file is tied to its source.
     let provenance = format!(
-        "{} rce-program {} · emitted by rce {} ({})",
+        "{} rce-program {} · emitted by rce commit {}",
         match lang {
             Lang::Python => "#",
             _ => "//",
         },
         crate::apidiff::program_hash(std::slice::from_ref(m)),
-        env!("CARGO_PKG_VERSION"),
         crate::GIT_COMMIT,
     );
     // one shared, order-preserving lowering for all three emitters (6.2)
