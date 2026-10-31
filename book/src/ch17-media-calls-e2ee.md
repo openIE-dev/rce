@@ -27,7 +27,7 @@ event in the log D).
   observable or uses a vetted adapter through 5.11.
 - **Secrets stay in D, and D stays on the device.** Private keys and
   ratchet state are program state, and the `Random` results that made
-  them are entries of D. D is device-local; `rce host replay --redact`
+  them are entries of D. D is device-local; `rce host replay redact`
   (chapter 16) shows such fields as digests.
 - **Checked against official vectors.** Each library carries `check`
   lines for its primitives (run with `rce test stdlib/lib/FILE.rce`), and the
@@ -36,7 +36,7 @@ event in the log D).
 
 ## Media and the selective forwarding unit (SFU)
 
-The media adapters (chapter 16, enabled with `--media DIR`) turn capture and
+The media adapters (chapter 16, enabled with `media DIR`) turn capture and
 playback into events: D holds (track, sequence number, digest) per frame
 and the frame bytes are blobs addressed by their Secure Hash Algorithm
 256 (SHA-256) digest. A call between more than two peers needs a relay
@@ -184,7 +184,7 @@ it entered at start, in a line made from the rules it installed (HC-5a):
 on Linux, Landlock restricts TCP bind and connect by port and not by
 address, so the line says "by port" and names the addresses the net
 adapter allows, and it says when the User Datagram Protocol (UDP) is not
-restricted; with `--http` alone the listener is opened before the target
+restricted; with `http` alone the listener is opened before the target
 is entered and the line says that no new Internet Protocol (IP) socket
 can be opened. The contract conforms to OpenIE Sandbox v0.1
 (https://sandbox.transaction.science) and to the Joule Context Protocol

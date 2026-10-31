@@ -11,7 +11,7 @@ fn host_run_enters_sandbox_and_granted_authority_still_works() {
     let root = dir.join("root");
     std::fs::create_dir_all(&root).unwrap();
     let log = dir.join("d.log");
-    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&app).arg("--log").arg(&log).arg("--fs").arg(&root).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run", "fs"]).arg(&root).arg(&app).arg(&log).output().unwrap();
     let err = String::from_utf8_lossy(&o.stderr);
     let out = String::from_utf8_lossy(&o.stdout);
     if cfg!(target_os = "macos") {
@@ -24,7 +24,7 @@ fn host_run_enters_sandbox_and_granted_authority_still_works() {
     assert!(out.contains("durable"), "{out}\n{err}");
     // P5: every run validates its own D by replay before it reports
     assert!(err.contains("validated") && o.status.success(), "{err}");
-    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg("--log").arg(&log).output().unwrap();
+    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg(&log).output().unwrap();
     assert!(String::from_utf8_lossy(&r.stdout).starts_with("replay ok"));
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -45,7 +45,7 @@ fn grant(a: &str, k: GrantKind) -> NetGrant {
 /// HC-5a: with network grants the Seatbelt profile still denies all network
 /// use, then allows exactly the granted ports, at localhost for a loopback
 /// grant and at any address otherwise (Seatbelt names no other host).
-/// Before, `--net` removed the network rule altogether.
+/// Before, a net grant removed the network rule altogether.
 #[test]
 fn profile_restricts_network_to_granted_ports() {
     let gs = [grant("127.0.0.1:8080", GrantKind::Prebound), grant("10.0.0.5:9000", GrantKind::Connect)];
@@ -98,7 +98,7 @@ fn linux_description_says_by_port_and_udp() {
     let dir = std::env::temp_dir().join(format!("rce-sbx-net-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&app).arg("--log").arg(dir.join("d.log")).arg("--net").arg(format!("127.0.0.1:{port}")).arg("Roll(n: 2)").output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run", "net"]).arg(format!("127.0.0.1:{port}")).arg(&app).arg(dir.join("d.log")).arg("Roll(n: 2)").output().unwrap();
     let err = String::from_utf8_lossy(&o.stderr);
     if err.contains("Landlock unavailable") {
         eprintln!("Landlock unavailable on this kernel: {err}");
@@ -113,7 +113,7 @@ fn linux_description_says_by_port_and_udp() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// What a shell under `--pty` prints when it tries to open a UDP socket,
+/// What a shell under `pty` prints when it tries to open a UDP socket,
 /// with these extra grants.
 #[cfg(target_os = "linux")]
 fn shell_udp(extra: &[String]) -> Option<String> {
@@ -129,14 +129,11 @@ fn shell_udp(extra: &[String]) -> Option<String> {
     std::fs::create_dir_all(&dir).unwrap();
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let mut c = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
-        .arg(&app)
-        .arg("--log")
-        .arg(dir.join("d.log"))
-        .arg("--pty")
-        .arg("--http")
+        .args(["host", "serve", "pty", "http"])
         .arg(format!("127.0.0.1:{port}"))
         .args(extra)
+        .arg(&app)
+        .arg(dir.join("d.log"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -173,9 +170,9 @@ fn shell_udp(extra: &[String]) -> Option<String> {
     Some(format!("{got}\n{err}"))
 }
 
-/// HC-5a: with `--http` alone the listener was bound before entering, so
+/// HC-5a: with `http` alone the listener was bound before entering, so
 /// seccomp fails every new IP socket: the shell cannot open UDP. With a
-/// `--net` grant it can, and the line says UDP is not restricted.
+/// `net` grant it can, and the line says UDP is not restricted.
 #[cfg(target_os = "linux")]
 #[test]
 fn http_only_has_no_new_ip_sockets() {
@@ -188,7 +185,7 @@ fn http_only_has_no_new_ip_sockets() {
     assert!(only.contains("no new IP sockets") && only.contains("was opened before entering"), "{only}");
     assert!(only.contains("validated"), "{only}");
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let Some(net) = shell_udp(&["--net".into(), format!("127.0.0.1:{port}")]) else { return };
+    let Some(net) = shell_udp(&["net".into(), format!("127.0.0.1:{port}")]) else { return };
     assert!(net.contains("UDP-OPEN"), "{net}");
     assert!(net.contains("UDP not restricted") && !net.contains("no new IP sockets"), "{net}");
 }
@@ -204,14 +201,12 @@ fn seatbelt_blocks_an_ungranted_port() {
     let other = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let oport = other.local_addr().unwrap().port();
     let o = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "run"])
-        .arg(&app)
-        .arg("--log")
-        .arg(dir.join("d.log"))
-        .arg("--net")
+        .args(["host", "run", "net"])
         .arg(format!("127.0.0.1:{granted}"))
-        .arg("--net")
+        .arg("net")
         .arg(format!("127.0.0.1:{oport}"))
+        .arg(&app)
+        .arg(dir.join("d.log"))
         .arg(format!("Listen(addr: \"127.0.0.1:{granted}\")"))
         .output()
         .unwrap();
@@ -230,7 +225,7 @@ fn serve_under_seatbelt_answers_a_request() {
     let dir = std::env::temp_dir().join(format!("rce-sbx-mac-serve-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve"]).arg(&app).arg("--log").arg(dir.join("d.log")).arg("--http").arg(format!("127.0.0.1:{port}")).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve", "http"]).arg(format!("127.0.0.1:{port}")).arg(&app).arg(dir.join("d.log")).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn().unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let answer = loop {
         if let Ok(mut s) = std::net::TcpStream::connect(("127.0.0.1", port)) {
@@ -248,7 +243,7 @@ fn serve_under_seatbelt_answers_a_request() {
     assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
     let _ = std::fs::remove_dir_all(&dir);
 }
-/// Linux: the shell under `--pty` inherits Landlock: it can write under the
+/// Linux: the shell under `pty` inherits Landlock: it can write under the
 /// log directory but not elsewhere, and no TCP connection is allowed.
 #[cfg(target_os = "linux")]
 #[test]
@@ -260,11 +255,9 @@ fn landlock_confines_the_terminal_shell() {
     std::fs::create_dir_all(&dir).unwrap();
     let outside = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("target/rce-ll-probe-{}", std::process::id()));
     let mut c = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
+        .args(["host", "serve", "pty"])
         .arg(&app)
-        .arg("--log")
         .arg(dir.join("d.log"))
-        .arg("--pty")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

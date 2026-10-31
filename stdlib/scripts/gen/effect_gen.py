@@ -1,9 +1,11 @@
 # Derived vectors for lib/effect/effect.rce, printed as rce checks.
-# Canonical JSON and oracle keys follow rce src/canon.rs; with --ref
+# Canonical JSON and oracle keys follow rce src/canon.rs; with ref PATH
 # PATH (scripts/ref/canon built with cargo) every one is confirmed
 # against that Rust code. Usage:
-#   python3 scripts/gen/effect_gen.py [--ref scripts/ref/canon/target/release/canon-ref]
+#   python3 scripts/gen/effect_gen.py [ref scripts/ref/canon/target/release/canon-ref]
 import hashlib, json, random, subprocess, sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
+from positional import read  # noqa: E402  (positional-cli.md PC-1)
 R = random.Random(19)
 def q(s):
     # an rce string literal: \" \\ \n \r \t, \u{X} for other controls
@@ -50,7 +52,7 @@ def rand_val(d=0):
     return {kk: rand_val(d + 1) for kk in keys}
 
 def main():
-    ref = sys.argv[sys.argv.index('--ref') + 1] if '--ref' in sys.argv else None
+    ref = read('scripts/gen/effect_gen.py', {'ref': 1}, '', 0, 0)[0].get('ref')
     print('# context table (5.2), call and spawn rules')
     for c in CTX + ['nope']:
         for e in EFF + ['print']:

@@ -5,7 +5,7 @@
 # Edit only spec/book/NN-*.md and never hand-edit these four files; run this
 # script and commit its output with the chapter change.
 #   scripts/regen-spec.sh          regenerate all four
-#   scripts/regen-spec.sh --check  fail if any is stale (.githooks/pre-push runs this)
+#   scripts/regen-spec.sh check    fail if any is stale (.githooks/pre-push runs this)
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 checker="$here/spec/checker"
@@ -13,9 +13,15 @@ export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$checker/target}"
 ( cd "$checker" && cargo build -q --release --bin rce-book --bin rce-spec-data )
 book="$CARGO_TARGET_DIR/release/rce-book"
 data="$CARGO_TARGET_DIR/release/rce-spec-data"
-if [ "${1:-}" = "--check" ]; then
-  "$book" build --check
-  "$data" --check
+# positional (spec/proposals/positional-cli.md PC-1): the one word is `check`
+case "${1:-}" in
+  ""|check) ;;
+  --check) echo "--check was removed; write: scripts/regen-spec.sh check" >&2; exit 2 ;;
+  *) echo "usage: scripts/regen-spec.sh [check]" >&2; exit 2 ;;
+esac
+if [ "${1:-}" = "check" ]; then
+  "$book" build check
+  "$data" check
 else
   "$book" build
   "$data"

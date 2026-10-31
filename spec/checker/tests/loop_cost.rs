@@ -48,9 +48,9 @@ fn emitted(src: &str, stem: &str, target: &str) -> Option<String> {
         let exe = d.join(stem);
         let c = Command::new("rustc").args(["--edition", "2024", "-o"]).arg(&exe).arg(&p).output().unwrap();
         assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
-        Command::new(&exe).arg("--run").output().unwrap()
+        Command::new(&exe).arg("run").output().unwrap()
     } else {
-        Command::new(tool).arg(&p).arg("--run").output().unwrap()
+        Command::new(tool).arg(&p).arg("run").output().unwrap()
     };
     Some(String::from_utf8_lossy(&o.stdout).into_owned() + &String::from_utf8_lossy(&o.stderr))
 }

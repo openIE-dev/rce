@@ -9,6 +9,7 @@ pub mod adapters;
 pub mod alter;
 pub mod anf;
 pub mod apidiff;
+pub mod args;
 pub mod borrow;
 pub mod ast;
 pub mod book;

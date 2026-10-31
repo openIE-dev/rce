@@ -9,7 +9,7 @@ Programs of the kind found in operating systems and infrastructure tools.
 | `accounts.rce` | a long-running account service on the host: an unbounded run of bounded steps, where a transfer that fails half way keeps the state |
 
 **A service as a stream of bounded steps.** `accounts.rce` has no main
-loop. The host (`rce host serve accounts.rce --log D`, Appendix E) reads
+loop. The host (`rce host serve accounts.rce D`, Appendix E) reads
 one line of events at a time from stdin, applies each as one step and
 answers on its Display sink: `ok`, or `kept SEQ CAUSE` from the `StepKept`
 event the host delivers after a kept step (HC-21). The run ends when the

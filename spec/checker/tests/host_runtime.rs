@@ -155,19 +155,19 @@ fn cli_host_run_then_replay() {
     };
     let f = p.to_string_lossy();
     let l = log.to_string_lossy();
-    let (c, o) = run(&["host", "run", &f, "--log", &l, r#"Put(key: "a", val: "1"), Scan(start: "")"#]);
+    let (c, o) = run(&["host", "run", &f, &l, r#"Put(key: "a", val: "1"), Scan(start: "")"#]);
     assert_eq!(c, 0, "{o}");
     assert!(o.contains("emit Row(key: \"a\", val: \"1\")"), "{o}");
-    let (c, o) = run(&["host", "replay", &f, "--log", &l]);
+    let (c, o) = run(&["host", "replay", &f, &l]);
     assert_eq!(c, 0, "{o}");
     assert!(o.starts_with("replay ok"), "{o}");
-    // --redact prints a field as a short digest, never its value
-    let (c, r) = run(&["host", "replay", &f, "--log", &l, "--redact", "rows"]);
+    // redact prints a field as a short digest, never its value
+    let (c, r) = run(&["host", "replay", "redact", "rows", &f, &l]);
     assert_eq!(c, 0, "{r}");
     assert_eq!(o.lines().next(), r.lines().next(), "same replay hash");
     assert!(r.contains("rows = <redacted sha256:"), "{r}");
     assert!(!r.lines().nth(1).unwrap().contains("\"a\": \"1\""), "{r}");
-    let (_, r2) = run(&["host", "replay", &f, "--log", &l, "--redact", "rows"]);
+    let (_, r2) = run(&["host", "replay", "redact", "rows", &f, &l]);
     assert_eq!(r, r2, "the digest is deterministic");
     let _ = std::fs::remove_file(&log);
 }

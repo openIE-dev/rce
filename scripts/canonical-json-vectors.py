@@ -2,8 +2,8 @@
 """Golden vectors for canonical JSON (spec 6.1.1), with an encoder written
 from the text of 6.1.1 alone (not from the Rust source).
 
-  scripts/canonical-json-vectors.py --check      verify spec/data/canonical-json-vectors.json
-  scripts/canonical-json-vectors.py --generate   rewrite it from the table below
+  scripts/canonical-json-vectors.py check        verify spec/data/canonical-json-vectors.json
+  scripts/canonical-json-vectors.py generate     rewrite it from the table below
 
 Every vector is (id, note, value, canonical). `canonical` is typed by hand
 here, the encoder must reproduce it, and only then is its SHA-256 written.
@@ -217,14 +217,31 @@ def dump(d):
     return head + body + "\n]}\n"
 
 
+def words(allowed, usage):
+    """The words of this script's command line (spec/proposals/positional-cli.md,
+    PC-1): each one of `allowed`, at most once. A removed flag `--W` names its
+    new spelling and exits 2 (decision 2); anything else is a usage error."""
+    a = sys.argv[1:]
+    for x in a:
+        if x.startswith("-"):
+            w = x.lstrip("-").split("=")[0]
+            sys.stderr.write(f"{x.split('=')[0]} was removed; write: {usage.split(' [')[0]} {w}\n" if w in allowed else f"usage: {usage}\n")
+            sys.exit(2)
+    if any(x not in allowed for x in a) or len(set(a)) != len(a):
+        sys.stderr.write(f"usage: {usage}\n")
+        sys.exit(2)
+    return set(a)
+
+
 def main():
+    w = words({"check", "generate"}, "scripts/canonical-json-vectors.py [check] [generate]")
     d = build()
-    if "--generate" in sys.argv:
+    if "generate" in w:
         OUT.write_text(dump(d))
         print("wrote", OUT, len(d["vectors"]), "vectors")
         return
     on_disk = json.loads(OUT.read_text())
-    assert on_disk == d, "vectors file differs from the table: run --generate and review the diff"
+    assert on_disk == d, "vectors file differs from the table: run with the word generate and review the diff"
     for v in on_disk["vectors"]:
         assert enc(v["value"]) == v["canonical"], v["id"]
         assert hashlib.sha256(v["canonical"].encode("utf-8")).hexdigest() == v["sha256"], v["id"]

@@ -16,12 +16,20 @@ fn energy_budget_gate() {
     let (c, out) = rce(&["test"], &f);
     assert_eq!(c, 0, "{out}");
     assert!(out.contains("ok "));
-    let (c, out) = rce(&["test", "--energy-budget", "1e9"], &f);
+    let (c, out) = rce(&["test", "energy-budget", "1e9"], &f);
     assert_eq!(c, 0, "{out}");
     assert!(out.contains("energy ok") && out.contains("simulated"), "{out}");
-    let (c, out) = rce(&["test", "--energy-budget", "1", "--measured", "2"], &f);
+    let (c, out) = rce(&["test", "energy-budget", "1", "measured", "2"], &f);
     assert_eq!(c, 1, "{out}");
     assert!(out.contains("energy OVER budget") && out.contains("measured"));
-    let (c, out) = rce(&["test", "--energy-budget", "1e-300"], &f);
+    let (c, out) = rce(&["test", "energy-budget", "1e-300"], &f);
     assert_eq!(c, 1, "{out}");
+    // positional-cli.md decision 2: a removed flag names its new spelling, exits 2, runs nothing
+    let (c, out) = rce(&["test", "--energy-budget", "1e9"], &f);
+    assert_eq!((c, out.as_str()), (2, ""));
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).arg("--version").output().unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(String::from_utf8_lossy(&o.stderr), "--version was removed; write: rce version\n");
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).arg("version").output().unwrap();
+    assert!(o.status.success() && String::from_utf8_lossy(&o.stdout).contains("rce-ide"));
 }

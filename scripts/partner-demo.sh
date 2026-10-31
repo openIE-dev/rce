@@ -18,7 +18,7 @@ rce="$checker/target/release/rce"
 work="$(mktemp -d "${TMPDIR:-/tmp}/rce-demo.XXXXXX")"
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 pause() { sleep "${1:-0.4}"; }
-replay() { "$rce" host replay "$1" --log "$2" | sed -n 1p; }
+replay() { "$rce" host replay "$1" "$2" | sed -n 1p; }
 
 say "1. terminal app on the RCE host (apps/terminal.rce)"
 # The PTY transcript and the program's Screen and History answers share
@@ -34,7 +34,7 @@ mark() { sleep 0.8; wc -c < "$tout" | tr -d ' ' > "$work/term.$1"; }
   mark history; echo 'History(start: 0, count: 4)'
   mark exit; echo 'exit'
   pause 1
-} | "$rce" host serve "$here/apps/terminal.rce" --log "$work/term.log" --pty > "$tout" 2>&1
+} | "$rce" host serve pty "$here/apps/terminal.rce" "$work/term.log" > "$tout" 2>&1
 clean() { perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g; s/\r//g'; }
 part() { head -c "$2" "$tout" | tail -c "+$(( $1 + 1 ))"; }
 s=$(cat "$work/term.screen"); h=$(cat "$work/term.history"); x=$(cat "$work/term.exit")
@@ -53,10 +53,10 @@ say "2. chat between two hosts over P4 remote channels"
 pa=$(( 20000 + RANDOM % 20000 )); pb=$(( pa + 1 ))
 A="127.0.0.1:$pa"; B="127.0.0.1:$pb"
 mkfifo "$work/a.in" "$work/b.in"
-"$rce" host serve "$here/apps/chat.rce" --log "$work/b.log" --chan "$B" --peer "$A" < "$work/b.in" > "$work/b.out" 2>"$work/b.err" &
+"$rce" host serve chan "$B" peer "$A" "$here/apps/chat.rce" "$work/b.log" < "$work/b.in" > "$work/b.out" 2>"$work/b.err" &
 bpid=$!
 exec 4> "$work/b.in"
-"$rce" host serve "$here/apps/chat.rce" --log "$work/a.log" --chan "$A" --peer "$B" < "$work/a.in" > "$work/a.out" 2>"$work/a.err" &
+"$rce" host serve chan "$A" peer "$B" "$here/apps/chat.rce" "$work/a.log" < "$work/a.in" > "$work/a.out" 2>"$work/a.err" &
 apid=$!
 exec 3> "$work/a.in"
 ann() { echo "$1" >&3; }
@@ -110,8 +110,8 @@ replay "$here/apps/chat.rce" "$work/a.log"
 # (they stay in its log D, which never leaves the device); print them as
 # short digests only.
 secrets=keys,sessions,held
-echo "ann's replayed key material (rce host replay --redact $secrets):"
-"$rce" host replay "$here/apps/chat.rce" --log "$work/a.log" --redact "$secrets" | sed -n 2p \
+echo "ann's replayed key material (rce host replay redact $secrets):"
+"$rce" host replay redact "$secrets" "$here/apps/chat.rce" "$work/a.log" | sed -n 2p \
   | grep -oE '(keys|sessions|held) = <redacted sha256:[0-9a-f]+>' | sed 's/^/  /'
 
 say "4. RCEdb: the database is a log D (rce db, serverless, in-process)"

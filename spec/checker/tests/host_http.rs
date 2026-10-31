@@ -1,4 +1,4 @@
-//! HC-24 to HC-26: the HTTP event host (`rce host serve --http HOST:PORT`).
+//! HC-24 to HC-26: the HTTP event host (`rce host serve http HOST:PORT FILE D`).
 //! Connections are served concurrently, each request is one logged input
 //! (`HttpRequest` or `HttpMalformed`), the program answers with the
 //! `HttpRespond` effect, limits and deadlines apply before a byte enters D,
@@ -53,12 +53,9 @@ struct Served {
 
 fn serve_at(program: &str, log: &Path, addr: &str) -> Served {
     let mut child = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
+        .args(["host", "serve", "http", addr])
         .arg(app(program))
-        .arg("--log")
         .arg(log)
-        .arg("--http")
-        .arg(addr)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -149,7 +146,7 @@ fn entries(log: &Path) -> Vec<Entry> {
 }
 
 fn replays(program: &str, log: &Path) {
-    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(app(program)).arg("--log").arg(log).output().unwrap();
+    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(app(program)).arg(log).output().unwrap();
     let out = String::from_utf8_lossy(&r.stdout);
     assert!(out.starts_with("replay ok"), "{out}");
 }
@@ -677,7 +674,7 @@ fn sequential_requests_are_not_paced_by_frames() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// HD-2 (E.4c): a module served with `--http` may declare the HTTP inputs,
+/// HD-2 (E.4c): a module served with `http` may declare the HTTP inputs,
 /// the response and its result with other shapes than those of HC-24. The
 /// host starts on each, appends its start entries, and says in one line
 /// how it delivers to a declaration that is not exactly the host's value.
@@ -700,8 +697,8 @@ fn http_declarations_are_noted_at_start() {
         ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "event HttpMalformed: status is text, the host's is u64: no delivery can be built"),
         ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text)", "event HttpRespondDone: the host's data, err are not delivered"),
         ("values: List[text], body: List[i64])", "values: List[text], body: text)", "event HttpRequest: body is text: received bytes are delivered as text when they are UTF-8"),
-        ("event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])\n", "", "--http: event HttpRequest is not declared"),
-        ("event HttpMalformed(id: u64, status: u64, why: text)\n", "", "--http: event HttpMalformed is not declared"),
+        ("event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])\n", "", "http: event HttpRequest is not declared"),
+        ("event HttpMalformed(id: u64, status: u64, why: text)\n", "", "http: event HttpMalformed is not declared"),
     ];
     for (from, to, says) in shapes {
         assert!(src.contains(from), "{from}");
@@ -756,7 +753,7 @@ fn http_without_request_event_is_answered_501() {
     let inputs = check_function_of_d(p.to_str().unwrap(), "no-request-run", vec![vec![req(b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n")]]);
     assert_eq!((inputs[0]["status"].as_u64(), inputs[0]["why"].as_str()), (Some(501), Some("HttpRequest: not declared")), "{inputs:?}");
     // neither input declared: the host answers
-    let bare = "module bare\n\nintent \"a module with no HTTP declarations, served with --http\"\n    example Ping -> n == 1\n\nevent Ping\n\nstate S\n    n: u64 = 0\n\nstep S on Ping\n    n += 1\n";
+    let bare = "module bare\n\nintent \"a module with no HTTP declarations, served with http\"\n    example Ping -> n == 1\n\nevent Ping\n\nstate S\n    n: u64 = 0\n\nstep S on Ping\n    n += 1\n";
     let p = d.join("bare.rce");
     std::fs::write(&p, bare).unwrap();
     let (inputs, text) = check_function_of_d_log(p.to_str().unwrap(), "bare-run", vec![vec![req(b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n")], vec![req(b"GET /b HTTP/1.1\nHost: x\n\n")]]);
@@ -847,12 +844,9 @@ fn typed_http_request_is_an_input() {
     let log = d.join("d.log");
     let addr = free_addr();
     let mut child = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
+        .args(["host", "serve", "http", &addr])
         .arg(app(ECHO))
-        .arg("--log")
         .arg(&log)
-        .arg("--http")
-        .arg(&addr)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())

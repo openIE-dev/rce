@@ -5,7 +5,7 @@ programs, traced in one call per program, one digest line per program.
 For every spec example that carries `example` lines, the event instances of
 those lines form a pool; STREAMS seeded streams of 1 to 12 events drawn from
 the pool are written one per line and traced in one run with
-`rce trace --json FILE --streams PATH`, and the SHA-256 of the trace text
+`rce trace streams FILE PATH`, and the SHA-256 of the trace text
 (paths removed) is printed next to the program's name. scripts/xarch-hashes.sh prints these
 lines into the golden set, so the parity workflow compares the hash of
 every stream's chain on every target. The streams are a pure function of
@@ -95,7 +95,7 @@ def main():
                 lines.append(", ".join(pool[rng.next() % len(pool)] for _ in range(n)))
             streams = Path(d) / (f.stem + ".streams")
             streams.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            r = subprocess.run([*runner, rce, "trace", "--json", str(f), "--streams", str(streams)], capture_output=True, text=True, encoding="utf-8")
+            r = subprocess.run([*runner, rce, "trace", "streams", str(f), str(streams)], capture_output=True, text=True, encoding="utf-8")
             text = (r.stdout + r.stderr).replace(str(f), "").replace(str(f).replace("\\", "/"), "").replace(d, "").replace(d.replace("\\", "/"), "")
             text = text.replace("\r\n", "\n")
             traces = text.count('"source":"stream@')

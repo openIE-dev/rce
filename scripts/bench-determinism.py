@@ -16,10 +16,10 @@ from the same commit. For every program of PROGRAMS the script
    ckpt64, host, host1; see bench_det.rs);
 3. emits the program with the stream as one example (`rce-bench-det emit`,
    the emitter of `rce emit rust`), compiles it with `rustc -O`, and times
-   it four ways: `--trace` (it computes and prints every D entry), plain
+   it four ways: the word `trace` (it computes and prints every D entry), plain
    (it prints the state after every step, its observations), quiet (a
    benchmark-only copy with the per-step state prints removed) and quiet
-   with `--trace` (the D entries computed and printed, no state prints).
+   with `trace` (the D entries computed and printed, no state prints).
    The emitted `main` is replaced by a benchmark-only one that reads the
    stream at start-up (see GLUE), since an emitted example holds one
    closure per event and a 1,000-event example does not compile in
@@ -341,7 +341,7 @@ def main():
             t = time.perf_counter()
             rustc(src, exe, ["-O"])
             row[f"compile_s{'_quiet' if quiet else ''}"] = round(time.perf_counter() - t, 1)
-            variants = [("emit_quiet", []), ("emit_trace_quiet", ["--trace"])] if quiet else [("emit_trace", ["--trace"]), ("emit_plain", [])]
+            variants = [("emit_quiet", []), ("emit_trace_quiet", ["trace"])] if quiet else [("emit_trace", ["trace"]), ("emit_plain", [])]
             for name, args in variants:
                 def mk(reps, exe=exe, args=args):
                     env = dict(os.environ, BENCH_REPS=str(reps), BENCH_STREAM=str(stream))

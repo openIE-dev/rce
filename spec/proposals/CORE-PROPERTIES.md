@@ -114,7 +114,7 @@ independent of it and of each other, which gives five core properties.
   build mode. **S**: an emitter without a proof is trusted unless every run is checked. **E**: the
   accelerator run reports energy, so it has to be real.
 - Rules. Every emitter (Rust, Python, JS, WASM, and the new PTX emitter for device regions 5.13 and
-  C.7 kernels) produces a trace in the 10.9 format. `rce run --target T --validate` compares it
+  C.7 kernels) produces a trace in the 10.9 format. `rce run validate target T FILE` compares it
   with the reference trace and logs the first divergence as `TargetMismatch(T, step)`. That outcome
   is defined: the target's result is not used and the reference result stands (translation validation). Device
   regions lower to PTX only for the fixed-size pure fragment that W-DEV-1 already enforces, and

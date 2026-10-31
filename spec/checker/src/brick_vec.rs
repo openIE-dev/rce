@@ -1,5 +1,5 @@
 //! Test vectors of a brick: generated inputs and the reference
-//! interpreter's results on them (`rce index --vectors N`).
+//! interpreter's results on them (`rce index vectors N`).
 //!
 //! Inputs are built from the parameter types by a fixed rule (no
 //! randomness): i64 from a pool of edge and ordinary values, bool, text

@@ -132,7 +132,7 @@ E_sim coefficients per meter by least squares:
   `rce_check` calls, K = 10..160, over 1, 2 or 3 bundled RCE programs, so
   passes and form nodes vary independently), `test large x20` (`rce_test`).
 - Features are the ones rce-mcp records for the same call. Runs are
-  interleaved over `--reps` passes (default 5).
+  interleaved over `reps N` passes (default 5).
 - Measured joules are whole-domain (idle draw included), as in receipts.
 - Only the `checker` gear is calibrated. Terms no workload varies (wasi
   fuel, tokens, net bytes) are held at 0 and listed as not calibrated;
@@ -142,8 +142,8 @@ E_sim coefficients per meter by least squares:
   the command fails; it never writes zeros.
 
 Output: `$RCE_IDE_CALIBRATION`, else `$XDG_CONFIG_HOME/rce-ide/calibration.json`,
-else `~/.config/rce-ide/calibration.json` (`--out` overrides). The file's top level
-is the first meter's simulator (`rce-mcp --calibration FILE` takes it as is),
+else `~/.config/rce-ide/calibration.json` (`out FILE` overrides). The file's top level
+is the first meter's simulator (`rce-mcp calibration FILE ROOT` takes it as is),
 with the full report under `report`; `calibration.<meter>.json` beside it per
-meter. The IDE loads the default file at startup. `--fake-meter WATTS` (a
+meter. The IDE loads the default file at startup. `fake-meter WATTS` (a
 constant-power stand-in, tagged `fake`) is for testing without hardware.

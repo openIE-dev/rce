@@ -1,1 +1,1 @@
-equiv --fuel 1000 counter.rce sloppy.rce
+equiv fuel 1000 counter.rce sloppy.rce

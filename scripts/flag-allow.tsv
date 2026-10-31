@@ -1,0 +1,44 @@
+# scripts/flag-allow.tsv: lines that scripts/check-flags.py does not report (positional-cli.md 4.3).
+# path glob<TAB>line pattern (Python regex; empty: the whole file)<TAB>reason
+spec/proposals/LEDGER.md		the ledger records past changes in the words of their day
+spec/proposals/positional-cli.md		the proposal lists the flags it removes
+scripts/check-flags.py		the scan names the flags it looks for
+scripts/flag-allow.tsv		this file
+ide/release/NOTES-*.md		dated release notes keep their words
+ide/release/RELEASE.md		dated release notes keep their words
+**	lake env lean --run|"lean", "--run"|lean --run	Lean's own flag
+**	unshare[^\n]*--net	unshare's own flag
+**	tree-sitter[^\n]*--wasm|"--wasm"\]	tree-sitter's own flag
+**	\bgh [^\n]*--json	the GitHub CLI's own flag
+**	cargo [^\n]*(--release|--bin|--features|--test|--lib|--all-targets|--locked|--manifest-path|--version|-j)	cargo's own flags
+**	(rustc|node|python3|scala-cli|mdbook|lean|lake|wasmtime|elan|tree-sitter|java|go|deno|bun|npm|pnpm|pip|uv|clang|gcc|cc|zig|docker|git|curl|jq)\b[^\n]*--version|tool_version\(|\.arg\("--version"\)|"--version"\]|\[t, "--version"\]|`--version`	--version of other programs
+**	rustfmt[^\n]*--check|cargo fmt[^\n]*--check	rustfmt's own flag
+**	black[^\n]*--check|ruff[^\n]*--check|prettier[^\n]*--check	formatters' own flags
+**	\bpip[^\n]*--	pip's own flags
+**	(argparse|add_argument)	Python's argument parser for programs outside RCE
+spec/checker/src/cli.rs	Removed \{ flag:	the table of removed flags (decision 2)
+spec/checker/src/args.rs		the reader of removed flags (decision 2)
+spec/checker/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
+spec/checker/src/bin/*.rs	Removed \{ flag:	the table of removed flags (decision 2)
+spec/checker/tests/positional_cli.rs		the test that every removed flag exits 2
+spec/checker/tests/version.rs		the test that --version and -V exit 2
+spec/checker/tests/bugfix_sweep.rs	--help|"-h"	the test that --help and -h exit 2
+**	rce form --emit|rce currency[^\n]*--mark|rce scan DIR --form|rce check --strict	commands of the engine crate, which is not in this repository (10.1, Appendix D)
+conformance/tests/handler-spec/*.rce	--strict	the engine's command, quoted by the conformance case
+**	"--version"\)|"--version"\]|'--version'\]	--version of other programs
+**	tree-sitter (query|parse|generate|build|test|init)	tree-sitter's own flags
+**	\bcurl -	curl's own flags
+**	\bldd	ldd's own flag
+**	\bgh (release|api|pr|run|issue)	the GitHub CLI's own flags
+**	B="--release	cargo's own flags
+lang/corpus.py	\[u, "--	unshare's own flags
+**	removed flag|was removed; write:|removed=\{	the decision-2 messages and the tables of removed flags of the scripts
+spec/checker/tests/common/targets.rs	TOOL --version|\{t\} --version	--version of the emit targets' toolchains
+ide/crates/rce-graph3d/src/layout.rs	\{ -h \}	arithmetic negation, not a flag
+ide/release/index.html		release notes of v0.1.0, dated, keep their words
+ide/crates/rce-ide/src/ci.rs	"--energy-budget"	the test that a removed flag exits 2
+ide/crates/rce-ide/tests/rce_bin.rs	"--energy-budget"|"--version"	the test that a removed flag exits 2
+ide/crates/rce-mcp/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
+ide/crates/rce-ide/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
+scripts/positional.py	`--log D`|`--NAME`	the reader of removed flags (decision 2)
+spec/checker/tests/repair.rs	"repair", "--json"	the test that a dash argument exits 2

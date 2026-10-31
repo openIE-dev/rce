@@ -2,7 +2,7 @@
 //! no certificate authority. Each host has one Ed25519 identity; its
 //! certificate is self-signed (rcgen) on that key, and a peer is accepted
 //! only when the key in its certificate equals the key pinned for it
-//! (`--peer HOST:PORT=ED25519HEX`). The host logs its public key in D as
+//! (`tls peer HOST:PORT ED25519HEX`). The host logs its public key in D as
 //! `host.TlsIdentity` at start, so the identity a run used is part of the
 //! record; the 32-byte seed stays in `<log>.tlskey` (mode 0600), never in D.
 //! Pinning is a byte comparison of keys; nothing here asks a model.

@@ -71,7 +71,7 @@ bytes.
 - **HS-4, refined.** Verify on open checks the chain of the suffix after
   the last checkpoint whose `root` recomputes, and the inclusion of that
   checkpoint in the tree below it. The whole-log check of today remains
-  available (`rce host verify --full`) and is the reference; the suffix
+  available (`rce host verify full`) and is the reference; the suffix
   check must give the same answer whenever both run.
 - **Cost labels.** HS-7 and HS-9 are O(|D|) without checkpoints and
   O(|suffix|) with them. The survey's estimate for a whole-log verify at

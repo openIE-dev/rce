@@ -11,7 +11,7 @@
 //! What is compiled in (`include_str!`) is `spec/data/spec-tables.json`,
 //! the `methods` and `method_work` members of spec-data.json and the rule
 //! to method map of `w_methods`, and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
-//! build does not carry the grammar tables. `rce-spec-data --check` and
+//! build does not carry the grammar tables. `rce-spec-data check` and
 //! `tests/spec_data.rs` fail when either file is stale against the book,
 //! and `tests/spec_read.rs` checks that every table entry is typed and
 //! evaluated.

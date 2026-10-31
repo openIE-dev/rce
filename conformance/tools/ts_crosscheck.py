@@ -2,7 +2,7 @@
 """Cross-check parsing with tree-sitter-rce (spec 3: the LALR(1) tables, the
 Rust parser and the tree-sitter port must agree on every program).
 For every test whose expectation is decided at parse time or later, compare
-  - the reference's parse-only verdict (`rce-check --parse-only`), and
+  - the reference's parse-only verdict (`rce-check parse-only`), and
   - tree-sitter-rce: a parse with no ERROR or MISSING node.
 A test with expect accept/run/trace must parse under both. A test that
 requires change under W-SYN-1, W-LEX-* or W-VER-1 must fail to parse under the reference; a
@@ -25,7 +25,7 @@ for p in sorted((ROOT / "tests").rglob("*.rce")):
     f = tmp / f"t{len(files)}.rce"; f.write_bytes(src.encode("utf-8", errors="surrogateescape"))
     files.append((p, m, f))
 for p, m, f in files:
-    r = subprocess.run([check, "--parse-only", str(f)], capture_output=True, text=True)
+    r = subprocess.run([check, "parse-only", str(f)], capture_output=True, text=True)
     ref_ok = r.returncode == 0
     t = subprocess.run(["tree-sitter", "parse", "--quiet", str(f)], cwd=ts, capture_output=True, text=True)
     ts_ok = t.returncode == 0 and "ERROR" not in t.stdout and "MISSING" not in t.stdout

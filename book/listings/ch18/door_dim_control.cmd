@@ -1,1 +1,1 @@
-dim --control door.rce
+dim control door.rce

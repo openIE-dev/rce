@@ -195,11 +195,11 @@ with the highest priority goes first.
 
 The emitters of chapter 15 translate tasks, channels, `select`, actors and
 `par`. An emitted program runs `fn main` when it is started with the
-argument `--run`, and prints the same output as `rce run`, followed by the
+word `run`, and prints the same output as `rce run`, followed by the
 run's outcome:
 
 ```text
-$ rce emit python channels.rce > channels.py && python3 channels.py --run
+$ rce emit python channels.rce > channels.py && python3 channels.py run
 {{#include ../listings/ch14/channels_python.out}}
 ```
 

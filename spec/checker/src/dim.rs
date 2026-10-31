@@ -9,14 +9,14 @@
 //! explored graph with the per-step output of λ as the initial partition.
 //! It is quadratic in the worst case where Hopcroft is n log n; it is kept
 //! because its order of operations is obviously deterministic and the graphs
-//! `--fuel` admits are small. States not explored (bound reached) share one
+//! `fuel` admits are small. States not explored (bound reached) share one
 //! class, so the count is then a lower bound on dim(P), never an upper one.
 //!
 //! Status: written against the interpreter API (`Interp::new`,
 //! `initial_state`, `construct`, `delta`, `state_json`); not yet built or
 //! run in the session that wrote it; later built and run (2026-10-23).
 //!
-//! `--control` computes the control quotient of 6.10 on the explored
+//! `control` computes the control quotient of 6.10 on the explored
 //! graph: the same states and transitions, with each step labelled only by
 //! its control outcome (which regions changed, whether it kept the state
 //! and why, the constructors of what it emitted) instead of the values.
@@ -49,7 +49,7 @@ pub struct Dim {
     pub redundancy_bits: f64,
     pub regions: Vec<(String, usize, usize, f64)>, // name, distinct values, needed values, bits
     pub events_skipped: Vec<String>,
-    /// `--control`: dim_c and the hash of the canonical control string
+    /// `control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
     /// Some explored step has a λ output (6.1): an emitted value, or the
     /// record of a kept step. A program with no such step has one behaviour by
@@ -1088,7 +1088,7 @@ pub struct Graph {
     pub keys: Vec<String>,
 }
 
-/// `dim`, optionally with the control quotient (`--control`).
+/// `dim`, optionally with the control quotient (`control`).
 pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     let Graph { states, succ, label, clabel, bound_reached, skipped, .. } = explore(m, fuel)?;
     let _ = &states;
@@ -1286,7 +1286,7 @@ pub fn equiv_report(e: &Equiv) -> String {
         s.push_str(&format!("  A                 {}\n", show_output(la)));
         s.push_str(&format!("  B                 {}\n", show_output(lb)));
     } else if e.undecided {
-        s.push_str("verdict             undecided  the exploration reached its bound before a distinguishing event sequence or equivalence was established: raise --fuel\n");
+        s.push_str("verdict             undecided  the exploration reached its bound before a distinguishing event sequence or equivalence was established: raise fuel\n");
     } else {
         s.push_str("verdict             different  (no finite witness within the explored graph)\n");
     }
@@ -1339,7 +1339,7 @@ pub struct Fingerprint {
 pub fn fingerprint(m: &Module, depth: usize, fuel: usize) -> Result<Fingerprint, String> {
     use sha2::{Digest, Sha256};
     if depth == 0 {
-        return Err("--depth n: n is at least 1".into());
+        return Err("depth N: N is at least 1".into());
     }
     let g = explore_to(m, fuel, depth, &harvest(m))?;
     let k = g.keys.len();
@@ -1378,7 +1378,7 @@ pub fn fingerprint(m: &Module, depth: usize, fuel: usize) -> Result<Fingerprint,
                 };
                 match next {
                     Some(x) => h.update(x),
-                    None => return Err(format!("fuel reached before depth {depth} ({n} states); raise --fuel or lower --depth")),
+                    None => return Err(format!("fuel reached before depth {depth} ({n} states); raise fuel or lower depth")),
                 }
             }
             cur[i] = Some(h.finalize().into());

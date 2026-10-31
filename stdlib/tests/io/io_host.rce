@@ -1,8 +1,7 @@
 # Host checks for io against the reference host's file adapter (rce host
-# run --fs): every request gets one result, paired by the request table;
+# run fs DIR): every request gets one result, paired by the request table;
 # path_ok predicts which paths the adapter does not open; FileRead data read
 # back through the line reader equals what was written.
-# host-flags: --fs
 # event: Save(path: "a.txt", body: "one\ntwo\r\nthree")
 # event: Load(path: "a.txt", body: "one\ntwo\r\nthree")
 # event: Save(path: "./b é.txt", body: "😀\n")

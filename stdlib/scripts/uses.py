@@ -17,8 +17,8 @@ module named twice or a module importing itself is an error that names the
 file and line, never a silent skip.
 
     python3 scripts/uses.py lib/a/b.rce     prints the a/b paths it needs, one per line
-    python3 scripts/uses.py --all           checks every module of lib/
-    python3 scripts/uses.py --selftest      checks the parser itself
+    python3 scripts/uses.py all             checks every module of lib/
+    python3 scripts/uses.py selftest        checks the parser itself
 Exit status 2 on any error."""
 import glob, os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
@@ -106,9 +106,13 @@ def selftest():
     print('uses.py selftest: %d good, %d malformed rejected' % (len(ok), len(bad) + 1))
 def main(a):
     try:
-        if a == ['--selftest']:
+        if a and a[0].startswith('-'):
+            # positional-cli.md decision 2: a removed flag names its new spelling
+            sys.stderr.write('%s was removed; write: python3 scripts/uses.py %s\n' % (a[0], a[0].lstrip('-')))
+            sys.exit(2)
+        if a == ['selftest']:
             selftest()
-        elif a == ['--all']:
+        elif a == ['all']:
             fs = sorted(glob.glob(os.path.join(ROOT, 'lib/*.rce')) + glob.glob(os.path.join(ROOT, 'lib/*/*.rce')))
             n = sum(1 for f in fs if deps(f))
             print('uses.py: %d modules, %d with dependencies, every use item well formed' % (len(fs), n))

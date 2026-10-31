@@ -26,14 +26,14 @@ Outcome of a point: admitted_equal, admitted_differs (admitted, behaviour
 differs on a probe), requires_change_examples (the only rule named is
 W-INT-1), requires_change (other rules). Behaviour is judged on probes: the
 original's example event lists and every ordered pair of them concatenated,
-traced by `rce trace --json FILE --streams` on the text with its example and
+traced by `rce trace streams FILE PATH` on the text with its example and
 check lines removed; a probe differs when its (outcome, hashed state)
 sequence differs from the original's or cannot be traced.
 
 Energy: E(x) = R(x) + B(x), R = the number of distinct rule ids `rce check`
 names (0 when admitted), B = the share of probes that differ.
 
-    scripts/edit-landscape.py --rce PATH/TO/rce --out DIR [--jobs N]
+    scripts/edit-landscape.py [jobs N] PATH/TO/rce DIR
 
 writes DIR/points.jsonl, DIR/descents.jsonl and DIR/summary.json (and one
 file per finished family under DIR/families/, from which an interrupted run
@@ -41,7 +41,9 @@ resumes). The run is
 a pure function of the checkout and the seed (each family has its own
 seeded generator, so the job count does not change the result).
 """
-import argparse, bisect, importlib.util, json, multiprocessing, re, shutil, subprocess, tempfile
+import bisect, importlib.util, json, multiprocessing, re, shutil, subprocess, tempfile
+from types import SimpleNamespace
+from positional import read
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -340,7 +342,7 @@ def population(rce_bin, tmp):
         f.write_text(src, encoding="utf-8")
         if rce.run("check", str(f)).returncode != 0:
             continue
-        nl = rce.run("fmt", "--nameless", str(f)).stdout
+        nl = rce.run("fmt", "nameless", str(f)).stdout
         if not nl.strip() or corpus.sha(nl) in seen:
             continue
         seen.add(corpus.sha(nl))
@@ -350,11 +352,9 @@ def population(rce_bin, tmp):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--rce", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--jobs", type=int, default=2)
-    a = ap.parse_args()
+    # words, then the operands RCE and OUT (positional-cli.md PC-1)
+    w, (rce_path, out_dir) = read("scripts/edit-landscape.py", {"jobs": 1}, "RCE OUT", 2, 2, removed={"--rce": 0, "--out": 1})
+    a = SimpleNamespace(rce=rce_path, out=out_dir, jobs=int(w.get("jobs", 2)))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short=8", "HEAD"], capture_output=True, text=True).stdout.strip()

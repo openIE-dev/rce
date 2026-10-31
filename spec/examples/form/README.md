@@ -9,7 +9,7 @@ canonical rules C1 to C11 and the gate rules FG1 to FG15 of
   the rules as the proposal states them, with an encoder of its own: canonical
   JSON (6.1.1), group and module keys, Merkle digests (C2), and the orders that
   C3, C5, C7 and C9 fix. A fixture that requires change breaks one rule and is canonical in
-  every other respect. `python3 spec/examples/form/make.py --check` fails when
+  every other respect. `python3 spec/examples/form/make.py check` fails when
   a file here differs from what `make.py` writes.
 - `expect.json` gives each fixture's outcome, written by hand in `make.py`
   from the rules, never from the checker: `applied`, or `requires change` with the rule

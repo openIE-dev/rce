@@ -69,7 +69,7 @@ Per hole, in this order, each stage bounded:
 Holes are filled most-constrained first (fewest candidates), with backtracking on conflict; order fixed by (candidate count, hole name).
 
 ### 5.4 Check, oracle, repair
-Candidate goes through `checker check`, then `test` on intent examples, then a seeded property run of `ensures`/`invariant` (the gear gate's property step, generalized), then emitter agreement via `trace --json` across targets.
+Candidate goes through `checker check`, then `test` on intent examples, then a seeded property run of `ensures`/`invariant` (the gear gate's property step, generalized), then emitter agreement via `rce trace` across targets.
 Diagnostics become structured: `{code, span, hole?, expected, found}`. A fixed table maps diagnostic codes to repair actions (re-open the hole, narrow its type, add a guard brick, swap a brick of the same type). Repair re-enters 5.3 with the extra constraint, so repair is search with learned exclusions, not mutation. A loop bound and a seen-set of candidate hashes guarantee termination.
 
 ### 5.5 Oracle
@@ -79,7 +79,7 @@ Three layers, all deterministic: (a) intent examples, (b) properties sampled wit
 - `rce index LIB -> catalog.json`
 - `rce new TEMPLATE NAME`: instantiate a Form template (an intent with holes) from the catalog
 - `rce fit INTENT [--budget]`: compose, check, repair; writes module, proof log, and a synthesis log
-- `rce gen MODULE --target T`: existing emit path
+- `rce gen target T MODULE`: existing emit path
 
 Outputs: the module, a per-hole derivation (stage, candidates tried, winner hash), and the hash chain over the run.
 

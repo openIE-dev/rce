@@ -14,7 +14,7 @@ import RCE.NameFree
 
     * `pos_rename`: the positional form is unchanged by any renaming that is
       injective and fixes every name the module does not declare, which is
-      what `rce fmt --nameless` does (10.6). So for *any* hash function the
+      what `rce fmt nameless` does (10.6). So for *any* hash function the
       state hash and the entry chain of a renamed program equal the
       original's (`state_hash_name_independent`, `chain_name_independent`).
     * `eventIndex_eq_idx`: the `type` the checker hashes for an event is the
@@ -117,7 +117,7 @@ def eventIndex (d : Decls) (name : String) : Nat := idx d.events name
 /-- The hashed form of an event `{"payload": P, "type": k}`. -/
 def posEvent (d : Decls) (e : String × NV) : Nat × PV := (eventIndex d e.1, pos d e.2)
 
-/-! ### Renaming, as `rce fmt --nameless` does it (10.6) -/
+/-! ### Renaming, as `rce fmt nameless` does it (10.6) -/
 
 /-- A type name the module declares (struct, event, error or variant). -/
 def Declared (d : Decls) (ty : String) : Prop :=
@@ -153,7 +153,7 @@ end
 def renameRegion (d : Decls) (ρ : String → String) (r : Region) : Region :=
   (ρ r.1, r.2.map fun f => (ρ f.1, NV.rename d ρ f.2))
 
-/-- The renamings `rce fmt --nameless` produces: injective, and fixing every
+/-- The renamings `rce fmt nameless` produces: injective, and fixing every
     type name the module does not declare. -/
 structure Nameless (d : Decls) (ρ : String → String) : Prop where
   inj : ∀ a b, ρ a = ρ b → a = b

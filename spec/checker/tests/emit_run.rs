@@ -1,4 +1,4 @@
-//! The emitted Rust program in `--run` mode runs `fn main` on its own tick
+//! The emitted Rust program under the word `run` runs `fn main` on its own tick
 //! runtime (one OS thread per task, a scheduler admitting moves tick by
 //! tick). Its outputs and outcome are compared with the reference
 //! `conc::run_main` on a corpus of task programs, and a stress pass reruns
@@ -58,7 +58,7 @@ fn want_links(src: &str, links: &Links) -> Vec<String> {
     v
 }
 
-/// the Python oracle for `--run`: RCE_PYTHON_RUN, else RCE_PYTHON, else a
+/// the Python oracle for `run`: RCE_PYTHON_RUN, else RCE_PYTHON, else a
 /// free-threaded 3.14 (python3.14t on PATH, or one found by `uv python
 /// find 3.14t`), else python3
 fn python() -> String {
@@ -168,9 +168,9 @@ fn run_exe(exe: &Exe, links: &Links) -> Vec<String> {
         c.arg(&exe.0);
     }
     c.arg(&exe.1);
-    c.arg("--run");
+    c.arg("run");
     for (t, p, a, b) in links {
-        c.arg(format!("--link={t},{},{a},{b}", if *p { "partition" } else { "heal" }));
+        c.arg("link").arg(format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" }));
     }
     let o = c.output().unwrap();
     assert!(o.status.success(), "{:?}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
@@ -196,9 +196,9 @@ fn got(exe: &PathBuf) -> Vec<String> {
 
 fn got_links(exe: &PathBuf, links: &Links) -> Vec<String> {
     let mut c = Command::new(exe);
-    c.arg("--run");
+    c.arg("run");
     for (t, p, a, b) in links {
-        c.arg(format!("--link={t},{},{a},{b}", if *p { "partition" } else { "heal" }));
+        c.arg("link").arg(format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" }));
     }
     let o = c.output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
@@ -985,7 +985,7 @@ fn run_log(exe: &Exe) -> Vec<String> {
     if !exe.0.is_empty() {
         c.arg(&exe.0);
     }
-    let o = c.arg(&exe.1).args(["--run", "--actor-log"]).output().unwrap();
+    let o = c.arg(&exe.1).args(["run", "actor-log"]).output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }
@@ -1039,14 +1039,14 @@ fn run_args(exe: &Exe, extra: &[String]) -> Vec<String> {
     if !exe.0.is_empty() {
         c.arg(&exe.0);
     }
-    let o = c.arg(&exe.1).args(["--run", "--actor-log"]).args(extra).output().unwrap();
+    let o = c.arg(&exe.1).args(["run", "actor-log"]).args(extra).output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }
 
 /// restart as input on every target (C.11.11): each runtime records the
-/// same RestartIn decisions as the reference (`--restart-log`), and replays
-/// a logged list (`--restart=...`) under a changed policy exactly as the
+/// same RestartIn decisions as the reference (`restart-log`), and replays
+/// a logged list (`restart ...`) under a changed policy exactly as the
 /// reference does, the logged decisions governing; a decision for another
 /// actor is `replay diverged`
 #[test]
@@ -1074,20 +1074,20 @@ fn restart_inputs_replay_on_every_target() {
     assert!(want_bad.last().unwrap().ends_with("replay diverged"), "{want_bad:?}");
     for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
         let exe = build_lang(lang, &format!("rin_{lang:?}"), KEPT_STEPS);
-        let got: Vec<String> = run_args(&exe, &["--restart-log".into()])
+        let got: Vec<String> = run_args(&exe, &["restart-log".into()])
             .into_iter()
             .filter_map(|l| l.strip_prefix("restartin ").map(String::from))
             .collect();
         assert_eq!(got, logged, "{lang:?} records the reference's decisions");
-        let args: Vec<String> = logged.iter().map(|l| format!("--restart={l}")).collect();
+        let args: Vec<String> = logged.iter().flat_map(|l| ["restart".to_string(), l.to_string()]).collect();
         let exe_w = build_lang(lang, &format!("rin_win_{lang:?}"), &windowed);
         assert_eq!(run_args(&exe_w, &args), want_replay, "{lang:?} replays the logged decisions");
-        let bad_args: Vec<String> = bad.iter().map(|r| format!("--restart={}", fmt_restart(r))).collect();
+        let bad_args: Vec<String> = bad.iter().flat_map(|r| ["restart".to_string(), fmt_restart(r)]).collect();
         assert_eq!(run_args(&exe, &bad_args), want_bad, "{lang:?} diverges on a mismatched decision");
     }
 }
 
-/// `--run` on a module without `fn main()` fails as `rce run` does
+/// `run` on a module without `fn main()` fails as `rce run` does
 /// (10.3): status 1 and the reference's message, in every target, rather
 /// than starting a scheduler with no task
 #[test]
@@ -1103,7 +1103,7 @@ fn run_without_main_requires_change() {
             if !exe.0.is_empty() {
                 c.arg(&exe.0);
             }
-            let o = c.arg(&exe.1).arg("--run").output().unwrap();
+            let o = c.arg(&exe.1).arg("run").output().unwrap();
             assert_eq!(o.status.code(), Some(1), "{n} {lang:?}: {}", String::from_utf8_lossy(&o.stderr));
             assert!(o.stdout.is_empty(), "{n} {lang:?}");
             assert_eq!(String::from_utf8_lossy(&o.stderr).trim(), want, "{n} {lang:?}");
@@ -1140,7 +1140,7 @@ fn main()
     a <- Show
 ";
 
-/// HC-6 on every target: program events given as `--event=` inputs reach
+/// HC-6 on every target: program events given as `event` words reach
 /// the live actors that handle them in actor id order, are logged as
 /// `Input(..)`, and an event no actor handles is logged `Unhandled(..)`;
 /// each runtime gives the reference's outputs, log and outcome
@@ -1166,7 +1166,7 @@ fn program_events_agree_on_every_target() {
     assert_eq!(want.last().unwrap(), "outcome Done");
     let args: Vec<String> = ["5|Hit|k=3", "6|Hit|k=-4", "7|Tag|flag=true,who=ann", "7|Tag|flag=false,who=bob", "8|Show", "12|Nobody"]
         .iter()
-        .map(|e| format!("--event={e}"))
+        .flat_map(|e| ["event".to_string(), e.to_string()])
         .collect();
     for lang in run_targets() {
         let exe = build_lang(lang, &format!("ev_{lang:?}"), EVENTS);
@@ -1177,7 +1177,7 @@ fn program_events_agree_on_every_target() {
         if !exe.0.is_empty() {
             c.arg(&exe.0);
         }
-        let o = c.arg(&exe.1).args(["--run", "--event=3|Hit|k=x"]).output().unwrap();
+        let o = c.arg(&exe.1).args(["run", "event", "3|Hit|k=x"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{lang:?}");
     }
 }
@@ -1217,15 +1217,15 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
     let w_reord = replay(&upgraded, Some(reord.clone()));
     assert_eq!(w_reord, vec!["outcome Stopped: trap: upgrade reordered supervisor position Spare/z".to_string()]);
     let rargs = |tree: Option<&[String]>| {
-        let mut a: Vec<String> = logged.iter().map(|l| format!("--restart={l}")).collect();
+        let mut a: Vec<String> = logged.iter().flat_map(|l| ["restart".to_string(), l.to_string()]).collect();
         if let Some(t) = tree {
-            a.push(format!("--restart-tree={}", t.join(",")));
+            a.extend(["restart-tree".to_string(), t.join(",")]);
         }
         a
     };
     for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
         let exe = build_lang(lang, &format!("rup_rec_{lang:?}"), KEPT_STEPS);
-        let log = run_args(&exe, &["--restart-log".into()]);
+        let log = run_args(&exe, &["restart-log".into()]);
         assert!(log.contains(&"restartlog v1 tree=Root/w".to_string()), "{lang:?} {log:?}");
         let exe_up = build_lang(lang, &format!("rup_up_{lang:?}"), &upgraded);
         assert_eq!(run_args(&exe_up, &rargs(Some(&rec.tree))), w_up, "{lang:?} replays across the upgrade");
@@ -1248,7 +1248,7 @@ fn scala_actor_programs_agree_with_the_reference() {
     assert!(java_bin().is_some(), "scala: no JVM for the assemblies");
     let exe = build_lang(Lang::Scala, "sc_kept", KEPT_STEPS);
     assert_eq!(run_log(&exe), want_log(KEPT_STEPS), "kept steps and supervision");
-    let rec = run_args(&exe, &["--restart-log".into()]);
+    let rec = run_args(&exe, &["restart-log".into()]);
     let m = parse(KEPT_STEPS).unwrap();
     let r = run_main(&m, &RunCfg::default()).unwrap();
     let want_rin: Vec<String> = r.restarts.iter().map(fmt_restart).collect();
@@ -1281,9 +1281,9 @@ fn scala_actor_programs_agree_with_the_reference() {
 }
 
 /// The trace of `fn main` (10.9) as an emitted program prints it under
-/// `--run --trace`: one `d applied|kept HASH BODY` line per step of the
+/// `run trace`: one `d applied|kept HASH BODY` line per step of the
 /// reference's trace (`cli::main_trace`), BODY the canonical JSON its hash
-/// is over, then `trace HEAD` and the outcome line of `--run`
+/// is over, then `trace HEAD` and the outcome line of `run`
 fn want_main_trace(src: &str, cfg: &RunCfg) -> Vec<String> {
     use rce_spec_check::interp::{D_GENESIS, canon_json};
     let d = rce_spec_check::check_program(&[("t.rce".into(), src.to_string())], false);
@@ -1307,14 +1307,14 @@ fn want_main_trace(src: &str, cfg: &RunCfg) -> Vec<String> {
     v
 }
 
-/// the trace of `fn main` that an emitted program prints with `--run --trace`
+/// the trace of `fn main` that an emitted program prints with `run trace`
 fn got_main_trace(exe: &Exe, extra: &[String]) -> Vec<String> {
     let mut c = Command::new("timeout");
     c.arg("120");
     if !exe.0.is_empty() {
         c.arg(&exe.0);
     }
-    let o = c.arg(&exe.1).args(["--run", "--trace"]).args(extra).output().unwrap();
+    let o = c.arg(&exe.1).args(["run", "trace"]).args(extra).output().unwrap();
     assert!(o.status.success(), "{:?}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
     String::from_utf8(o.stdout)
         .unwrap()
@@ -1327,7 +1327,7 @@ fn got_main_trace(exe: &Exe, extra: &[String]) -> Vec<String> {
 /// The trace of `fn main` (10.9) on every covered target: for every task
 /// and actor program of this file, the spec examples with `fn main()`, the
 /// partition cases and the program events, each runtime prints, under
-/// `--run --trace`, the reference's steps (entry, state hash, chain hash),
+/// `run trace`, the reference's steps (entry, state hash, chain hash),
 /// head and outcome, line for line. The programs give the reference steps
 /// of every kind the tick runtime writes; each kind is checked to occur.
 #[test]
@@ -1341,7 +1341,7 @@ fn main_traces_agree_on_every_target() {
     let none = RunCfg::default();
     let mut cases: Vec<(String, String, RunCfg, Vec<String>)> = progs.into_iter().map(|(n, s)| (n, s, none.clone(), vec![])).collect();
     for (k, l) in partition_cases().into_iter().enumerate() {
-        let args = l.iter().map(|(t, p, a, b)| format!("--link={t},{},{a},{b}", if *p { "partition" } else { "heal" })).collect();
+        let args = l.iter().flat_map(|(t, p, a, b)| ["link".to_string(), format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" })]).collect();
         cases.push((format!("partitions_{k}"), ACTORS.into(), RunCfg { links: l, ..RunCfg::default() }, args));
     }
     {
@@ -1351,7 +1351,7 @@ fn main_traces_agree_on_every_target() {
             events: vec![(5, rec("Hit", vec![("k", V::Int(3, "i64"))])), (8, rec("Show", vec![])), (12, rec("Nobody", vec![]))],
             ..RunCfg::default()
         };
-        let args = ["5|Hit|k=3", "8|Show", "12|Nobody"].iter().map(|e| format!("--event={e}")).collect();
+        let args = ["5|Hit|k=3", "8|Show", "12|Nobody"].iter().flat_map(|e| ["event".to_string(), e.to_string()]).collect();
         cases.push(("events".into(), EVENTS.into(), cfg, args));
     }
     let want: Vec<Vec<String>> = cases.iter().map(|(_, s, cfg, _)| want_main_trace(s, cfg)).collect();

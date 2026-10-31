@@ -2,7 +2,7 @@
 //! interpreter prints for it, which every printed program must reproduce.
 //!
 //! The trace is the lines that an emitted program prints today under
-//! `--trace --fuel-trace`, without the entry of D the emitted program
+//! `trace fuel-trace`, without the entry of D the emitted program
 //! prints before each event (`d applied HASH BODY` or `d kept HASH BODY`,
 //! `emit::observe_trace`), which the core does not print yet: one block per observation in item order (each
 //! constant, each `check`, each zero-argument function, each example run),

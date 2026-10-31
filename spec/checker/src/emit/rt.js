@@ -10,9 +10,38 @@ class Kept extends Error { constructor(r) { super("kept"); this.r = r; } }
 const trap = (m) => { throw new Trap(m); };
 // Fuel (6.7, 10.5): one unit at each point where the reference evaluator
 // ticks; each observation starts with full fuel and empty constant caches.
-const FUEL_ARGS = (typeof process !== "undefined" && process.argv) ? process.argv : [];
-let FUEL_LIMIT = BigInt((FUEL_ARGS.find((a) => a.startsWith("--fuel=")) || "--fuel=50000000").slice(7));
-const FUEL_TRACE = FUEL_ARGS.includes("--fuel-trace");
+// The words of an emitted program (positional-cli.md 2.6): the name, the
+// number of values and whether it may be given more than once. An emitted
+// program has words and no operands (PC-1).
+const WORDS = { "run": [0, false], "trace": [0, false], "fuel": [1, false], "fuel-trace": [0, false], "fuel-batch": [1, false], "link": [1, true], "actor-log": [0, false], "restart-log": [0, false], "restart": [1, true], "restart-replay": [0, false], "restart-tree": [1, false], "event": [1, true] };
+// a removed flag names its new spelling (decision 2 of section 5); an
+// argument that is not a word is a usage error; both throw an Error
+function readWords(prog, a) {
+  const f = a.find((x) => x.startsWith("-"));
+  if (f !== undefined) {
+    const neu = a.flatMap((x) => { if (!x.startsWith("-")) return [x]; const y = x.replace(/^-+/, ""), e = y.indexOf("="); return e < 0 ? [y] : [y.slice(0, e), y.slice(e + 1)]; });
+    throw new Error(f.split("=")[0] + " was removed; write: " + prog + " " + neu.join(" "));
+  }
+  const v = [];
+  for (let i = 0; i < a.length;) {
+    const w = a[i];
+    if (!Object.prototype.hasOwnProperty.call(WORDS, w)) throw new Error("`" + w + "` is not a word of this program; words: run trace fuel N fuel-trace fuel-batch N,... link T,partition|heal,A,B actor-log restart-log restart LIST restart-replay restart-tree S/c,... event TICK|Name|f=v,...");
+    const [n, many] = WORDS[w];
+    if (!many && v.some((x) => x[0] === w)) throw new Error("the word `" + w + "` is given twice");
+    if (n && i + n >= a.length) throw new Error("`" + w + "` takes a value");
+    v.push([w, n ? a[i + 1] : null]); i += 1 + n;
+  }
+  return v;
+}
+const ARGV = (typeof process !== "undefined" && process.argv) ? process.argv.slice(2) : [];
+const RCE_WORDS = (() => { try { return readWords("", ARGV); } catch { return []; } })();
+// when run as a program: a command line that is not words exits 2 and runs nothing
+function checkWords() { try { readWords("node " + process.argv[1], ARGV); } catch (e) { process.stderr.write(e.message + "\n"); process.exit(2); } }
+const wordOn = (n) => RCE_WORDS.some((x) => x[0] === n);
+const wordVal = (n) => { const x = RCE_WORDS.find((y) => y[0] === n); return x ? x[1] : null; };
+const wordVals = (n) => RCE_WORDS.filter((x) => x[0] === n).map((x) => x[1]);
+let FUEL_LIMIT = BigInt(wordVal("fuel") || "50000000");
+const FUEL_TRACE = wordOn("fuel-trace");
 // per worker: every task and par branch is its own worker (own pool)
 let FUEL = FUEL_LIMIT;
 function fuel() { if (FUEL === 0n) trap("comptime fuel exhausted"); FUEL -= 1n; }
@@ -22,12 +51,12 @@ function depthEnter(k, n) { const d = DEPTH.get(k) || 0; if (BigInt(d) >= n) tra
 function depthExit(k) { const d = DEPTH.get(k) || 0; if (d > 0) DEPTH.set(k, d - 1); }
 function fuelReset() { DEPTH.clear(); FUEL = FUEL_LIMIT; for (const k of Object.keys(KC)) delete KC[k]; }
 function fuelReport() { if (FUEL_TRACE) say("fuel " + (FUEL_LIMIT - FUEL)); }
-// `--fuel-batch=n1,n2,..`: every observation once per limit in this process,
+// `fuel-batch n1,n2,..`: every observation once per limit in this process,
 // each pass headed by `#fuel-batch n`
 function observeAll(f) {
-  const b = FUEL_ARGS.find((a) => a.startsWith("--fuel-batch="));
+  const b = wordVal("fuel-batch");
   if (!b) { f(); return; }
-  for (const n of b.slice(13).split(",")) { FUEL_LIMIT = BigInt(n); say("#fuel-batch " + n); f(); }
+  for (const n of b.split(",")) { FUEL_LIMIT = BigInt(n); say("#fuel-batch " + n); f(); }
 }
 class Cancel extends Error { constructor(f) { super("cancel"); this.f = f; } }
 const isFlow = (e) => e instanceof Trap || e instanceof Fail || e instanceof Stop || e instanceof Ret || e instanceof Cancel;
@@ -912,7 +941,7 @@ function runEvents(s, events, d) {
   }
 }
 // ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
-const TRACE = FUEL_ARGS.includes("--trace");
+const TRACE = wordOn("trace");
 const D_GENESIS = "0".repeat(64);
 const cpCmp = (a, b) => { const x = Array.from(a, (c) => c.codePointAt(0)), y = Array.from(b, (c) => c.codePointAt(0)); for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return x.length === y.length ? 0 : x.length < y.length ? -1 : 1; };
 class FRec { constructor(fs) { this.fs = fs.slice().sort((a, b) => cpCmp(a[0], b[0])); } }
@@ -1005,7 +1034,7 @@ function fvJson(x) {
 const dSha = (s) => sha256hex(enc.encode(s));
 class DLog {
   constructor() { this.prev = D_GENESIS; this.seq = 0; }
-  // one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+  // one entry, printed with trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
   add(name, ev, st, kept) {
     const ty = Object.hasOwn(EVENT_INDEX, name) ? String(EVENT_INDEX[name]) : jstr(name);
     const evj = '{"payload":' + fvJson(formValuePos(ev)) + ',"type":' + ty + "}";
@@ -1265,7 +1294,7 @@ function lanesOf(v) { const n = markerInt(v); return [n > 0n ? Number(n) : 0, n]
 const groupRec = (lane, n) => new Rec("$group", [["lane", new Int(BigInt(lane), "usize")], ["lanes", new Int(n, "usize")]]);
 
 
-// ---- the tick runtime for `--run` (6.8, chapter C), as the Rust and Python
+// ---- the tick runtime for `run` (6.8, chapter C), as the Rust and Python
 // runtimes. Every task runs on its own worker thread (worker_threads), so
 // tasks run in parallel; the scheduler on the main thread admits moves tick
 // by tick. Workers share no memory: values cross as copies, and a closure,
@@ -1626,7 +1655,7 @@ class SchedJ {
     Object.assign(this, { slots: [], chans: new Map(), staged: [], outputs: [], rng: BigInt(0x5eed | 1), tick: 0, stop: null, maxTicks: 100000,
       actors: new Map(), mailStaged: [], txns: [], txnStaged: [], heldLinks: [], parted: [], links, restarts: new Map(), alog: [], rlog: [], rrep: restartInputs(), events: eventInputs() });
     // the log D of the run, as the reference writes it (conc::Entry):
-    // [entry text, positional state of the run when written, with --trace]
+    // [entry text, positional state of the run when written, with trace]
     this.tlog = [];
   }
   ent(what) { this.tlog.push([what, TRACE ? this.stateJson() : null]); }
@@ -1969,7 +1998,7 @@ class SchedJ {
   }
 }
 function actorInit(ty) { const f = ACTOR_INIT[ty]; return f ? f() : []; }
-// --run --trace: the run's D as the trace of fn main (10.9): one line
+// run trace: the run's D as the trace of fn main (10.9): one line
 // `d applied|kept HASH BODY` per entry, BODY the canonical JSON of {event,
 // prev_hash, seq, state_hash} with event {payload, type} from the entry
 // text `K` or `K(A)`, then `trace HEAD`
@@ -1988,25 +2017,25 @@ function mainTraceLines(tlog, lines) {
 }
 function runTasks(main) {
   const links = [];
-  for (const a of process.argv) if (a.startsWith("--link=")) { const p = a.slice(7).split(","); links.push([Number(p[0]), p[1] === "partition", p[2], p[3]]); }
+  for (const a of wordVals("link")) { const p = a.split(","); links.push([Number(p[0]), p[1] === "partition", p[2], p[3]]); }
   const s = new SchedJ(links);
   const rec = restartTreeArg();
   if (s.rrep !== null && rec !== null) { const e = treeMigrates(rec, SUP_TREE); if (e !== null) s.stop = ["stopped", e]; }
   s.spawnTask(main, [], hid("main"), 0, null, 0);
   const o = s.run();
   const lines = s.outputs.map((v) => "emit " + show(v));
-  if (process.argv.includes("--actor-log")) for (const e of s.alog) lines.push("actorlog " + e);
-  if (process.argv.includes("--restart-log")) lines.push("restartlog v1 tree=" + SUP_TREE.join(","));
-  if (process.argv.includes("--restart-log")) for (const r of s.rlog) lines.push("restartin " + r[0] + "|" + r[1] + "|" + r[2] + "|" + r[3] + "|" + (r[4] ? 1 : 0) + "|" + r[5].join(","));
+  if (wordOn("actor-log")) for (const e of s.alog) lines.push("actorlog " + e);
+  if (wordOn("restart-log")) lines.push("restartlog v1 tree=" + SUP_TREE.join(","));
+  if (wordOn("restart-log")) for (const r of s.rlog) lines.push("restartin " + r[0] + "|" + r[1] + "|" + r[2] + "|" + r[3] + "|" + (r[4] ? 1 : 0) + "|" + r[5].join(","));
   if (TRACE) mainTraceLines(s.tlog, lines);
   lines.push(o[0] === "done" ? "outcome Done" : o[0] === "deadlock" ? "outcome Deadlock" : "outcome Stopped: " + o[1]);
   process.stdout.write(lines.map((x) => x + "\n").join(""), () => process.exit(0));
 }
 
-// --restart-tree=Sup/child,...: the schema of the replayed restart log
+// restart-tree Sup/child,...: the schema of the replayed restart log
 function restartTreeArg() {
-  for (const a of process.argv) if (a.startsWith("--restart-tree=")) return a.slice(15).split(",").filter((x) => x);
-  return null;
+  const a = wordVal("restart-tree");
+  return a === null ? null : a.split(",").filter((x) => x);
 }
 function group_(v) {
   const g = [];
@@ -2029,13 +2058,11 @@ function treeMigrates(rec, cur) {
   return null;
 }
 const INT_TYS = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize"];
-// program events (HC-6): --event=TICK|Name|field=value,...
+// program events (HC-6): event TICK|Name|field=value,...
 function eventInputs() {
   const v = [];
-  for (const a of process.argv) {
-    if (!a.startsWith("--event=")) continue;
-    const r = a.slice(8);
-    const bad = (m) => { process.stderr.write("bad --event " + r + ": " + m + "\n"); process.exit(2); };
+  for (const r of wordVals("event")) {
+    const bad = (m) => { process.stderr.write("bad event " + r + ": " + m + "\n"); process.exit(2); };
     const i1 = r.indexOf("|"), i2 = i1 < 0 ? -1 : r.indexOf("|", i1 + 1);
     const tick = Number(i1 < 0 ? r : r.slice(0, i1));
     if (!Number.isInteger(tick) || i1 < 0) bad("tick");
@@ -2058,14 +2085,14 @@ function eventInputs() {
   }
   return v;
 }
-// logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+// logged restart inputs (C.11.11): restart TICK|SUP|CHILD|ID|STOP|RESET,...
 function restartInputs() {
   const v = [];
-  for (const a of process.argv) if (a.startsWith("--restart=")) {
-    const p = a.slice(10).split("|");
+  for (const a of wordVals("restart")) {
+    const p = a.split("|");
     v.push([Number(p[0]), p[1], p[2], p[3], p[4] === "1", (p[5] || "").split(",").filter((x) => x)]);
   }
-  if (v.length === 0 && !process.argv.includes("--restart-replay")) return null;
+  if (v.length === 0 && !wordOn("restart-replay")) return null;
   return v;
 }
 

@@ -1,0 +1,5 @@
+# The grants of each host test of the standard library, read by
+# scripts/check.sh and scripts/check-all.sh (spec/proposals/positional-cli.md,
+# section 4.1 step 6: a comment never grants authority).
+# path (relative to stdlib/)<TAB>grant words; `fs` grants a fresh empty file root.
+tests/io/io_host.rce	fs

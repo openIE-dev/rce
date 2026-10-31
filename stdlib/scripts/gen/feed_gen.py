@@ -4,7 +4,7 @@
 #   the server error on projecting out _id), replayed against a scripted
 #   server; the prose tests 1-4, 11, 13, 14, 17, 18 and the
 #   "Resumable Error" table of change-streams.md.
-# derived: `rce trace --json` logs (the 6.1 hash chain over the positional forms, T7),
+# derived: `rce trace` logs (the 6.1 hash chain over the positional forms, T7),
 #   PouchDB 9.0.0 pouchdb-checkpointer (CouchDB's compareReplicationLogs
 #   port and its checkpoint update; scripts/gen/feed_pouch.js), and the
 #   admission rules restated.
@@ -327,7 +327,7 @@ with tempfile.TemporaryDirectory() as d:
             if c == 'put': evs.append('Put("%s", %d)' % (w, rng.randint(-10**12, 10**12)))
             elif c == 'tag': evs.append('Tag("%s", %s)' % (w, rng.choice(['true', 'false'])))
             else: evs.append('Bump')
-        r = subprocess.run([RCE, 'trace', '--json', f, ', '.join(evs)], capture_output=True, text=True, check=True)
+        r = subprocess.run([RCE, 'trace', f, ', '.join(evs)], capture_output=True, text=True, check=True)
         traces.append(json.loads(r.stdout))
 json.dump(traces, open(os.path.join(ROOT, 'vectors/data/rce_trace_feed.json'), 'w'), ensure_ascii=False, indent=0)
 for tr in traces:

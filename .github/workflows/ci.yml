@@ -19,6 +19,8 @@ jobs:
           fetch-depth: 0
       - name: No mention of a removed path
         run: python3 scripts/check-removed-paths.py
+      - name: No command line gives an RCE command a flag (positional-cli.md 4.3)
+        run: python3 scripts/check-flags.py
 
   spec:
     runs-on: ubuntu-latest
@@ -38,15 +40,15 @@ jobs:
       - name: Check the specification and examples
         run: cargo run --release --bin rce-spec-check
       - name: Check the book is in sync
-        run: cargo run --release --bin rce-book -- build --check
+        run: cargo run --release --bin rce-book -- build check
       # every figure the prose quotes (grammar and example counts from
       # rce-spec-check, built above) must equal the source
       - name: Check the quoted counts (claim-counts)
-        run: python3 ../../scripts/claim-counts.py --check
+        run: python3 ../../scripts/claim-counts.py check
       - name: Check the conformance README status block equals reports/
-        run: python3 ../../conformance/tools/readme_status.py --check
+        run: python3 ../../conformance/tools/readme_status.py check
       - name: Check the rce-form/1 fixtures are what their generator writes
-        run: python3 ../../spec/examples/form/make.py --check
+        run: python3 ../../spec/examples/form/make.py check
       - name: T7 on every corpus program (rce equiv against the name-free projection)
         run: bash ../../scripts/t7-equiv.sh
       - name: Clippy

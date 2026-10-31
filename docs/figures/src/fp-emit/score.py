@@ -13,7 +13,7 @@ R = [
  ("Gleam",1.1,None,None,None,618,1691,"packages.gleam.run","v1.19.2","2026-10-12",14,"pass","BEAM ints/floats as Elixir; TCO; no mutable vars, more lowering work"),
  ("Lean 4",None,None,None,None,4432,None,"Reservoir (not obtained)","v4.35.0","2026-10-12",21,"conditional","Float via C double compiled by clang; clang default -ffp-contract=on can fuse a*b+c; needs verified flags"),
  ("Clojure",0.0,None,None,None,16547,None,"Clojars (not obtained)","1.12.x stable (1.13.0-alpha9 2026-10-11)","2026-10-11",None,"pass","JVM: same float/int story as Scala; recur only, no TCO"),
- ("Elm",None,None,None,None,1675,None,"package.elm-lang.org (not obtained)","0.19.3","2026-10-02",2,"fail","Browser only: no stdout/process/threads to run observations or --run; Int is JS double"),
+ ("Elm",None,None,None,None,1675,None,"package.elm-lang.org (not obtained)","0.19.3","2026-10-02",2,"fail","Browser only: no stdout/process/threads to run observations or run fn main; Int is JS double"),
  ("PureScript",None,None,None,None,3590,None,"registry-index top-level 195 dirs","v0.15.16","2026-03-15",1,"conditional","JS backend: Int is 32-bit, needs BigInt FFI; single-threaded Aff"),
  ("Roc",None,None,None,None,None,None,"n/a","alpha4-rolling","2025-08-26",0,"fail","No stable release to pin as an oracle"),
  ("Unison",None,None,None,None,None,None,"Unison Share (not obtained)","1.5.0","2026-10-02",10,"conditional","Content-addressed codebase, no plain one-file program to emit and run"),

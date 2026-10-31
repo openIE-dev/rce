@@ -1522,7 +1522,7 @@
    "normative": true,
    "chapter": "12-tooling.md",
    "line": 434,
-   "section": "10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)",
+   "section": "10.9 `rce trace FILE [EVENTS]`: reference traces (informative)",
    "text": "A projector conforms on a module when, for every trace, its steps have the same `seq`, `event` and `state_hash` as the reference, in order and with none missing or extra; when it also emits `prev_hash`, `hash` or `outcome` they must be equal too.",
    "restated": [],
    "profile": "tooling"
@@ -1533,7 +1533,7 @@
    "normative": true,
    "chapter": "12-tooling.md",
    "line": 455,
-   "section": "10.10 `rce index [--vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)",
+   "section": "10.10 `rce index [vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)",
    "text": "`rce-brick-verify CATALOG` (`src/form/brick.rs`) evaluates each lowered term on its vectors and reports, per brick, agreement or the first disagreement: a result must be equal, a trap must be an error.",
    "restated": [],
    "profile": "tooling"

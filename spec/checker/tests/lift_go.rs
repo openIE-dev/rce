@@ -15,8 +15,8 @@ fn go_door_lifts_to_the_hand_written_door() {
     let lifted = "../lift/go/door.lifted.rce";
     let hand = "../examples/61_dim_minimal.rce";
     assert_eq!(rce(&["check", lifted]).0, 0);
-    let (_, a) = rce(&["dim", "--control", "--json", lifted]);
-    let (_, b) = rce(&["dim", "--control", "--json", hand]);
+    let (_, a) = rce(&["dim", "control", "json", lifted]);
+    let (_, b) = rce(&["dim", "control", "json", hand]);
     let a: serde_json::Value = serde_json::from_str(&a).unwrap();
     let b: serde_json::Value = serde_json::from_str(&b).unwrap();
     assert_eq!(a["behaviours"], 3);

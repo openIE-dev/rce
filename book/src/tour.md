@@ -74,12 +74,12 @@ Here is the counter again, with every name changed:
 they do at every step, ignoring names:
 
 ```text
-$ rce equiv --fuel 1000 counter.rce tally.rce
+$ rce equiv fuel 1000 counter.rce tally.rce
 {{#include ../listings/tour/equiv_same.out}}
 ```
 
 The counter can grow without end, so the exploration stops at its bound
-(`--fuel 1000` states) and the verdict says "to the explored bound".
+(`fuel 1000` states) and the verdict says "to the explored bound".
 `rce fingerprint` turns a program's behaviour into one hash, so that equal
 behaviour can be looked up rather than compared pair by pair:
 
@@ -101,7 +101,7 @@ zero instead of saying that it did not apply:
 differ, and what each one does at its end:
 
 ```text
-$ rce equiv --fuel 1000 counter.rce sloppy.rce
+$ rce equiv fuel 1000 counter.rce sloppy.rce
 {{#include ../listings/tour/equiv_diff.out}}
 ```
 

@@ -387,7 +387,7 @@ fn one_field(k: &str, n: u64) -> serde_json::Map<String, Value> {
 /// The program events the host delivers, each with the host kind it is
 /// bound to (E.5 `host.Bind`), in the order the bindings are appended at
 /// start: `Synced`, `WallTime`, `StepKept`, `Restarted`, the HTTP inputs
-/// under `--http`, then the result `KDone` of each kind K performed. Only
+/// under `http`, then the result `KDone` of each kind K performed. Only
 /// events the module declares are bound.
 fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = vec![];
@@ -1419,21 +1419,21 @@ impl<'a> Host<'a> {
         }
         if http {
             match event_payload(m, "HttpRequest") {
-                None => notes.push(format!("--http: event HttpRequest is not declared, so each request is recorded in D as host.Kept and {}", if declares_event(m, "HttpMalformed") { "delivered as HttpMalformed with status 501" } else { "answered 501 Not Implemented by the host" })),
+                None => notes.push(format!("http: event HttpRequest is not declared, so each request is recorded in D as host.Kept and {}", if declares_event(m, "HttpMalformed") { "delivered as HttpMalformed with status 501" } else { "answered 501 Not Implemented by the host" })),
                 Some(_) => notes.extend(delivery_note(m, "HttpRequest", false)),
             }
             match event_payload(m, "HttpMalformed") {
-                None => notes.push("--http: event HttpMalformed is not declared, so a request that breaks the syntax, a limit or a deadline is recorded in D as host.Kept and answered by the host with its status".to_string()),
+                None => notes.push("http: event HttpMalformed is not declared, so a request that breaks the syntax, a limit or a deadline is recorded in D as host.Kept and answered by the host with its status".to_string()),
                 Some(_) => notes.extend(delivery_note(m, "HttpMalformed", false)),
             }
             if !declares_struct(m, "HttpRespond") {
-                notes.push("--http: struct HttpRespond is not declared, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
+                notes.push("http: struct HttpRespond is not declared, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
             } else if !responds(m) {
-                notes.push("--http: struct HttpRespond does not declare req and status as integers, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
+                notes.push("http: struct HttpRespond does not declare req and status as integers, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
             }
             for e in ["HttpRequest", "HttpMalformed"] {
                 if responds(m) && event_payload(m, e).is_some_and(|p| !p.iter().any(|(k, t)| k == "id" && takes_int(t, m))) {
-                    notes.push(format!("--http: event {e} does not take id as an integer, so the program cannot answer it, and the host answers each with its status"));
+                    notes.push(format!("http: event {e} does not take id as an integer, so the program cannot answer it, and the host answers each with its status"));
                 }
             }
         }

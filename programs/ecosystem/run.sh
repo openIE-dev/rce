@@ -26,7 +26,7 @@ r32() { printf "%0.s$1" $(seq 32); }
 
 hpke() {
   "$RCE" test "$here/hpke.rce" >/dev/null
-  "$RCE" host run "$here/hpke.rce" --log "$tmp/hpke" 'KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037"), PubR, Seal(ske: "52c4a758a802cd8b936eceea314432798d5baf2d7e9235dc084ab1b9cfa2f736", info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", pt: "4265617574792069732074727574682c20747275746820626561757479", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d31", seq: 0)' > "$tmp/hpke.out" 2>&1
+  "$RCE" host run "$here/hpke.rce" "$tmp/hpke" 'KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037"), PubR, Seal(ske: "52c4a758a802cd8b936eceea314432798d5baf2d7e9235dc084ab1b9cfa2f736", info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", pt: "4265617574792069732074727574682c20747275746820626561757479", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d30", seq: 0), Open(info: "4f6465206f6e2061204772656369616e2055726e", aad: "436f756e742d31", seq: 0)' > "$tmp/hpke.out" 2>&1
   # RFC 9180 A.1 base mode, sequence 0; the second Open uses another AAD (additional authenticated data), so it fails and is counted
   want hpke "$tmp/hpke.out" \
     'pkr = "3948cfe0ad1ddb695d780e59077195da6c56506b027329794ab02bca80815c4d"' \
@@ -37,8 +37,8 @@ hpke() {
 pqxdh() {
   "$RCE" test "$here/pqxdh.rce" >/dev/null
   ev="Keys(ika: \"$(r32 11)\", eka: \"$(r32 22)\", ikb: \"$(r32 33)\", spkb: \"$(r32 44)\"), Pub(who: \"ika\"), Pub(who: \"eka\"), Pub(who: \"ikb\"), Pub(who: \"spkb\"), Kem(d: \"$(r32 01)\", z: \"$(r32 02)\"), DhI, Encaps(m: \"$(r32 03)\"), SkI, DhR, Decaps, SkR"
-  "$RCE" host run "$here/pqxdh.rce" --log "$tmp/pq" "$ev" > "$tmp/pq.out" 2>&1
-  "$RCE" host replay "$here/pqxdh.rce" --log "$tmp/pq" --redact priv,ek,dk,ct,dh_i,dh_r > "$tmp/pq.rep" 2>&1
+  "$RCE" host run "$here/pqxdh.rce" "$tmp/pq" "$ev" > "$tmp/pq.out" 2>&1
+  "$RCE" host replay redact priv,ek,dk,ct,dh_i,dh_r "$here/pqxdh.rce" "$tmp/pq" > "$tmp/pq.rep" 2>&1
   ski=$(sed -n 's/.*sk_i = "\([0-9a-f]*\)".*/\1/p' "$tmp/pq.out")
   # ML-KEM-768 shared secret for d = 01..01, z = 02..02, m = 03..03 (RustCrypto ml-kem 0.2.3)
   want pqxdh "$tmp/pq.out" 'ss_i = "f39b95557ee52af1954cd59f19febcb39f127e4abefc6f90546e7b8139ce94ba"' \
@@ -59,8 +59,8 @@ sfu() {
   f2='ChanRecvDone(req: 3, status: "delivered", data: some(["c\t1\tframe\u{1f}r\u{1f}video\u{1f}2\u{1f}d2\u{1f}e2ee:ab2"]), err: "")'
   f1='ChanRecvDone(req: 4, status: "delivered", data: some(["c\t2\tframe\u{1f}r\u{1f}video\u{1f}1\u{1f}d1\u{1f}e2ee:old"]), err: "")'
   bad='ChanRecvDone(req: 5, status: "delivered", data: some(["c\t3\tframe\u{1f}r\u{1f}video\u{1f}x\u{1f}d3\u{1f}"]), err: "")'
-  "$RCE" host run "$SFU" --log "$tmp/sfu" "Setup(me: \"sfu\"), $a, $b, $f2, $f1, $bad" > "$tmp/sfu.out" 2>&1
-  "$RCE" host replay "$SFU" --log "$tmp/sfu" --redact digests > "$tmp/sfu.rep" 2>&1
+  "$RCE" host run "$SFU" "$tmp/sfu" "Setup(me: \"sfu\"), $a, $b, $f2, $f1, $bad" > "$tmp/sfu.out" 2>&1
+  "$RCE" host replay redact digests "$SFU" "$tmp/sfu" > "$tmp/sfu.rep" 2>&1
   # frame 2 goes to a and b; frame 1 is stale; a non-numeric SEQ is malformed; no payload is kept
   want sfu "$tmp/sfu.out" 'forwarded = 2' 'stale = 1' 'malformed = 1' 'replay with adapters disconnected'
   if grep -q 'e2ee:' "$tmp/sfu.rep"; then echo "FAIL sfu: payload in state"; fail=1; fi

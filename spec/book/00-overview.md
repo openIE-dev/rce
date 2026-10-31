@@ -116,7 +116,7 @@ form one program and must be accepted; the 12 syntax rejects, the 49
 programs in `spec/examples/change/types/` and the 16 in
 `spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
-`scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
+`scripts/claim-counts.py check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 590 productions,
@@ -141,4 +141,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 7e384e15ee67f436c7a8cd88928b40f57ac7dab844897bd7848df1c8fa8f484b -->
+<!-- body-sha256: c2e9145f50a8a9ffa3f30fe5e2b9fed41067ec95c2630b66681bafe43ecf72ac -->

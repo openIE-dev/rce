@@ -55,7 +55,7 @@ pub struct Run {
 }
 
 /// Calibration for one meter. Loads as a [`LinearSim`] (extra fields are
-/// ignored), so the file can be passed straight to `rce-mcp --calibration`.
+/// ignored), so the file can be passed straight to `rce-mcp calibration FILE ROOT`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeterCalibration {
     pub meter: String,
@@ -216,7 +216,7 @@ pub fn calibrate(
 
 /// Save `c`: the whole report at `path`, and per meter
 /// `<stem>.<meter>.json` beside it. The main file's top level is the first
-/// (preferred) meter's simulator, so `rce-mcp --calibration <path>` and the
+/// (preferred) meter's simulator, so `rce-mcp calibration <path> ROOT` and the
 /// IDE load it directly. Written atomically (temp file + rename).
 pub fn save(c: &Calibration, path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
     let first = c

@@ -96,9 +96,9 @@ adapter.
   installed, so it names each restriction at the granularity the target
   enforces and never one the target did not install. The reference
   (`sandbox.rs`) lists every address an adapter may use with how it is
-  used: connected to (`--net`, `--peer`), bound after the target is
-  entered (`--net`, and a `--http` address whose bind is still being
-  retried), or bound before (`--http`, `--chan`), whose listener is then
+  used: connected to (`net`, `peer`), bound after the target is
+  entered (`net`, and a `http` address whose bind is still being
+  retried), or bound before (`http`, `chan`), whose listener is then
   only accepted on. It makes the rules and the line from that one list.
   On macOS the Seatbelt profile denies all network use, then allows
   binding and inbound connections on the port of each listening grant and
@@ -113,7 +113,7 @@ adapter.
   port"; a listener bound before entering needs no rule; below ABI 4 the
   line says that Landlock does not restrict the network. seccomp does not
   permit new IP sockets unless some grant is connected to or bound after
-  entering, so with `--http` alone neither the host nor a PTY child can
+  entering, so with `http` alone neither the host nor a PTY child can
   open a socket; otherwise no layer restricts UDP, and the line says so.
   The channel adapters start their threads after the target is entered, so
   Landlock covers them as well. The Seatbelt rules follow Apple's profile
@@ -133,10 +133,10 @@ adapter.
   `Host::main_event`, `conc::RunCfg.events`,
   `tests/host_sched.rs` `program_events_feed_the_live_task_and_replay`,
   `tests/conc06b_run.rs` `program_events_feed_the_running_task`; the
-  emitted runtimes take the same inputs as `--event=TICK|Name|f=v,...`,
+  emitted runtimes take the same inputs as `event TICK|Name|f=v,...`,
   a field's value given by its declared type as a decimal integer,
   `true`/`false` or text, and log `Input(..)` and `Unhandled(..)` with
-  `--actor-log`; a malformed event is an input error, exit status 2,
+  `actor-log`; a malformed event is an input error, exit status 2,
   not a program trap; `tests/emit_run.rs`
   `program_events_agree_on_every_target` on the Rust, Python,
   JavaScript and Scala runtimes); `host.Step` {cause, i, node, tick, what} logs one scheduler
@@ -537,7 +537,7 @@ both enter D and reach the program as inputs.
 
 ### E.4b The net adapter and the HTTP event host (HC-23 to HC-26)
 
-- **HC-23 The net adapter.** `--net HOST:PORT`, given once per address,
+- **HC-23 The net adapter.** `net HOST:PORT`, given once per address,
   grants TCP as effects. Authority is the granted addresses, compared by
   their exact text (HC-5); a request that names an address not granted, or
   an id the adapter did not issue, fails. Each request has one result
@@ -567,8 +567,8 @@ both enter D and reach the program as inputs.
   and polls with `Tick`, one connection at a time
   (`spec/checker/tests/host/notes_net.rce`); the HTTP event host below
   serves the same program without polling.
-- **HC-24 HTTP requests are inputs.** `rce host serve FILE --log D --http
-  HOST:PORT` (one address, under `serve` only) binds the address before
+- **HC-24 HTTP requests are inputs.** `rce host serve http HOST:PORT
+  FILE D` (one address, under `serve` only) binds the address before
   the OS target is entered (HC-5a) and appends `host.HttpListen` {addr and
   the limits of HC-25}, or {addr, error} when the bind failed; a failed
   bind is retried every second, and the bind that succeeds appends
@@ -629,7 +629,7 @@ both enter D and reach the program as inputs.
   when they are UTF-8 (E.4c HD-3). With no `Input` declared, or one the line
   cannot be built into, `host.Kept` records the line in D, as text when
   it is UTF-8 and as its bytes otherwise; `rce host run` holds its lines
-  the same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
+  the same way. Only a storage fault (HS-3) stops the loop. With `http` the end of stdin does not end the loop;
   SIGTERM or SIGINT stops accepting connections, waits at most STOP_MS
   (5,000 ms) for the open requests, takes the final barrier and validates
   the run (HC-8). PTY children start with no signal blocked.
@@ -765,7 +765,7 @@ did not, not by restricting what a module may declare.
   performed and its result is recorded in D as `host.Kept`, not
   delivered; the result answers its request, so a restart does not
   interrupt it (HC-22).
-- **HD-2 HTTP.** `--http` serves any module. `HttpRequest`,
+- **HD-2 HTTP.** `http` serves any module. `HttpRequest`,
   `HttpMalformed` and the result `HttpRespondDone` are matched by field
   name like any delivery, the body by HD-3, and the request `HttpRespond`
   is read by field name: names, values and body are empty when the struct
@@ -897,7 +897,7 @@ JSON. The host entries are:
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
-| `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `--http`, and when a retried bind succeeds (HC-24) |
+| `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `http`, and when a retried bind succeeds (HC-24) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -1208,4 +1208,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 4f740d4cdc060ffde1e2722fdaa3102caac181dbc44b26ca9db22120bace5574 -->
+<!-- body-sha256: 1f4d54eebb61188596a59cf49348564930491ced030eb4407ef8b50e736eb508 -->

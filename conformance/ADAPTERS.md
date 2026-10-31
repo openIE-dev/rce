@@ -15,7 +15,7 @@ Requests (`op`):
 - `run {source, events?, fuel?, schedule_seed?}` -> `{"outcome", "outputs"}`
 - `trace {source, events}` -> `{"head", "lines"}`: the whole trace of the
   example the events form. `lines` is every line an emitted program run
-  with `--trace --fuel-trace` prints for that example, after its
+  with the words `trace fuel-trace` prints for that example, after its
   `example LINE` header: the state after each event, each entry of D as
   `d applied HASH BODY` or `d kept HASH BODY` before the event's line
   (BODY the canonical JSON `{event, prev_hash, seq, state_hash}`, HASH its
@@ -30,8 +30,9 @@ Any response may be `{"unsupported": reason}` or `{"error": message}`.
 Shipped adapters: `reference` (the `rce-conform` binary from
 `spec/checker`), `emit-rust`, `emit-python`, `emit-js`,
 `emit-scala` (via `adapters/emit_adapter.py TARGET`: emit, compile, run
-with `--run --fuel=N`, events as appended `example` blocks, traces with
-`--trace --fuel-trace`), `wasm-playground`
+with the words `run fuel N`, events as appended `example` blocks, traces
+with `trace fuel-trace`; an emitted program takes words, never flags, and
+exits 2 on a removed flag such as `--run`), `wasm-playground`
 (check only, via node), `lean-core` (`rce-conform-lean` from
 `spec/checker`: reference entry, then the Lean core semantics in
 `spec/lean` on the elaborated `fn main`; run op only, programs outside the

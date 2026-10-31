@@ -5,7 +5,7 @@ An emitter is a back end: it translates an admitted module. So this adapter
 answers `run` and `trace`. Entry (parse, check, admission) is the reference
 front end's job and is certified through the reference adapter.
 
-  run, no events   emit TARGET, run the program with `--run [--fuel=N]`
+  run, no events   emit TARGET, run the program with the words `run [fuel N]`
                    (fn main on the emitted tick runtime)
   run, events      add the line `example EVENTS -> true` (or `-> kept: E`
                    when the step of the last event keeps the state) so the module has an
@@ -13,7 +13,7 @@ front end's job and is certified through the reference adapter.
                    that example's block. The example's expected value is used
                    only to admit the module; the lines compared are printed
                    by the emitted program.
-  trace            the same example, run with `--trace --fuel-trace`: the
+  trace            the same example, run with the words `trace fuel-trace`: the
                    answer is the whole trace, the example's block without
                    its `example LINE` header (every entry of D as
                    `d applied|kept HASH BODY`, the state after each event,
@@ -157,7 +157,7 @@ def run_main(src, fuel):
     cmd, err = emit(src)
     if cmd is None:
         return {"error": f"emit: {err}"}
-    args = ["--run"] + ([f"--fuel={fuel}"] if fuel else [])
+    args = ["run"] + (["fuel", str(fuel)] if fuel else [])
     rc, out, e = run_prog(cmd + args)
     lines = [l for l in out.splitlines() if l and not l.startswith("actorlog ")]
     outcome = "done"
@@ -204,13 +204,13 @@ def run_events(src, events, extra=()):
         outcome = outcome_of(lines.pop().split(" kept: ", 1)[1])
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
-TRACE_ARGS = ("--trace", "--fuel-trace")
+TRACE_ARGS = ("trace", "fuel-trace")
 
 def trace(src, events):
-    """6.1 D and its derived lines: with `--trace` the emitted program prints
+    """6.1 D and its derived lines: with `trace` the emitted program prints
     each entry of an example's D (canonical JSON, N3 floats, SHA-256, as the
     reference writes it) before the event's line and `trace HEAD` after the
-    last event; with `--fuel-trace` it prints the example's `fuel N`. The
+    last event; with `fuel-trace` it prints the example's `fuel N`. The
     whole block is returned; nothing in it is dropped or rewritten. With no
     events the module's last example is traced."""
     if events:

@@ -5,6 +5,9 @@ SentenceBreakTest, LineBreakTest (every line), BidiTest (every line and
 every paragraph direction in its bitset) and BidiCharacterTest (every
 line), plus scripts/gen/text_derived.rce."""
 import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
+from positional import read  # noqa: E402  (positional-cli.md PC-1)
+SEG = 'seg' in read('scripts/gen/text_gen.py', {'seg': 0}, '', 0, 0)[0]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from text_data import get, ROOT, BC
 OUT = os.path.join(ROOT, 'tests/ui')
@@ -42,7 +45,7 @@ for name, fn, sh in [('GraphemeBreakTest.txt', 'gk', 'seg'), ('WordBreakTest.txt
     counts[name] = len(cases)
     for cps, br in cases:
         emit(sh, 'check %s([%s]) == [%s]' % (fn, ', '.join(map(str, cps)), ', '.join(map(str, br))))
-if '--seg' not in sys.argv:
+if not SEG:
     cases = seg_lines('LineBreakTest.txt')
     counts['LineBreakTest.txt'] = len(cases)
     for k, (cps, br) in enumerate(cases):
@@ -102,7 +105,7 @@ fn bct(cs: List[i64], dir: i64, para: i64, lev: List[i64], ord: List[i64]) -> bo
     let r = bidi_levels(&ty, &cs, dir)
     return r.para == para and r.levels == lev and bidi_order(&r.levels) == ord
 '''
-if '--seg' not in sys.argv:
+if not SEG:
     BI = {n: i for i, n in enumerate(BC)}
     lev = ord_ = None
     groups = []

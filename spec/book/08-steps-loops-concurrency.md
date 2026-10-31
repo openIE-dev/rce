@@ -78,7 +78,7 @@ Two modules that differ only in it have the same outcomes, outputs, ids
 and log hashes (6.1 hashes the positional forms, T7; the finding of
 2026-10-22 that the hashes covered names is resolved, see C.15). A
 projection (10.5) renders the concept record's names by
-default; `rce fmt --nameless` (10.6) is the projection that renders
+default; `rce fmt nameless` (10.6) is the projection that renders
 positional names instead, which is the text the name-free keys of 6.6 are
 computed from.
 
@@ -335,7 +335,7 @@ P_c replaces every guard over Σd by its predicate symbol and every data
 update by a symbolic update, giving a symbolic finite automaton over the
 guard predicates of 6.4 (D'Antoni and Veanes 2014). dim_c(P) is the Nerode
 index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P). The symbolic
-quotient is not implemented; `rce dim --control` (10.11) computes the
+quotient is not implemented; `rce dim control` (10.11) computes the
 control quotient of the explored concrete machine instead.
 
 **Canonical control form.** Let M_c be the minimal machine of P_c, its
@@ -353,4 +353,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: fe341f6a675a5e9cc0ed690c586c94ace1728954b9e7d6c1634634b45fa4230c -->
+<!-- body-sha256: 37a6b2eb111a41d9e711ee5c4d22e4afac865b2c68e2d3f8f9bc7624e95ce697 -->

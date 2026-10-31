@@ -116,14 +116,14 @@ pub fn observe(m: &Module) -> Vec<String> {
 }
 
 /// `observe`, with a line `fuel N` after each observation giving the steps
-/// (fuel ticks, 6.7) it used; an emitted program run with `--fuel-trace`
+/// (fuel ticks, 6.7) it used; an emitted program run with `fuel-trace`
 /// prints the same lines (tests/fuel.rs).
 pub fn observe_fuel(m: &Module) -> Vec<String> {
     observe_with(m, true, false)
 }
 
 /// `observe_fuel`, with the log D (6.1) of each example: the lines an
-/// emitted program prints when run with `--trace --fuel-trace`. Before the
+/// emitted program prints when run with `trace fuel-trace`. Before the
 /// line of each event δ applied or kept comes its entry of D,
 /// `d applied HASH BODY` or `d kept HASH BODY`, where BODY is the canonical
 /// JSON of `{event, prev_hash, seq, state_hash}` over the positional forms

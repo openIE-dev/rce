@@ -13,7 +13,7 @@
 //!       the emitted Rust (10.5, as `rce emit rust`) of FILE with STREAM as
 //!       its only example (the module's own examples are left out): FILE
 //!       is admitted first; the stream's expectation is never checked, as
-//!       for `rce trace --streams`
+//!       for `rce trace streams`
 //!   rce-bench-det run MODE FILE STREAM REPS
 //!       apply the events of STREAM (one per line) REPS times from s0 and
 //!       print `steps K check C` (C: a value derived from the last state,
@@ -26,7 +26,7 @@
 //!                 and hash over {event, prev_hash, seq, state_hash}; the
 //!                 entry chain of `rce trace` and of the host (D.6); C is
 //!                 the head hash of the last run, equal to the `trace`
-//!                 line of the emitted program under --trace
+//!                 line of the emitted program under the word trace
 //!         chainfast  chain with the same bytes and hashes, the SHA-256
 //!                 hex written from a table instead of one `format!` per
 //!                 byte (`d_sha`): a semantics-preserving speed-up, priced
@@ -36,7 +36,7 @@
 //!                 direction; not the D of the specification
 //!         host    the host runtime (Appendix E) on an in-memory store:
 //!                 one batch of STREAM per run (apply_input per event, then
-//!                 settle), as `rce host run FILE --log D EVENTS` does,
+//!                 settle), as `rce host run FILE D EVENTS` does,
 //!                 without the file and its fdatasync
 //!         host1   the host runtime with one batch (and its barrier
 //!                 entries) per event, as `rce host serve` does per line

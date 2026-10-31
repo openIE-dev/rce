@@ -279,11 +279,13 @@ fn start_mcp_http(
     token_file: &Path,
 ) -> Result<(Child, String, String), AcpError> {
     use std::io::BufRead;
+    // positional (positional-cli.md PC-1): words first, then `args`, which
+    // ends with the operand ROOT
     let mut child = Command::new(&cfg.rce_mcp)
-        .args(args)
-        .args(&cfg.mcp_args)
-        .args(["--http", "127.0.0.1:0", "--token-file"])
+        .args(["http", "127.0.0.1:0", "token-file"])
         .arg(token_file)
+        .args(&cfg.mcp_args)
+        .args(args)
         .current_dir(&cfg.workspace)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -342,13 +344,13 @@ impl AcpClient {
         let mcp = McpServer {
             name: "rce".into(),
             command: cfg.rce_mcp.clone(),
+            // words, then the operand ROOT last (positional-cli.md PC-1)
             args: vec![
-                "--root".into(),
-                ws.display().to_string(),
-                "--ledger".into(),
+                "ledger".into(),
                 mcp_ledger.display().to_string(),
-                "--key".into(),
+                "key".into(),
                 state.join("rce-mcp.key").display().to_string(),
+                ws.display().to_string(),
             ],
         };
         let mut cmd = Command::new(&cfg.command);

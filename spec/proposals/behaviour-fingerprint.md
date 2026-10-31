@@ -73,12 +73,12 @@ different fingerprints even when `rce equiv`, which joins the two
 programs' literals, calls them equivalent. For two machines whose reachable graphs
 are fully explored with a and b states, depth a + b − 1 separates every
 pair that `rce equiv` separates (Moore 1956); a smaller depth may not.
-`--fuel` bounds the states stepped; a fingerprint that would need a state
+`fuel` bounds the states stepped; a fingerprint that would need a state
 beyond the bound is not computed and the command says so.
 
 ## What it adds and what it does not
 
-It adds one command, `rce fingerprint [--depth N] [--fuel N] [--json]
+It adds one command, `rce fingerprint [depth N] [fuel N] [json]
 FILE...` (default depth 8, fuel 100,000; one report for one file, one line
 `HASH  FILE` per file for several), and the JSON format
 `rce-fingerprint/1`. It adds no construct and no admission rule; no

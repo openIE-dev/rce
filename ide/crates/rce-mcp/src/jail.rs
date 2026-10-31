@@ -1,9 +1,9 @@
-//! Jail for `rce-mcp --http`: after the listener is bound, the server
+//! Jail for `rce-mcp http ADDR`: after the listener is bound, the server
 //! confines itself (Landlock + seccomp on Linux, fail closed).
 //!
 //! Hosts: the server only listens; it never dials out. The bind address
 //! must be a declared host (loopback always; anything else only with
-//! `--allow-host`). Outbound TCP is limited to the ports of endpoints the
+//! `allow-host HOST`). Outbound TCP is limited to the ports of endpoints the
 //! workspace declares in `.rce-ide/net.json`; Landlock filters by port, so
 //! host filtering for those endpoints stays with the ide-sandbox proxy.
 //! Files: the workspace and the ledger/key directories read-write; shared
@@ -22,7 +22,7 @@ pub fn check_bind(addr: &str, allowed_hosts: &[String]) -> Result<(), String> {
     if !ips.is_empty() && ips.iter().all(IpAddr::is_loopback) {
         Ok(())
     } else {
-        Err(format!("{addr}: not a declared host (loopback, or pass --allow-host {host})"))
+        Err(format!("{addr}: not a declared host (loopback, or give the words allow-host {host})"))
     }
 }
 

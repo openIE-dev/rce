@@ -16,7 +16,7 @@ something confused you while reading, that is worth an issue on its own.
    or message the checker's report must contain.
 4. **Every terminal transcript is real.** Put the command's arguments in
    `NAME.cmd`. Generate `NAME.out` with
-   `scripts/check-listings.sh --bless`, then read the diff before you
+   `scripts/check-listings.sh bless`, then read the diff before you
    commit it.
 
 Run the check before opening a pull request:

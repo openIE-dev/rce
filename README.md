@@ -93,7 +93,7 @@ teaches the language from first principles.
 Every commit of `main` that passes CI is released as `rce-<commit>`, where
 `<commit>` is the first 12 hex digits of the commit hash, and `rce-latest`
 points at the newest; there is no typed version number, and
-`rce --version` prints the commit. The release workflow retains only the 30
+`rce version` prints the commit. The release workflow retains only the 30
 newest `rce-<commit>` releases and deletes older ones, so a commit can be
 pinned by its release only while it is among those 30. To install the newest on Linux (x86_64,
 aarch64), macOS (Apple silicon) or Windows (Git Bash), checked against the
@@ -175,15 +175,20 @@ file would require change under W-INT-1.
 | `rce check FILE...` | parse, type check and admit; one verdict per file |
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
-| `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
+| `rce trace FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
-| `rce fmt [--check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
-| `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
+| `rce fmt [check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
+| `rce dim [control] [json] [fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce repair [json] [bound N] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, one small edit) judged by the checker, with no model call (spec 10.13) |
-| `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |
+| `rce host run [GRANT...] FILE D [EVENTS]`, `rce host serve [GRANT...] [http HOST:PORT] FILE D` | run a program under the host contract (Appendix E): admitter, log D, adapters, sandbox |
 | `rce lsp` | language server on standard input and output |
+| `rce help`, `rce version` | every command with its words; the commit `rce` was built from |
 
-Section 10 of the specification defines each command.
+Section 10 of the specification defines each command. A command line is
+`rce COMMAND WORD... OPERAND...` (`spec/proposals/positional-cli.md`): the
+words, such as `json` or `fuel N`, come before the files, and no argument
+starts with `-`. A removed flag exits with status 2 and prints its new
+spelling, for example `--json was removed; write: rce dim json door.rce`.
 
 ## Repository
 
@@ -237,7 +242,7 @@ The specification is a draft under review. The reference interpreter
 defines what programs mean and is not built for speed; there is no
 production compiler. Section 10.8 lists what the tools do not do yet.
 Counts quoted about the specification and the checker are taken from the
-source by `scripts/claim-counts.py --check`; a count is not a test result.
+source by `scripts/claim-counts.py check`; a count is not a test result.
 
 The research site and the experiments
 ([research-openie-web](https://github.com/openIE-dev/research-openie-web),

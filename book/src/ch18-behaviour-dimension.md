@@ -112,7 +112,7 @@ turned out to be of this kind.
 
 ## The control view
 
-`rce dim --control` asks a coarser question: not what the program emits,
+`rce dim control` asks a coarser question: not what the program emits,
 but which steps fire. Two states are control-equivalent when every event
 sequence makes the same steps fire, keep the state or emit the same kinds
 of thing from both. The count is never larger than the behaviour count, and its
@@ -120,7 +120,7 @@ canonical form is hashed as `shape_ctl`, a key that does not change when
 you rename anything:
 
 ```text
-$ rce dim --control door.rce
+$ rce dim control door.rce
 {{#include ../listings/ch18/door_dim_control.out}}
 ```
 
@@ -133,7 +133,7 @@ how much of the behaviour lives in data rather than in control.
 
 A program whose state can grow without limit, like the plain counter of
 chapter 4, has more reachable states than `rce dim` will visit. It stops at
-`--fuel` states (100,000 by default), says `bound reached: yes`, and reports
+`fuel` states (100,000 by default), says `bound reached: yes`, and reports
 the behaviours it found as a lower bound. Exploration is deterministic:
 the same program and the same fuel give the same report, byte for byte.
 
@@ -166,7 +166,7 @@ compares the exports of two versions, one row per change, each
 every export is compatible and every behaviour is kept:
 
 ```text
-$ rce change --fuel 1000 ../tour/counter.rce counter_v2.rce
+$ rce change fuel 1000 ../tour/counter.rce counter_v2.rce
 {{#include ../listings/ch18/change_erratum.out}}
 ```
 
@@ -174,7 +174,7 @@ A *meaning change* when a behaviour changed, with the sequence that shows
 it:
 
 ```text
-$ rce change --fuel 1000 ../tour/counter.rce ../tour/sloppy.rce
+$ rce change fuel 1000 ../tour/counter.rce ../tour/sloppy.rce
 {{#include ../listings/ch18/change_meaning.out}}
 ```
 
@@ -183,14 +183,14 @@ caller could name is gone. The renamed counter of the tour behaves the same,
 but every name a caller used has changed:
 
 ```text
-$ rce change --fuel 1000 ../tour/counter.rce ../tour/tally.rce
+$ rce change fuel 1000 ../tour/counter.rce ../tour/tally.rce
 {{#include ../listings/ch18/change_rename.out}}
 ```
 
 The counter grows without end, so each verdict holds "to the explored
 bound". When the bound is reached before the two programs are told apart
 or shown equal, the verdict is *undecided*, with exit status 3: raise
-`--fuel`. The decision is the tool's, read off the two programs, not a
+`fuel`. The decision is the tool's, read off the two programs, not a
 version number someone typed. Chapter 16 shows where it is used: a log may
 be rebound to a changed program only after an erratum.
 
@@ -201,7 +201,7 @@ be rebound to a changed program only after an erratum.
 - A bisimulation proves sameness; one distinguishing sequence proves
   difference; a trace proves closeness to within 2^-(k+1).
 - `rce dim` counts the behaviours a program can be in and reports the
-  redundancy of its state per region, in bits; `--control` counts the
+  redundancy of its state per region, in bits; `control` counts the
   control states and hashes their canonical form as `shape_ctl`.
 - `rce hash`, `rce api-diff` and `rce change` say whether a change keeps
   the exports and the behaviour: erratum, meaning change or interface

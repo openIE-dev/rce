@@ -103,7 +103,7 @@ fn main_without_task_threads_is_a_host_limit() {
         assert!(err.starts_with(&format!("{file}: {}", conc::NO_TASK_THREADS)), "{err}");
 
         conc::refuse_task_threads_after(Some(after));
-        let (c, out, err) = rce(&["trace", "--json", file]);
+        let (c, out, err) = rce(&["trace", file]);
         assert_eq!(c, cli::HOST_LIMIT, "{err}");
         assert_eq!(err.lines().count(), 1, "{err}");
         assert!(err.starts_with(&format!("{file}: no trace of fn main: {}", conc::NO_TASK_THREADS)), "{err}");
@@ -115,7 +115,7 @@ fn main_without_task_threads_is_a_host_limit() {
         assert!(main["outcome"]["absent"].as_str().unwrap().starts_with(conc::NO_TASK_THREADS));
         // the example traces are those of a host with threads
         conc::refuse_task_threads_after(None);
-        let (c, full, _) = rce(&["trace", "--json", file]);
+        let (c, full, _) = rce(&["trace", file]);
         assert_eq!(c, cli::OK);
         let f: serde_json::Value = serde_json::from_str(&full).unwrap();
         let fs = f["traces"].as_array().unwrap();
@@ -204,14 +204,14 @@ fn fmt_canonical_layout_idempotent_and_token_preserving() {
 fn fmt_command_check_and_write() {
     let p = tmp("messy.rce", MESSY);
     assert_eq!(
-        rce(&["fmt", "--check", &p]),
+        rce(&["fmt", "check", &p]),
         (1, format!("would reformat {p}\n"), String::new())
     );
     assert_eq!(std::fs::read_to_string(&p).unwrap(), MESSY);
     assert_eq!(rce(&["fmt", &p]).0, 0);
     assert_eq!(std::fs::read_to_string(&p).unwrap(), TIDY);
     assert_eq!(
-        rce(&["fmt", "--check", &p]),
+        rce(&["fmt", "check", &p]),
         (0, String::new(), String::new())
     );
 }

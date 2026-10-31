@@ -16,9 +16,11 @@ that binary-exact answer against the certified value (the best any
 binary64 program can do on these inputs).
 
 Run with the SciPy venv python (mpmath). Usage:
-stats_nist_gen.py [NIST_DIR (default vectors/num/nist)] [--measure] [--out DIR]
+stats_nist_gen.py [measure] [out DIR] [NIST_DIR (default vectors/num/nist)]
 """
 import os, re, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
+from positional import read  # noqa: E402  (positional-cli.md PC-1)
 import mpmath as mp
 
 mp.mp.prec = 400
@@ -234,9 +236,10 @@ def anova(name, d, measure):
     emit(out, name, it, measure); return [out]
 
 def main():
-    d = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../vectors/num/nist')
-    measure = '--measure' in sys.argv
-    outdir = sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv else 'tests/num'
+    w, ops = read('stats_nist_gen.py', {'measure': 0, 'out': 1}, '[NIST_DIR]', 0, 1)
+    d = ops[0] if ops else os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../vectors/num/nist')
+    measure = 'measure' in w
+    outdir = w.get('out', 'tests/num')
     jobs = [(n, univ) for n in UNIV] + [(n, lls) for n in LLS] + [(n, anova) for n in ANOVA]
     i = 0
     for n, g in jobs:

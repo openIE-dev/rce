@@ -78,9 +78,9 @@ fn reference_and_every_runtime_agree_on_the_encoders() {
             let exe = d.join("i_rust");
             let c = Command::new("rustc").args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&p).output().unwrap();
             assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
-            Command::new(&exe).arg("--run").output().unwrap()
+            Command::new(&exe).arg("run").output().unwrap()
         } else {
-            Command::new(tool).arg(&p).arg("--run").output().unwrap()
+            Command::new(tool).arg(&p).arg("run").output().unwrap()
         };
         let s = String::from_utf8_lossy(&o.stdout).into_owned();
         assert_eq!(emits(&s), reference, "{target}: {s}{}", String::from_utf8_lossy(&o.stderr));

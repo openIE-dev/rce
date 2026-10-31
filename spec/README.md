@@ -23,11 +23,11 @@
     (must require change) with three parsers (section-3 LALR(1) tables, Rust
     parser, tree-sitter), runs the checker, and checks that the
     book and `RCE-SPEC.md` are in sync.
-  - `rce-book build [--check]` rewrites (or checks) the chapter footers,
+  - `rce-book build [check]` rewrites (or checks) the chapter footers,
     `INDEX.md` and `RCE-SPEC.md`; `rce-book verify receipt.json` checks a
     read receipt.
   - `rce-fuzz` is the program fuzzer.
-  - `rce-spec-data [--check]` writes (or checks) `data/spec-data.json`,
+  - `rce-spec-data [check]` writes (or checks) `data/spec-data.json`,
     the spec as data (grammar tables, W-rules, 6.3 edges, the 5.15 and
     C.6.4 method tables), read from the book only, and `data/spec-tables.json`,
     the method and work tables cut from it. The checker compiles that

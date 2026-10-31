@@ -1009,7 +1009,7 @@ An acceptance run that meets several of these exits with the first of 6, 4 and 5
 | `rce trace FILE` | `rce` | RCE text | the reference trace, `rce-ref-trace/1` | 0, 1, 2 |
 | `rce trace FORM CONCEPT VECTORS` | `rce` | a Form, its concept record and vectors | the reference trace of the Form, `rce-ref-trace/1` headed by its module key: the bytes every emitted program must print | 0, 1, 2 |
 | `rce trace-at FORM CONCEPT VECTORS FUEL` | `rce` | the same, and a fuel limit | the trace at that limit, with the limit recorded | 0, 1, 2 |
-| `rce chain FILE [EVENTS]` | `rce` | RCE text; events in RCE's event syntax | the D chains of the module's examples, or of EVENTS, in `rce-trace/2` (today `rce trace --json`, 10.9) | 0, 1, 2 |
+| `rce chain FILE [EVENTS]` | `rce` | RCE text; events in RCE's event syntax | the D chains of the module's examples, or of EVENTS, in `rce-trace/2` (today `rce trace`, 10.9) | 0, 1, 2 |
 | `rce chain FORM EVENTS` | `rce` | a Form and an event list in canonical JSON | its D chain, headed by its module key, in `rce-trace/3` | 0, 1, 2 |
 | `rce call FORM ENTRY ARGS` | `rce` | a Form, an entry name, canonical JSON arguments | an `rce-obs/1` observation | 0, 1, 2 |
 | `rce emit LANG FORM` | `rce` | a Form, `lang/LANG/print.toml` and its runtime; LANG may also be `core`, `rce` or `dot` | the program text on standard output, `rce-emit-receipt/1` on standard error | 0, 1, 2, 6 |
@@ -1031,7 +1031,7 @@ An acceptance run that meets several of these exits with the first of 6, 4 and 5
 | `rce-gate registry-check` | `rce-gate` | the same | nothing; exits 1 when they are stale | 0, 1, 2 |
 | `rce-gate changed` | `rce-gate` | the repository | runs every gate whose inputs changed, by content key (ONE-22) | 0, 4, 5, 6 |
 
-`rce trace FILE` here names the reference trace. No command of `rce` prints it today: today's `rce trace --json` prints D chains and becomes `rce chain`, and the command that evaluates the lowered core, once `rce emit trace`, is `rce run-core` (`one/mod.rs`, `run_core_of`). So the expected bytes of every gate come from the reference, and the core evaluator is measured like any other implementation; its conformance traces that equal the reference's become a measured property of the target `core`.
+`rce trace FILE` here names the reference trace. No command of `rce` prints it today: today's `rce trace` prints D chains and becomes `rce chain`, and the command that evaluates the lowered core, once `rce emit trace`, is `rce run-core` (`one/mod.rs`, `run_core_of`). So the expected bytes of every gate come from the reference, and the core evaluator is measured like any other implementation; its conformance traces that equal the reference's become a measured property of the target `core`.
 
 **Pinned tools.** Every evidence record and every emitted provenance line names the versions of the tools that produced it. Some pins exist today: the checker's `rust-version = "1.98.1"` (`spec/checker/Cargo.toml`) with a committed `Cargo.lock`; Lean `v4.12.0` (`spec/lean/lean-toolchain`); the tree-sitter command-line tool `0.27.1` (`.github/workflows/ci.yml`); Node 20 and Python 3.12 in CI (`.github/workflows/book.yml`, `conformance.yml`). The toolchain keeps them in one file, `lang/tools.toml`, which CI installs from and `rce version` names by its key:
 

@@ -35,8 +35,8 @@ done
 # and its first checks file (scripts/flatten.py), its "# events:" are fed
 # to `rce host run` one per input line, and the final state must read
 # "good = N, bad = 0" for the N events.
-python3 scripts/uses.py --selftest
-python3 scripts/uses.py --all
+python3 scripts/uses.py selftest
+python3 scripts/uses.py all
 for f in lib/*/*.rce; do
   only "$(basename "$(dirname "$f")")" || continue
   uses=$(python3 scripts/uses.py "$f") || { echo "check.sh: bad use item in $f" >&2; exit 1; }
@@ -68,12 +68,19 @@ for f in lib/*/*.rce; do
   if [ -f "$h" ]; then
     python3 scripts/flatten.py "$f" "$t.rce" "$h" > "$tmp/host.rce"
     # "# events: A, B" lists events without arguments; "# event: E" lines
-    # give one event each (with arguments). "# host-flags: --fs" grants a
-    # fresh empty file root.
+    # give one event each (with arguments). The grants of the run are the
+    # words scripts/host-grants.tsv lists for the test: `fs` grants a fresh
+    # empty file root.
     if grep -q "^# event: " "$h"; then ev=$(sed -n "s/^# event: //p" "$h"); else ev=$(sed -n "s/^# events: //p" "$h" | tr -d ' ' | tr ',' '\n'); fi
-    hf=""; if grep -q "^# host-flags: --fs" "$h"; then rm -rf "$tmp/fs"; mkdir "$tmp/fs"; hf="--fs $tmp/fs"; fi
+    hf=""
+    for g in $(awk -F'\t' -v p="$h" '$1 == p { print $2 }' scripts/host-grants.tsv); do
+      case "$g" in
+        fs) rm -rf "$tmp/fs"; mkdir "$tmp/fs"; hf="$hf fs $tmp/fs" ;;
+        *) echo "FAIL host checks $h: unknown grant $g in scripts/host-grants.tsv"; exit 1 ;;
+      esac
+    done
     n=$(printf '%s\n' "$ev" | grep -c .)
-    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog" $hf 2> "$tmp/host.err") || true
+    res=$(printf '%s\n' "$ev" | "$RCE" host run $hf "$tmp/host.rce" "$tmp/hostlog" 2> "$tmp/host.err") || true
     printf '%s\n' "$res" | tail -3
     grep "^rce host: validated " "$tmp/host.err" || { cat "$tmp/host.err"; echo "FAIL host checks $h: the run was not validated by replay"; exit 1; }
     printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }

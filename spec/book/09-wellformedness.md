@@ -128,7 +128,7 @@ Each rule of this section, of Appendix C and of Appendix F guides a program
 that does not meet it into Form by exactly one of three methods:
 
 - **Altered.** The rule has one rewrite, determined by the text, that keeps
-  the program's meaning. `rce fmt FILE` writes it and `rce fmt --check FILE`
+  the program's meaning. `rce fmt FILE` writes it and `rce fmt check FILE`
   lists it (10.6). Until it is written the text requires change, and
   `rce check` ends the report with `[altered by rce fmt]` (10.2). A rewrite
   that would add or change another report is not written; `rce fmt` then
@@ -263,4 +263,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: c8fe36deaaec46aaf012062797642bafc2ba8cf235e5c15aa17bd6fde819e7ec -->
+<!-- body-sha256: f3a0cdbb5432c7fe84f9406ca809f796ab258130766e69d844563b0ce6a1c60a -->

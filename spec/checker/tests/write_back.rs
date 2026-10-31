@@ -60,9 +60,9 @@ fn run_target(f: &str, t: &str) -> Option<String> {
         let exe = format!("{f}.bin");
         let c = Command::new("rustc").args(["--edition", "2024", "-o", &exe, &p]).output().unwrap();
         assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
-        Command::new(&exe).arg("--run").output().unwrap()
+        Command::new(&exe).arg("run").output().unwrap()
     } else {
-        Command::new(tool).arg(&p).arg("--run").output().unwrap()
+        Command::new(tool).arg(&p).arg("run").output().unwrap()
     };
     assert!(o.status.success(), "{t}: {}", String::from_utf8_lossy(&o.stderr));
     let s = String::from_utf8(o.stdout).unwrap();

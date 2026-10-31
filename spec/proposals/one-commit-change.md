@@ -23,4 +23,4 @@ The specification already states one language at one commit (2.7, C.15), definit
 
 ## What stays open
 
-Proofs of T50 (equal hash, equal meaning) and T54 (manifest); the Lean statement of CC-2's erratum criterion as a theorem over 6.10; whether the explored alphabet of 6.10 under `--fuel` is enough evidence for CC-2 or the examples must cover every declared event (T59 bounds the evidence by 2^-n).
+Proofs of T50 (equal hash, equal meaning) and T54 (manifest); the Lean statement of CC-2's erratum criterion as a theorem over 6.10; whether the explored alphabet of 6.10 under `fuel` is enough evidence for CC-2 or the examples must cover every declared event (T59 bounds the evidence by 2^-n).

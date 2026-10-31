@@ -25,7 +25,7 @@ fn module(src: &str) -> rce_spec_check::ast::Module {
 }
 
 /// ONE-5: the reference trace is what today's emitted Python prints under
-/// `--trace --fuel-trace`, byte for byte, without the entries of D. The
+/// `trace fuel-trace`, byte for byte, without the entries of D. The
 /// emitted program prints the entry of each event (`d applied HASH BODY`
 /// or `d kept HASH BODY`) before its line, and its whole output is the
 /// reference's whole trace (`emit::observe_trace`); the core's trace does
@@ -44,7 +44,7 @@ fn reference_trace_is_the_emitted_trace() {
         let Ok(code) = rce_spec_check::emit::emit(&m, rce_spec_check::emit::Lang::Python) else { continue };
         let f = dir.join(format!("{stem}.py"));
         std::fs::write(&f, code).unwrap();
-        let o = std::process::Command::new("python3").arg(&f).arg("--trace").arg("--fuel-trace").output().unwrap();
+        let o = std::process::Command::new("python3").arg(&f).arg("trace").arg("fuel-trace").output().unwrap();
         let got = String::from_utf8_lossy(&o.stdout);
         let mut whole = rce_spec_check::emit::observe_trace(&m).join("\n");
         if !whole.is_empty() {

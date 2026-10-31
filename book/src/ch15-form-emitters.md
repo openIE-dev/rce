@@ -63,7 +63,7 @@ holds the emitters to this: it emits every example program of the
 specification, runs each one, and requires its output to equal the
 reference interpreter's.
 
-Started with the argument `--run`, an emitted program runs `fn main`
+Started with the word `run`, an emitted program runs `fn main`
 instead, with its tasks and channels (chapter 14). An emitter does not yet
 print a module with a contract (chapter 4) or a `ct fn` (chapter 19): for
 such a module `rce emit` prints the rule (`W-RES-1` or `W-CTFN-2`) and the

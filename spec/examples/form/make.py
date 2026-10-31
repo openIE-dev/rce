@@ -13,7 +13,7 @@ from the rules, in the table at the end of this file; the checker's code is
 never run to make them.
 
     python3 spec/examples/form/make.py           write the fixtures
-    python3 spec/examples/form/make.py --check   fail when a written file differs
+    python3 spec/examples/form/make.py check     fail when a written file differs
 """
 import hashlib
 import itertools
@@ -729,7 +729,15 @@ RULES = {
 
 
 def main():
-    check = "--check" in sys.argv[1:]
+    # positional (spec/proposals/positional-cli.md PC-1): the one word is `check`
+    a = sys.argv[1:]
+    if a and a[0].startswith("-"):
+        sys.stderr.write(f"{a[0]} was removed; write: python3 spec/examples/form/make.py check\n")
+        sys.exit(2)
+    if a not in ([], ["check"]):
+        sys.stderr.write("usage: python3 spec/examples/form/make.py [check]\n")
+        sys.exit(2)
+    check = a == ["check"]
     files = {}
     written = {}
     for name, m, vec in fixtures():

@@ -3,7 +3,7 @@
 //! against the reference interpreter (as `check` lines of the fixture) and,
 //! in ../../tests/brick_lowering.rs, against the Form IR evaluator on the
 //! terms of tests/brick/catalog.json, which this test keeps equal to
-//! `rce index --vectors 8` of the fixtures (set RCE_BLESS=1 to rewrite it);
+//! `rce index vectors 8` of the fixtures (set RCE_BLESS=1 to rewrite it);
 //! the engine also runs every term on the generated vectors there.
 use rce_spec_check::{brick, check_one};
 use serde_json::{Value, json};

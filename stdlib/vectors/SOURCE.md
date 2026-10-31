@@ -243,13 +243,13 @@ renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.
   than max) plus refused acks (beyond the chunk, inside a character,
   nothing in flight); 40 path cases. 195 comptime checks.
 - Host checks (`tests/io/io_host.rce`, flattened with the module, run
-  under `rce host run --fs` on an empty root): 9 requests (writes, reads
+  under `rce host run fs DIR` on an empty root): 9 requests (writes, reads
   back through the line reader, a non-ASCII name, `..`, an absolute path,
   `a/../a.txt`, listings); each result pairs with its request, has the
   predicted outcome and the expected data, and the host's replay with
   adapters disconnected re-derives the state. 9 of 9. `scripts/check.sh`
-  now reads `# event:` lines (events with arguments) and `# host-flags:
-  --fs`.
+  now reads `# event:` lines (events with arguments), and the grant `fs`
+  from `scripts/host-grants.tsv`.
 - `scripts/mut/io.py`: 29 of 29 mutants killed (three equivalent ones
   were removed by simplifying the code).
 
@@ -282,7 +282,7 @@ FileRead and over arbitrary chunkings in the comptime checks.
   `tests/*/*_probes.py`.
 - Canonical JSON and oracle keys: rce src/canon.rs (bytewise key order,
   serde_json strings and integers), copied unchanged into
-  `scripts/ref/canon` (cargo); `scripts/gen/effect_gen.py --ref` confirms
+  `scripts/ref/canon` (cargo); `scripts/gen/effect_gen.py ref PATH` confirms
   every one of its 60 values (20 fixed: escapes, U+2028, U+E000 against
   astral keys, i64 limits; 40 random, seed 19) against it. The oracle
   miss text is the engine's (`form/ir.rs`).
@@ -314,8 +314,8 @@ binding and is not here: there is no UDP adapter in rce 0.1.3 (DNS
 resolution), the TCP adapter (`NetConnect`/`NetSend`/`NetRecv`) is used
 through the io request/result pattern by the program, with `NetRecv`
 delivering the bytes received as `List[i64]` (Appendix E HC-10a), and TLS is the
-host's (`--tls`). An HTTP server needs no socket code: the HTTP event
-host (`rce host serve --http`, Appendix E HC-24 to HC-26) frames requests
+host's (`tls`). An HTTP server needs no socket code: the HTTP event
+host (`rce host serve http HOST:PORT`, Appendix E HC-24 to HC-26) frames requests
 with the same rules as `parse_message` (one Host field included), applies
 keep-alive, pipelining, limits and timeouts, and delivers each request as
 one logged input.
@@ -811,7 +811,7 @@ The child-list algorithm is derived from its laws, not copied:
   `vectors/ui/vue_live.tsv` (sha256 a64e1862…). 5,779 logs equal Vue's
   exactly; the other 221 all have a key reused with another tag, and in
   each our move count is no larger than Vue's (asserted by the
-  generator). `--refresh` reproduces both TSVs byte for byte.
+  generator). `view_gen.py refresh` reproduces both TSVs byte for byte.
   `scripts/ref/view_ref/model.py` is the Python statement of the rules
   used to state our expected logs.
 - **digest reference:** 400 random trees and edits: the CBOR bytes equal
@@ -920,11 +920,11 @@ sign combinations. pow adds exact results and midpoints (integer y up to
 | pow (push CI sample) | 7,229 of 1,003,179 | 5,428 | 2,188 | 14,845 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
-not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the
-full files are run with `math_vec.py FN --cm core-math/src/binary64 --out DIR`
+not copied: push CI runs an evenly spaced sample (`sample 4000`), and the
+full files are run with `math_vec.py cm core-math/src/binary64 out DIR FN`
 and the same harness (results below, every case exact). Constants (ln 2,
 pi/2 to 2100 bits, 2/pi to 4200 bits) come from `scripts/gen/math_const.py`
-(MPFR, 9000 bits; `--check lib/math/math.rce`).
+(MPFR, 9000 bits; `math_const.py check lib/math/math.rce`).
 
 Derived (`tests/math/math_checks.rce`, `math_checks_eft.rce`,
 `math_checks_ties.rce`): exact hypot midpoint ties (300, a = t(t+1) 2^e,

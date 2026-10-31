@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as d:
             mf = os.path.join(d, 'm%d.rce' % i); open(mf, 'w').write(ms)
             flat = subprocess.run([sys.executable, os.path.join(root, 'scripts/flatten.py'), mf, os.path.join(root, 'tests/energy/energy_checks.rce'), os.path.join(root, 'tests/energy/energy_host.rce')], capture_output=True, text=True).stdout
             ff = os.path.join(d, 'f%d.rce' % i); open(ff, 'w').write(flat)
-            r = subprocess.run([RCE, 'host', 'run', ff, '--log', os.path.join(d, 'log%d' % i)], input='\n'.join(events) + '\n', capture_output=True, text=True)
+            r = subprocess.run([RCE, 'host', 'run', ff, os.path.join(d, 'log%d' % i)], input='\n'.join(events) + '\n', capture_output=True, text=True)
             dead = ('{ good = %d, bad = 0 }' % len(events)) not in r.stdout
         killed += dead
         print('%s %2d %s' % ('killed' if dead else 'SURVIVED', i, a.strip().split('\n')[0]), flush=True)

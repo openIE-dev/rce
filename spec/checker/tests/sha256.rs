@@ -79,9 +79,9 @@ fn every_emitted_runtime_matches_the_reference() {
             let exe = d.join("s_rust");
             let c = Command::new("rustc").args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&p).output().unwrap();
             assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
-            Command::new(&exe).arg("--run").output().unwrap()
+            Command::new(&exe).arg("run").output().unwrap()
         } else {
-            Command::new(tool).arg(&p).arg("--run").output().unwrap()
+            Command::new(tool).arg(&p).arg("run").output().unwrap()
         };
         let s = String::from_utf8_lossy(&o.stdout).into_owned();
         assert_eq!(lines(&s), want(), "{target}: {s}{}", String::from_utf8_lossy(&o.stderr));

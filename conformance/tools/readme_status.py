@@ -2,8 +2,8 @@
 """Generate the README "Status" block from the files in reports/ (no number is typed).
 
   tools/readme_status.py            rewrite the block between the markers in README.md
-  tools/readme_status.py --check    fail if README.md differs from what the reports give
-  tools/readme_status.py --print    print the block
+  tools/readme_status.py check      fail if README.md differs from what the reports give
+  tools/readme_status.py print      print the block
 
 Every figure is counted from reports/*.json (and the test tree for the file
 count). Where two reports disagree on a count, the block says so and gives both.
@@ -46,7 +46,7 @@ def block():
     ref = tally["reference"]
     nref = len(res["reference"]["results"])
     L = []
-    L.append(f"Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). Every figure below is counted from the report files.")
+    L.append(f"Generated from `reports/` by `tools/readme_status.py` (`check` verifies it). Every figure below is counted from the report files.")
     L.append("")
     lang = cov["profiles"]["language"]
     L.append(f"- Tests: {files} test files under `tests/` ({allfiles} `.rce` files, of which {fixtures} named `_FIXTURE` are support files, not tests); the reference run has {nref} results; the coverage report counts {cov['tests_total']}.")
@@ -84,11 +84,28 @@ def block():
     return "\n".join(L)
 
 
+def words(allowed, usage):
+    """The words of this script's command line (spec/proposals/positional-cli.md,
+    PC-1): each one of `allowed`, at most once. A removed flag `--W` names its
+    new spelling and exits 2 (decision 2); anything else is a usage error."""
+    a = sys.argv[1:]
+    for x in a:
+        if x.startswith("-"):
+            w = x.lstrip("-").split("=")[0]
+            sys.stderr.write(f"{x.split('=')[0]} was removed; write: {usage.split(' [')[0]} {w}\n" if w in allowed else f"usage: {usage}\n")
+            sys.exit(2)
+    if any(x not in allowed for x in a) or len(set(a)) != len(a):
+        sys.stderr.write(f"usage: {usage}\n")
+        sys.exit(2)
+    return set(a)
+
+
 def main():
+    w = words({"check", "print"}, "tools/readme_status.py [check] [print]")
     readme = ROOT / "README.md"
     s = readme.read_text()
     new = f"{BEGIN}\n{block()}\n{END}"
-    if "--print" in sys.argv:
+    if "print" in w:
         print(new); return
     if BEGIN in s:
         a, b = s.index(BEGIN), s.index(END) + len(END)
@@ -96,7 +113,7 @@ def main():
     else:
         a = s.index("## Status"); b = s.index("## Convergence notes")
         out = s[:a] + "## Status\n\n" + new + "\n\n" + s[b:]
-    if "--check" in sys.argv:
+    if "check" in w:
         if out != s:
             sys.exit("README.md status block is stale: run tools/readme_status.py")
         print("README status block is in sync with reports/"); return

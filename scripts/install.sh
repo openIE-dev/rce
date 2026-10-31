@@ -54,7 +54,7 @@ exe=rce
 [ "$name" = windows-x86_64 ] && exe=rce.exe
 cp "$tmp/rce/$exe" "$dir/$exe"
 chmod +x "$dir/$exe"
-"$dir/$exe" --version
+"$dir/$exe" version
 case ":$PATH:" in
   *":$dir:"*) ;;
   *) echo "add $dir to PATH to run rce" ;;

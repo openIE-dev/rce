@@ -63,7 +63,7 @@ jobs:
           mkdir -p out/rce
           cp "$dir/${{ matrix.exe }}" out/rce/
           cp LICENSE-APACHE LICENSE-MIT COPYRIGHT out/rce/
-          if [ "${{ matrix.target }}" = "" ]; then out/rce/${{ matrix.exe }} --version | tee out/rce/VERSION; fi
+          if [ "${{ matrix.target }}" = "" ]; then out/rce/${{ matrix.exe }} version | tee out/rce/VERSION; fi
           tar -C out -czf rce-${{ matrix.name }}.tar.gz rce
       - uses: actions/upload-artifact@v4
         with:

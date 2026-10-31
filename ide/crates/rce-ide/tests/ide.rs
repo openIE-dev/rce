@@ -495,11 +495,11 @@ fn calibrate_command_with_a_fake_meter_writes_the_file() {
         .args([
             "telemetry",
             "calibrate",
-            "--reps",
+            "reps",
             "1",
-            "--fake-meter",
+            "fake-meter",
             "5",
-            "--out",
+            "out",
         ])
         .arg(&out)
         .output()

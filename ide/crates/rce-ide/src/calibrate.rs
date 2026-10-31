@@ -1,7 +1,7 @@
 //! `rce-ide telemetry calibrate`: the fixed calibration workloads (real
 //! rce-mcp checker runs over bundled RCE programs) and the command.
 //!
-//! Workloads (each one measured window, repeated `--reps` times, interleaved):
+//! Workloads (each one measured window, repeated `reps N` times, interleaved):
 //! - `empty`: an empty window (the per-action floor: meter reads and
 //!   bookkeeping; all features 0). Not a timed idle: the model has no
 //!   duration term, so a long idle window would be fitted as overhead.
@@ -208,38 +208,47 @@ pub fn run(
     r
 }
 
-pub const USAGE: &str = "rce-ide telemetry calibrate [--out FILE] [--reps N] [--fake-meter WATTS]\n\
-    run the fixed checker workloads under every discovered meter and fit the simulator\n\
-    (--fake-meter: a constant-power stand-in, for testing without hardware)\n";
+/// The command line of `rce-ide telemetry calibrate`, as data
+/// (spec/proposals/positional-cli.md PC-8): words only.
+pub const CALIBRATE: rce_spec_check::args::Command = rce_spec_check::args::Command {
+    path: &["telemetry", "calibrate"],
+    words: &[
+        rce_spec_check::args::Word::set("out", &["FILE"]),
+        rce_spec_check::args::Word::set("reps", &["N"]),
+        rce_spec_check::args::Word::set("fake-meter", &["WATTS"]),
+    ],
+    operands: "",
+    min: 0,
+    max: 0,
+    help: "run the fixed checker workloads under every discovered meter and fit the simulator\n(fake-meter: a constant-power stand-in, for testing without hardware)",
+};
+
+/// The flags `telemetry calibrate` had (positional-cli.md 1.4).
+pub const REMOVED: &[rce_spec_check::args::Removed] = &[
+    rce_spec_check::args::Removed { flag: "--out", paths: &["telemetry calibrate"], values: 1, fate: rce_spec_check::args::Fate::Word },
+    rce_spec_check::args::Removed { flag: "--reps", paths: &["telemetry calibrate"], values: 1, fate: rce_spec_check::args::Fate::Word },
+    rce_spec_check::args::Removed { flag: "--fake-meter", paths: &["telemetry calibrate"], values: 1, fate: rce_spec_check::args::Fate::Word },
+];
 
 /// The command; returns the exit code.
-pub fn command(args: &[String]) -> i32 {
-    let mut out = default_path();
+pub fn command(p: &rce_spec_check::args::Parsed) -> i32 {
+    let out = p.value("out").map(PathBuf::from).or_else(default_path);
     let mut plan = Plan {
         reps: 5,
         ..Plan::default()
     };
-    let mut fake = None;
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--out" => out = it.next().map(PathBuf::from),
-            "--reps" => match it.next().and_then(|n| n.parse().ok()) {
-                Some(n) if n > 0 => plan.reps = n,
-                _ => {
-                    eprint!("{USAGE}");
-                    return 2;
-                }
-            },
-            "--fake-meter" => fake = it.next().and_then(|w| w.parse::<f64>().ok()),
+    if let Some(r) = p.value("reps") {
+        match r.parse() {
+            Ok(n) if n > 0 => plan.reps = n,
             _ => {
-                eprint!("{USAGE}");
+                eprintln!("reps {r}: N is a count of repetitions, at least 1");
                 return 2;
             }
         }
     }
+    let fake = p.value("fake-meter").and_then(|w| w.parse::<f64>().ok());
     let Some(out) = out else {
-        eprintln!("rce-ide telemetry calibrate: no --out and no HOME to default to");
+        eprintln!("rce-ide telemetry calibrate: no out FILE and no HOME to default to");
         return 2;
     };
     let mut meters: Vec<Box<dyn Meter>> = match fake {

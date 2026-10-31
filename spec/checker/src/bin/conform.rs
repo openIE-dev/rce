@@ -7,7 +7,7 @@
 //!   {"op":"trace","source":SRC,"events":"Inc, Dec"}
 //! A trace answer is the whole trace: `head`, the hash of the last entry of
 //! D as `rce trace` writes it, and `lines`, the block an emitted program run
-//! with `--trace --fuel-trace` prints for the same events (`emit::trace_example`):
+//! with `trace fuel-trace` prints for the same events (`emit::trace_example`):
 //! every entry of D, the state after each event, the outputs, the reason an
 //! event was kept, and the fuel used.
 //! Every response carries the request's "id". Diagnostics carry the rule

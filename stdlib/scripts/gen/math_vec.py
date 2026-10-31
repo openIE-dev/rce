@@ -2,14 +2,16 @@
 """Vectors for lib/math: expected values are MPFR (gmpy2, ieee(64) context,
 subnormalized, round to nearest even), so each is the correctly rounded
 binary64 result. Inputs: CORE-MATH worst cases (<fn>.wc, MIT), random and
-edge cases. Usage: math_vec.py FN [--cm DIR] [--sample N] [--out DIR] [--shard S]
+edge cases. Usage: math_vec.py [cm DIR] [sample N] [out DIR] [shard S] FN
 Reads FN.wc from vectors/math/ (cbrt, hypot: copied in) or from a CORE-MATH
-checkout (--cm DIR = core-math/src/binary64, commit dae5dd8c, MIT; the
+checkout (cm DIR = core-math/src/binary64, commit dae5dd8c, MIT; the
 larger files are not copied), keeps every k-th worst case so about N remain
-(--sample; the repo's push-CI shards use it), and writes
+(sample N; the repo's push-CI shards use it), and writes
 OUT/tests/math/math_checks_FN_N.rce (OUT defaults to the repo).
 Needs gmpy2 (pip install gmpy2; MPFR 4.2.2 was used)."""
 import sys, os, random, struct, gmpy2
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
+from positional import read  # noqa: E402  (positional-cli.md PC-1)
 from gmpy2 import mpfr
 
 CTX = gmpy2.ieee(64); CTX.subnormalize = True
@@ -70,11 +72,10 @@ def lit(x):
     return s if not s.startswith('-') else '(0.0 - %s)' % s[1:]
 
 def main():
-    import argparse
-    ap = argparse.ArgumentParser(); ap.add_argument('fn'); ap.add_argument('--cm')
-    ap.add_argument('--sample', type=int, default=0); ap.add_argument('--out')
-    ap.add_argument('--shard', type=int, default=1000); A = ap.parse_args()
-    fn, shard = A.fn, A.shard
+    from types import SimpleNamespace
+    w, (fn,) = read('math_vec.py', {'cm': 1, 'sample': 1, 'out': 1, 'shard': 1}, 'FN', 1, 1)
+    A = SimpleNamespace(cm=w.get('cm'), sample=int(w.get('sample', 0)), out=w.get('out'), shard=int(w.get('shard', 1000)))
+    shard = A.shard
     repo = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
     out = A.out or repo
     wcf = os.path.join(A.cm, fn, fn + '.wc') if A.cm else os.path.join(repo, 'vectors/math', fn + '.wc')

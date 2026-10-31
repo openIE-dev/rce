@@ -1,6 +1,6 @@
 //! Canonical JSON (spec 6.1.1): the golden vectors of `spec/data/canonical-json-vectors.json`
 //! must be reproduced byte for byte by the reference implementation and must
-//! carry the SHA-256 of those bytes. `scripts/canonical-json-vectors.py --check`
+//! carry the SHA-256 of those bytes. `scripts/canonical-json-vectors.py check`
 //! checks the same file with an encoder written from the text of 6.1.1 alone.
 use rce_spec_check::interp::{FV, V, canon_json, d_sha, float_json, form_value};
 use rce_spec_check::parse::parse;
@@ -73,7 +73,7 @@ fn float_forms_agree_with_the_float_vectors() {
 }
 
 /// Section 6.1.1 says one writer defines the bytes. `canon_json` (serde based;
-/// writes `rce trace --json`) must give the same bytes as `FV::json` (which
+/// writes `rce trace`) must give the same bytes as `FV::json` (which
 /// is hashed) on every vector, U+0008 and U+000C included.
 #[test]
 fn the_trace_writer_agrees_with_the_hashed_writer() {
