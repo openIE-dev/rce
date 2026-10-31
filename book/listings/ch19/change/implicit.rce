@@ -1,0 +1,10 @@
+label pii
+
+state Desk
+    big: bool = false
+
+event Show(code: u64 @ {pii})
+
+step Desk on Show(code: c)
+    if c > 9000
+        big = true

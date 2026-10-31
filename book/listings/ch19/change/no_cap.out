@@ -1,0 +1,2 @@
+requires change no_cap.rce: line 10: W-IFC-1 an `emit` is public and the value is labeled {pii (from event Reveal.code)}; line 10: W-IFC-5 `release` of `pii` needs a held `Cap[Auditor]` and `step Desk` holds none
+exit status: 1

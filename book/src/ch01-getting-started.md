@@ -7,29 +7,42 @@ trace of each `example`. To run programs with `rce run`, install `rce`.
 
 ## Install `rce`
 
-`rce` is built from source with Rust. The repository pins the Rust version
-in `rust-toolchain.toml`, and `rustup` installs that version for you.
+Every commit of `main` that passes the repository's continuous integration
+(CI) is released as `rce-<commit>`, and the release `rce-latest` points at
+the newest. A release has no typed version number: it is named by its
+commit. The install script downloads the newest release for Linux (x86_64
+or aarch64), macOS (Apple silicon) or Windows (Git Bash), checks the archive
+against the release's `SHA256SUMS` file, and puts `rce` in `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh
+```
+
+`sh install.sh COMMIT`, with the first 12 hexadecimal digits of a commit,
+installs that commit's release instead (the 30 newest commit releases are
+kept), and the environment variable
+`RCE_INSTALL_DIR` chooses another directory. The script refuses to install
+an archive whose digest does not match. An archive holds `rce` and its
+licence files, nothing else.
+
+To build `rce` from source instead, you need Rust. The repository pins the
+Rust version in `rust-toolchain.toml`, and `rustup` installs that version
+for you:
 
 ```sh
 git clone https://github.com/openIE-dev/rce
 cd rce/spec/checker
-cargo build --release
-```
-
-The program is now at `target/release/rce`. Put it on your `PATH`, for
-example:
-
-```sh
+cargo build --release --bin rce
 install -m 755 target/release/rce ~/.local/bin/
 ```
 
-Prebuilt binaries of `rce` (together with the desktop IDE) for Linux,
-macOS and Windows are on the
-[releases page](https://github.com/openIE-dev/rce/releases);
-unpack one and put `rce` on your `PATH` instead of building.
+A public container image holds the same binary: `ghcr.io/openie-dev/rce`,
+tagged `latest` and with each full commit hash. Chapter 16 uses it to run a program
+as a service.
 
-Check that it runs. `rce --version` names the specification draft it
-implements, and with no arguments `rce` prints the list of commands:
+Check that `rce` runs. `rce --version` prints the commit it was built
+from, the specification draft it implements and the release label, and
+with no arguments `rce` prints the list of commands:
 
 ```sh
 rce --version
@@ -86,4 +99,6 @@ fn main()
 
 - `rce run FILE` runs `fn main()` and shows what it emits.
 - `rce check FILE` checks a program without running it.
+- `scripts/install.sh` installs a released `rce`; `rce --version` names the
+  commit it was built from.
 - Blocks are marked by indentation with spaces.

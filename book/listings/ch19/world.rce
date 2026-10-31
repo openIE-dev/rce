@@ -1,0 +1,12 @@
+extern "C" fn crc32(w: &World, data: &[u8], seed: u32) -> u32
+
+fn worker(w: &World, out: chan u32)
+    let bytes: List[u8] = [9]
+    out <- crc32(w, &bytes, 0)
+
+fn main(w: &World)
+    let bytes: List[u8] = [1, 2, 3]
+    emit crc32(w, &bytes, 0)
+    let c = chan[u32](1)
+    spawn worker(w, c)
+    emit (<- c)

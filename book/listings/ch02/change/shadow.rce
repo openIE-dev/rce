@@ -1,0 +1,6 @@
+fn price(base: i64, member: bool) -> i64
+    let cost = base * 2
+    if member
+        let cost = base * 2 - 5
+        return cost
+    return cost

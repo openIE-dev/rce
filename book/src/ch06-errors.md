@@ -45,6 +45,26 @@ requires change until the error is handled with `try` or `catch`, so an
 error cannot be ignored by accident. A step whose code fails with an error
 keeps the state.
 
+## A failed call changes nothing
+
+A function that takes a `&mut` argument (a borrow that lets it change the
+caller's value, chapter 9) can change that value and then fail. In RCE the
+failure undoes the change: when a call fails, every `&mut` argument is
+restored to the value it had when the call began. A failed call has no
+effect, just as a kept step has none.
+
+```rce
+{{#include ../listings/ch06/restore.rce}}
+```
+
+`List[text]` is a list of texts, and `push` adds one at its end (lists
+are the subject of chapter 8). `add_item` pushes `"jam"` and then, with a limit of 1, fails. The caller
+catches the error, and the basket still holds only `"tea"`. A call that is
+caught with `catch` inside the function that made it does not make that
+function fail. Some effects cannot be undone, such as a value sent on a
+channel; a function that can fail after one requires change, as chapter 14
+shows.
+
 ## Traps
 
 A *trap* is a failure that is not a declared error: an integer that does
@@ -56,4 +76,5 @@ step keeps the state, exactly like `fail`. A trap in a `check` or an
 
 - `error`, `fail` and steps that keep the state.
 - Error unions `T ! E`, with `try`, `catch` and `catch |e|`.
+- A failed call restores its `&mut` arguments, so it has no effect.
 - A trap keeps the state in the same way an error does.

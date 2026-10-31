@@ -1,0 +1,12 @@
+fn worker(log: chan i64, x: i64) -> i64
+    log <- x
+    return x * x
+
+fn main()
+    let log = chan[i64](4)
+    scope
+        spawn worker(log, 3) -> a
+        spawn worker(log, 4) -> b
+        let total = (a.join() catch 0) + (b.join() catch 0)
+        emit total
+    emit "both tasks have ended"

@@ -1,0 +1,7 @@
+extern "C" fn crc32(w: &World, data: &[u8], seed: u32) -> u32
+
+fn checksum_of(w: &World, data: &[u8]) -> u32 = crc32(w, data, 0)
+
+fn main(w: &World)
+    let bytes: List[u8] = [1, 2, 3]
+    emit checksum_of(w, &bytes)

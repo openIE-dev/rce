@@ -1,0 +1,10 @@
+# Contracts: what a function needs from its caller and what it promises back.
+fn withdraw(balance: u64, amount: u64) -> u64
+    requires amount > 0
+    requires amount <= balance
+    ghost let before = balance
+    ensures result == before - amount
+    return balance - amount
+
+check withdraw(10, 3) == 7
+check withdraw(5, 5) == 0

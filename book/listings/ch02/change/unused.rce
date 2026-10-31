@@ -1,0 +1,6 @@
+fn area(width: i64, height: i64) -> i64
+    let a = width * height
+    let p = 2 * (width + height)
+    return a
+
+check area(4, 5) == 20
