@@ -110,7 +110,7 @@ fn mcp_over_stdio() {
     let r = c.tool("rce_check", json!({}));
     assert_eq!(r["structuredContent"]["passed"], 1);
     let r = c.tool("rce_test", json!({}));
-    assert_eq!(r["structuredContent"]["files"][0]["examples"], 2);
+    assert_eq!(r["structuredContent"]["files"][0]["examples"], 3);
 
     // A change that requires change: step on an undeclared event. Nothing is written.
     let r = c.tool(
