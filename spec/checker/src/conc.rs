@@ -1587,6 +1587,12 @@ pub struct Entry {
     pub vc: Vec<u64>,
     /// for a delivery: the index of the entry that sent the message
     pub cause: Option<usize>,
+    /// in a traced run (`run_main_traced`), the state of the run when the
+    /// entry was written, as the canonical JSON of its positional form
+    /// (10.9): `[tick, [[actor id, [field values]], ...]]`, the live actors
+    /// in id order, each field value positional (6.1, T7), in declaration
+    /// order; `None` in an untraced run
+    pub state: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1680,6 +1686,8 @@ struct Sched<'a> {
     restart_log: Vec<RestartIn>,
     restart_replay: Option<VecDeque<RestartIn>>,
     stop: Option<Outcome>,
+    /// record the state of the run with every entry (`Entry::state`)
+    trace: bool,
 }
 
 fn sup(a: &mut [u64], b: &[u64]) {
@@ -1730,29 +1738,48 @@ impl<'a> Sched<'a> {
                 (Some(_), Some(rec)) => tree_migrates(rec, &sup_tree(m)).err().map(Outcome::Stopped),
                 _ => None,
             },
+            trace: false,
         }
+    }
+
+    /// The positional state of the run now (`Entry::state`).
+    fn state_json(&self) -> String {
+        use crate::interp::{FV, form_value_pos};
+        let actors = self
+            .actors
+            .iter()
+            .map(|(id, a)| {
+                let fs = a.fields.iter().map(|(_, v, _)| form_value_pos(v, self.m)).collect();
+                FV::List(vec![FV::Text(id.clone()), FV::List(fs)])
+            })
+            .collect();
+        FV::List(vec![FV::Int(self.tick as i128), FV::List(actors)]).json()
     }
 
     fn local(&mut self, node: usize, what: String) -> usize {
         self.vcs[node][node] += 1;
+        let state = self.trace.then(|| self.state_json());
         self.log.push(Entry {
             tick: self.tick,
             node,
             what,
             vc: self.vcs[node].clone(),
             cause: None,
+            state,
         });
         self.log.len() - 1
     }
     fn deliver_entry(&mut self, node: usize, what: String, m: &Msg) -> usize {
         sup(&mut self.vcs[node], &m.vc);
         self.vcs[node][node] += 1;
+        let state = self.trace.then(|| self.state_json());
         self.log.push(Entry {
             tick: self.tick,
             node,
             what,
             vc: self.vcs[node].clone(),
             cause: Some(m.entry),
+            state,
         });
         self.log.len() - 1
     }
@@ -2657,6 +2684,16 @@ impl<'a> Sched<'a> {
 
 /// Run `fn main()` of `m` on the tick runtime (6.8 and chapter C).
 pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
+    run_main_with(m, cfg, false)
+}
+
+/// `run_main`, with the state of the run recorded in every entry of its
+/// log (`Entry::state`): the run of `fn main` in the reference trace (10.9).
+pub fn run_main_traced(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
+    run_main_with(m, cfg, true)
+}
+
+fn run_main_with(m: &Module, cfg: &RunCfg, trace: bool) -> Result<RunResult, String> {
     let main = m
         .items
         .iter()
@@ -2667,6 +2704,7 @@ pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
         .ok_or("nothing to run: declare `fn main()`")?;
     let (outcome, sch) = std::thread::scope(|s| {
         let mut sch = Sched::new(m, cfg);
+        sch.trace = trace;
         sch.spawn_task(s, main, vec![], hid("main"), 0, None, 0);
         let o = sch.run(s);
         // stop every task thread that is still waiting

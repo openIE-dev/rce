@@ -138,9 +138,11 @@ fn trace(src: &str, events: Option<&str>) -> Value {
     let head = match cli::trace("t.rce", src, events) {
         Ok(t) => {
             let v: Value = serde_json::from_str(&t).unwrap_or(Value::Null);
+            // the head of the last example's (or the events') log; the
+            // trace of `fn main` (source "main") is not an example's
             v["traces"]
                 .as_array()
-                .and_then(|t| t.last())
+                .and_then(|t| t.iter().rfind(|t| t["source"] != "main"))
                 .and_then(|t| t["steps"].as_array())
                 .and_then(|s| s.last())
                 .map(|s| s["hash"].clone())

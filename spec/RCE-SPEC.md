@@ -3086,7 +3086,8 @@ trap. If there is no `fn main()`, the command says so and the status is 1.
 
 The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
-runtime.
+runtime. The body runs on the tick runtime of 6.8 and Appendix C, whose log
+of the run is the trace of `fn main` in `rce trace` (10.9).
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -3288,11 +3289,21 @@ of its function and one per argument); actor handlers share the
 scheduler's pool; a `par` branch or `for ... par` chunk starts from its
 parent's remaining fuel, and the branches are charged back in source
 order, so the trap falls where the reference's sequential run puts it.
+With `--trace` as well, the program prints the trace of `fn main` (10.9)
+before the outcome line: per entry of the run's log, in order, the line
+`d applied HASH BODY` (`d kept HASH BODY` for a `Kept` entry), BODY the
+canonical JSON of `{event, prev_hash, seq, state_hash}` of that step and
+HASH its SHA-256, then `trace HEAD`.
 
 `spec/checker/tests/emit_run.rs` compares the three runtimes with
 `conc::run_main` on a corpus of task programs. Among them are the four
 concurrency examples 14, 15, 34 and 47, each run with a `fn main` from
-`spec/checker/tests/drivers/` appended to its unchanged text.
+`spec/checker/tests/drivers/` appended to its unchanged text. Its test
+`main_traces_agree_on_every_target` compares the traces of `fn main` of
+the three runtimes with the reference's, line for line, on 66 runs: that
+corpus, the supervised actors of the same file, example 37, two session
+programs of `spec/conc06b/accept/`, the partition cases and program
+events, which together write an entry of every kind of 10.9.
 `spec/checker/tests/fuel_run.rs` runs seven of these programs at every
 fuel limit where the reference's result changes and at the limit before
 it (258 runs over the three targets), and requires the same outputs and
@@ -3512,7 +3523,8 @@ log D of 6.1, so a trace is the log, and conformance to 6.1 implies
 conformance to the trace.
 
 `rce trace --json FILE` prints one trace per `example` of the module, in
-source order (the same logs `rce emit form` puts in `logs`); with
+source order (the same logs `rce emit form` puts in `logs`), then, when
+the module declares `fn main()`, the trace of its run (below); with
 `--streams PATH` it prints one trace per event list of PATH (one list per
 line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
@@ -3529,7 +3541,7 @@ resolution of C.15), compact, with sorted keys:
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
-| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line), `"events"` or `"main"`; a `"main"` trace also has `outcome` |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
@@ -3544,12 +3556,66 @@ order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
 the whole state, equal hashes mean equal states without exchanging them.
 
+**The trace of `fn main`.** Its run is the one `rce run FILE` performs
+without EVENTS (10.3): `fn main()` on the tick runtime of 6.8 and
+Appendix C, with no link, event or restart input and the default seed of
+`select nondet`. The scheduler writes a log of the run (C.11.4), one entry
+per action, and a step of the trace is one entry, in the order written.
+Within a tick the order is the scheduler's: link inputs, then program
+events, then the actors (transactions, then one message per actor in id
+order), then each task's pending operation in task order (higher priority
+first, then id). Every choice in that order is a function of ids,
+payloads and per-`select` counters (6.8), so the trace is a function of
+the program, as the run is (T1), however the tasks are placed on threads.
+The text of an entry is `K` or `K(A)`, A showing values as `emit` lines
+do (10.3):
+
+| Entry | Written when |
+|---|---|
+| `Spawn(task ID, priority P)` | a spawn is admitted, before the new task first moves |
+| `Done(task ID)` | a task's function returns, traps, fails or is cancelled |
+| `Emit(V)` | a task emits V, or a committed handler emitted V |
+| `Send(V)` | a send of V is admitted: to a channel, to an actor, by a `select` arm, inside `atomic`, or by a committed handler |
+| `Backpressure` | the channel of a send is full: the sender is held (6.8) |
+| `Recv(V)`, `Recv(none)` | a receive or a `select` arm takes V, or finds the channel closed and empty |
+| `Close` | a channel is closed |
+| `Atomic` | the sends of an `atomic` block are admitted together (C.11.10) |
+| `Choice(task ID, select line L, execution K, arm A)` | a `select nondet` takes arm A (C.5) |
+| `Cancelled(task ID)` | a deadline of the task has passed at its communication step (C.6.2) |
+| `Deliver(V)` | an actor's handler takes the message V |
+| `Kept(R)` | an actor's handler kept its state for reason R, or another handler of the same transaction was not committed (T30) |
+| `Restart(CHILD, ID, R, tick T, K)`, `Stopped(supervisor S)` | a supervisor restarts a child or stops (C.11.11) |
+| `Input(V)`, `Unhandled(V)` | a program event arrives, and no actor handles it (HC-6) |
+| `Partition(A, B)`, `Heal(A, B)`, `Held(A -> B)` | a link input, and a message held at a partitioned link (C.11.4) |
+
+The last two rows need inputs of the run, so they occur only in a trace
+of a run given those inputs (`spec/checker/tests/emit_run.rs` gives them).
+A step's `event` is {`type`: K, `payload`: A}, with payload null for an
+entry `K`; its state is `[tick, actors]`: the tick at which the entry was
+written (the first tick is 1) and, for every live actor in id order,
+`[ID, [v₁, …]]`, its field values in declaration order in the positional
+form of 6.1. `hashed` holds the two, `state_hash` is the SHA-256 of the
+canonical JSON of the state, and `prev_hash` and `hash` chain from the
+genesis as an example's entries do. `outcome` is {`kept`: R} for a step
+`Kept(R)` and `"applied"` for every other step; unlike an example's, a
+kept step is not the last: the trace ends where the run ends. The
+trace's `outcome` is `"done"`, `"deadlock"` or {`stopped`: REASON}, as
+`rce run` ends. An entry's event is display text, which names declared
+types (`Ping(n: 7, reply: <chan>)`), so renaming a declaration changes the
+hashes of a main trace, where an example's (T7) stay the same. With
+`--trace`, an emitted program run with `--run` prints the trace of
+`fn main` as lines of D (10.5). The core evaluator (10.12) does not run
+`fn main` on the tick runtime, so it prints no trace of `fn main`.
+
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
 machine), plus two event-list traces, `01_counter.events.json` (the
 counter on a longer list) and `16_multi_region.events.json` (two regions
-stepped by one event, which has no `example` lines). Examples without a
-state machine have an empty `traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+stepped by one event, which has no `example` lines). Five examples
+declare `fn main()`: 02, 13 and 37 run to `done`, and 40 and 48 stop at
+their first foreign call, which the reference evaluator does not execute
+(10.3). Examples without a state machine or `fn main()` have an empty
+`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
 standard library only) compares two trace files or two directories of
 them and prints `exact match` or the first divergence (trace, `seq`,
 field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
@@ -3692,6 +3758,12 @@ comparison are the reference trace (10.9), never this output. Exit status
 0 when the run ends; 1 when the checker reports that FILE requires change, when a core module
 is not well formed, or when the run halts; 2 when FILE uses a construct
 the lowering does not cover, or on an internal error.
+
+The core evaluator observes `fn main` as one call of its body, as the
+`main` block of the proposal's trace (ONE-5) does, not as a run on the
+tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
+supervisor (status 2), and the core has no scheduler, so `rce run-core`
+prints no trace of `fn main` (10.9).
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 

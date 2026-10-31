@@ -540,9 +540,10 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
 pub const TRACE_FORMAT: &str = "rce-trace/2";
 
 /// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
-/// Without EVENTS, one trace per `example` of the module (its log D, 6.1);
-/// with EVENTS, one trace of that event list. Each step carries the
-/// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
+/// Without EVENTS, one trace per `example` of the module (its log D, 6.1),
+/// then, when the module declares `fn main()`, the trace of its run on the
+/// tick runtime (`main_trace`); with EVENTS, one trace of that event list.
+/// Each step carries the canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
 /// the derived `outcome`, and `hashed`, the positional forms of the event
 /// and the state that the two hashes are over (6.1, T7); a trace stops at
 /// the first event whose step keeps the state.
@@ -619,6 +620,9 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     if let (Some(evs), true) = (events, traces.is_empty()) {
         return Err(format!("events: `{evs}` gives no trace (no state, or an unknown event)"));
     }
+    if streams.is_empty() && has_main(&m) {
+        traces.push(main_trace(&m, &crate::conc::RunCfg::default())?);
+    }
     let name = std::path::Path::new(file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     let mut v = serde_json::json!({
         "format": TRACE_FORMAT,
@@ -633,12 +637,63 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     Ok(crate::interp::canon_json(&v))
 }
 
+/// Whether a module declares `fn main()` with no parameters, the program
+/// that `rce run FILE` runs without events (10.3).
+pub fn has_main(m: &Module) -> bool {
+    m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()))
+}
+
+/// The trace of the run of `fn main()` on the tick runtime (10.3, 10.9):
+/// `{source: "main", outcome, steps}`. A step is one entry of the run's log
+/// D, in the order the scheduler writes them (C.11.4). An entry's text `K`
+/// or `K(A)` gives the event `{type: K, payload: A}` (payload null for
+/// `K`); the state is `[tick, actors]` (`conc::Entry::state`); `prev_hash`
+/// and `hash` chain from the genesis as an example's entries do (6.1);
+/// `outcome` is `{kept: A}` for a `Kept(A)` entry (an actor's handler that
+/// kept its state) and `"applied"` for every other entry. `outcome` of the
+/// trace is how the run ended: `"done"`, `"deadlock"` or `{stopped: REASON}`.
+pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::Value, String> {
+    let r = crate::conc::run_main_traced(m, cfg)?;
+    let mut prev = crate::interp::D_GENESIS.to_string();
+    let mut steps = vec![];
+    for (seq, e) in r.log.iter().enumerate() {
+        let (ty, payload) = match e.what.split_once('(') {
+            Some((k, a)) => (k, a.strip_suffix(')').map(String::from)),
+            None => (e.what.as_str(), None),
+        };
+        let event = serde_json::json!({ "type": ty, "payload": payload });
+        let sj = e.state.clone().ok_or("internal: a traced run wrote an entry without its state")?;
+        let state: serde_json::Value = serde_json::from_str(&sj).map_err(|x| format!("state json: {x}"))?;
+        let state_hash = crate::interp::d_sha(&sj);
+        let body = format!(
+            "{{\"event\":{},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{state_hash}\"}}",
+            crate::interp::canon_json(&event)
+        );
+        let hash = crate::interp::d_sha(&body);
+        let outcome = match (ty, &payload) {
+            ("Kept", Some(a)) => serde_json::json!({ "kept": a }),
+            _ => serde_json::json!("applied"),
+        };
+        steps.push(serde_json::json!({
+            "seq": seq, "event": event, "state_hash": state_hash, "prev_hash": prev, "hash": hash,
+            "outcome": outcome, "hashed": { "event": event, "state": state },
+        }));
+        prev = hash;
+    }
+    let outcome = match r.outcome {
+        crate::conc::Outcome::Done => serde_json::json!("done"),
+        crate::conc::Outcome::Deadlock => serde_json::json!("deadlock"),
+        crate::conc::Outcome::Stopped(e) => serde_json::json!({ "stopped": e }),
+    };
+    Ok(serde_json::json!({ "source": "main", "outcome": outcome, "steps": steps }))
+}
+
 /// Usage of the language commands of `rce` (10.2 to 10.7).
 pub const USAGE_TEXT: &str = "usage:
   rce check FILE|DIR...          parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)
   rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
   rce test FILE|DIR...           run every example and check; report per file
-  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
+  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples and fn main(), or of EVENTS
   rce trace --json FILE --streams PATH  one trace per event list in PATH (one per line), in one run
   rce emit TARGET FILE           TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js
                                  or scala (a program printing its observations)
@@ -1612,8 +1667,7 @@ pub fn form_full(m: &Module) -> Result<String, String> {
     let base = form_json(m);
     let terms = serde_json::to_string(m).map_err(|e| format!("terms: {e}"))?;
     let source = serde_json::to_string(&crate::unparse::unparse(m)).map_err(|e| e.to_string())?;
-    let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
-    let main = if has_main {
+    let main = if has_main(m) {
         match crate::conc::run_main(m, &crate::conc::RunCfg::default()) {
             Ok(r) => {
                 let outs: Vec<String> = r.outputs.iter().map(|o| interp::form_value(o, m).json()).collect();

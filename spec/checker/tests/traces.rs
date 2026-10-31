@@ -209,3 +209,42 @@ fn streams_trace_every_list_in_one_run() {
     assert_eq!(o["traces"][0]["steps"], v["traces"][2]["steps"], "a stream's chain is the chain of the same events traced alone");
     assert!(o.get("streams").is_none());
 }
+
+/// The trace of `fn main` (10.9) is the run that `rce run FILE` prints
+/// without events (10.3): for every example with a main trace, its `Emit`
+/// steps are the run's outputs in order and its outcome is the run's; the
+/// trace comes last, after the examples' traces; it is absent with EVENTS.
+#[test]
+fn main_trace_is_the_run_of_rce_run() {
+    let mut mains = 0;
+    for (n, t) in corpus().0 {
+        let v: serde_json::Value = serde_json::from_str(&t).unwrap();
+        let tr = v["traces"].as_array().unwrap();
+        let Some(k) = tr.iter().position(|t| t["source"] == "main") else { continue };
+        mains += 1;
+        assert_eq!(k, tr.len() - 1, "{n}: the main trace is the last");
+        assert!(!n.ends_with(".events.json"), "{n}: no main trace with EVENTS");
+        let src = std::fs::read_to_string(spec().join("examples").join(n.replace(".json", ".rce"))).unwrap();
+        let r = rce_spec_check::cli::run(&src, None).unwrap();
+        let emits: Vec<String> = tr[k]["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|s| s["event"]["type"] == "Emit")
+            .map(|s| format!("emit {}", s["event"]["payload"].as_str().unwrap()))
+            .collect();
+        let mut want: Vec<String> = r.lines.clone();
+        let end = match &tr[k]["outcome"] {
+            o if o == "done" => None,
+            o if o == "deadlock" => Some("deadlock".to_string()),
+            o => Some(format!("stopped: {}", o["stopped"].as_str().unwrap())),
+        };
+        if r.kept {
+            assert_eq!(want.pop(), end, "{n}: outcome");
+        } else {
+            assert_eq!(end, None, "{n}: outcome");
+        }
+        assert_eq!(emits, want, "{n}: outputs");
+    }
+    assert_eq!(mains, 5, "02, 13, 37, 40 and 48 declare fn main");
+}
