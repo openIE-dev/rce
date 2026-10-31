@@ -18,8 +18,8 @@
 //!   definition becomes a call of another visible function of the same type
 //!   on the same parameters, and (2) the callee of a call becomes another
 //!   visible function of the callee's type, in `rce search` rank order.
-//! - **c, altered rules**: skipped. The altered rewrites (pull request #85)
-//!   are not in this checker.
+//! - **c, altered rules**: skipped. The altered rewrites of `rce fmt`
+//!   (`alter.rs`, 7.1) are not yet wired into the ladder.
 //! - **d, bounded enumeration**: one small edit at one site: an operator
 //!   swapped within its class, an integer literal moved to n + 1, n - 1, 0
 //!   or 1, a boolean literal flipped, the operands of an ordering comparison
@@ -109,7 +109,7 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
         tried: BTreeMap::new(),
         verdict: String::new(),
         attempts: vec![],
-        skipped: vec!["c: the altered rewrites (pull request #85) are not in this checker".into()],
+        skipped: vec!["c: the altered rewrites of rce fmt (alter.rs) are not yet wired into the ladder".into()],
         repaired: None,
         canonical_same_report: None,
     };

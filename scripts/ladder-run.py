@@ -120,7 +120,7 @@ def main(argv):
     rep = [f"# Ladder run: {n} tasks", "",
            f"Checker commit `{commit}`, `rce` SHA-256 `{rce_sha}`, bound {summary['bound']} candidates for rung d, task set SHA-256 `{summary['tasks_sha256']}`.", "",
            "| Rung | Closed |", "|---|---:|"]
-    names = {"a": "a reuse", "b": "b lookup by type", "c": "c altered rules (not in this checker)", "d": "d bounded enumeration"}
+    names = {"a": "a reuse", "b": "b lookup by type", "c": "c altered rules (not yet wired to alter.rs)", "d": "d bounded enumeration"}
     for k in ("a", "b", "c", "d"):
         rep.append(f"| {names[k]} | {per_rung[k]} |")
     rep += [f"| not closed | {n - len(closed)} |", "",

@@ -772,7 +772,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
   rce unform FORM.json           the canonical source of a Form's terms (inverse of `rce emit form`)
   rce repair [json] [bound N] FILE [MODULE...]  propose a change to FILE, which requires change, by exact proposers judged by the checker:
-                                 a reuse, b lookup by type, c altered rules (not in this checker), d one small edit (at most N candidates,
+                                 a reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,
                                  default 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called
   rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
   rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--http HOST:PORT] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, each HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (--http, Appendix E HC-24), Display(data) is written to stdout, Exit or SIGTERM ends the loop

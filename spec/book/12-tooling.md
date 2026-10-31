@@ -930,8 +930,8 @@ The rungs, in order:
   functions FILE can name are proposed: its own, and those of a module it
   uses, through the module's alias.
 - **c. Altered rules.** Skipped. The rewrites of the altered rules
-  (proposed in pull request #85) are not in this checker; the report says
-  so on a `skipped` line.
+  (7.1), which `rce fmt` writes (10.6, `alter.rs`), are not yet wired into
+  the ladder; the report says so on a `skipped` line.
 - **d. Bounded enumeration.** One small edit at one site: a binary
   operator replaced by each other operator of its class (`+ - * / %`,
   `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
@@ -973,4 +973,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 94a307ce18c5b297beb6df1d1c80ebcfaa1d9b1def52f97b08a01fe12f857fea -->
+<!-- body-sha256: e3ee970335891a217e0cc67cedfbc9db49c4b92c64a41d74f8536c0bdcd30c99 -->
