@@ -636,26 +636,13 @@ declaration and no conflict to resolve at parse time.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
-agree. Until 2026-10-12 this check was `spec/check.py` on `spec/rce.lark`
-with Lark in strict mode; both are retired.
+agree.
 
 `tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
 layout, bracket depth, reserved-keyword NAME and longest-match numbers and
-`<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
-example and N fuzz programs, each program's syntax mutants and SOUP
-lexical-stress mutants (a random token jammed in or a space deleted) with
-Lark and tree-sitter and required that both report the input as requiring change, or both accept with identical
-trees (rule names, nesting, kept tokens and their text). Results: 81 examples
-plus 10,000 programs (seed 7, SOUP=2): 69,323 inputs, 15,205 accepted by both
-with identical trees, 54,118 requiring change in both, 0 disagreements; 10,000
-programs (seed 11, SOUP=10): 149,365 inputs, 35,837 identical trees, 113,528
-requiring change in both, 0 disagreements.
-Draft 0.4 grammar (with `extern` and arena `bound`): 91 examples plus 2,000
-programs (seed 7, SOUP=2): 13,983 inputs, 3,060 identical trees, 10,923
-requiring change in both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
-`yield`, `device`, no `lalr`): 127 examples plus 2,000 programs (seed 7,
-SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 requiring change in both,
-0 disagreements.
+`<-` in `src/scanner.c`). `spec/checker/tests/tree_sitter_sync.rs` keeps it
+in sync: for every `.rce` file under `spec/`, the tree-sitter parser accepts
+the file exactly when the Rust parser does, on every CI run.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 

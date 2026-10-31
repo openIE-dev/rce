@@ -99,8 +99,8 @@ jobs:
       - name: Evaluation depth is the defined trap, not the host stack
         run: |
           w=spec/checker/target/wasm32-wasip1/release/rce.wasm
-          wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/ok_7000.rce" | grep '^ok '
-          out=$(wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/trap_10000.rce" 2>&1 || true)
+          wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/under_limit.rce" | grep '^ok '
+          out=$(wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/over_limit.rce" 2>&1 || true)
           echo "$out"; grep -q 'trap: evaluation depth' <<< "$out"
       - if: always()
         uses: actions/upload-artifact@v4

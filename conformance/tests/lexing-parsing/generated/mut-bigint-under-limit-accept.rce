@@ -1,5 +1,5 @@
-# Host-independent evaluation depth (interp::EVAL_DEPTH): 7,000 nested calls
-# fit on every host; see tests/eval_depth.rs.
+# Recursion under the evaluation-depth limit (interp::EVAL_DEPTH) runs to its
+# result on every host, including wasm32 (see tests/eval_depth.rs).
 fn down(n: i64) -> i64 bound 100000000
     if n <= 0
         return 0
@@ -9,11 +9,11 @@ check down(7000) == 7000
 
 const BIG_LIT = 99999999999999999999999
 #--- rce-test
-# id: lexing-parsing/generated/mut-bigint-ok-7000-accept
+# id: lexing-parsing/generated/mut-bigint-under-limit-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-3]
 # expect: change
 # diagnostic: W-LEX-3
 # flags: [generated]
-# provenance: gen_props.py seed 7: mutation `bigint` of ok-7000-accept
+# provenance: gen_props.py seed 7: mutation `bigint` of under-limit-accept
 #---
