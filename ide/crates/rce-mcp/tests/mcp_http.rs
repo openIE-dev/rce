@@ -32,13 +32,12 @@ fn start(extra: &[&str]) -> Srv {
     std::fs::write(root.join("counter.rce"), COUNTER).unwrap();
     let tf = t.path().join("token");
     let mut child = Command::new(env!("CARGO_BIN_EXE_rce-mcp"))
-        .args(["--root"])
-        .arg(&root)
-        .args(["--no-memory", "--http", "127.0.0.1:0", "--token-file"])
+        .args(["no-memory", "http", "127.0.0.1:0", "token-file"])
         .arg(&tf)
         .args(extra)
         // The HTTP self-jail is Linux-only; elsewhere HTTP mode needs an explicit opt-out.
-        .args(if cfg!(target_os = "linux") { &[][..] } else { &["--no-jail"][..] })
+        .args(if cfg!(target_os = "linux") { &[][..] } else { &["no-jail"][..] })
+        .arg(&root)
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -139,12 +138,12 @@ fn json_replies_session_tools_receipts() {
 
 #[test]
 fn sse_replies() {
-    session_flow(&start(&["--sse"]));
+    session_flow(&start(&["sse"]));
 }
 
 #[test]
 fn auth_origin_accept_session_and_version_are_enforced() {
-    let s = start(&["--allow-origin", "http://127.0.0.1:8099"]);
+    let s = start(&["allow-origin", "http://127.0.0.1:8099"]);
     let mut c = HttpClient::new(&s.url, &s.token).unwrap();
     let init = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}).to_string();
     let good = format!("Bearer {}", s.token);
@@ -281,7 +280,7 @@ fn http_mode_jails_itself_and_does_not_reach_undeclared_hosts() {
     std::fs::create_dir_all(&root).unwrap();
     let run = |bind: &str| {
         let mut c = Command::new(env!("CARGO_BIN_EXE_rce-mcp"));
-        c.arg("--root").arg(&root).args(["--no-memory", "--http", bind, "--token-file"]).arg(t.path().join("tok"))
+        c.args(["no-memory", "http", bind, "token-file"]).arg(t.path().join("tok")).arg(&root)
             .stdin(Stdio::null()).stderr(Stdio::piped());
         c
     };

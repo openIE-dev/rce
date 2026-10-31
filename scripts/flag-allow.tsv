@@ -24,7 +24,7 @@ spec/checker/tests/positional_cli.rs		the test that every removed flag exits 2
 spec/checker/tests/version.rs		the test that --version and -V exit 2
 spec/checker/tests/bugfix_sweep.rs	--help|"-h"	the test that --help and -h exit 2
 **	rce form --emit|rce currency[^\n]*--mark|rce scan DIR --form|rce check --strict	commands of the engine crate, which is not in this repository (10.1, Appendix D)
-conformance/tests/handler-spec/*.rce	rce check --strict	the engine's command, quoted by the conformance case
+conformance/tests/handler-spec/*.rce	--strict	the engine's command, quoted by the conformance case
 **	"--version"\)|"--version"\]|'--version'\]	--version of other programs
 **	tree-sitter (query|parse|generate|build|test|init)	tree-sitter's own flags
 **	\bcurl -	curl's own flags
@@ -34,3 +34,10 @@ conformance/tests/handler-spec/*.rce	rce check --strict	the engine's command, qu
 lang/corpus.py	\[u, "--	unshare's own flags
 **	removed flag|was removed; write:|removed=\{	the decision-2 messages and the tables of removed flags of the scripts
 spec/checker/tests/common/targets.rs	TOOL --version|\{t\} --version	--version of the emit targets' toolchains
+ide/crates/rce-graph3d/src/layout.rs	\{ -h \}	arithmetic negation, not a flag
+ide/release/index.html		release notes of v0.1.0, dated, keep their words
+ide/crates/rce-ide/src/ci.rs	"--energy-budget"	the test that a removed flag exits 2
+ide/crates/rce-ide/tests/rce_bin.rs	"--energy-budget"|"--version"	the test that a removed flag exits 2
+ide/crates/rce-mcp/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
+ide/crates/rce-ide/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
+scripts/positional.py	`--log D`|`--NAME`	the reader of removed flags (decision 2)

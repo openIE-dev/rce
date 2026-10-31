@@ -50,12 +50,11 @@ fn mcp_over_stdio() {
     let key = t.path().join("k");
     let mut child = Command::new(env!("CARGO_BIN_EXE_rce-mcp"))
         .args([
-            "--root",
-            root.to_str().unwrap(),
-            "--ledger",
+            "ledger",
             ledger.to_str().unwrap(),
-            "--key",
+            "key",
             key.to_str().unwrap(),
+            root.to_str().unwrap(),
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -201,6 +201,8 @@ pub enum Fate {
     WordOperand(&'static str, usize),
     /// A command (`--help` becomes `help`, `--version` becomes `version`).
     Command(&'static str),
+    /// A word of another name (`-o OUT` becomes `out OUT`).
+    Named(&'static str),
 }
 
 /// A removed flag of one binary: its spelling, the command paths it was
@@ -268,7 +270,11 @@ pub fn removed_flag(program: &str, table: &[Command], removed: &[Removed], args:
                 words.extend(vals);
             }
             Fate::Drop => {}
-            Fate::Operand(k) => placed.extend(vals.into_iter().map(|v| (k, v))),
+            Fate::Operand(k) => placed.extend(vals.into_iter().enumerate().map(|(j, v)| (k + j, v))),
+            Fate::Named(w) => {
+                words.push(w.to_string());
+                words.extend(vals);
+            }
             Fate::WordOperand(w, k) => {
                 words.push(w.to_string());
                 placed.extend(vals.into_iter().map(|v| (k, v)));

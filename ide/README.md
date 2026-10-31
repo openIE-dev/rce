@@ -27,7 +27,8 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
 Honesty rules: an uncalibrated simulator predicts `None`; without a readable meter
 `e_meas` is `None`; `delta_j` exists only for a hardware measurement and a prediction.
 
-Run: `cargo run -p rce-mcp -- --root DIR [--ledger FILE] [--key FILE] [--calibration FILE]`.
+Run: `cargo run -p rce-mcp -- [ledger FILE] [key FILE] [calibration FILE] ROOT`
+(words, then the operand ROOT; `spec/proposals/positional-cli.md`).
 
 ## Source and releases
 
@@ -43,7 +44,7 @@ in this repository: the host runtime (`rce host`, Appendix E), RCEdb
 The IDE build adds four programs: `rce-ide` (the desktop IDE, wgpu on
 Vulkan, Metal, DX12 or GL), `rce` (the reference checker CLI with one
 addition of the IDE's own, the energy-budget gate
-`rce test FILES.. --energy-budget J [--measured J | --measure] [--strict]`
+`rce test [energy-budget J] [measured J | measure] [strict] FILE...`
 in `crates/rce-ide/src/ci.rs`; the `rce` of `../spec/checker` does not have
 it), `rce-lsp` (language server) and `rce-mcp` (MCP server for agents).
 
@@ -56,7 +57,8 @@ cargo build --release -p rce-ide -p rce-mcp
 install -m 755 target/release/rce target/release/rce-ide target/release/rce-lsp target/release/rce-mcp ~/.local/bin/
 ```
 
-Then open a folder of `.rce` files: `rce-ide --root DIR --file main.rce [--history 50]`.
+Then open a folder of `.rce` files: `rce-ide [history 50] DIR main.rce`. Every
+IDE binary takes words, then operands, and no argument starts with `-`.
 
 Releases: v0.1.0 to v0.1.3 are on the
 [releases page of openIE-dev/rce-ide](https://github.com/openIE-dev/rce-ide/releases),
@@ -80,10 +82,10 @@ Platforms and requirements:
 
 Notes:
 
-- `rce-mcp --http` jails itself after binding (Landlock + seccomp; loopback or
-  `--allow-host` only; outbound only to ports declared in `.rce-ide/net.json`).
+- `rce-mcp http ADDR ROOT` jails itself after binding (Landlock + seccomp; loopback or
+  `allow-host` only; outbound only to ports declared in `.rce-ide/net.json`).
   The jail exists on Linux only (kernel 6.7+ for Landlock ABI 4). On Windows and
-  macOS HTTP mode does not start unless you pass `--no-jail`; stdio mode is
+  macOS HTTP mode does not start unless you give the word `no-jail`; stdio mode is
   unaffected.
 - `rce-ide telemetry probe` lists the energy meters and the GPU launch source
   found on this machine. Without a readable meter, energy is reported as

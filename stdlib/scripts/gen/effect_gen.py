@@ -1,5 +1,5 @@
 # Derived vectors for lib/effect/effect.rce, printed as rce checks.
-# Canonical JSON and oracle keys follow rce src/canon.rs; with --ref
+# Canonical JSON and oracle keys follow rce src/canon.rs; with ref PATH
 # PATH (scripts/ref/canon built with cargo) every one is confirmed
 # against that Rust code. Usage:
 #   python3 scripts/gen/effect_gen.py [ref scripts/ref/canon/target/release/canon-ref]

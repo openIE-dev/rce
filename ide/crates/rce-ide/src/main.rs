@@ -1,8 +1,10 @@
-//! `rce-ide --root DIR --file FILE [--lsp CMD ARGS..] [--no-memory] [--history N]
-//!          [--demo QUERY] [--export-model OUT.json] [--offscreen OUT.(ppm|png) --size WxH]`
-//! `rce-ide telemetry probe|setup` (energy sources; see docs/TELEMETRY.md)
+//! `rce-ide [no-memory] [history N] [demo QUERY] [export-model OUT.json]
+//!          [offscreen OUT.(ppm|png)] [size WxH] ROOT FILE [LSP-COMMAND...]`
+//! `rce-ide telemetry probe|setup` (energy sources; see docs/TELEMETRY.md),
+//! `rce-ide help` for every command (spec/proposals/positional-cli.md: words,
+//! then operands; no argument starts with `-`)
 //!
-//! Desktop: a winit window drawn with wgpu. `--offscreen` renders one frame
+//! Desktop: a winit window drawn with wgpu. `offscreen` renders one frame
 //! without a window and writes a PPM (no display needed).
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 mod desktop {
@@ -90,7 +92,7 @@ mod desktop {
         /// An IME composition is in progress: key text belongs to it and
         /// arrives as `Ime::Commit`.
         composing: bool,
-        /// Earlier Form versions from `--history N` (git), for the scrubber.
+        /// Earlier Form versions from `history N` (git), for the scrubber.
         history: Vec<rce_graph3d::history::Program>,
     }
 
@@ -580,39 +582,30 @@ mod desktop {
         }
     }
 
-    pub fn main() -> Result<(), String> {
-        let mut a = std::env::args().skip(1);
-        let (mut root, mut file, mut lsp, mut memory, mut off, mut size) =
-            (None, None, None, true, None, (1400u32, 900u32));
-        let mut demo: Option<String> = None;
-        let mut history_n: Option<usize> = None;
-        let mut export: Option<String> = None;
-        while let Some(x) = a.next() {
-            match x.as_str() {
-                "--root" => root = a.next(),
-                "--file" => file = a.next(),
-                "--lsp" => lsp = Some(a.by_ref().collect::<Vec<_>>()),
-                "--no-memory" => memory = false,
-                "--history" => {
-                    history_n = Some(a.next().and_then(|n| n.parse().ok()).ok_or("--history N (commits)")?)
-                }
-                "--demo" => demo = Some(a.next().ok_or("--demo QUERY")?),
-                "--export-model" => export = Some(a.next().ok_or("--export-model OUT.json")?),
-                "--offscreen" => off = a.next(),
-                "--size" => {
-                    let s = a.next().ok_or("--size WxH")?;
-                    let (w, h) = s.split_once('x').ok_or("--size WxH")?;
-                    size = (
-                        w.parse().map_err(|_| "width")?,
-                        h.parse().map_err(|_| "height")?,
-                    );
-                }
-                _ => return Err(format!("unknown argument `{x}`")),
-            }
+    /// The window, on the words and operands of the command line
+    /// (`rce-ide [WORD...] ROOT FILE [LSP-COMMAND...]`, positional-cli.md 2.7).
+    pub fn main(p: &rce_spec_check::args::Parsed) -> Result<(), String> {
+        let memory = !p.has("no-memory");
+        let demo: Option<String> = p.value("demo").map(String::from);
+        let export: Option<String> = p.value("export-model").map(String::from);
+        let off: Option<String> = p.value("offscreen").map(String::from);
+        let history_n: Option<usize> = match p.value("history") {
+            Some(n) => Some(n.parse().map_err(|_| "history N: N is a count of commits")?),
+            None => None,
+        };
+        let mut size = (1400u32, 900u32);
+        if let Some(s) = p.value("size") {
+            let (w, h) = s.split_once('x').ok_or("size WxH")?;
+            size = (
+                w.parse().map_err(|_| "width")?,
+                h.parse().map_err(|_| "height")?,
+            );
         }
+        // the language server command line is the trailing operands
+        let lsp = if p.operands.len() > 2 { Some(p.operands[2..].to_vec()) } else { None };
         let o = app::Options {
-            root: root.ok_or("--root DIR")?.into(),
-            file: file.ok_or("--file FILE")?,
+            root: p.operands[0].clone().into(),
+            file: p.operands[1].clone(),
             lsp,
             memory,
         };
@@ -668,37 +661,71 @@ mod desktop {
     }
 }
 
-const USAGE: &str = "usage:
-  rce-ide --root DIR --file FILE [--lsp CMD...] [--no-memory] [--history N]
-          [--demo QUERY] [--export-model OUT.json] [--offscreen OUT.png] [--size WxH]
-  rce-ide test ...                 run the IDE checks without a window
-  rce-ide telemetry probe|setup|calibrate|export ...
-  rce-ide --version | -V           print the release
-  rce-ide --help | -h              print this text";
+use rce_spec_check::args::{Command, Fate, MANY, Removed, Word};
+
+/// The commands of rce-ide, as data (spec/proposals/positional-cli.md PC-8):
+/// the reader reads this table and the usage text is printed from it.
+const TABLE: &[Command] = &[
+    Command {
+        path: &[],
+        words: &[
+            Word::mode("no-memory"),
+            Word::set("history", &["N"]),
+            Word::set("demo", &["QUERY"]),
+            Word::set("export-model", &["OUT.json"]),
+            Word::set("offscreen", &["OUT.png"]),
+            Word::set("size", &["WxH"]),
+        ],
+        operands: "ROOT FILE [LSP-COMMAND...]",
+        min: 2,
+        max: MANY,
+        help: "open FILE of the folder ROOT in a window; the trailing operands start the language server",
+    },
+    rce_ide::ci::TEST,
+    Command { path: &["telemetry", "probe"], words: &[], operands: "", min: 0, max: 0, help: "the energy sources of this machine" },
+    Command { path: &["telemetry", "setup"], words: &[], operands: "", min: 0, max: 0, help: "the permission changes that give this user the energy sources" },
+    rce_ide::calibrate::CALIBRATE,
+    rce_ide::ci::EXPORT,
+    Command { path: &["version"], words: &[], operands: "", min: 0, max: 0, help: "print the release" },
+    Command { path: &["help"], words: &[], operands: "", min: 0, max: 0, help: "print this text" },
+];
+
+/// The flags rce-ide had (positional-cli.md section 1.4).
+const REMOVED: &[Removed] = &[
+    Removed { flag: "--root", paths: &[""], values: 1, fate: Fate::Operand(0) },
+    Removed { flag: "--file", paths: &[""], values: 1, fate: Fate::Operand(1) },
+    Removed { flag: "--lsp", paths: &[""], values: usize::MAX, fate: Fate::Operand(2) },
+    Removed { flag: "--no-memory", paths: &[""], values: 0, fate: Fate::Word },
+    Removed { flag: "--history", paths: &[""], values: 1, fate: Fate::Word },
+    Removed { flag: "--demo", paths: &[""], values: 1, fate: Fate::Word },
+    Removed { flag: "--export-model", paths: &[""], values: 1, fate: Fate::Word },
+    Removed { flag: "--offscreen", paths: &[""], values: 1, fate: Fate::Word },
+    Removed { flag: "--size", paths: &[""], values: 1, fate: Fate::Word },
+    Removed { flag: "--help", paths: &[], values: 0, fate: Fate::Command("help") },
+    Removed { flag: "-h", paths: &[], values: 0, fate: Fate::Command("help") },
+    Removed { flag: "--version", paths: &[], values: 0, fate: Fate::Command("version") },
+    Removed { flag: "-V", paths: &[], values: 0, fate: Fate::Command("version") },
+];
 
 fn main() {
-    // `rce-ide telemetry probe|setup`: energy sources, no window needed.
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.iter().any(|a| a == "--help" || a == "-h") && args.first().map(String::as_str) != Some("telemetry") {
-        println!("{USAGE}");
-        std::process::exit(0);
+    let removed: Vec<Removed> = REMOVED.iter().chain(rce_ide::ci::REMOVED).chain(rce_ide::calibrate::REMOVED).copied().collect();
+    let (c, p) = rce_spec_check::args::read_or_exit("rce-ide", TABLE, &removed, &args);
+    match c.path {
+        ["help"] => {
+            println!("{}", rce_spec_check::args::usage("rce-ide", TABLE));
+            std::process::exit(0);
+        }
+        ["version"] => {
+            println!("rce-ide {}", env!("CARGO_PKG_VERSION"));
+            std::process::exit(0);
+        }
+        ["telemetry", "calibrate"] => std::process::exit(rce_ide::calibrate::command(&p)),
+        ["test"] => std::process::exit(rce_ide::ci::test_words(&p, &mut std::io::stdout())),
+        _ => {}
     }
-    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) && args.len() == 1 {
-        println!("rce-ide {}", env!("CARGO_PKG_VERSION"));
-        std::process::exit(0);
-    }
-    if args.first().map(String::as_str) == Some("telemetry")
-        && args.get(1).map(String::as_str) == Some("calibrate")
-    {
-        std::process::exit(rce_ide::calibrate::command(&args[2..]));
-    }
-    if args.first().map(String::as_str) == Some("test") {
-        std::process::exit(rce_ide::ci::test(&args[1..], &mut std::io::stdout()));
-    }
-    if args.first().map(String::as_str) == Some("telemetry")
-        && args.get(1).map(String::as_str) == Some("export")
-    {
-        match rce_ide::ci::export_perfetto(&args[2..]) {
+    if c.path == ["telemetry", "export"] {
+        match rce_ide::ci::export_perfetto(&p) {
             Ok(o) => { println!("wrote {o} (synthetic E_sim)"); std::process::exit(0) }
             Err(e) => { eprintln!("rce-ide telemetry export: {e}"); std::process::exit(2) }
         }
@@ -712,7 +739,7 @@ fn main() {
         std::process::exit(code);
     }
     #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
-    if let Err(e) = desktop::main() {
+    if let Err(e) = desktop::main(&p) {
         eprintln!("rce-ide: {e}");
         std::process::exit(2);
     }

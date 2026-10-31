@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           R=target/${{ matrix.target }}/release/rce
-          $R --version
+          $R version
           printf 'fn main()\n    emit "hello, world"\n' > /tmp/hello.rce
           $R run /tmp/hello.rce
       - uses: actions/upload-artifact@v4

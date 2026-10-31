@@ -1243,7 +1243,7 @@ CONTRIBUTING rule 2 asks a proposal to show the same program written with existi
 | Delivery of a kept outcome | HC-21 of PR #31 | Nothing: a respelling |
 | Run outcomes | `Done`, `Deadlock`, and the `Stopped(supervisor S)` log entry | Nothing: a respelling |
 | Replay divergence | The existing replay check | `Differs { seq }`, kept apart from run outcomes, which `Outcome::Refused("replay diverged")` conflates today |
-| Determined paths | `rce fmt` (10.6) and the existing `scripts/fix-*.py` and `rename-reserved.py` | A tool mode, `--fit`, and `data.fit` in diagnostics; no language construct |
+| Determined paths | `rce fmt` (10.6) and the existing `scripts/fix-*.py` and `rename-reserved.py` | A tool word, `fit`, and `data.fit` in diagnostics; no language construct |
 | Lifts of other languages' constructs | The semantics tables of `spec/lift` (the Go probe and `tests/lift_go.rs`) | Data: `spec/lift/table.json` |
 | A default bound for recursion | `bound` and LOOP_LIMIT (6.7) | Its use for recursion cycles |
 | Named forms | A Result return (W-TX-1); `bound` (W-REC-1); a run-time `check` (W-REF-1, W-CON-1); Option; traits; `iter`; actors and regions; `extern "C"`; logged choices (T21, T32); `Prompt.encode`, `release`, `endorse`, `ct_choose` | Nothing: each form is a rule's reading of existing constructs, recorded in the `forms` table and the "claimed for" column |

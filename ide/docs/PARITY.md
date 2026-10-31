@@ -9,8 +9,8 @@ Status words: Done = implemented and tested here. Library = implemented and test
 | Feature | Who has it | Our status | Commit | Remaining |
 |---|---|---|---|---|
 | Split a shared device's energy among processes | Ampere | Done (energy conserved, idle kept apart) | 5c6e461 | Feed per-process busy time from the live telemetry loop |
-| Perfetto trace export | CodeGreen | Done: `rce-ide telemetry export --perfetto FILES -o OUT.json`, `synthetic_energy` in metadata | 5c6e461, 9449b4f | Export measured receipts too, not only static E_sim |
-| Energy budget gate in tests / CI | CodeGreen | Done: `rce-ide test FILES --energy-budget J [--measured J] [--strict]`; no measurement is its own verdict | 9449b4f | Also in the shipped `rce` binary: `rce test --energy-budget J [--measured J | --measure] [--strict]`; IDE test panel button not added |
+| Perfetto trace export | CodeGreen | Done: `rce-ide telemetry export perfetto out OUT.json FILE...`, `synthetic_energy` in metadata | 5c6e461, 9449b4f | Export measured receipts too, not only static E_sim |
+| Energy budget gate in tests / CI | CodeGreen | Done: `rce-ide test energy-budget J [measured J] [strict] FILE...`; no measurement is its own verdict | 9449b4f | Also in the shipped `rce` binary: `rce test [energy-budget J] [measured J | measure] [strict] FILE...`; IDE test panel button not added |
 | Per-function energy attribution | CodeGreen, Oaklean, JoularJX | Partial: static per-function E_sim; measured attribution by time window | 6a5e18f | Evaluator spans to map measured windows to functions |
 | GPU kernel launch attribution | CodeGreen, Nsight | Scaffold: attribution math tested with synthetic samples | c016591 | No launch source (CUPTI, Metal, ROCm); never run on a GPU |
 | Static energy model feeding E_sim | SPEAR-Viewer | Done: per-construct op counts over the Form AST, loop trips as a stated assumption, callee roll-up without recursion | 6a5e18f | Calibrated prices; per-line overlay in the editor |

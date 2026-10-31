@@ -277,9 +277,10 @@ fn main() {
                         .flatten()
                         .filter_map(|x| x.as_str().map(String::from))
                         .collect();
+                    // the word before the server's own arguments, which end with ROOT
                     let mut c = Command::new(s["command"].as_str().unwrap_or(""))
+                        .arg("no-memory")
                         .args(&args)
-                        .arg("--no-memory")
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::null())

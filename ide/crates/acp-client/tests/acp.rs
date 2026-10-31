@@ -368,7 +368,7 @@ fn jailed_agent_uses_mcp_over_http_and_the_network_proxy() {
         creds,
     )));
     c.mcp_transport = acp_client::client::McpTransport::Http;
-    c.mcp_args = vec!["--no-memory".into()];
+    c.mcp_args = vec!["no-memory".into()];
     c.net = Some(np.clone());
     let mut a = AcpClient::start(c, l).unwrap();
     assert!(
