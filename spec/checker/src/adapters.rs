@@ -396,7 +396,7 @@ pub fn request_bytes(v: &Value) -> Result<Vec<u8>, String> {
 
 /// W1i network adapter (TCP), the transport under P4 remote channels; its
 /// contract is HC-23 of Appendix E. Authority (HC-5): only the `host:port`
-/// addresses granted with `--net`, by their exact text.
+/// addresses granted with `net`, by their exact text.
 /// `NetConnect(req, addr)` -> u64 id (waits at most NET_CONNECT_MS);
 /// `NetListen(req, addr)` -> u64 id; `NetAccept(req, id)` -> u64 id of a new
 /// connection, or failed `none` when nothing is waiting; `NetSend(req, id,
@@ -723,7 +723,7 @@ pub mod net {
 
 /// P3 (HC-4, E.9): foreign code as WebAssembly. `WasmCall(req, code,
 /// func, args: List[i64])` -> List[i64]. `code` is the SHA-256 digest of
-/// the module bytes, stored under the granted `--wasm DIR` (the BlobPut
+/// the module bytes, stored under the granted `wasm DIR` (the BlobPut
 /// layout), so D names the exact code that ran. Each call gets a fresh
 /// instance with no imports (nothing to reach but its own memory), runs
 /// under a fixed fuel budget chosen by the engine (`FOREIGN_FUEL`), and its
@@ -1296,7 +1296,7 @@ pub mod media {
     }
 }
 
-/// The HTTP event host (Appendix E HC-24 to HC-26): `--http HOST:PORT`.
+/// The HTTP event host (Appendix E HC-24 to HC-26): `http HOST:PORT`.
 ///
 /// The host frames requests, so it can serve connections concurrently and
 /// apply limits and deadlines before any byte enters D. Each complete

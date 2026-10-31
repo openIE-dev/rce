@@ -22,8 +22,42 @@ def trap(m): raise Trap(m)
 # comprehension element and every element a map, filter or fold visits).
 # Each observation starts with full fuel and empty constant caches, as the
 # reference starts each observation with a new evaluator.
-FUEL_LIMIT = int(next((a[7:] for a in sys.argv if a.startswith("--fuel=")), "50000000"))
-FUEL_TRACE = "--fuel-trace" in sys.argv
+# The words of an emitted program (positional-cli.md 2.6): the name, the
+# number of values and whether it may be given more than once. An emitted
+# program has words and no operands (PC-1).
+WORDS = {"run": (0, False), "trace": (0, False), "fuel": (1, False), "fuel-trace": (0, False), "fuel-batch": (1, False), "link": (1, True), "actor-log": (0, False), "restart-log": (0, False), "restart": (1, True), "restart-replay": (0, False), "restart-tree": (1, False), "event": (1, True)}
+def read_words(prog, a):
+    # a removed flag names its new spelling (decision 2 of section 5); an
+    # argument that is not a word is a usage error; both raise ValueError
+    f = next((x for x in a if x.startswith("-")), None)
+    if f is not None:
+        new = []
+        for x in a:
+            if x.startswith("-"):
+                n, eq, v = x.lstrip("-").partition("=")
+                new += [n, v] if eq else [n]
+            else: new.append(x)
+        raise ValueError("%s was removed; write: %s %s" % (f.split("=")[0], prog, " ".join(new)))
+    v, i = [], 0
+    while i < len(a):
+        w = a[i]
+        if w not in WORDS: raise ValueError("`%s` is not a word of this program; words: run trace fuel N fuel-trace fuel-batch N,... link T,partition|heal,A,B actor-log restart-log restart LIST restart-replay restart-tree S/c,... event TICK|Name|f=v,..." % w)
+        n, many = WORDS[w]
+        if not many and any(x == w for x, _ in v): raise ValueError("the word `%s` is given twice" % w)
+        if n and i + n >= len(a): raise ValueError("`%s` takes a value" % w)
+        v.append((w, a[i + 1] if n else None)); i += 1 + n
+    return v
+try: RCE_WORDS = read_words("", sys.argv[1:])
+except ValueError: RCE_WORDS = []
+def check_words():
+    # when run as a program: a command line that is not words exits 2 and runs nothing
+    try: read_words("python3 " + sys.argv[0], sys.argv[1:])
+    except ValueError as e: sys.stderr.write(str(e) + "\n"); sys.exit(2)
+def word_on(n): return any(w == n for w, _ in RCE_WORDS)
+def word_val(n): return next((x for w, x in RCE_WORDS if w == n), None)
+def word_vals(n): return [x for w, x in RCE_WORDS if w == n]
+FUEL_LIMIT = int(word_val("fuel") or "50000000")
+FUEL_TRACE = word_on("fuel-trace")
 # The pool and the constant cache are per thread (TLS), as the reference
 # gives every task its own evaluator; a par branch starts from its parent's
 # remaining fuel and is charged back in source order (par_resolve).
@@ -45,12 +79,12 @@ def fuel_reset():
     TLS.kc = {}
 def fuel_report():
     if FUEL_TRACE: print("fuel %d" % (FUEL_LIMIT - TLS.fuel))
-# `--fuel-batch=n1,n2,..`: every observation once per limit in this process,
+# `fuel-batch n1,n2,..`: every observation once per limit in this process,
 # each pass headed by `#fuel-batch n` (an observation starts from full fuel
 # and empty caches, so a pass equals a fresh run)
 def observe_all(f):
     global FUEL_LIMIT
-    b = next((a[13:] for a in sys.argv if a.startswith("--fuel-batch=")), None)
+    b = word_val("fuel-batch")
     if b is None: f(); return
     for n in b.split(","):
         FUEL_LIMIT = int(n); print("#fuel-batch " + n); f()
@@ -1065,7 +1099,7 @@ def run_events(s, events, d):
         for o in outs: print("  emit " + show(o))
 
 # ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
-TRACE = "--trace" in sys.argv
+TRACE = word_on("trace")
 D_GENESIS = "0" * 64
 class FRec:
     __slots__ = ("fs",)
@@ -1182,7 +1216,7 @@ def d_sha(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
 class DLog:
     def __init__(s): s.prev = D_GENESIS; s.seq = 0
     def add(s, name, ev, st, kept):
-        # one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+        # one entry, printed with trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
         ty = str(EVENT_INDEX[name]) if name in EVENT_INDEX else jstr(name)
         evj = '{"payload":' + fv_json(form_value_pos(ev)) + ',"type":' + ty + "}"
         sj = fv_json([[form_value_pos(v) for n, v in fs] for r, fs in st])
@@ -1562,7 +1596,7 @@ def merge3(base, cur, new):
             return T([merge3(b, c, n) for b, c, n in zip(base.xs, cur.xs, new.xs)])
     return new
 
-# ---- the tick runtime for `--run` (6.8, chapter C), as the Rust runtime:
+# ---- the tick runtime for `run` (6.8, chapter C), as the Rust runtime:
 # one thread per task, a scheduler on the main thread admitting moves tick
 # by tick (staged delivery, held sends, select rotation, seeded nondet,
 # deadlines, joins, scopes, actors, atomic, partitions, supervisors).
@@ -1706,7 +1740,7 @@ class Sched:
         s.slots = []; s.chans = {}; s.staged = []; s.outputs = []; s.rng = 0x5eed | 1; s.tick = 0; s.stop = None; s.max_ticks = 100000
         s.actors = {}; s.mail_staged = []; s.txns = []; s.txn_staged = []; s.held_links = []; s.parted = []; s.links = links; s.restarts = {}; s.alog = []; s.rlog = []; s.rrep = restart_inputs(); s.events = event_inputs()
         # the log D of the run, as the reference writes it (conc::Entry):
-        # (entry text, positional state of the run when written, with --trace)
+        # (entry text, positional state of the run when written, with trace)
         s.tlog = []
     def ent(s, what):
         s.tlog.append((what, s.state_json() if TRACE else None))
@@ -2068,7 +2102,7 @@ def actor_init(ty):
     f = ACTOR_INIT.get(ty)
     return f() if f is not None else []
 def print_main_trace(tlog):
-    # --run --trace: the run's D as the trace of fn main (10.9): one line
+    # run trace: the run's D as the trace of fn main (10.9): one line
     # `d applied|kept HASH BODY` per entry, BODY the canonical JSON of
     # {event, prev_hash, seq, state_hash} with event {payload, type} from
     # the entry text `K` or `K(A)`, then `trace HEAD`
@@ -2084,10 +2118,9 @@ def print_main_trace(tlog):
     print("trace " + prev)
 def run_tasks(main):
     links = []
-    for a in sys.argv:
-        if a.startswith("--link="):
-            p = a[7:].split(",")
-            links.append((int(p[0]), p[1] == "partition", p[2], p[3]))
+    for a in word_vals("link"):
+        p = a.split(",")
+        links.append((int(p[0]), p[1] == "partition", p[2], p[3]))
     s = Sched(links)
     rec = restart_tree_arg()
     if s.rrep is not None and rec is not None:
@@ -2102,9 +2135,9 @@ def run_tasks(main):
             r = sl.req.get()
             sl.st = ("done",) if r[0][0] == "done" else ("pending", r)
     for v in s.outputs: print("emit " + show(v))
-    if "--actor-log" in sys.argv:
+    if word_on("actor-log"):
         for e in s.alog: print("actorlog " + e)
-    if "--restart-log" in sys.argv:
+    if word_on("restart-log"):
         print("restartlog v1 tree=" + ",".join(SUP_TREE))
         for r in s.rlog: print("restartin %d|%s|%s|%s|%d|%s" % (r[0], r[1], r[2], r[3], 1 if r[4] else 0, ",".join(r[5])))
     if TRACE: print_main_trace(s.tlog)
@@ -2114,20 +2147,18 @@ def run_tasks(main):
 
 
 def restart_inputs():
-    # logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+    # logged restart inputs (C.11.11): restart TICK|SUP|CHILD|ID|STOP|RESET,...
     v = []
-    for a in sys.argv:
-        if a.startswith("--restart="):
-            p = a[len("--restart="):].split("|")
+    for a in word_vals("restart"):
+            p = a.split("|")
             v.append((int(p[0]), p[1], p[2], p[3], p[4] == "1", [x for x in (p[5] if len(p) > 5 else "").split(",") if x]))
-    if not v and "--restart-replay" not in sys.argv: return None
+    if not v and not word_on("restart-replay"): return None
     return v
 
 def restart_tree_arg():
-    # --restart-tree=Sup/child,...: the schema of the replayed restart log
-    for a in sys.argv:
-        if a.startswith("--restart-tree="): return [x for x in a[len("--restart-tree="):].split(",") if x]
-    return None
+    # restart-tree Sup/child,...: the schema of the replayed restart log
+    a = word_val("restart-tree")
+    return None if a is None else [x for x in a.split(",") if x]
 
 def _group(v):
     g = []
@@ -2149,13 +2180,11 @@ def tree_migrates(rec, cur):
 
 INT_TYS = ("i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize")
 def event_inputs():
-    # program events (HC-6): --event=TICK|Name|field=value,...
+    # program events (HC-6): event TICK|Name|field=value,...
     v = []
-    for a in sys.argv:
-        if not a.startswith("--event="): continue
-        r = a[len("--event="):]
+    for r in word_vals("event"):
         def bad(m):
-            sys.stderr.write("bad --event %s: %s\n" % (r, m)); sys.exit(2)
+            sys.stderr.write("bad event %s: %s\n" % (r, m)); sys.exit(2)
         p = r.split("|", 2)
         try: tick = int(p[0])
         except ValueError: bad("tick")

@@ -1,13 +1,24 @@
 //! rce-check: parse and check RCE modules.
-//! Usage: rce-check [--parse-only] FILE...   (all FILEs form one program: `use` resolves among them)
+//! Usage: rce-check [parse-only] FILE...   (all FILEs form one program: `use` resolves among them)
+use rce_spec_check::args::{Command, Fate, MANY, Removed, Word};
 use std::collections::HashSet;
 
+/// The command line of rce-check (PC-8).
+const TABLE: &[Command] = &[Command {
+    path: &[],
+    words: &[Word::mode("parse-only")],
+    operands: "FILE...",
+    min: 1,
+    max: MANY,
+    help: "parse and check; all FILEs form one program (parse-only: parse alone)",
+}];
+const REMOVED: &[Removed] = &[Removed { flag: "--parse-only", paths: &[], values: 0, fate: Fate::Word }];
+
 fn main() {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let parse_only = args.first().is_some_and(|a| a == "--parse-only");
-    if parse_only {
-        args.remove(0);
-    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (_, p) = rce_spec_check::args::read_or_exit("rce-check", TABLE, REMOVED, &args);
+    let parse_only = p.has("parse-only");
+    let args = p.operands;
     let mut parsed = vec![];
     let mut bad = 0;
     for p in &args {

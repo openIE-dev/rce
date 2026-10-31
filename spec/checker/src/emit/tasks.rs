@@ -1,5 +1,5 @@
 //! Emission of the 6.8 / chapter C task statements onto the Rust tick
-//! runtime of `rt.rs` (`--run`): channels, send, receive, select (rotation
+//! runtime of `rt.rs` (`run`): channels, send, receive, select (rotation
 //! and nondet), spawn (with priority and handles), scopes and deadlines.
 //! Every statement mirrors the evaluation order and charge points of interp
 //! `conc_*`, so with no task context (comptime) the same trap falls on the

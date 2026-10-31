@@ -443,7 +443,6 @@ fn serve(program: &Path, log: &Path) -> Serving {
     let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_rce"))
         .args(["host", "serve"])
         .arg(program)
-        .arg("--log")
         .arg(log)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
@@ -600,7 +599,7 @@ fn a_line_that_is_not_an_event_is_held() {
     assert!(t.contains(r#"{"payload":{"data":"hello there\n"},"type":"Input"}"#) && !t.contains("host.Kept"), "{t}");
     // rce host run
     let log = dir.join("run.log");
-    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&program).arg("--log").arg(&log).arg("Nope").output().unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&program).arg(&log).arg("Nope").output().unwrap();
     let (so, se) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     assert!(so.contains("host.Kept: the line is not events of the module") && se.contains("validated"), "{so}{se}");
     assert_eq!(out.status.code(), Some(1), "the line was not applied");
@@ -648,7 +647,6 @@ fn a_line_is_held_whole_and_as_bytes() {
     let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_rce"))
         .args(["host", "run"])
         .arg(&program)
-        .arg("--log")
         .arg(&log)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -666,7 +664,7 @@ fn a_line_is_held_whole_and_as_bytes() {
     let p = dir.join("bytes_input.rce");
     std::fs::write(&p, &with_input).unwrap();
     let log = dir.join("bytes.log");
-    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&p).arg("--log").arg(&log).arg("Nope").output().unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&p).arg(&log).arg("Nope").output().unwrap();
     assert!(String::from_utf8_lossy(&out.stderr).contains("validated") && out.status.code() == Some(0), "{out:?}");
     let t = std::fs::read_to_string(&log).unwrap();
     assert!(t.contains(r#"{"payload":{"data":[78,111,112,101,10]},"type":"Input"}"#) && !t.contains("host.Kept"), "{t}");

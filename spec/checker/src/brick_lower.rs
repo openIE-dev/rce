@@ -20,7 +20,7 @@
 //! the monomorphization at every type at once, and vectors check it at i64.
 //!
 //! Anything else is not lowered; the error names the line and the construct. A lowering is
-//! a claim, not a proof: `rce index --vectors N` records the interpreter's
+//! a claim, not a proof: `rce index vectors N` records the interpreter's
 //! results on generated inputs, and the engine evaluates the term on them
 //! (`rce::form::brick::verify`).
 use crate::ast::*;

@@ -97,7 +97,7 @@ fn host_run_prints_status_records_in_order_on_stderr() {
     let log = d.join("d").to_string_lossy().into_owned();
     // two input lines: each is admitted, stepped and appended between a
     // `working` and an `idle`
-    let o = rce(&["host", "run", &prog, "--log", &log], "Inc\nInc, Inc\n", Some("on"));
+    let o = rce(&["host", "run", &prog, &log], "Inc\nInc, Inc\n", Some("on"));
     assert_eq!(o.code, 0, "{}", String::from_utf8_lossy(&o.stderr));
     assert!(!o.stdout.contains(&0x1b), "stdout carries no record");
     let rs = records(&o.stderr);
@@ -114,7 +114,7 @@ fn host_run_prints_status_records_in_order_on_stderr() {
     assert_eq!(entries[5], format!("stopped: {n} entries, state {}", &hash[..12]));
 
     // a program that requires change on this log reports `error` and stops
-    let o = rce(&["host", "run", &other, "--log", &log, "Inc"], "", Some("on"));
+    let o = rce(&["host", "run", &other, &log, "Inc"], "", Some("on"));
     assert_eq!(o.code, 1);
     let rs = records(&o.stderr);
     assert_eq!(states(&rs), ["error"], "{rs:?}");
@@ -128,7 +128,7 @@ fn host_serve_reports_idle_working_and_done() {
     let prog = write(&d, "counter.rce", COUNTER);
     let log = d.join("d").to_string_lossy().into_owned();
     // the end of the input is a clean stop
-    let o = rce(&["host", "serve", &prog, "--log", &log], "Inc\nInc\n", Some("on"));
+    let o = rce(&["host", "serve", &prog, &log], "Inc\nInc\n", Some("on"));
     assert_eq!(o.code, 0, "{}", String::from_utf8_lossy(&o.stderr));
     let rs = records(&o.stderr);
     let s = states(&rs);
@@ -146,14 +146,14 @@ fn no_escape_byte_without_a_terminal() {
     for (i, status) in [None, Some("off"), Some("auto")].into_iter().enumerate() {
         let log = d.join(format!("d{i}")).to_string_lossy().into_owned();
         for sub in ["run", "serve"] {
-            let o = rce(&["host", sub, &prog, "--log", &log], "Inc\n", status);
+            let o = rce(&["host", sub, &prog, &log], "Inc\n", status);
             assert_eq!(o.code, 0, "{}", String::from_utf8_lossy(&o.stderr));
             assert!(!o.stderr.contains(&0x1b) && !o.stdout.contains(&0x1b), "{sub} with RCE_STATUS={status:?} wrote an ESC byte");
         }
     }
     // a program that requires change, and so a stop, is not reported either
     let other = write(&d, "other.rce", OTHER);
-    let o = rce(&["host", "run", &other, "--log", &d.join("d0").to_string_lossy(), "Inc"], "", None);
+    let o = rce(&["host", "run", &other, &d.join("d0").to_string_lossy(), "Inc"], "", None);
     assert_eq!(o.code, 1);
     assert!(!o.stderr.contains(&0x1b) && !o.stdout.contains(&0x1b));
     let _ = std::fs::remove_dir_all(&d);
@@ -165,15 +165,15 @@ fn d_is_byte_identical_with_and_without_reports() {
     let prog = write(&d, "counter.rce", COUNTER);
     for sub in ["run", "serve"] {
         let (on, off) = (d.join(format!("{sub}-on")).to_string_lossy().into_owned(), d.join(format!("{sub}-off")).to_string_lossy().into_owned());
-        let a = rce(&["host", sub, &prog, "--log", &on], "Inc\nInc, Inc\n", Some("on"));
-        let b = rce(&["host", sub, &prog, "--log", &off], "Inc\nInc, Inc\n", Some("off"));
+        let a = rce(&["host", sub, &prog, &on], "Inc\nInc, Inc\n", Some("on"));
+        let b = rce(&["host", sub, &prog, &off], "Inc\nInc, Inc\n", Some("off"));
         assert_eq!((a.code, b.code), (0, 0));
         assert!(!records(&a.stderr).is_empty() && records(&b.stderr).is_empty());
         assert_eq!(std::fs::read(&on).unwrap(), std::fs::read(&off).unwrap(), "{sub}: D does not depend on the report");
         assert_eq!(std::fs::read(format!("{on}.program")).unwrap(), std::fs::read(format!("{off}.program")).unwrap());
         assert_eq!(a.stdout, b.stdout, "{sub}: the program's output does not depend on the report");
         // replay gives the same state from either log, with no report
-        let r = rce(&["host", "replay", &prog, "--log", &on], "", Some("on"));
+        let r = rce(&["host", "replay", &prog, &on], "", Some("on"));
         assert_eq!(r.code, 0);
         assert!(!r.stderr.contains(&0x1b) && !r.stdout.contains(&0x1b), "replay is not the host loop and reports nothing");
     }

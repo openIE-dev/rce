@@ -49,15 +49,49 @@ var FUEL_LIMIT: BigInt = BigInt(50000000)
 var FUEL_TRACE = false
 var FUEL: Long = 50000000L
 val KC = mutable.HashMap[String, Any]()
-var ARGS: Seq[String] = Seq()
+// The words of an emitted program (positional-cli.md 2.6): the name, the
+// number of values and whether it may be given more than once. An emitted
+// program has words and no operands (PC-1).
+val WORDS: Map[String, (Int, Boolean)] = Map("run" -> (0, false), "trace" -> (0, false), "fuel" -> (1, false), "fuel-trace" -> (0, false), "fuel-batch" -> (1, false), "link" -> (1, true), "actor-log" -> (0, false), "restart-log" -> (0, false), "restart" -> (1, true), "restart-replay" -> (0, false), "restart-tree" -> (1, false), "event" -> (1, true))
+var ARGS: Vector[(String, String)] = Vector()
 var FUEL_BATCH: Option[String] = None
+// a removed flag names its new spelling (decision 2 of section 5); an
+// argument that is not a word is a usage error; both are Left
+def read_words(a: Seq[String]): Either[String, Vector[(String, String)]] = {
+  a.find(_.startsWith("-")) match {
+    case Some(f) =>
+      val neu = a.flatMap { x => if (!x.startsWith("-")) Seq(x) else { val y = x.dropWhile(_ == '-'); val e = y.indexOf('='); if (e < 0) Seq(y) else Seq(y.substring(0, e), y.substring(e + 1)) } }
+      return Left(f.split("=")(0) + " was removed; write: PROGRAM " + neu.mkString(" "))
+    case None =>
+  }
+  val v = ArrayBuffer[(String, String)]()
+  var i = 0
+  while (i < a.length) {
+    val w = a(i)
+    WORDS.get(w) match {
+      case None => return Left("`" + w + "` is not a word of this program; words: run trace fuel N fuel-trace fuel-batch N,... link T,partition|heal,A,B actor-log restart-log restart LIST restart-replay restart-tree S/c,... event TICK|Name|f=v,...")
+      case Some((n, many)) =>
+        if (!many && v.exists(_._1 == w)) return Left("the word `" + w + "` is given twice")
+        if (n > 0 && i + n >= a.length) return Left("`" + w + "` takes a value")
+        v += ((w, if (n > 0) a(i + 1) else null)); i += 1 + n
+    }
+  }
+  Right(v.toVector)
+}
+// a command line that is not words exits 2 and runs nothing
 def init_args(args: Seq[String]): Unit = {
-  ARGS = args
-  for (a <- args) if (a.startsWith("--fuel=")) FUEL_LIMIT = BigInt(a.substring(7))
-  for (a <- args) if (a.startsWith("--fuel-batch=")) FUEL_BATCH = Some(a.substring(13))
-  FUEL_TRACE = args.contains("--fuel-trace")
+  read_words(args) match {
+    case Left(e) => System.err.println(e); System.err.flush(); sys.exit(2)
+    case Right(v) => ARGS = v
+  }
+  for (x <- word_val("fuel")) FUEL_LIMIT = BigInt(x)
+  FUEL_BATCH = word_val("fuel-batch")
+  FUEL_TRACE = word_on("fuel-trace")
   FUEL = FUEL_LIMIT.toLong
 }
+def word_on(n: String): Boolean = ARGS.exists(_._1 == n)
+def word_val(n: String): Option[String] = ARGS.find(_._1 == n).map(_._2)
+def word_vals(n: String): Vector[String] = ARGS.filter(_._1 == n).map(_._2)
 def fuel(): Unit = { if (FUEL == 0L) trap("comptime fuel exhausted"); FUEL -= 1 }
 // `bound n` (6.7): active calls of each bounded function, per thread
 val DEPTH: ThreadLocal[scala.collection.mutable.HashMap[String, Long]] = ThreadLocal.withInitial(() => scala.collection.mutable.HashMap[String, Long]())
@@ -65,7 +99,7 @@ def depth_enter(k: String, n: Long): Unit = { val d = DEPTH.get.getOrElse(k, 0L)
 def depth_exit(k: String): Unit = { val d = DEPTH.get.getOrElse(k, 0L); if (d > 0) DEPTH.get(k) = d - 1 }
 def fuel_reset(): Unit = { FUEL = FUEL_LIMIT.toLong; KC.clear(); DEPTH.get.clear() }
 def fuel_report(): Unit = if (FUEL_TRACE) say("fuel " + (FUEL_LIMIT - BigInt(FUEL)))
-// `--fuel-batch=n1,n2,..`: every observation once per limit in this JVM,
+// `fuel-batch n1,n2,..`: every observation once per limit in this JVM,
 // each pass headed by `#fuel-batch n`
 def observe_all(f: () => Unit): Unit = FUEL_BATCH match {
   case None => f()
@@ -986,11 +1020,11 @@ def run_example1(line: Int, events: Vector[Any]): Unit = {
   try s = initial_state() catch { case e: Flow => say("initial " + why(e)); return }
   say("0 (initial) " + show_state(s))
   val d = new DLog
-  try run_events(s, events, d) finally if (ARGS.contains("--trace")) say("trace " + d.prev)
+  try run_events(s, events, d) finally if (word_on("trace")) say("trace " + d.prev)
 }
 def run_events(s0: Vector[Any], events: Vector[Any], d: DLog): Unit = {
   var s = s0
-  val tr = ARGS.contains("--trace")
+  val tr = word_on("trace")
   for (k <- 1 to events.length) {
     val name = at(events(k - 1), 0).toString; val th = at(events(k - 1), 1).asInstanceOf[() => Any]
     var ev: Any = null
@@ -1122,7 +1156,7 @@ def fv_json(x: Any): String = x match {
 def d_sha(s: String): String = sha256hex(s.getBytes("UTF-8"))
 final class DLog {
   var prev: String = D_GENESIS; var seq: Int = 0
-  // one entry, printed with --trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
+  // one entry, printed with trace: d applied|kept HASH BODY (HASH = SHA-256 of BODY)
   def add(name: String, ev: Any, st: Vector[Any], kept: Boolean): Unit = {
     val ty = if (EVENT_INDEX.contains(name)) EVENT_INDEX(name).toString else jstr(name)
     val evj = "{\"payload\":" + fv_json(form_value_pos(ev)) + ",\"type\":" + ty + "}"
@@ -1359,7 +1393,7 @@ def par_restore(s: (Any, Long)): Unit = { bud_restore(s._1); FUEL = s._2 }
 def lanes_of(v: Any): (Int, BigInt) = { val n = marker_int(v); (if (n > 0) n.toInt else 0, n) }
 def group_rec(lane: Int, n: BigInt): Rec = new Rec("$group", Vector(("lane", I(BigInt(lane), "usize")), ("lanes", I(n, "usize"))))
 
-// ---- task statements (6.8, chapter C). Outside `--run` there is no task
+// ---- task statements (6.8, chapter C). Outside `run` there is no task
 // context, so every communication step traps exactly as in the reference
 // evaluator's comptime mode.
 // the task of the running thread: the tick runtime runs one thread at a
@@ -1481,7 +1515,7 @@ def big_stack(f: () => Unit): Unit = {
   t.start(); t.join()
   if (err != null) throw err
 }
-// ---- the tick scheduler of `--run` (rt.rs `run_tasks`, rt.py `Sched`):
+// ---- the tick scheduler of `run` (rt.rs `run_tasks`, rt.py `Sched`):
 // one task thread runs at a time, between two of its communications; the
 // scheduler thread runs the actor handlers
 val CANCEL_TASK: Any = -1
@@ -1536,9 +1570,9 @@ final class Sched(val links: Vector[Vector[Any]]) {
   val events: Vector[(Long, Any)] = event_inputs()
   var fuelS: Long = FUEL_LIMIT.toLong
   // the log D of the run, as the reference writes it (conc::Entry):
-  // (entry text, positional state of the run when written, with --trace)
+  // (entry text, positional state of the run when written, with trace)
   val tlog = ArrayBuffer[(String, String)]()
-  val traced = ARGS.contains("--trace")
+  val traced = word_on("trace")
   def ent(what: String): Unit = tlog += ((what, if (traced) stateJson() else null))
   def alogAdd(what: String): Unit = { alog += what; ent(what) }
   def stateJson(): String =
@@ -1868,15 +1902,15 @@ final class Sched(val links: Vector[Vector[Any]]) {
   }
 }
 def restart_inputs(): ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])] = {
-  // logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+  // logged restart inputs (C.11.11): restart TICK|SUP|CHILD|ID|STOP|RESET,...
   val v = ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])]()
-  for (a <- ARGS if a.startsWith("--restart=")) {
-    val p = a.substring(10).split("\\|", -1)
+  for (a <- word_vals("restart")) {
+    val p = a.split("\\|", -1)
     v += ((p(0).toLong, p(1), p(2), p(3), p(4) == "1", (if (p.length > 5) p(5) else "").split(",").filter(_.nonEmpty).toVector))
   }
-  if (v.isEmpty && !ARGS.contains("--restart-replay")) null else v
+  if (v.isEmpty && !word_on("restart-replay")) null else v
 }
-def restart_tree_arg(): Vector[String] = ARGS.find(_.startsWith("--restart-tree=")).map(_.substring(15).split(",").filter(_.nonEmpty).toVector).orNull
+def restart_tree_arg(): Vector[String] = word_val("restart-tree").map(_.split(",").filter(_.nonEmpty).toVector).orNull
 def group_(v: Vector[String]): Vector[(String, Vector[String])] = {
   val g = ArrayBuffer[(String, Vector[String])]()
   for (p <- v) {
@@ -1898,12 +1932,11 @@ def tree_migrates(rec: Vector[String], cur: Vector[String]): String = {
   null
 }
 val INT_TYS = Set("i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize")
-// program events (HC-6): --event=TICK|Name|field=value,...
+// program events (HC-6): event TICK|Name|field=value,...
 def event_inputs(): Vector[(Long, Any)] = {
   val v = ArrayBuffer[(Long, Any)]()
-  for (a <- ARGS if a.startsWith("--event=")) {
-    val r = a.substring(8)
-    def bad(m: String): Nothing = { System.err.println("bad --event " + r + ": " + m); System.err.flush(); sys.exit(2) }
+  for (r <- word_vals("event")) {
+    def bad(m: String): Nothing = { System.err.println("bad event " + r + ": " + m); System.err.flush(); sys.exit(2) }
     val p = r.split("\\|", 3)
     val tick = p(0).toLongOption.getOrElse(bad("tick"))
     if (p.length < 2) bad("name")
@@ -1922,7 +1955,7 @@ def event_inputs(): Vector[(Long, Any)] = {
   v.toVector
 }
 def run_tasks(entry: String): Unit = {
-  val links = ARGS.filter(_.startsWith("--link=")).map { a => val p = a.substring(7).split(","); V(p(0).toLong, p(1) == "partition", p(2), p(3)) }.toVector
+  val links = word_vals("link").map { a => val p = a.split(","); V(p(0).toLong, p(1) == "partition", p(2), p(3)) }.toVector
   val s = new Sched(links)
   val rec = restart_tree_arg()
   if (s.rrep != null && rec != null) { val e = tree_migrates(rec, SUP_TREE); if (e != null) s.stop = V("stopped", e) }
@@ -1940,13 +1973,13 @@ def run_tasks(entry: String): Unit = {
   }
   val out = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, "UTF-8")
   for (v <- s.outputs) { out.print("emit " + show(v)); out.print("\n") }
-  if (ARGS.contains("--actor-log")) for (e <- s.alog) { out.print("actorlog " + e); out.print("\n") }
-  if (ARGS.contains("--restart-log")) {
+  if (word_on("actor-log")) for (e <- s.alog) { out.print("actorlog " + e); out.print("\n") }
+  if (word_on("restart-log")) {
     out.print("restartlog v1 tree=" + SUP_TREE.mkString(",") + "\n")
     for (r <- s.rlog) out.print("restartin " + r._1 + "|" + r._2 + "|" + r._3 + "|" + r._4 + "|" + (if (r._5) 1 else 0) + "|" + r._6.mkString(",") + "\n")
   }
   if (s.traced) {
-    // --run --trace: the run's D as the trace of fn main (10.9): one line
+    // run trace: the run's D as the trace of fn main (10.9): one line
     // `d applied|kept HASH BODY` per entry, BODY the canonical JSON of
     // {event, prev_hash, seq, state_hash} with event {payload, type} from
     // the entry text `K` or `K(A)`, then `trace HEAD`

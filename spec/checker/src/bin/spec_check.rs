@@ -19,9 +19,9 @@
 //!    parsers, then require change under the type, well-formedness or
 //!    admission rules).
 //! 4. Checks that the spec book (footers, INDEX.md) and RCE-SPEC.md are in
-//!    sync (rce-book build --check).
+//!    sync (rce-book build check).
 //!
-//! Usage: rce-spec-check [--no-generate] [SPEC_DIR]
+//! Usage: rce-spec-check [no-generate] [SPEC_DIR]
 //! (SPEC_DIR defaults to the spec/ directory this crate lives in.)
 use rce_spec_check::{check_program, parse};
 
@@ -126,11 +126,24 @@ fn generate(spec: &Path) -> Result<usize, String> {
     Ok(g["rules"].as_object().map_or(0, |m| m.len()))
 }
 
+/// The command line of rce-spec-check (PC-8).
+const TABLE: &[rce_spec_check::args::Command] = &[rce_spec_check::args::Command {
+    path: &[],
+    words: &[rce_spec_check::args::Word::mode("no-generate")],
+    operands: "[SPEC_DIR]",
+    min: 0,
+    max: 1,
+    help: "check the grammar, the checker on every example and the book (no-generate: skip regenerating the tree-sitter parser)",
+}];
+const REMOVED: &[rce_spec_check::args::Removed] =
+    &[rce_spec_check::args::Removed { flag: "--no-generate", paths: &[], values: 0, fate: rce_spec_check::args::Fate::Word }];
+
 fn main() {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let no_gen = args.iter().any(|a| a == "--no-generate");
-    args.retain(|a| a != "--no-generate");
-    let spec = args
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (_, p) = rce_spec_check::args::read_or_exit("rce-spec-check", TABLE, REMOVED, &args);
+    let no_gen = p.has("no-generate");
+    let spec = p
+        .operands
         .first()
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(".."));
@@ -140,7 +153,7 @@ fn main() {
             "grammar: tree-sitter checks skipped (default pure-Rust build; run with --features tree-sitter)"
         );
     } else if no_gen {
-        println!("grammar: generation check skipped (--no-generate)");
+        println!("grammar: generation check skipped (no-generate)");
     } else {
         match generate(&spec) {
             Ok(n) => println!(

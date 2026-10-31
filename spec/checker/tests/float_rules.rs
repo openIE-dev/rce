@@ -94,7 +94,7 @@ fn f6_negative_zero_is_observable_and_hashes_apart() {
     // so the state hash, injective on observable state, tells them apart
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/57_float_vectors.rce");
     let h = |ev: &str| {
-        let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["trace", "--json"]).arg(&p).arg(ev).output().unwrap();
+        let o = Command::new(env!("CARGO_BIN_EXE_rce")).arg("trace").arg(&p).arg(ev).output().unwrap();
         let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
         let t = v["traces"].as_array().unwrap().last().unwrap()["steps"].as_array().unwrap().last().unwrap().clone();
         t["state_hash"].as_str().unwrap().to_string()

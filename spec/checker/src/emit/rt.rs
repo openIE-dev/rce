@@ -8,6 +8,47 @@ use std::sync::Arc as Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+/// The words of an emitted program (positional-cli.md 2.6): the name, the
+/// number of values and whether it may be given more than once. An emitted
+/// program has words and no operands (PC-1).
+pub const WORDS: [(&str, usize, bool); 12] = [("run", 0, false), ("trace", 0, false), ("fuel", 1, false), ("fuel-trace", 0, false), ("fuel-batch", 1, false), ("link", 1, true), ("actor-log", 0, false), ("restart-log", 0, false), ("restart", 1, true), ("restart-replay", 0, false), ("restart-tree", 1, false), ("event", 1, true)];
+/// Read the arguments as words. A removed flag gives the one line that
+/// names its new spelling (decision 2 of positional-cli.md section 5); any
+/// other argument that is not a word is a usage error.
+pub fn read_words(prog: &str, a: &[String]) -> Result<Vec<(String, Option<String>)>, String> {
+    if let Some(f) = a.iter().find(|x| x.starts_with('-')) {
+        let new: Vec<String> = a.iter().flat_map(|x| match x.strip_prefix("--").or(x.strip_prefix('-')) {
+            Some(y) => match y.split_once('=') { Some((n, v)) => vec![n.to_string(), v.to_string()], None => vec![y.to_string()] },
+            None => vec![x.clone()],
+        }).collect();
+        return Err(format!("{} was removed; write: {prog} {}", f.split('=').next().unwrap_or(f), new.join(" ")));
+    }
+    let mut v: Vec<(String, Option<String>)> = vec![];
+    let mut i = 0;
+    while i < a.len() {
+        let Some((w, n, many)) = WORDS.iter().find(|(w, _, _)| *w == a[i]) else {
+            return Err(format!("`{}` is not a word of this program; words: run trace fuel N fuel-trace fuel-batch N,... link T,partition|heal,A,B actor-log restart-log restart LIST restart-replay restart-tree S/c,... event TICK|Name|f=v,...", a[i]));
+        };
+        if !many && v.iter().any(|(x, _)| x == w) { return Err(format!("the word `{w}` is given twice")); }
+        if i + n >= a.len() && *n > 0 { return Err(format!("`{w}` takes a value")); }
+        v.push((w.to_string(), if *n > 0 { Some(a[i + 1].clone()) } else { None }));
+        i += 1 + n;
+    }
+    Ok(v)
+}
+fn words() -> &'static [(String, Option<String>)] {
+    static W: std::sync::OnceLock<Vec<(String, Option<String>)>> = std::sync::OnceLock::new();
+    W.get_or_init(|| read_words("", &std::env::args().skip(1).collect::<Vec<_>>()).unwrap_or_default())
+}
+/// At the start of `main`: a command line that is not words exits 2 and runs nothing.
+pub fn check_words() {
+    let a: Vec<String> = std::env::args().collect();
+    if let Err(e) = read_words(a.first().map_or("PROGRAM", |x| x.as_str()), &a[1.min(a.len())..]) { eprintln!("{e}"); std::process::exit(2); }
+}
+pub fn word_on(n: &str) -> bool { words().iter().any(|(w, _)| w == n) }
+pub fn word_val(n: &str) -> Option<String> { words().iter().find(|(w, _)| w == n).and_then(|(_, v)| v.clone()) }
+pub fn word_vals(n: &str) -> Vec<String> { words().iter().filter(|(w, _)| w == n).filter_map(|(_, v)| v.clone()).collect() }
+
 /// SHA-256 (FIPS 180-4) of a byte string as 64 lowercase hex digits (5.15 `sha256`).
 pub fn sha256_hex(m: &[u8]) -> String {
     const K: [u32; 64] = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
@@ -909,15 +950,15 @@ fn fuel_limit() -> u64 {
     use std::sync::atomic::Ordering::SeqCst;
     let l = FUEL_LIMIT_CELL.load(SeqCst);
     if l != u64::MAX { return l; }
-    let l = std::env::args().find_map(|a| a.strip_prefix("--fuel=").and_then(|v| v.parse().ok())).unwrap_or(50_000_000);
+    let l = word_val("fuel").and_then(|v| v.parse().ok()).unwrap_or(50_000_000);
     FUEL_LIMIT_CELL.store(l, SeqCst);
     l
 }
-/// `--fuel-batch=n1,n2,..`: run every observation once per limit in this
+/// `fuel-batch n1,n2,..`: run every observation once per limit in this
 /// process, each pass headed by `#fuel-batch n`; observations already start
 /// from full fuel and empty caches, so a pass equals a fresh run.
 pub fn observe_all(f: &dyn Fn()) {
-    let Some(b) = std::env::args().find_map(|a| a.strip_prefix("--fuel-batch=").map(String::from)) else { f(); return };
+    let Some(b) = word_val("fuel-batch") else { f(); return };
     for n in b.split(',') {
         FUEL_LIMIT_CELL.store(n.parse().unwrap(), std::sync::atomic::Ordering::SeqCst);
         println!("#fuel-batch {n}");
@@ -941,7 +982,7 @@ pub fn depth_enter(k: &'static str, n: u64) -> R<()> {
 }
 pub fn depth_exit(k: &'static str) { DEPTH.with(|m| { if let Some(d) = m.borrow_mut().get_mut(k) { *d = d.saturating_sub(1); } }); }
 pub fn fuel_reset() { DEPTH.with(|m| m.borrow_mut().clear()); fuel_set(fuel_limit()); KGEN.with(|g| g.set(KGEN_NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst))); }
-pub fn fuel_report() { if std::env::args().any(|a| a == "--fuel-trace") { println!("fuel {}", fuel_limit() - fuel_left()); } }
+pub fn fuel_report() { if word_on("fuel-trace") { println!("fuel {}", fuel_limit() - fuel_left()); } }
 /// resolve one `par` branch in source order: the reference runs branches in
 /// sequence on one pool (ParMode::Seq), so branch i traps when the fuel of
 /// branches 0..=i exceeds what the parent had at the fork
@@ -982,7 +1023,7 @@ fn run_example1(line: usize, events: Vec<Ev>) {
     println!("example {line}");
     let mut s = match initial_state() { Ok(s) => s, Err(f) => { println!("initial {}", why(&f)); return; } };
     println!("0 (initial) {}", show_state(&s));
-    let tr = std::env::args().any(|a| a == "--trace");
+    let tr = word_on("trace");
     let mut d = DLog { prev: D_GENESIS.to_string(), seq: 0 };
     for (k, (name, th)) in events.iter().enumerate() {
         let k = k + 1;
@@ -1112,7 +1153,7 @@ fn jstr(s: &str) -> String {
 }
 struct DLog { prev: String, seq: usize }
 impl DLog {
-    /// Append one entry and print it (`--trace`): `d applied|kept HASH BODY`,
+    /// Append one entry and print it (`trace`): `d applied|kept HASH BODY`,
     /// BODY being the canonical JSON that HASH is the SHA-256 of.
     fn add(&mut self, name: &str, ev: &V, st: &State, kept: bool) {
         let ty = match event_index(name) { Some(k) => k.to_string(), None => jstr(name) };
@@ -1525,7 +1566,7 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 /// the id of 6.6: first 16 hex digits of SHA-256 of a name-free key
 pub fn hid(key: &str) -> String { sha256(key.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect() }
 
-// ---- the tick runtime for `--run` (6.8, chapter C): one OS thread per task,
+// ---- the tick runtime for `run` (6.8, chapter C): one OS thread per task,
 // a scheduler on the main thread that admits moves tick by tick, as interp
 // `conc::Sched` (staged delivery, held sends, select rotation, logged nondet
 // choices, deadlines, join handles, scopes). Not covered: actors, nodes,
@@ -1661,7 +1702,7 @@ struct Sched {
     /// program events (HC-6): (tick, event value)
     events: Vec<(u64, V)>,
     /// the log D of the run, as the reference writes it (`conc::Entry`):
-    /// (entry text, positional state of the run when written, with `--trace`)
+    /// (entry text, positional state of the run when written, with `trace`)
     tlog: Vec<(String, String)>,
     trace: bool,
 }
@@ -1763,7 +1804,7 @@ impl Sched {
     }
     fn on_crash(&mut self, id: &str, reason: &str) {
         // restart as input (C.11.11): record the decision, or on replay
-        // take it from the logged inputs (--restart=...) without the policy
+        // take it from the logged inputs (restart ...) without the policy
         self.alog_add(format!("Kept({reason})"));
         let ty = self.actors[id].ty.clone();
         let Some((sup, strat, tys, child, bound)) = supervisor_of(&ty) else { return };
@@ -2039,25 +2080,24 @@ impl Sched {
         }
     }
 }
-/// logged restart inputs (C.11.11): `--restart=TICK|SUP|CHILD|ID|STOP|RESET,...`
-/// in order; `--restart-replay` alone replays an empty list
+/// logged restart inputs (C.11.11): `restart TICK|SUP|CHILD|ID|STOP|RESET,...`
+/// in order; `restart-replay` alone replays an empty list
 fn restart_inputs() -> Option<std::collections::VecDeque<(u64, String, String, String, bool, Vec<String>)>> {
-    let v: Vec<_> = std::env::args().filter_map(|a| {
-        let r = a.strip_prefix("--restart=")?.to_string();
+    let v: Vec<_> = word_vals("restart").into_iter().filter_map(|r| {
         let p: Vec<&str> = r.split('|').collect();
         Some((p.first()?.parse().ok()?, p.get(1)?.to_string(), p.get(2)?.to_string(), p.get(3)?.to_string(), *p.get(4)? == "1",
             p.get(5).map(|x| x.split(',').filter(|y| !y.is_empty()).map(String::from).collect()).unwrap_or_default()))
     }).collect();
-    if v.is_empty() && !std::env::args().any(|a| a == "--restart-replay") { None } else { Some(v.into()) }
+    if v.is_empty() && !word_on("restart-replay") { None } else { Some(v.into()) }
 }
-/// program events (HC-6): `--event=TICK|Name|field=value,...`; a field's
+/// program events (HC-6): `event TICK|Name|field=value,...`; a field's
 /// value is a decimal integer, `true`/`false`, or text, by its declared type
 fn event_inputs() -> Vec<(u64, V)> {
     let mut v = vec![];
-    for a in std::env::args() {
-        let Some(r) = a.strip_prefix("--event=") else { continue };
+    for a in word_vals("event") {
+        let r = a.as_str();
         let p: Vec<&str> = r.splitn(3, '|').collect();
-        fn bad_event(r: &str, m: String) -> ! { eprintln!("bad --event {r}: {m}"); std::process::exit(2) }
+        fn bad_event(r: &str, m: String) -> ! { eprintln!("bad event {r}: {m}"); std::process::exit(2) }
         let tick: u64 = p.first().and_then(|x| x.parse().ok()).unwrap_or_else(|| bad_event(r, "tick".into()));
         let name = p.get(1).copied().unwrap_or_else(|| bad_event(r, "name".into()));
         let Some(decl) = event_fields(name) else { bad_event(r, format!("no event {name}")) };
@@ -2077,9 +2117,9 @@ fn event_inputs() -> Vec<(u64, V)> {
     }
     v
 }
-/// `--restart-tree=Sup/child,...`: the schema of the replayed restart log
+/// `restart-tree Sup/child,...`: the schema of the replayed restart log
 fn restart_tree_arg() -> Option<Vec<String>> {
-    std::env::args().find_map(|a| a.strip_prefix("--restart-tree=").map(|r| r.split(',').filter(|x| !x.is_empty()).map(String::from).collect()))
+    word_val("restart-tree").map(|r| r.split(',').filter(|x| !x.is_empty()).map(String::from).collect())
 }
 /// migration rule (C.11.11): every recorded position keeps its supervisor
 /// and child; new ones only after the recorded ones (`conc::tree_migrates`)
@@ -2104,7 +2144,7 @@ fn tree_migrates(rec: &[String], cur: &[&str]) -> Result<(), String> {
     }
     Ok(())
 }
-/// `--run --trace`: the run's D as the trace of fn main (10.9): one line
+/// `run trace`: the run's D as the trace of fn main (10.9): one line
 /// `d applied|kept HASH BODY` per entry, BODY the canonical JSON of {event,
 /// prev_hash, seq, state_hash} with event {payload, type} from the entry
 /// text `K` or `K(A)`, then `trace HEAD`
@@ -2120,17 +2160,16 @@ fn print_main_trace(tlog: &[(String, String)]) {
     }
     println!("trace {prev}");
 }
-/// `--run`: `fn main` on the tick runtime; prints the outputs and the outcome
+/// `run`: `fn main` on the tick runtime; prints the outputs and the outcome
 pub fn run_tasks(main: &str) {
-    // logged link inputs: --link=TICK,partition|heal,NODE,NODE
-    let links = std::env::args().filter_map(|a| {
-        let r = a.strip_prefix("--link=")?.to_string();
+    // logged link inputs: link TICK,partition|heal,NODE,NODE
+    let links = word_vals("link").into_iter().filter_map(|r| {
         let p: Vec<&str> = r.split(',').collect();
         Some((p.first()?.parse().ok()?, *p.get(1)? == "partition", p.get(2)?.to_string(), p.get(3)?.to_string()))
     }).collect();
     let mut s = Sched { slots: vec![], chans: BTreeMap::new(), staged: vec![], outputs: vec![], rng: 0x5eed | 1, tick: 0, stop: None, max_ticks: 100_000,
         actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![], rlog: vec![], rrep: restart_inputs(), events: event_inputs(),
-        tlog: vec![], trace: std::env::args().any(|a| a == "--trace") };
+        tlog: vec![], trace: word_on("trace") };
     if s.rrep.is_some() { if let Some(rec) = restart_tree_arg() { if let Err(e) = tree_migrates(&rec, &sup_tree()) { s.stop = Some(Outcome::Stopped(e)); } } }
     s.spawn_task(main.to_string(), vec![], hid("main"), 0, None, 0);
     let o = s.run();
@@ -2143,8 +2182,8 @@ pub fn run_tasks(main: &str) {
         }
     }
     for v in &s.outputs { println!("emit {}", show(v)); }
-    if std::env::args().any(|a| a == "--actor-log") { for e in &s.alog { println!("actorlog {e}"); } }
-    if std::env::args().any(|a| a == "--restart-log") { println!("restartlog v1 tree={}", sup_tree().join(",")); for r in &s.rlog { println!("restartin {}|{}|{}|{}|{}|{}", r.0, r.1, r.2, r.3, u8::from(r.4), r.5.join(",")); } }
+    if word_on("actor-log") { for e in &s.alog { println!("actorlog {e}"); } }
+    if word_on("restart-log") { println!("restartlog v1 tree={}", sup_tree().join(",")); for r in &s.rlog { println!("restartin {}|{}|{}|{}|{}|{}", r.0, r.1, r.2, r.3, u8::from(r.4), r.5.join(",")); } }
     if s.trace { print_main_trace(&s.tlog); }
     match o { Outcome::Done => println!("outcome Done"), Outcome::Deadlock => println!("outcome Deadlock"), Outcome::Stopped(e) => println!("outcome Stopped: {e}") }
 }

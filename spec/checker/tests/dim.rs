@@ -11,7 +11,7 @@ fn rce(args: &[&str]) -> (i32, String) {
 }
 
 fn dim(file: &str) -> serde_json::Value {
-    let (code, out) = rce(&["dim", "--json", file]);
+    let (code, out) = rce(&["dim", "json", file]);
     assert_eq!(code, 0, "{out}");
     serde_json::from_str(&out).unwrap()
 }
@@ -43,7 +43,7 @@ fn minimal_door_has_no_redundancy() {
 
 #[test]
 fn unbounded_counter_reports_a_lower_bound() {
-    let (code, out) = rce(&["dim", "--fuel", "50", "../examples/01_counter.rce"]);
+    let (code, out) = rce(&["dim", "fuel", "50", "../examples/01_counter.rce"]);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("bound reached: yes"), "{out}");
     assert!(out.contains("lower bound"), "{out}");
@@ -52,7 +52,7 @@ fn unbounded_counter_reports_a_lower_bound() {
 #[test]
 fn control_quotient_is_coarser_than_behaviour() {
     // the door: three control-distinct states (which steps fire differs)
-    let (code, out) = rce(&["dim", "--control", "--json", "../examples/61_dim_minimal.rce"]);
+    let (code, out) = rce(&["dim", "control", "json", "../examples/61_dim_minimal.rce"]);
     assert_eq!(code, 0, "{out}");
     let d: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(d["control_states"], 3);
@@ -60,7 +60,7 @@ fn control_quotient_is_coarser_than_behaviour() {
     // the mod-4 counter and the mod-6 phase: every event fires the same step
     // with the same control outcome, so one control state each
     for f in ["../examples/59_dim_redundant_field.rce", "../examples/60_dim_hidden_period.rce"] {
-        let (code, out) = rce(&["dim", "--control", "--json", f]);
+        let (code, out) = rce(&["dim", "control", "json", f]);
         assert_eq!(code, 0, "{out}");
         let d: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(d["control_states"], 1, "{f}");
@@ -71,13 +71,13 @@ fn control_quotient_is_coarser_than_behaviour() {
 #[test]
 fn shape_ctl_is_name_free() {
     // T61: renaming leaves the control hash unchanged
-    let (_, a) = rce(&["dim", "--control", "--json", "../examples/61_dim_minimal.rce"]);
-    let (_, text) = rce(&["fmt", "--nameless", "../examples/61_dim_minimal.rce"]);
+    let (_, a) = rce(&["dim", "control", "json", "../examples/61_dim_minimal.rce"]);
+    let (_, text) = rce(&["fmt", "nameless", "../examples/61_dim_minimal.rce"]);
     let d = std::env::temp_dir().join(format!("rce-dim-ctl-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     let p = d.join("door.rce");
     std::fs::write(&p, text).unwrap();
-    let (_, b) = rce(&["dim", "--control", "--json", p.to_str().unwrap()]);
+    let (_, b) = rce(&["dim", "control", "json", p.to_str().unwrap()]);
     let a: serde_json::Value = serde_json::from_str(&a).unwrap();
     let b: serde_json::Value = serde_json::from_str(&b).unwrap();
     assert_eq!(a["control_states"], b["control_states"]);
@@ -86,8 +86,8 @@ fn shape_ctl_is_name_free() {
 
 #[test]
 fn dim_is_deterministic() {
-    let a = rce(&["dim", "--json", "../examples/59_dim_redundant_field.rce"]).1;
-    let b = rce(&["dim", "--json", "../examples/59_dim_redundant_field.rce"]).1;
+    let a = rce(&["dim", "json", "../examples/59_dim_redundant_field.rce"]).1;
+    let b = rce(&["dim", "json", "../examples/59_dim_redundant_field.rce"]).1;
     assert_eq!(a, b);
 }
 
@@ -102,9 +102,9 @@ const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n   
 #[test]
 fn equiv_is_name_free() {
     let a = tmp("a", COUNTER);
-    let (_, nameless) = rce(&["fmt", "--nameless", &a]);
+    let (_, nameless) = rce(&["fmt", "nameless", &a]);
     let b = tmp("b", &nameless);
-    let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    let (status, out) = rce(&["equiv", "fuel", "500", &a, &b]);
     assert_eq!(status, 0, "{out}");
     assert!(out.contains("verdict             equivalent"), "{out}");
 }
@@ -113,11 +113,11 @@ fn equiv_is_name_free() {
 fn equiv_finds_the_shortest_distinguishing_sequence() {
     let a = tmp("c", COUNTER);
     let b = tmp("d", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
-    let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    let (status, out) = rce(&["equiv", "fuel", "500", &a, &b]);
     assert_eq!(status, 1, "{out}");
     assert!(out.contains("after               Inc(), Dec()"), "{out}");
     assert!(out.contains("A                 silent") && out.contains("B                 kept: Underflow"), "{out}");
-    let (_, json) = rce(&["equiv", "--json", "--fuel", "500", &a, &b]);
+    let (_, json) = rce(&["equiv", "json", "fuel", "500", &a, &b]);
     let v: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
     assert_eq!(v["format"], "rce-equiv/1");
     assert_eq!(v["equivalent"], false);
@@ -128,21 +128,21 @@ fn equiv_finds_the_shortest_distinguishing_sequence() {
 fn change_classifies_erratum_and_meaning_change() {
     let a = tmp("e", COUNTER);
     let same = tmp("f", &COUNTER.replace("Underflow", "Below").replace("Counter", "Count"));
-    let (status, out) = rce(&["change", "--fuel", "500", &a, &same]);
+    let (status, out) = rce(&["change", "fuel", "500", &a, &same]);
     assert_eq!(status, 0, "{out}");
     assert!(out.contains("verdict             same program"), "{out}");
     let bad = tmp("g", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
-    let (status, out) = rce(&["change", "--fuel", "500", &a, &bad]);
+    let (status, out) = rce(&["change", "fuel", "500", &a, &bad]);
     assert_eq!(status, 1, "{out}");
     assert!(out.contains("verdict             meaning change"), "{out}");
     let same_beh = tmp("h", &COUNTER.replace("-> n + 1", "-> 1 + n"));
-    let (status, out) = rce(&["change", "--fuel", "500", &a, &same_beh]);
+    let (status, out) = rce(&["change", "fuel", "500", &a, &same_beh]);
     assert_eq!(status, 0, "{out}");
     assert!(out.contains("verdict             erratum"), "{out}");
 }
 
 fn fingerprint(depth: &str, file: &str) -> String {
-    let (status, out) = rce(&["fingerprint", "--json", "--depth", depth, "--fuel", "500", file]);
+    let (status, out) = rce(&["fingerprint", "json", "depth", depth, "fuel", "500", file]);
     assert_eq!(status, 0, "{out}");
     let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
     assert_eq!(v["format"], "rce-fingerprint/1");
@@ -155,7 +155,7 @@ fn fingerprint_is_shared_by_equivalent_programs_of_another_shape() {
     // `n + 1`) changes it; both have the original's behaviour, so both have
     // its fingerprint
     let a = tmp("fa", COUNTER);
-    let (_, nameless) = rce(&["fmt", "--nameless", &a]);
+    let (_, nameless) = rce(&["fmt", "nameless", &a]);
     let b = tmp("fb", &nameless);
     let c = tmp("fc", &COUNTER.replace("-> n + 1", "-> 1 + n"));
     let (_, ha) = rce(&["hash", &a]);
@@ -177,23 +177,23 @@ fn fingerprint_collision_at_a_short_depth_is_resolved_by_a_longer_one() {
     let b = tmp("fe", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
     assert_eq!(fingerprint("1", &a), fingerprint("1", &b), "every sequence of length 1 has the same output");
     assert_ne!(fingerprint("2", &a), fingerprint("2", &b));
-    let (status, _) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    let (status, _) = rce(&["equiv", "fuel", "500", &a, &b]);
     assert_eq!(status, 1, "rce equiv resolves the depth-1 collision");
 }
 
 #[test]
 fn fingerprint_reports_fuel_and_lists_many_files() {
     let a = tmp("ff", COUNTER);
-    let (status, out) = rce(&["fingerprint", "--depth", "8", "--fuel", "3", &a]);
+    let (status, out) = rce(&["fingerprint", "depth", "8", "fuel", "3", &a]);
     assert_eq!(status, 1, "{out}");
     assert!(out.contains("not fingerprinted") && out.contains("fuel reached before depth 8"), "{out}");
-    let (status, out) = rce(&["fingerprint", "--depth", "3", &a, &a]);
+    let (status, out) = rce(&["fingerprint", "depth", "3", &a, &a]);
     assert_eq!(status, 0, "{out}");
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], lines[1]);
     assert!(lines[0].starts_with("sha256:"));
-    let (status, out) = rce(&["fingerprint", "--depth", "3", &a]);
+    let (status, out) = rce(&["fingerprint", "depth", "3", &a]);
     assert_eq!(status, 0);
     assert!(out.contains("event sequences of length 1 to 3 (14 sequences)"), "{out}");
 }
@@ -211,15 +211,15 @@ fn equiv_is_undecided_when_only_the_frontier_separates() {
     std::fs::write(&a, "state C\n    n: u64 = 0\n\nevent Tick\n\nstep C on Tick -> (n + 1) % 7\n").unwrap();
     std::fs::write(&b, "state C\n    n: u64 = 0\n\nevent Tick\n\nstep C on Tick -> n + 1\n").unwrap();
     let (a, b) = (a.to_string_lossy().into_owned(), b.to_string_lossy().into_owned());
-    let (code, out) = rce(&["equiv", "--fuel", "50", &a, &b]);
+    let (code, out) = rce(&["equiv", "fuel", "50", &a, &b]);
     assert_eq!(code, 3, "{out}");
     assert!(out.contains("verdict             undecided"), "{out}");
-    let (code, out) = rce(&["equiv", "--fuel", "50", "--json", &a, &b]);
+    let (code, out) = rce(&["equiv", "fuel", "50", "json", &a, &b]);
     assert_eq!(code, 3, "{out}");
     let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
     assert_eq!(v["undecided"], true);
     assert_eq!(v["equivalent"], false);
-    let (code, out) = rce(&["change", "--fuel", "50", &a, &b]);
+    let (code, out) = rce(&["change", "fuel", "50", &a, &b]);
     assert_eq!(code, 3, "{out}");
     assert!(out.contains("verdict             undecided"), "{out}");
 }

@@ -131,7 +131,7 @@ fn tick_numbers_continue() {
     // end to end: two runs of the host loop, each for a few frames
     let rce = env!("CARGO_BIN_EXE_rce");
     for _ in 0..2 {
-        let mut c = Command::new(rce).args(["host", "serve"]).arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/ticked.rce")).arg("--log").arg(&log).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        let mut c = Command::new(rce).args(["host", "serve"]).arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/ticked.rce")).arg(&log).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
         std::thread::sleep(Duration::from_millis(300));
         drop(c.stdin.take());
         let o = c.wait_with_output().unwrap();
@@ -215,7 +215,7 @@ fn serve_on_an_existing_log_listens_again() {
     let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/notes_net.rce");
     let rce = env!("CARGO_BIN_EXE_rce");
     for round in 0..2 {
-        let mut c = Command::new(rce).args(["host", "serve"]).arg(&app).arg("--log").arg(&log).arg("--net").arg(&addr).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        let mut c = Command::new(rce).args(["host", "serve", "net"]).arg(&addr).arg(&app).arg(&log).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
         let mut i = c.stdin.take().unwrap();
         if round == 0 {
             writeln!(i, "Start(addr: \"{addr}\")").unwrap();
@@ -361,7 +361,7 @@ fn a_tick_is_matched_by_field_name() {
         let d = dir("tick-declared");
         let p = d.join("t.rce");
         std::fs::write(&p, &src).unwrap();
-        let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve"]).arg(&p).arg("--log").arg(d.join("d.log")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve"]).arg(&p).arg(d.join("d.log")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
         std::thread::sleep(Duration::from_millis(300));
         drop(c.stdin.take());
         let o = c.wait_with_output().unwrap();

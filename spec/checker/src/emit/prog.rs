@@ -798,7 +798,7 @@ impl<'a> G<'a> {
             Lang::Js => self.open("function observe()"),
             Lang::Scala => self.open("def observe(): Unit ="),
         }
-        // `--run` without `fn main()` reports it as `conc::run_main` does (10.3)
+        // `run` without `fn main()` reports it as `conc::run_main` does (10.3)
         let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
         let run = |r: &str, py: bool| -> String {
             match (l, has_main) {
@@ -810,7 +810,10 @@ impl<'a> G<'a> {
         };
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
-            self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
+            // the words of the command line (positional-cli.md 2.6): a
+            // command line that is not words exits 2 and runs nothing
+            self.line("check_words();");
+            self.line(format!("if word_on(\"run\") {{ {r}; return; }}"));
             self.line("observe_all(&|| {");
         }
         self.scopes = vec![vec![]];
@@ -876,12 +879,12 @@ impl<'a> G<'a> {
                 let r = run("run_tasks(\"main\")", true);
                 // run only as a script: a host that imports the module (10.5,
                 // E.9) calls initial_state and delta itself
-                self.line(format!("if __name__ == \"__main__\":\n    if \"--run\" in sys.argv: {r}\n    else: observe_all(observe)"))
+                self.line(format!("if __name__ == \"__main__\":\n    check_words()\n    if word_on(\"run\"): {r}\n    else: observe_all(observe)"))
             }
             Lang::Js => {
                 let r = run("runTasks(\"main\");", false);
                 self.line(format!(
-                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (!RCE_ENTRY) {{}}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}\nexport {{ initialState, delta, showState, show, construct, fuelReset, chk, Kept, Int, F, Rec, Lst, Mp, Opt, EVENT_FIELDS, formValue, fvJson }};"
+                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (!RCE_ENTRY) {{}}\nelse {{\n  checkWords();\n  if (wordOn(\"run\")) {r}\n  else {{\n    observeAll(observe);\n    process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n  }}\n}}\nexport {{ initialState, delta, showState, show, construct, fuelReset, chk, Kept, Int, F, Rec, Lst, Mp, Opt, EVENT_FIELDS, formValue, fvJson }};"
                 ))
             }
             Lang::Scala => {
@@ -891,7 +894,7 @@ impl<'a> G<'a> {
                     "{ System.err.println(\"nothing to run: declare `fn main()`\"); sys.exit(1) }"
                 };
                 self.line(format!(
-                    "@main def rce_main(args: String*): Unit = big_stack {{ () =>\n  init_args(args)\n  if (args.contains(\"--run\")) {r}\n  else {{\n    observe_all(() => observe())\n    val o = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, \"UTF-8\")\n    for (x <- LINES) {{ o.print(x); o.print(\"\\n\") }}\n    o.flush()\n  }}\n}}"
+                    "@main def rce_main(args: String*): Unit = big_stack {{ () =>\n  init_args(args)\n  if (word_on(\"run\")) {r}\n  else {{\n    observe_all(() => observe())\n    val o = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, \"UTF-8\")\n    for (x <- LINES) {{ o.print(x); o.print(\"\\n\") }}\n    o.flush()\n  }}\n}}"
                 ))
             }
 

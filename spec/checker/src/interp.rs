@@ -349,7 +349,7 @@ impl std::fmt::Display for KeptReason {
 }
 /// The fuel each new evaluator starts with (6.7). It is FUEL; the tests of
 /// tests/fuel.rs set it to find the trap step of small programs, and an
-/// emitted program takes the same number from its `--fuel=N` argument (10.5).
+/// emitted program takes the same number from its `fuel N` words (10.5).
 pub static FUEL_LIMIT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(FUEL);
 /// The nesting limit of expression evaluation (6.7 addendum, host
 /// independence): the evaluation that would be the (EVAL_DEPTH + 1)-th

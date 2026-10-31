@@ -1,4 +1,4 @@
-//! Reference traces (spec 10.9, informative): `rce trace --json` over the
+//! Reference traces (spec 10.9, informative): `rce trace` over the
 //! example corpus equals the committed fixtures in spec/traces/, every
 //! step's hash chain is the 6.1 chain, and the differential runner
 //! `spec/traces/rce-trace-diff.py` reports exact match on equal traces
@@ -161,7 +161,7 @@ fn differential_runner_reports_match_and_first_divergence() {
     assert!(String::from_utf8_lossy(&o.stdout).contains("seq 1: step missing"), "{}", String::from_utf8_lossy(&o.stdout));
 }
 
-/// `rce trace --json` is written by the same string writer as the hashed
+/// `rce trace` is written by the same string writer as the hashed
 /// form (6.1.1): U+0008 and U+000C print as \u0008 and \u000c (never \b, \f),
 /// and each step's hash is the SHA-256 of the printed bytes of its body.
 #[test]
@@ -187,7 +187,7 @@ fn trace_text_escapes_match_the_hashed_writer() {
     }
 }
 
-/// `rce trace --json FILE --streams PATH` (10.9): one trace per event list,
+/// `rce trace streams FILE PATH` (10.9): one trace per event list,
 /// named `stream@k`, in one run; the single-EVENTS and plain forms are
 /// unchanged, and a stream's chain equals the chain of the same events traced alone.
 #[test]

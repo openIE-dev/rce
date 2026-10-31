@@ -8,7 +8,7 @@
 //!   * writes INDEX.md (every file with its hash and its read-receipt question);
 //!   * writes spec/RCE-SPEC.md, the single-file concatenation of the chapters.
 //!
-//! Usage: rce-book build [--check] [SPEC_DIR]
+//! Usage: rce-book build [check] [SPEC_DIR]
 //!        rce-book verify RECEIPT.json [SPEC_DIR]   (exit 0 only if all pass)
 //!
 //! Receipt format (JSON):

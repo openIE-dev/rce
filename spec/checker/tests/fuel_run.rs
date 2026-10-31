@@ -1,4 +1,4 @@
-//! Fuel in `--run` (6.7, 10.5): the emitted Rust, Python and JavaScript
+//! Fuel in `run` (6.7, 10.5): the emitted Rust, Python and JavaScript
 //! runtimes run `fn main` with the reference's fuel pools (each task its own
 //! pool, actor handlers on the scheduler's pool, `par` branches charged back
 //! in source order) and trap at the same point as `conc::run_main` at every
@@ -72,7 +72,7 @@ fn run(exe: &(String, std::path::PathBuf), fuel: u64) -> Vec<String> {
     if !exe.0.is_empty() {
         c.arg(&exe.0);
     }
-    let o = c.arg(&exe.1).arg("--run").arg(format!("--fuel={fuel}")).output().unwrap();
+    let o = c.arg(&exe.1).arg("run").arg("fuel").arg(fuel.to_string()).output().unwrap();
     assert!(o.status.success(), "{:?} fuel {fuel}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }

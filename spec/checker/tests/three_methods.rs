@@ -112,7 +112,7 @@ fn altered_fixtures_are_rewritten_admitted_idempotent_and_keep_their_meaning() {
         // (b) idempotent
         assert_eq!(fmt(&got), got, "{p:?}");
         assert!(alter::alter(&got).1.is_empty(), "{p:?}");
-        let (code, out) = rce(&["fmt", "--check", exp_path.to_str().unwrap()]);
+        let (code, out) = rce(&["fmt", "check", exp_path.to_str().unwrap()]);
         assert_eq!((code, out.as_str()), (0, ""), "{exp_path:?}");
         // (c) the meaning is the same: the reference trace of the text as
         // written (parsed and linked; its reports are of naming and dropping
@@ -130,7 +130,7 @@ fn altered_fixtures_are_rewritten_admitted_idempotent_and_keep_their_meaning() {
 fn fmt_check_lists_each_rewrite_and_writes_nothing() {
     let p = "../examples-0.9/altered/unused_param.rce";
     let before = std::fs::read_to_string(p).unwrap();
-    let (code, out) = rce(&["fmt", "--check", p]);
+    let (code, out) = rce(&["fmt", "check", p]);
     assert_eq!(code, 1);
     assert_eq!(out, format!("would alter {p}: line 3: W-UNUSED-1 `b` is named `_b`\n"));
     assert_eq!(std::fs::read_to_string(p).unwrap(), before);

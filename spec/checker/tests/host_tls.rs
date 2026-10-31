@@ -60,7 +60,7 @@ fn tls_id_is_stable_private_and_only_public_in_d() {
     let log = d.join("a.log");
     let app = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/chat.rce");
     let id = |_: ()| {
-        let o = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "tls-id"]).arg(&app).arg("--log").arg(&log).output().unwrap();
+        let o = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "tls-id"]).arg(&app).arg(&log).output().unwrap();
         String::from_utf8_lossy(&o.stdout).trim().to_string()
     };
     let (k1, k2) = (id(()), id(()));
@@ -74,11 +74,11 @@ fn tls_id_is_stable_private_and_only_public_in_d() {
     }
     let seed: [u8; 32] = std::fs::read(&key).unwrap().try_into().unwrap();
     assert_eq!(hex(&Identity::from_seed(seed).unwrap().public), k1);
-    // a run under --tls logs host.TlsIdentity with the public key, never the seed
+    // a run under tls logs host.TlsIdentity with the public key, never the seed
     let (me, peer) = (port(), port());
     let o = std::process::Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "run"]).arg(&app).arg("--log").arg(&log)
-        .args(["--chan", &me, "--tls", "--peer", &format!("{peer}={}", hex(&[9; 32]))])
+        .args(["host", "run", "chan", &me, "tls", "peer", &peer, &hex(&[9; 32])])
+        .arg(&app).arg(&log)
         .arg(r#"Setup(me: "ann", peers: [])"#)
         .output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));

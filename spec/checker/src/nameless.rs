@@ -1,4 +1,4 @@
-//! `rce fmt --nameless` (10.6): the name-free projection of a module's text.
+//! `rce fmt nameless` (10.6): the name-free projection of a module's text.
 //!
 //! Every identifier the module declares is replaced by a positional name in
 //! order of first declaration, by kind: regions `r0, r1, …`, events `e0, …`,

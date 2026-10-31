@@ -4,7 +4,7 @@
 //!
 //! 1. Step counts: on every example program (with the emitter probes) and
 //!    `emit_edge.rce`, each observation's step count printed by the Rust,
-//!    Python and JavaScript programs (`--fuel-trace`) equals the reference
+//!    Python and JavaScript programs (`fuel-trace`) equals the reference
 //!    evaluator's `steps_used` for that observation.
 //! 2. Trap step: for programs in `fuel_progs`, at every fuel limit N from 0
 //!    up to one past the largest step count, the observations (outputs,
@@ -140,9 +140,9 @@ impl Builds {
 
 fn run(cmd: &[PathBuf], fuel: Option<u64>) -> Vec<String> {
     let mut c = Command::new(&cmd[0]);
-    c.args(&cmd[1..]).arg("--fuel-trace");
+    c.args(&cmd[1..]).arg("fuel-trace");
     if let Some(n) = fuel {
-        c.arg(format!("--fuel={n}"));
+        c.arg("fuel").arg(n.to_string());
     }
     let o = c.output().unwrap();
     let mut v: Vec<String> = String::from_utf8_lossy(&o.stdout).lines().map(String::from).collect();
@@ -152,12 +152,12 @@ fn run(cmd: &[PathBuf], fuel: Option<u64>) -> Vec<String> {
     v
 }
 
-/// Run every limit of `ns` in one process (`--fuel-batch`): the emitted
+/// Run every limit of `ns` in one process (`fuel-batch`): the emitted
 /// program repeats its observations per limit, each pass headed by
 /// `#fuel-batch n`. Returns one observation list per limit.
 fn run_batch(cmd: &[PathBuf], ns: &[u64]) -> Vec<Vec<String>> {
     let list = ns.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(",");
-    let o = Command::new(&cmd[0]).args(&cmd[1..]).arg("--fuel-trace").arg(format!("--fuel-batch={list}")).output().unwrap();
+    let o = Command::new(&cmd[0]).args(&cmd[1..]).arg("fuel-trace").arg("fuel-batch").arg(&list).output().unwrap();
     let mut out: Vec<Vec<String>> = vec![];
     for l in String::from_utf8_lossy(&o.stdout).lines() {
         if l.starts_with("#fuel-batch ") {

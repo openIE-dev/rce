@@ -28,31 +28,31 @@ fn a_log_runs_and_replays_only_with_the_program_that_wrote_it() {
     let (v1, v2, v1b) = (write(&dir, "v1.rce", V1), write(&dir, "v2.rce", V2), write(&dir, "v1b.rce", V1_LAYOUT));
     let log = dir.join("d").to_string_lossy().into_owned();
 
-    let (code, out) = rce(&["host", "run", &v1, "--log", &log, "Inc, Inc"]);
+    let (code, out) = rce(&["host", "run", &v1, &log, "Inc, Inc"]);
     assert_eq!(code, 0, "{out}");
     let bound = std::fs::read_to_string(format!("{log}.program")).unwrap();
     assert_eq!(bound.trim().len(), 64, "D.program holds the module hash: {bound}");
 
     let before = std::fs::read(&log).unwrap();
-    let (code, out) = rce(&["host", "run", &v2, "--log", &log, "Inc"]);
+    let (code, out) = rce(&["host", "run", &v2, &log, "Inc"]);
     assert_eq!(code, 1, "{out}");
     assert!(out.contains("requires change") && out.contains("HC-27"), "{out}");
     assert_eq!(std::fs::read(&log).unwrap(), before, "a refused program appends nothing to D");
 
-    let (code, out) = rce(&["host", "replay", &v2, "--log", &log]);
+    let (code, out) = rce(&["host", "replay", &v2, &log]);
     assert_eq!(code, 1, "{out}");
     assert!(out.contains("HC-27"), "{out}");
 
-    let (code, out) = rce(&["host", "run", &v1b, "--log", &log, "Inc"]);
+    let (code, out) = rce(&["host", "run", &v1b, &log, "Inc"]);
     assert_eq!(code, 0, "layout and comments are not a change: {out}");
-    let (code, out) = rce(&["host", "replay", &v1, "--log", &log]);
+    let (code, out) = rce(&["host", "replay", &v1, &log]);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("n = 3"), "{out}");
 
     // a log without D.program (written before HC-27) is adopted by the
     // program that next runs on it
     std::fs::remove_file(format!("{log}.program")).unwrap();
-    let (code, out) = rce(&["host", "run", &v1, "--log", &log, "Inc"]);
+    let (code, out) = rce(&["host", "run", &v1, &log, "Inc"]);
     assert_eq!(code, 0, "{out}");
     assert_eq!(std::fs::read_to_string(format!("{log}.program")).unwrap(), bound);
     let _ = std::fs::remove_dir_all(&dir);

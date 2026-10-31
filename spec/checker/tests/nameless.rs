@@ -1,4 +1,4 @@
-//! `rce fmt --nameless` (10.6, 6.6 concept record): the projection is
+//! `rce fmt nameless` (10.6, 6.6 concept record): the projection is
 //! accepted whenever the source is, has the same Form up to names (same
 //! log hashes, T7), is idempotent, and renames the declared names.
 //! Not yet run in the session that wrote it (no toolchain there).
@@ -33,7 +33,7 @@ fn tmp(name: &str, text: &str) -> String {
 
 #[test]
 fn counter_is_renamed_by_kind() {
-    let (code, out) = rce(&["fmt", "--nameless", "../examples/01_counter.rce"]);
+    let (code, out) = rce(&["fmt", "nameless", "../examples/01_counter.rce"]);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("state r0"), "{out}");
     assert!(out.contains("event e0") && out.contains("event e1"), "{out}");
@@ -52,13 +52,13 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
         if c0 != 0 {
             continue; // the corpus has files that are only accepted as a package
         }
-        let (c1, text) = rce(&["fmt", "--nameless", &file]);
+        let (c1, text) = rce(&["fmt", "nameless", &file]);
         assert_eq!(c1, 0, "{file}: {text}");
         let t = tmp(p.file_name().unwrap().to_str().unwrap(), &text);
         let (c2, why) = rce(&["check", &t]);
         assert_eq!(c2, 0, "{file} nameless requires change: {why}\n{text}");
-        let (_, a) = rce(&["trace", "--json", &file]);
-        let (_, b) = rce(&["trace", "--json", &t]);
+        let (_, a) = rce(&["trace", &file]);
+        let (_, b) = rce(&["trace", &t]);
         // Same shape of every trace: step count and outcome per step, and the
         // same state hashes (T7: 6.1 hashes the positional form of the state).
         let hashes = |s: &str| -> Vec<String> {
@@ -82,9 +82,9 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
 
 #[test]
 fn projection_is_idempotent() {
-    let (_, once) = rce(&["fmt", "--nameless", "../examples/04_bank_account.rce"]);
+    let (_, once) = rce(&["fmt", "nameless", "../examples/04_bank_account.rce"]);
     let t = tmp("bank_once.rce", &once);
-    let (_, twice) = rce(&["fmt", "--nameless", &t]);
+    let (_, twice) = rce(&["fmt", "nameless", &t]);
     assert_eq!(once, twice);
 }
 
@@ -95,10 +95,10 @@ fn projection_is_idempotent() {
 /// (finding of 2026-10-22: the hashes were over name-keyed JSON).
 #[test]
 fn state_hashes_are_name_free() {
-    let (_, a) = rce(&["trace", "--json", "../examples/01_counter.rce"]);
-    let (_, text) = rce(&["fmt", "--nameless", "../examples/01_counter.rce"]);
+    let (_, a) = rce(&["trace", "../examples/01_counter.rce"]);
+    let (_, text) = rce(&["fmt", "nameless", "../examples/01_counter.rce"]);
     let t = tmp("counter_nameless.rce", &text);
-    let (_, b) = rce(&["trace", "--json", &t]);
+    let (_, b) = rce(&["trace", &t]);
     let hashes = |s: &str| -> Vec<String> {
         s.match_indices("\"state_hash\":\"").map(|(i, _)| s[i + 14..i + 14 + 64].to_string()).collect()
     };
@@ -119,7 +119,7 @@ fn kept_entries_are_name_free() {
     use rce_spec_check::host::{Host, MemStore};
     let src = "state Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
     let f = tmp("kept_names.rce", src);
-    let (_, projected) = rce(&["fmt", "--nameless", &f]);
+    let (_, projected) = rce(&["fmt", "nameless", &f]);
     assert!(!projected.contains("Underflow"), "{projected}");
     let run = |text: &str| -> (Vec<String>, String) {
         let m = rce_spec_check::parse::parse(text).unwrap();
@@ -155,7 +155,7 @@ fn emit_form_carries_the_concept_record() {
     assert_eq!(items[0]["key"], "#1");
     assert_eq!(items[0]["name"], "Counter");
     assert_eq!(v["names"]["intent"][0], "a counter that never goes negative");
-    let (_, text) = rce(&["fmt", "--nameless", "../examples/01_counter.rce"]);
+    let (_, text) = rce(&["fmt", "nameless", "../examples/01_counter.rce"]);
     let t = tmp("counter_cr.rce", &text);
     let (_, out2) = rce(&["emit", "form", &t]);
     let w: serde_json::Value = serde_json::from_str(out2.trim()).unwrap();
@@ -172,12 +172,12 @@ fn a_field_named_like_a_builtin_method_does_not_rename_the_method() {
     let f = tmp("keys_src", src);
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 0, "{out}");
-    let (_, projected) = rce(&["fmt", "--nameless", &f]);
+    let (_, projected) = rce(&["fmt", "nameless", &f]);
     assert!(projected.contains(".keys()"), "{projected}");
     let g = tmp("keys_nameless", &projected);
     let (st, out) = rce(&["check", &g]);
     assert_eq!(st, 0, "{out}");
-    let (st, out) = rce(&["equiv", "--fuel", "200", &f, &g]);
+    let (st, out) = rce(&["equiv", "fuel", "200", &f, &g]);
     assert_eq!(st, 0, "{out}");
 }
 
@@ -187,7 +187,7 @@ fn float_exponent_is_not_a_name() {
     // `2E+4` is part of the literal, not a use of the name.
     let src = "fn e(x: f64) -> f64\n    return x * 1.5e-3 + 2E+4\n\nfn h() -> i64\n    return 0x1e\n\nfn main()\n    emit e(2.0)\n    emit h()\n";
     let p = tmp("float_exp.rce", src);
-    let (code, out) = rce(&["fmt", "--nameless", &p]);
+    let (code, out) = rce(&["fmt", "nameless", &p]);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("1.5e-3") && out.contains("2E+4") && out.contains("0x1e"), "{out}");
     let q = tmp("float_exp_nameless.rce", &out);
@@ -200,7 +200,7 @@ fn use_paths_keep_their_names() {
     // stdlib/lib/num/stats.rce uses `num.linalg` and declares names that the
     // projection renames; the module path must not change.
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../stdlib/lib/num/stats.rce");
-    let (code, out) = rce(&["fmt", "--nameless", p.to_str().unwrap()]);
+    let (code, out) = rce(&["fmt", "nameless", p.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
     for l in out.lines().filter(|l| l.trim_start().starts_with("use ")) {
         assert!(!l.contains(" v") || l.contains("use num") || l.contains("use core"), "{l}");
@@ -214,7 +214,7 @@ fn projects_and_runs_alike(name: &str, src: &str) -> String {
     let f = tmp(&format!("{name}.rce"), src);
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 0, "{out}");
-    let (st, projected) = rce(&["fmt", "--nameless", &f]);
+    let (st, projected) = rce(&["fmt", "nameless", &f]);
     assert_eq!(st, 0, "{projected}");
     let g = tmp(&format!("{name}_nameless.rce"), &projected);
     let (st, out) = rce(&["check", &g]);
@@ -269,7 +269,7 @@ fn the_authority_structs_keep_their_names() {
     let f = tmp("caps.rce", "# rce-version: 0.9\nstruct DirRead\n    root: text\n\nextern \"C\" fn file_len(w: &World, dir: Cap[DirRead], path: &text) -> i64\n\nfn reader(w: &World, root: Cap[DirRead], out: chan i64)\n    let sub = root.narrow(\"logs\")\n    let name = \"app.log\"\n    out <- file_len(w, sub, &name)\n\nfn main()\n    emit 0\n");
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 0, "{out}");
-    let (st, p) = rce(&["fmt", "--nameless", &f]);
+    let (st, p) = rce(&["fmt", "nameless", &f]);
     assert_eq!(st, 0, "{p}");
     assert!(p.contains("struct DirRead\n    root: text") && p.contains("Cap[DirRead]") && !p.contains("root: Cap"), "{p}");
     let g = tmp("caps_nameless.rce", &p);

@@ -1,6 +1,7 @@
 //! The `rce` command line and language server (spec section 10, book/12-tooling.md).
 //! Everything here is deterministic: the same files and arguments give the
 //! same output bytes. No network access and no model is consulted.
+use crate::args::{Command, Fate, MANY, Removed, Word};
 use crate::ast::{Item, Module};
 use crate::interp::{Interp, Region, V, form_json, why};
 use crate::parse::{Tok, lex, parse};
@@ -19,7 +20,7 @@ pub const REQUIRES_CHANGE: i32 = 1;
 pub const STEP_KEPT: i32 = 1;
 pub const USAGE: i32 = 2;
 /// A question the command could not decide within its bound (10.1):
-/// `rce equiv` and `rce change` when exploration reached `--fuel` first.
+/// `rce equiv` and `rce change` when exploration reached `fuel` first.
 pub const UNDECIDED: i32 = 3;
 /// A run the host cannot perform (10.1): `fn main` needs task threads and
 /// the host starts none (`conc::NO_TASK_THREADS`, `wasm32-wasip1`).
@@ -66,7 +67,7 @@ fn show_state(s: &[Region]) -> String {
 
 /// Like `show_state`, but each field named in `redact` prints as a short
 /// SHA-256 digest of its value instead of the value. Used by `rce host replay
-/// --redact` so private keys and ratchet state stay in the device log and off
+/// redact` so private keys and ratchet state stay in the device log and off
 /// the terminal; the digest still lets two replays be compared.
 fn show_state_redacted(s: &[Region], redact: &[&str]) -> String {
     use sha2::{Digest, Sha256};
@@ -576,7 +577,7 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
 /// Version of the reference trace format (10.9, informative).
 pub const TRACE_FORMAT: &str = "rce-trace/2";
 
-/// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
+/// `rce trace FILE [EVENTS]`: the reference trace of a Form (10.9).
 /// Without EVENTS, one trace per `example` of the module (its log D, 6.1),
 /// then, when the module declares `fn main()`, the trace of its run on the
 /// tick runtime (`main_trace`); with EVENTS, one trace of that event list.
@@ -592,7 +593,7 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
     }
 }
 
-/// `rce trace --json FILE --streams PATH`: one trace per event list of
+/// `rce trace streams FILE PATH`: one trace per event list of
 /// `streams` (one list per line, example syntax), traced in one run of the
 /// checker; the module's own examples are not traced. With no stream, the
 /// module's examples are traced (the plain form). A stream's expectation is
@@ -741,46 +742,195 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
     Ok(serde_json::json!({ "source": "main", "outcome": outcome, "steps": steps }))
 }
 
-/// Usage of the language commands of `rce` (10.2 to 10.7).
-pub const USAGE_TEXT: &str = "usage:
-  rce check FILE|DIR...          parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)
-  rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
-  rce test FILE|DIR...           run every example and check; report per file
-  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples and fn main(), or of EVENTS
-  rce trace --json FILE --streams PATH  one trace per event list in PATH (one per line), in one run
-  rce emit TARGET FILE           TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js
-                                 or scala (a program printing its observations)
-  rce run-core FILE              the output of the core evaluator on the core of FILE (an RCE module or rce-core/1 JSON):
-                                 an implementation under test; the expected bytes are the reference interpreter's trace
-  rce form-check FORM [VECTORS]  the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or
-                                 `requires change RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
-                                 rce-vectors/1 admission vectors, checked by FG15
-  rce fmt [--check] FILE...      write the rewrites of the altered rules (7.1), then canonical layout (--check: only report)
-  rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
-  rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
-  rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
-  rce fingerprint [--depth N] [--fuel N] [--json] FILE...  behaviour fingerprint (BF-1): a hash of the name-free outputs of every event sequence of length 1 to N (default 8) over the alphabet rce equiv explores; programs rce equiv judges equal share it, a shared one is confirmed by rce equiv
-  rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
-  rce lib [MODULE]               the built-in standard library: every module `use` can name (4.1) and the hash that pins it, or the source of one module
-  rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
-  rce manifest DIR               write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON
-  rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
-  rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
-  rce v09-status                 the Appendix F rules this checker implements and the ones not yet implemented, by version
-  rce lsp                        language server on stdin/stdout
-  rce index [--vectors N] FILE|DIR...  brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term
-  rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
-  rce unform FORM.json           the canonical source of a Form's terms (inverse of `rce emit form`)
-  rce repair [json] [bound N] FILE [MODULE...]  propose a change to FILE, which requires change, by exact proposers judged by the checker:
-                                 a reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,
-                                 default 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called
-  rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
-  rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--http HOST:PORT] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, each HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (--http, Appendix E HC-24), Display(data) is written to stdout, Exit or SIGTERM ends the loop
-  rce host tls-id FILE --log D   the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with --peer ADDR=KEY under --tls)
-  rce host replay FILE --log D [--redact F,..]   replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27)
-  rce db D CMD [ARGS]            RCEdb (W3), serverless and in-process: the database is the log D. CMD: insert T K ROW, delete T K,
-                                 link S L D, unlink S L D, schema T COLS (name:text|i64|bool,...), index T COL, scan T [START],
-                                 lookup T COL VALUE, edges S, describe, dump, emit sqlite|postgres|duckdb|cypher, as-of N scan T [START]";
+/// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
+/// setting words before FILE and D (PC-1, PC-4).
+const GRANTS: [Word; 9] = [
+    Word::set("fs", &["DIR"]),
+    Word::set("blob", &["DIR"]),
+    Word::set("media", &["DIR"]),
+    Word::set("wasm", &["DIR"]),
+    Word::many("net", &["HOST:PORT"]),
+    Word::set("chan", &["HOST:PORT"]),
+    Word::mode("tls"),
+    Word::many("peer", &["HOST:PORT"]).then("tls", &["HOST:PORT", "KEY"]),
+    Word::mode("pty"),
+];
+
+const fn grants_and_http() -> [Word; 10] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 10];
+    let mut i = 0;
+    while i < 9 {
+        w[i] = GRANTS[i];
+        i += 1;
+    }
+    w
+}
+const SERVE_WORDS: [Word; 10] = grants_and_http();
+
+/// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
+/// reads this table and `USAGE_TEXT` is printed from it.
+pub const COMMANDS: &[Command] = &[
+    Command { path: &["check"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)" },
+    Command { path: &["run"], words: &[], operands: "FILE [EVENTS]", min: 1, max: 2, help: "apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()" },
+    Command { path: &["test"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "run every example and check; report per file" },
+    Command {
+        path: &["trace"],
+        words: &[Word::mode("streams")],
+        operands: "FILE [EVENTS|PATH]",
+        min: 1,
+        max: 2,
+        help: "reference trace as JSON (seq, event, state_hash per step) of the examples and fn main(), or of EVENTS;\nwith streams: one trace per event list in the file PATH (one per line), in one run",
+    },
+    Command {
+        path: &["emit"],
+        words: &[],
+        operands: "TARGET FILE",
+        min: 2,
+        max: 2,
+        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations)",
+    },
+    Command {
+        path: &["run-core"],
+        words: &[],
+        operands: "FILE",
+        min: 1,
+        max: 1,
+        help: "the output of the core evaluator on the core of FILE (an RCE module or rce-core/1 JSON):\nan implementation under test; the expected bytes are the reference interpreter's trace",
+    },
+    Command {
+        path: &["form-check"],
+        words: &[],
+        operands: "FORM [VECTORS]",
+        min: 1,
+        max: 2,
+        help: "the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or\n`requires change RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its\nrce-vectors/1 admission vectors, checked by FG15",
+    },
+    Command {
+        path: &["fmt"],
+        words: &[Word::mode("check"), Word::mode("nameless")],
+        operands: "FILE...",
+        min: 1,
+        max: MANY,
+        help: "write the rewrites of the altered rules (7.1), then canonical layout (check: only report);\nnameless: print the name-free projection of one FILE, every declared identifier replaced by its positional name (10.6)",
+    },
+    Command { path: &["dim"], words: &[Word::mode("control"), Word::mode("json"), Word::set("fuel", &["N"])], operands: "FILE", min: 1, max: 1, help: "behaviours a program can be in and the redundancy of its state (6.10, 10.11); control adds dim_c and shape_ctl" },
+    Command { path: &["equiv"], words: &[Word::mode("json"), Word::set("fuel", &["N"])], operands: "A B", min: 2, max: 2, help: "whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not" },
+    Command {
+        path: &["fingerprint"],
+        words: &[Word::mode("json"), Word::set("depth", &["N"]), Word::set("fuel", &["N"])],
+        operands: "FILE...",
+        min: 1,
+        max: MANY,
+        help: "behaviour fingerprint (BF-1): a hash of the name-free outputs of every event sequence of length 1 to N (default 8) over the alphabet rce equiv explores; programs rce equiv judges equal share it, a shared one is confirmed by rce equiv",
+    },
+    Command { path: &["change"], words: &[Word::set("fuel", &["N"])], operands: "OLD NEW", min: 2, max: 2, help: "classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)" },
+    Command { path: &["lib"], words: &[], operands: "[MODULE]", min: 0, max: 1, help: "the built-in standard library: every module `use` can name (4.1) and the hash that pins it, or the source of one module" },
+    Command { path: &["hash"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export" },
+    Command { path: &["manifest"], words: &[], operands: "DIR", min: 1, max: 1, help: "write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON" },
+    Command {
+        path: &["manifest-check"],
+        words: &[Word::set("advisories", &["FILE"]), Word::many("key", &["ISSUER", "HEXPUBKEY"])],
+        operands: "MANIFEST",
+        min: 1,
+        max: 1,
+        help: "verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory",
+    },
+    Command { path: &["api-diff"], words: &[], operands: "OLD NEW", min: 2, max: 2, help: "compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking" },
+    Command { path: &["v09-status"], words: &[], operands: "", min: 0, max: 0, help: "the Appendix F rules this checker implements and the ones not yet implemented, by version" },
+    Command { path: &["lsp"], words: &[], operands: "", min: 0, max: 0, help: "language server on stdin/stdout" },
+    Command { path: &["index"], words: &[Word::set("vectors", &["N"])], operands: "FILE|DIR...", min: 1, max: MANY, help: "brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term" },
+    Command { path: &["search"], words: &[], operands: "CATALOG QUERY", min: 2, max: 2, help: "bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first" },
+    Command { path: &["unform"], words: &[], operands: "FORM.json", min: 1, max: 1, help: "the canonical source of a Form's terms (inverse of `rce emit form`)" },
+    Command {
+        path: &["repair"],
+        words: &[Word::mode("json"), Word::set("bound", &["N"])],
+        operands: "FILE [MODULE...]",
+        min: 1,
+        max: MANY,
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+    },
+    Command {
+        path: &["host", "run"],
+        words: &GRANTS,
+        operands: "FILE D [EVENTS]",
+        min: 2,
+        max: 3,
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4)",
+    },
+    Command {
+        path: &["host", "serve"],
+        words: &SERVE_WORDS,
+        operands: "FILE D",
+        min: 2,
+        max: 2,
+        help: "the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared,\neach HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (http, Appendix E HC-24),\nDisplay(data) is written to stdout, Exit or SIGTERM ends the loop",
+    },
+    Command { path: &["host", "tls-id"], words: &[], operands: "FILE D", min: 2, max: 2, help: "the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with peer HOST:PORT KEY after tls)" },
+    Command {
+        path: &["host", "replay"],
+        words: &[Word::set("redact", &["F,..."])],
+        operands: "FILE D",
+        min: 2,
+        max: 2,
+        help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27)",
+    },
+    Command {
+        path: &["db"],
+        words: &[],
+        operands: "D CMD [ARGS]",
+        min: 2,
+        max: MANY,
+        help: "RCEdb (W3), serverless and in-process: the database is the log D. CMD: insert T K ROW, delete T K,\nlink S L D, unlink S L D, schema T COLS (name:text|i64|bool,...), index T COL, scan T [START],\nlookup T COL VALUE, edges S, describe, dump, emit sqlite|postgres|duckdb|cypher, as-of N scan T [START]",
+    },
+    Command { path: &["help"], words: &[], operands: "", min: 0, max: 0, help: "this text" },
+    Command { path: &["version"], words: &[], operands: "", min: 0, max: 0, help: "the commit this checker was built from, the specification draft and the release label of the language (2.7)" },
+];
+
+/// The flags `rce` had before the positional command line (positional-cli.md
+/// section 1.1). Each is a usage error that names its new spelling (decision
+/// 2 of section 5); none runs anything.
+pub const REMOVED: &[Removed] = &[
+    Removed { flag: "--json", paths: &["trace"], values: 0, fate: Fate::Drop },
+    Removed { flag: "--json", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--streams", paths: &[], values: 1, fate: Fate::WordOperand("streams", 1) },
+    Removed { flag: "--check", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--nameless", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--fuel", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--control", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--depth", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--vectors", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--advisories", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--key", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--log", paths: &[], values: 1, fate: Fate::Operand(1) },
+    Removed { flag: "--fs", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--blob", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--media", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--wasm", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--net", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--chan", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--tls", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--peer", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--pty", paths: &[], values: 0, fate: Fate::Word },
+    Removed { flag: "--http", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--redact", paths: &[], values: 1, fate: Fate::Word },
+    Removed { flag: "--help", paths: &[], values: 0, fate: Fate::Command("help") },
+    Removed { flag: "-h", paths: &[], values: 0, fate: Fate::Command("help") },
+    Removed { flag: "--version", paths: &[], values: 0, fate: Fate::Command("version") },
+    Removed { flag: "-V", paths: &[], values: 0, fate: Fate::Command("version") },
+];
+
+/// Usage of the commands of `rce` (10.1 to 10.13), printed from `COMMANDS`.
+pub static USAGE_TEXT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| crate::args::usage("rce", COMMANDS));
+
+/// The line `rce version` prints: the commit the checker was built from,
+/// the specification draft it implements and the release label of the one
+/// language (2.7). No typed version number: a build is named by its commit.
+pub fn version_line() -> String {
+    format!("rce commit {} (RCE specification draft {}; one language, release label {})", env!("RCE_GIT_COMMIT"), SPEC_DRAFT, crate::parse::LANGUAGE_RELEASE)
+}
+
+/// The specification draft this checker implements.
+pub const SPEC_DRAFT: &str = "0.9";
 
 /// The language commands of `rce`, given the arguments after the program
 /// name; returns the exit status (10.1). Output goes to `out` and `err`;
@@ -833,18 +983,34 @@ fn expand(ps: &[String]) -> Result<Vec<String>, String> {
 }
 
 fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
-    let rest = if a.is_empty() { &[][..] } else { &a[1..] };
     let load = |ps: &[String]| -> Result<Vec<(String, String)>, String> {
         expand(ps)?.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
     };
     let w = |e: std::io::Error| e.to_string();
-    // `rce SUB --help` / `-h` anywhere prints the usage (10.1: exit 0)
-    if a.len() > 1 && rest.iter().any(|x| x == "--help" || x == "-h") {
-        writeln!(out, "{USAGE_TEXT}").map_err(w)?;
-        return Ok(OK);
+    // decision 2 of positional-cli.md: a removed flag names its new
+    // spelling, exits 2 and runs nothing; any other argument that starts
+    // with `-` is a usage error (PC-6)
+    if let Some(line) = crate::args::removed_flag("rce", COMMANDS, REMOVED, a) {
+        return Err(line);
     }
-    Ok(match a.first().map(String::as_str) {
-        Some("check") if !rest.is_empty() => {
+    if a.first().is_some_and(|x| x == "form") {
+        writeln!(
+            err,
+            "rce form: the Form command line is not part of this build (spec 10.1); \
+             this `rce` has the language commands only"
+        )
+        .map_err(w)?;
+        return Ok(USAGE);
+    }
+    let Some((cmd, after)) = crate::args::find(COMMANDS, a) else {
+        writeln!(err, "{}", *USAGE_TEXT).map_err(w)?;
+        return Ok(USAGE);
+    };
+    // PC-1: the command's words, then its operands
+    let p = crate::args::parse(cmd, after, "rce")?;
+    let rest = &p.operands[..];
+    Ok(match cmd.path {
+        ["check"] => {
             let mut bad = 0;
             let files = load(rest)?;
             let srcs: HashMap<&str, &str> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
@@ -867,7 +1033,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if bad > 0 { REQUIRES_CHANGE } else { OK }
         }
-        Some("run") if rest.len() == 1 || rest.len() == 2 => {
+        ["run"] => {
             match run(&read_file(&rest[0])?, rest.get(1).map(String::as_str)) {
                 Ok(r) => {
                     for l in &r.lines {
@@ -885,7 +1051,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
-        Some("test") if !rest.is_empty() => {
+        ["test"] => {
             let files = load(rest)?;
             let (mut pass, mut fail) = (0, 0);
             for ((p, v), (_, src)) in crate::check_program(&files, false).into_iter().zip(&files) {
@@ -904,7 +1070,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             writeln!(out, "{pass} passed, {fail} failed").map_err(w)?;
             if fail > 0 { REQUIRES_CHANGE } else { OK }
         }
-        Some("unform") if rest.len() == 1 => match unform(&read_file(&rest[0])?) {
+        ["unform"] => match unform(&read_file(&rest[0])?) {
             Ok(t) => {
                 write!(out, "{t}").map_err(w)?;
                 OK
@@ -914,62 +1080,47 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 REQUIRES_CHANGE
             }
         },
-        Some("db") if rest.len() >= 2 => db_cmd(rest, out)?,
-        Some("host") if rest.len() >= 4 && rest[2] == "--log" && rest[0] != "serve" || rest.len() >= 4 && rest[0] == "serve" && rest[2] == "--log" => {
-            host_cmd(rest, input, out, err).map_err(|e| e.to_string())?
-        }
-        Some("trace") if rest.len() == 4 && rest[0] == "--json" && rest[2] == "--streams" => {
-            let text = read_file(&rest[3])?;
+        ["db"] => db_cmd(rest, out)?,
+        ["host", sub] => host_cmd(sub, &p, input, out, err)?,
+        ["trace"] if p.has("streams") => {
+            // rce trace streams FILE PATH: one trace per event list of PATH
+            let path = rest.get(1).ok_or("usage: rce trace streams FILE PATH")?;
+            let text = read_file(path)?;
             let lists: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
-            match trace_streams(&rest[1], &read_file(&rest[1])?, &lists) {
+            match trace_streams(&rest[0], &read_file(&rest[0])?, &lists) {
                 Ok(t) => {
                     writeln!(out, "{t}").map_err(w)?;
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "requires change {}: {e}", rest[1]).map_err(w)?;
+                    writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
                     REQUIRES_CHANGE
                 }
             }
         }
-        Some("trace") if (rest.len() == 2 || rest.len() == 3) && rest[0] == "--json" => {
-            let streams: Vec<&str> = rest.get(2).map(String::as_str).into_iter().collect();
-            match trace_report(&rest[1], &read_file(&rest[1])?, &streams) {
+        ["trace"] => {
+            // rce trace FILE [EVENTS]: JSON is the only output (PC-3)
+            let streams: Vec<&str> = rest.get(1).map(String::as_str).into_iter().collect();
+            match trace_report(&rest[0], &read_file(&rest[0])?, &streams) {
                 Ok((t, None)) => {
                     writeln!(out, "{t}").map_err(w)?;
                     OK
                 }
                 Ok((t, Some(e))) => {
                     writeln!(out, "{t}").map_err(w)?;
-                    writeln!(err, "{}: no trace of fn main: {e}", rest[1]).map_err(w)?;
+                    writeln!(err, "{}: no trace of fn main: {e}", rest[0]).map_err(w)?;
                     HOST_LIMIT
                 }
                 Err(e) => {
-                    writeln!(out, "requires change {}: {e}", rest[1]).map_err(w)?;
+                    writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
                     REQUIRES_CHANGE
                 }
             }
         }
-        Some("change") if rest.len() >= 2 => {
-            // rce change [--fuel N] OLD NEW   (10.11, CC-2): the C.15 classification of a change
-            let (mut fuel, mut files) = (100_000usize, Vec::new());
-            let mut i = 0;
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "--fuel" if i + 1 < rest.len() => {
-                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
-                        i += 2;
-                    }
-                    f if !f.starts_with("--") => {
-                        files.push(f.to_string());
-                        i += 1;
-                    }
-                    other => return Err(format!("change: unexpected argument `{other}`")),
-                }
-            }
-            if files.len() != 2 {
-                return Err("change: OLD and NEW are needed".into());
-            }
+        ["change"] => {
+            // rce change [fuel N] OLD NEW   (10.11, CC-2): the C.15 classification of a change
+            let fuel = p.count("fuel", 100_000, "a count of states")?;
+            let files = rest;
             let (sa, sb) = (read_file(&files[0])?, read_file(&files[1])?);
             let a = parse(&sa).map_err(|e| format!("{}: {e}", files[0]))?;
             let b = parse(&sb).map_err(|e| format!("{}: {e}", files[1]))?;
@@ -1003,7 +1154,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             };
             let (verdict, status) = match (&beh, breaking) {
-                (Some(e), _) if e.undecided => ("undecided  behaviour not decided within the explored bound: raise --fuel", UNDECIDED),
+                (Some(e), _) if e.undecided => ("undecided  behaviour not decided within the explored bound: raise fuel", UNDECIDED),
                 (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", REQUIRES_CHANGE),
                 (Some(e), false) if e.exact => ("erratum  every export compatible and every behaviour kept on the whole explored graph", OK),
                 (Some(_), false) => ("erratum to the explored bound  every export compatible and every behaviour kept as far as explored", OK),
@@ -1014,30 +1165,9 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             writeln!(out, "verdict             {verdict}").map_err(w)?;
             status
         }
-        Some("equiv") if rest.len() >= 2 => {
-            // rce equiv [--fuel N] [--json] A B   (10.11)
-            let (mut fuel, mut json, mut files) = (100_000usize, false, Vec::new());
-            let mut i = 0;
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "--fuel" if i + 1 < rest.len() => {
-                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
-                        i += 2;
-                    }
-                    "--json" => {
-                        json = true;
-                        i += 1;
-                    }
-                    f if !f.starts_with("--") => {
-                        files.push(f.to_string());
-                        i += 1;
-                    }
-                    other => return Err(format!("equiv: unexpected argument `{other}`")),
-                }
-            }
-            if files.len() != 2 {
-                return Err("equiv: two files are needed".into());
-            }
+        ["equiv"] => {
+            // rce equiv [json] [fuel N] A B   (10.11)
+            let (fuel, json, files) = (p.count("fuel", 100_000, "a count of states")?, p.has("json"), rest);
             let a = crate::program(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
             let b = crate::program(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
             let e = crate::dim::equiv(&a, &b, fuel)?;
@@ -1048,37 +1178,13 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if e.equivalent { OK } else if e.undecided { UNDECIDED } else { REQUIRES_CHANGE }
         }
-        Some("fingerprint") if !rest.is_empty() => {
-            // rce fingerprint [--depth N] [--fuel N] [--json] FILE...   (10.11, BF-1)
-            let (mut depth, mut fuel, mut json, mut files) = (8usize, 100_000usize, false, Vec::new());
-            let mut i = 0;
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "--depth" if i + 1 < rest.len() => {
-                        depth = rest[i + 1].parse().map_err(|_| "--depth N: N is a length of event sequence".to_string())?;
-                        i += 2;
-                    }
-                    "--fuel" if i + 1 < rest.len() => {
-                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
-                        i += 2;
-                    }
-                    "--json" => {
-                        json = true;
-                        i += 1;
-                    }
-                    f if !f.starts_with("--") => {
-                        files.push(f.to_string());
-                        i += 1;
-                    }
-                    other => return Err(format!("fingerprint: unexpected argument `{other}`")),
-                }
-            }
-            if files.is_empty() {
-                return Err("fingerprint: a FILE is required".into());
-            }
+        ["fingerprint"] => {
+            // rce fingerprint [json] [depth N] [fuel N] FILE...   (10.11, BF-1)
+            let depth = p.count("depth", 8, "a length of event sequence")?;
+            let (fuel, json, files) = (p.count("fuel", 100_000, "a count of states")?, p.has("json"), rest);
             let one = files.len() == 1;
             let mut status = OK;
-            for f in &files {
+            for f in files {
                 let m = crate::program(&read_file(f)?).map_err(|e| format!("{f}: {e}"))?;
                 match crate::dim::fingerprint(&m, depth, fuel) {
                     Ok(fp) if json => writeln!(out, "{}", crate::dim::fingerprint_json(&fp)).map_err(w)?,
@@ -1092,32 +1198,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             status
         }
-        Some("dim") if !rest.is_empty() => {
-            // rce dim [--fuel N] [--control] [--json] FILE   (10.11)
-            let (mut fuel, mut control, mut json, mut file) = (100_000usize, false, false, None);
-            let mut i = 0;
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "--fuel" if i + 1 < rest.len() => {
-                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
-                        i += 2;
-                    }
-                    "--control" => {
-                        control = true;
-                        i += 1;
-                    }
-                    "--json" => {
-                        json = true;
-                        i += 1;
-                    }
-                    f if file.is_none() && !f.starts_with("--") => {
-                        file = Some(f.to_string());
-                        i += 1;
-                    }
-                    other => return Err(format!("dim: unexpected argument `{other}`")),
-                }
-            }
-            let file = file.ok_or("dim: a FILE is required")?;
+        ["dim"] => {
+            // rce dim [control] [json] [fuel N] FILE   (10.11)
+            let (fuel, control, json) = (p.count("fuel", 100_000, "a count of states")?, p.has("control"), p.has("json"));
+            let file = &rest[0];
             let src = read_file(&file)?;
             let d = diagnostics(&src, &HashSet::new());
             if !d.is_empty() {
@@ -1140,7 +1224,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
-        Some("hash") if !rest.is_empty() => {
+        ["hash"] => {
             let mut ms = Vec::new();
             for p in expand(rest)? {
                 let m = parse(&read_file(&p)?).map_err(|e| format!("{p}: {e}"))?;
@@ -1152,7 +1236,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             writeln!(out, "{}  program", crate::apidiff::program_hash(&ms)).map_err(w)?;
             OK
         }
-        Some("api-diff") if rest.len() == 2 => {
+        ["api-diff"] => {
             let load = |p: &String| -> Result<Vec<Module>, String> {
                 expand(std::slice::from_ref(p))?.iter().map(|f| parse(&read_file(f)?).map_err(|e| format!("{f}: {e}"))).collect()
             };
@@ -1162,7 +1246,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if rows.iter().any(|r| r.breaking) { REQUIRES_CHANGE } else { OK }
         }
-        Some("lib") if rest.is_empty() => {
+        ["lib"] if rest.is_empty() => {
             for n in crate::stdlib::names() {
                 let src = crate::stdlib::source(n).unwrap_or("");
                 let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
@@ -1177,41 +1261,31 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if bad.is_empty() { OK } else { REQUIRES_CHANGE }
         }
-        Some("lib") if rest.len() == 1 => match crate::stdlib::source(&rest[0]) {
+        ["lib"] => match crate::stdlib::source(&rest[0]) {
             Some(src) => {
                 write!(out, "{src}").map_err(w)?;
                 OK
             }
             None => return Err(format!("lib: no built-in module `{}` (rce lib lists them)", rest[0])),
         },
-        Some("manifest") if rest.len() == 1 => {
+        ["manifest"] => {
             // rce manifest DIR: the manifest of a directory (F.5.3), canonical JSON, to stdout
             let text = crate::manifest::generate(std::path::Path::new(&rest[0]))?;
             writeln!(out, "{text}").map_err(w)?;
             OK
         }
-        Some("manifest-check") if !rest.is_empty() => {
-            // rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...
+        ["manifest-check"] => {
+            // rce manifest-check [advisories FILE] [key ISSUER HEXPUBKEY]... MANIFEST
             let mpath = std::path::Path::new(&rest[0]);
             let text = read_file(&rest[0])?;
             let root = mpath.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
-            let (mut adv_file, mut keys) = (None, std::collections::BTreeMap::new());
-            let mut i = 1;
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "--advisories" if i + 1 < rest.len() => {
-                        adv_file = Some(rest[i + 1].clone());
-                        i += 2;
-                    }
-                    "--key" if i + 1 < rest.len() => {
-                        let (n, h) = rest[i + 1].split_once('=').ok_or("--key ISSUER=HEXPUBKEY")?;
-                        let b: Vec<u8> = (0..h.len() / 2).filter_map(|j| u8::from_str_radix(h.get(2 * j..2 * j + 2)?, 16).ok()).collect();
-                        let k: [u8; 32] = b.try_into().map_err(|_| "a public key is 32 bytes (64 hex digits)".to_string())?;
-                        keys.insert(n.to_string(), k);
-                        i += 2;
-                    }
-                    other => return Err(format!("manifest-check: unexpected argument `{other}`")),
-                }
+            let (adv_file, mut keys) = (p.value("advisories").map(String::from), std::collections::BTreeMap::new());
+            for kv in p.all("key") {
+                // decision 4: the issuer and its key are two arguments
+                let (n, h) = (&kv[0], &kv[1]);
+                let b: Vec<u8> = (0..h.len() / 2).filter_map(|j| u8::from_str_radix(h.get(2 * j..2 * j + 2)?, 16).ok()).collect();
+                let k: [u8; 32] = b.try_into().map_err(|_| format!("key {n} HEXPUBKEY: a public key is 32 bytes (64 hex digits)"))?;
+                keys.insert(n.to_string(), k);
             }
             match crate::manifest::check(text.trim_end_matches('\n').trim_end_matches('\r').to_string().as_str(), root)
                 .map_err(|e| e.join("; "))
@@ -1236,7 +1310,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
-        Some("v09-status") if rest.is_empty() => {
+        ["v09-status"] => {
             writeln!(out, "implemented (version 0.9 subset):").map_err(w)?;
             for (r, d) in crate::v09::IMPLEMENTED {
                 writeln!(out, "  {r}: {d}").map_err(w)?;
@@ -1247,7 +1321,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             OK
         }
-        Some("emit") if rest.len() == 2 => match emit(&rest[0], &read_file(&rest[1])?) {
+        ["emit"] => match emit(&rest[0], &read_file(&rest[1])?) {
             Ok(s) => {
                 write!(out, "{s}").map_err(w)?;
                 OK
@@ -1267,7 +1341,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         },
-        Some("form-check") if rest.len() == 1 || rest.len() == 2 => {
+        ["form-check"] => {
             let form = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
             let vectors = match rest.get(1) {
                 Some(p) => Some(std::fs::read(p).map_err(|e| format!("{p}: {e}"))?),
@@ -1284,7 +1358,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
-        Some("run-core") if rest.len() == 1 => match run_core(&read_file(&rest[0])?) {
+        ["run-core"] => match run_core(&read_file(&rest[0])?) {
             Ok(s) => {
                 write!(out, "{s}").map_err(w)?;
                 OK
@@ -1297,32 +1371,25 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 if e.starts_with("not covered by the lowering") || e.starts_with("internal:") { USAGE } else { REQUIRES_CHANGE }
             }
         },
-        Some("form") => {
-            writeln!(
-                err,
-                "rce form: the Form command line is not part of this build (spec 10.1); \
-                 this `rce` has the language commands only"
-            )
-            .map_err(w)?;
-            USAGE
-        }
-        Some("fmt") if rest.len() == 2 && rest[0] == "--nameless" => {
-            // rce fmt --nameless FILE: the name-free projection (10.6), to stdout
-            let src = read_file(&rest[1])?;
+        ["fmt"] if p.has("nameless") => {
+            // rce fmt nameless FILE: the name-free projection (10.6), to stdout
+            if p.has("check") || rest.len() != 1 {
+                return Err("usage: rce fmt nameless FILE".into());
+            }
+            let src = read_file(&rest[0])?;
             match crate::nameless::nameless(&src).and_then(|t| fmt_text(&t)) {
                 Ok(t) => {
                     write!(out, "{t}").map_err(w)?;
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "requires change {}: {e}", rest[1]).map_err(w)?;
+                    writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
                     REQUIRES_CHANGE
                 }
             }
         }
-        Some("fmt") if !rest.is_empty() => {
-            let check = rest[0] == "--check";
-            let files = if check { &rest[1..] } else { rest };
+        ["fmt"] => {
+            let (check, files) = (p.has("check"), rest);
             let mut code = OK;
             for p in files {
                 let src = read_file(p)?;
@@ -1362,53 +1429,23 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             code
         }
-        Some("index") if !rest.is_empty() => {
-            let mut o = crate::brick::Opts::default();
-            let mut paths = vec![];
-            let mut k = 0;
-            while k < rest.len() {
-                if rest[k] == "--vectors" && k + 1 < rest.len() {
-                    o.vectors = rest[k + 1].parse().map_err(|_| format!("--vectors {}: not a count", rest[k + 1]))?;
-                    k += 2;
-                } else {
-                    paths.push(rest[k].clone());
-                    k += 1;
-                }
-            }
-            let c = crate::brick::index_with(&load(&paths)?, &o);
+        ["index"] => {
+            let o = crate::brick::Opts { vectors: p.count("vectors", 0, "a count of vectors")?, ..Default::default() };
+            let c = crate::brick::index_with(&load(rest)?, &o);
             writeln!(out, "{}", crate::brick::canon(&c)).map_err(w)?;
             OK
         }
-        Some("search") if rest.len() == 2 => {
+        ["search"] => {
             let c = crate::brick::read_catalog(&read_file(&rest[0])?).map_err(|e| format!("{}: {e}", rest[0]))?;
             for (r, m, n, k) in crate::brick::search(&c, &rest[1])? {
                 writeln!(out, "{r} {m}.{n} : {k}").map_err(w)?;
             }
             OK
         }
-        Some("repair") if !rest.is_empty() => {
+        ["repair"] => {
             // rce repair [json] [bound N] FILE [MODULE...]   (10.13): words, then operands (PC-1)
-            let (mut json, mut bound, mut i) = (false, crate::repair::DEFAULT_BOUND, 0);
-            while i < rest.len() {
-                match rest[i].as_str() {
-                    "json" => {
-                        json = true;
-                        i += 1;
-                    }
-                    "bound" if i + 1 < rest.len() => {
-                        bound = rest[i + 1].parse().map_err(|_| format!("bound {}: N is a count of candidates", rest[i + 1]))?;
-                        i += 2;
-                    }
-                    _ => break,
-                }
-            }
-            let ops = &rest[i..];
-            if ops.is_empty() {
-                return Err("repair: a FILE is required".into());
-            }
-            if let Some(a) = ops.iter().find(|a| a.starts_with('-')) {
-                return Err(format!("repair: unexpected argument `{a}`"));
-            }
+            let (json, ops) = (p.has("json"), rest);
+            let bound = p.count("bound", crate::repair::DEFAULT_BOUND, "a count of candidates")?;
             let src = read_file(&ops[0])?;
             let others = load(&ops[1..])?;
             let o = crate::repair::repair(&ops[0], &src, &others, bound);
@@ -1419,13 +1456,17 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if o.closed { OK } else { REQUIRES_CHANGE }
         }
-        Some("lsp") if rest.is_empty() => serve_dyn(input, out),
-        Some("help") | Some("--help") | Some("-h") => {
-            writeln!(out, "{USAGE_TEXT}").map_err(w)?;
+        ["lsp"] => serve_dyn(input, out),
+        ["help"] => {
+            writeln!(out, "{}", *USAGE_TEXT).map_err(w)?;
+            OK
+        }
+        ["version"] => {
+            writeln!(out, "{}", version_line()).map_err(w)?;
             OK
         }
         _ => {
-            writeln!(err, "{USAGE_TEXT}").map_err(w)?;
+            writeln!(err, "{}", *USAGE_TEXT).map_err(w)?;
             USAGE
         }
     })
@@ -1459,7 +1500,7 @@ fn serve_dyn(r: &mut dyn BufRead, w: &mut dyn Write) -> i32 {
     serve(&mut R(r), &mut W(w))
 }
 
-/// `rce host run|replay FILE --log D [EVENTS]` (Appendix E host runtime v0).
+/// `rce host run|replay [WORD...] FILE D [EVENTS]` (Appendix E host runtime v0).
 /// HC-27: the log D is bound to the program that wrote it by `D.program`, the
 /// module hash (F.5.3: SHA-256 of the canonical unparse, so layout and
 /// comments do not count). `run` and `serve` write it when it is absent,
@@ -1485,22 +1526,23 @@ fn program_binding(log: &str, src: &str, write: bool) -> Result<Option<String>, 
     }
 }
 
-fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
+fn host_cmd(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
     // HC-28: the host loop reports its status to its terminal (OSC 7501);
     // the report is not an effect, and a failure is reported as `error`
-    let stem = std::path::Path::new(&a[1]).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let mut st = crate::status::Status::new(matches!(a[0].as_str(), "run" | "serve"), &stem);
-    let r = host_body(a, input, out, err, &mut st);
+    let stem = std::path::Path::new(&p.operands[0]).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut st = crate::status::Status::new(matches!(sub, "run" | "serve"), &stem);
+    let r = host_body(sub, p, input, out, err, &mut st);
     if let Err(e) = &r {
         st.error(e);
     }
     r
 }
 
-fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write, st: &mut crate::status::Status) -> Result<i32, String> {
+fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write, st: &mut crate::status::Status) -> Result<i32, String> {
     use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
-    let (sub, file, log) = (a[0].as_str(), &a[1], a.get(3).ok_or("--log D")?);
+    // PC-2: FILE and the log D are operands, after the grant words
+    let (file, log) = (&p.operands[0], &p.operands[1]);
     let src = read_file(file)?;
     let d = diagnostics(&src, &HashSet::new());
     if !d.is_empty() {
@@ -1532,11 +1574,8 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
                     for (q, c, t) in &r.kept_outcomes {
                         writeln!(out, "  seq {q} kept ({c}): {t}").map_err(w)?;
                     }
-                    // `--redact f,g`: print those fields as digests (secrets stay in D)
-                    let red: Vec<&str> = match a.get(4).map(|x| x.as_str()) {
-                        Some("--redact") => a.get(5).map(|x| x.split(',').collect()).unwrap_or_default(),
-                        _ => vec![],
-                    };
+                    // `redact f,g`: print those fields as digests (secrets stay in D)
+                    let red: Vec<&str> = p.value("redact").map(|x| x.split(',').collect()).unwrap_or_default();
                     writeln!(out, "{}", show_state_redacted(&s, &red)).map_err(w)?;
                     Ok(OK)
                 }
@@ -1547,7 +1586,7 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
             }
         }
         "tls-id" => {
-            // the Ed25519 key peers pin for this host (`--peer ADDR=KEY`)
+            // the Ed25519 key peers pin for this host (`tls peer ADDR KEY`)
             let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
             writeln!(out, "{}", crate::tls::hex(&id.public)).map_err(w)?;
             Ok(OK)
@@ -1559,94 +1598,68 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
             if sub == "serve" {
                 block_stop_signals();
             }
-            // Authority is granted explicitly (HC-5): `--fs DIR` gives the file
-            // adapters that root, `--pty` gives the PTY adapters.
-            let mut rest: Vec<&String> = a[4..].iter().collect();
+            // Authority is granted explicitly (HC-5): `fs DIR` gives the file
+            // adapters that root, `pty` gives the PTY adapters. The grant
+            // words come before FILE and D (PC-1), in the order given.
             let mut adapters: Vec<Box<dyn crate::host::Adapter>> = vec![];
             let (mut fs_root, mut pty) = (None::<std::path::PathBuf>, false);
             let mut net: Vec<String> = vec![];
             let (mut chan_me, mut peers) = (None::<String>, vec![]);
-            let (mut tls, mut pins) = (false, vec![]);
+            let (tls, mut pins) = (p.has("tls"), vec![]);
             let mut tls_id = None;
             let mut exact: Option<String> = None;
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
-            let mut http_addr = None::<String>;
+            let http_addr = p.value("http").map(String::from);
             // random bytes are an input, not authority: always available (HC-10)
             adapters.push(Box::new(crate::adapters::RandomAdapter));
-            while let Some(f) = rest.first().map(|s| s.as_str()) {
-                match f {
-                    "--fs" if rest.len() >= 2 => {
-                        fs_root = Some(std::path::PathBuf::from(rest[1].as_str()));
-                        for x in crate::adapters::file_adapters(std::path::Path::new(rest[1].as_str())) {
+            for (word, v) in &p.words {
+                match *word {
+                    "fs" => {
+                        fs_root = Some(std::path::PathBuf::from(v[0].as_str()));
+                        for x in crate::adapters::file_adapters(std::path::Path::new(v[0].as_str())) {
                             adapters.push(Box::new(x));
                         }
-                        rest.drain(..2);
                     }
-                    "--net" if rest.len() >= 2 => {
-                        net.push(rest[1].to_string());
-                        rest.drain(..2);
-                    }
-                    "--chan" if rest.len() >= 2 => {
-                        chan_me = Some(rest[1].to_string());
-                        rest.drain(..2);
-                    }
-                    "--http" if rest.len() >= 2 => {
-                        if http_addr.is_some() {
-                            return Err("--http: one listening address per host".into());
+                    "net" => net.push(v[0].clone()),
+                    "chan" => chan_me = Some(v[0].clone()),
+                    "peer" => {
+                        // after tls: ADDR KEY, the Ed25519 key pinned for that peer (PC-4)
+                        if let Some(k) = v.get(1) {
+                            pins.push((v[0].clone(), crate::tls::unhex32(k).ok_or(format!("peer {} {k}: KEY is not a 32-byte hex key", v[0]))?));
                         }
-                        http_addr = Some(rest[1].to_string());
-                        rest.drain(..2);
+                        peers.push(v[0].clone());
                     }
-                    "--peer" if rest.len() >= 2 => {
-                        // with --tls: ADDR=ED25519HEX, the key pinned for that peer
-                        match rest[1].split_once('=') {
-                            Some((a, k)) => {
-                                pins.push((a.to_string(), crate::tls::unhex32(k).ok_or(format!("--peer {}: not a 32-byte hex key", rest[1]))?));
-                                peers.push(a.to_string());
-                            }
-                            None => peers.push(rest[1].to_string()),
-                        }
-                        rest.drain(..2);
-                    }
-                    "--tls" => {
-                        tls = true;
-                        rest.remove(0);
-                    }
-                    "--wasm" if rest.len() >= 2 => {
-                        let wa = crate::adapters::wasm_adapter(std::path::Path::new(rest[1].as_str()));
+                    "wasm" => {
+                        let wa = crate::adapters::wasm_adapter(std::path::Path::new(v[0].as_str()));
                         exact = Some(wa.exact.clone());
                         adapters.push(Box::new(wa));
-                        rest.drain(..2);
                     }
-                    "--media" if rest.len() >= 2 => {
+                    "media" => {
                         // capture and playback (W1i media): frames are blobs under DIR
-                        media_root = Some(std::path::PathBuf::from(rest[1].as_str()));
-                        for x in crate::adapters::media::media_adapters(std::path::Path::new(rest[1].as_str())) {
+                        media_root = Some(std::path::PathBuf::from(v[0].as_str()));
+                        for x in crate::adapters::media::media_adapters(std::path::Path::new(v[0].as_str())) {
                             adapters.push(Box::new(x));
                         }
-                        rest.drain(..2);
                     }
-                    "--blob" if rest.len() >= 2 => {
-                        blob_root = Some(std::path::PathBuf::from(rest[1].as_str()));
-                        for x in crate::adapters::blob_adapters(std::path::Path::new(rest[1].as_str())) {
+                    "blob" => {
+                        blob_root = Some(std::path::PathBuf::from(v[0].as_str()));
+                        for x in crate::adapters::blob_adapters(std::path::Path::new(v[0].as_str())) {
                             adapters.push(Box::new(x));
                         }
-                        rest.drain(..2);
                     }
                     #[cfg(unix)]
-                    "--pty" => {
+                    "pty" => {
                         pty = true;
                         for x in crate::adapters::pty::pty_adapters() {
                             adapters.push(Box::new(x));
                         }
-                        rest.remove(0);
                     }
-                    _ => break,
+                    _ => {}
                 }
             }
             if tls && pins.len() != peers.len() {
-                return Err("--tls: every --peer needs a pinned key (ADDR=ED25519HEX)".into());
+                return Err("tls: every peer needs a pinned key (peer HOST:PORT KEY)".into());
             }
             // the channel listener is bound now and its threads start after
             // the sandbox is entered, so they run under it (HC-5a)
@@ -1654,12 +1667,12 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
             if let Some(me) = &chan_me {
                 let (xs, start) = if tls {
                     let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
-                    let l = std::net::TcpListener::bind(me).map_err(|e| format!("--chan {me}: {e}"))?;
-                    let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("--chan {me}: {e}"))?;
+                    let l = std::net::TcpListener::bind(me).map_err(|e| format!("chan {me}: {e}"))?;
+                    let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("chan {me}: {e}"))?;
                     tls_id = Some(id);
                     xs
                 } else {
-                    crate::adapters::chan::chan_adapters_deferred(me, &peers).map_err(|e| format!("--chan {me}: {e}"))?
+                    crate::adapters::chan::chan_adapters_deferred(me, &peers).map_err(|e| format!("chan {me}: {e}"))?
                 };
                 for x in xs {
                     adapters.push(Box::new(x));
@@ -1674,7 +1687,7 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
             }
             // HC-24: the HTTP listener is bound before the sandbox is entered
             let mut http = match &http_addr {
-                Some(_) if sub != "serve" => return Err("--http needs `rce host serve`: requests arrive while the host loop runs".into()),
+                Some(_) if sub != "serve" => return Err("http needs `rce host serve`: requests arrive while the host loop runs".into()),
                 Some(addr) => {
                     let s = crate::adapters::http::Server::bind(addr);
                     adapters.push(Box::new(s.responder()));
@@ -1747,7 +1760,7 @@ fn host_body(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &m
             }
             // HC-24: the lines of the input, as bytes, so a line that is not
             // UTF-8 is held like any line that is not events of the module
-            let batches: Vec<Vec<u8>> = match rest.first() {
+            let batches: Vec<Vec<u8>> = match p.operands.get(2) {
                 Some(e) => vec![e.as_bytes().to_vec()],
                 None => {
                     let mut all = vec![];
@@ -1895,11 +1908,11 @@ pub const FRAME_MS: u64 = 16;
 /// the module (it is not UTF-8, does not parse, names no event, or one of
 /// its events cannot be built) is held whole as `Input(data: line)`, and
 /// recorded in D as `host.Kept` when the module declares no `Input`
-/// (HC-24, E.4c); with `--http`, each request is delivered as the module
+/// (HC-24, E.4c); with `http`, each request is delivered as the module
 /// declares `HttpRequest` or `HttpMalformed` (HC-24, HD-2); between inputs,
 /// `Tick` (or `Tick(n)`) every frame when declared, like any delivery
 /// (HD-4). Only a storage fault (HS-3) stops the loop. EOF on stdin ends the
-/// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
+/// loop unless `http` is granted; an emitted `Exit` ends it; SIGTERM or
 /// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
 /// Each drain performs at most DRAIN_MAX requests and the next round
 /// starts at once while requests are queued, so a stop is read between

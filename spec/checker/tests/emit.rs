@@ -1,7 +1,7 @@
 //! `rce emit rust|python|js` (spec 10.5): every emitted program is run and its
 //! output compared line for line with the reference evaluator's observations
 //! (`emit::observe`) on all example programs; then it is run again with
-//! `--trace --fuel-trace` and compared line for line with
+//! the words `trace fuel-trace` and compared line for line with
 //! `emit::observe_trace`, the whole trace of every example (each entry of D,
 //! the states, outputs, kept reasons and fuel). rustc, python3, node and
 //! scala-cli serve only as oracles here. The targets a run covers are named
@@ -116,7 +116,7 @@ fn run_args(lang: Lang, dir: &Path, stem: &str, code: &str, runs: &[&[&str]]) ->
 }
 
 /// The arguments of a run that prints the whole trace of every example.
-const TRACE: &[&str] = &["--trace", "--fuel-trace"];
+const TRACE: &[&str] = &["trace", "fuel-trace"];
 
 /// The first line where `got` differs from `want`, as a message.
 fn first_diff(stem: &str, mode: &str, want: &[String], got: &str) -> Option<String> {
@@ -174,7 +174,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
                 &why[..why.len().min(3000)]
             )),
             Ok(Ok(got)) => {
-                let d = first_diff(&stem, "plain", &want.0, &got[0]).or_else(|| first_diff(&stem, "--trace --fuel-trace", &want.1, &got[1]));
+                let d = first_diff(&stem, "plain", &want.0, &got[0]).or_else(|| first_diff(&stem, "trace fuel-trace", &want.1, &got[1]));
                 match d {
                     None => ok += 1,
                     Some(d) => bad.push(d),
@@ -214,7 +214,7 @@ fn rust_emitter_agrees_with_reference() {
     assert_eq!(ok + kept.len(), CORPUS);
 }
 
-/// The entries of D that the emitted Rust writes under `--trace` hash a
+/// The entries of D that the emitted Rust writes under `trace` hash a
 /// float in the canonical form of 6.1.1 rule 3: on an exact tie between two
 /// shortest decimals the even one. The product of two f32 values widened to
 /// f64 below is such a tie (799.00299072265625): the reference writes
@@ -231,7 +231,7 @@ fn rust_emitter_log_floats_tie_to_even() {
     let dir = scratch(Lang::Rust);
     let got = run_args(Lang::Rust, &dir, "float_tie", &emit(&m, Lang::Rust).unwrap(), &[TRACE]).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(first_diff("float_tie", "--trace --fuel-trace", &want, &got[0]), None);
+    assert_eq!(first_diff("float_tie", "trace fuel-trace", &want, &got[0]), None);
 }
 
 #[test]

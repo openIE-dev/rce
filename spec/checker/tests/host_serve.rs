@@ -14,11 +14,9 @@ fn terminal_app_runs_a_shell_and_replays() {
     let log = std::env::temp_dir().join(format!("rce-serve-{}.log", std::process::id()));
     let _ = std::fs::remove_file(&log);
     let mut c = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
+        .args(["host", "serve", "pty"])
         .arg(&app)
-        .arg("--log")
         .arg(&log)
-        .arg("--pty")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -40,7 +38,7 @@ fn terminal_app_runs_a_shell_and_replays() {
     drop(i);
     let out = String::from_utf8_lossy(&c.wait_with_output().unwrap().stdout).into_owned();
     assert!(out.contains("rce-42"), "{out}");
-    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg("--log").arg(&log).output().unwrap();
+    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg(&log).output().unwrap();
     let r = String::from_utf8_lossy(&r.stdout).into_owned();
     assert!(r.starts_with("replay ok") && r.contains("closed = true"), "{r}");
     let _ = std::fs::remove_file(&log);
@@ -55,11 +53,9 @@ fn terminal_resize_and_interrupt() {
     let log = std::env::temp_dir().join(format!("rce-serve-v1-{}.log", std::process::id()));
     let _ = std::fs::remove_file(&log);
     let mut c = Command::new(env!("CARGO_BIN_EXE_rce"))
-        .args(["host", "serve"])
+        .args(["host", "serve", "pty"])
         .arg(&app)
-        .arg("--log")
         .arg(&log)
-        .arg("--pty")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -118,7 +114,7 @@ fn terminal_resize_and_interrupt() {
     let out = String::from_utf8_lossy(&seen.lock().unwrap()).into_owned();
     assert!(out.contains("size=40 100"), "{out}");
     assert!(out.contains("after-42") && !out.contains("\nnot-interrupted"), "{out}");
-    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg("--log").arg(&log).output().unwrap();
+    let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg(&log).output().unwrap();
     let r = String::from_utf8_lossy(&r.stdout).into_owned();
     assert!(r.starts_with("replay ok") && r.contains("cols = 100"), "{r}");
     let _ = std::fs::remove_file(&log);

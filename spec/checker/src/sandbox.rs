@@ -22,7 +22,7 @@
 //!   network use but the granted ports (Seatbelt names a port at
 //!   `localhost` or at any address, nothing finer; the net adapter checks
 //!   the exact address), denies writes outside the log's directory, the
-//!   granted roots and `/dev`, and denies process exec unless `--pty` was
+//!   granted roots and `/dev`, and denies process exec unless `pty` was
 //!   granted.
 //! - Linux target: Landlock (see `landlock`): TCP bind and connect by port,
 //!   then a seccomp-BPF filter on every thread (see [`seccomp`]), which
@@ -49,11 +49,11 @@ pub fn enabled() -> bool {
 /// How a granted address is used.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GrantKind {
-    /// the host connects to it (`--net`, `--peer`)
+    /// the host connects to it (`net`, `peer`)
     Connect,
-    /// the host binds it after entering the target (`--net`, a listener to retry)
+    /// the host binds it after entering the target (`net`, a listener to retry)
     Listen,
-    /// a listener bound before entering the target (`--http`, `--chan`):
+    /// a listener bound before entering the target (`http`, `chan`):
     /// only its accepted connections are used afterwards
     Prebound,
 }
@@ -260,7 +260,7 @@ pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[Net
 
 /// Linux target, part 1: Landlock (kernel 5.13+), entered with raw syscalls. Writes are
 /// handled (denied) everywhere but the log directory, the granted roots and
-/// `/dev`; exec is handled (denied) unless `--pty`; on ABI 4+ TCP bind and
+/// `/dev`; exec is handled (denied) unless `pty`; on ABI 4+ TCP bind and
 /// connect are handled: bind is allowed only on the ports of Listen grants
 /// and connect only on the ports of Connect grants (a Prebound listener was
 /// bound before, and accepting is not restricted). Reads are not
@@ -407,9 +407,9 @@ mod landlock {
 /// keyrings, clock setting, io_uring (which would bypass the filter), and
 /// on x86_64 the x32 ABI and port I/O. `clone` with any CLONE_NEW* flag
 /// fails with EPERM and `clone3` answers ENOSYS (its flags cannot be inspected; libc
-/// falls back to `clone`). Without `--pty`, execve and execveat fail;
+/// falls back to `clone`). Without `pty`, execve and execveat fail;
 /// unless a grant is connected to or bound after entering (a listener bound
-/// before, such as `--http`, needs no new socket), `socket` for AF_INET and
+/// before, such as `http`, needs no new socket), `socket` for AF_INET and
 /// AF_INET6 fails, which covers UDP and raw sockets too. A foreign
 /// architecture kills the process.
 ///

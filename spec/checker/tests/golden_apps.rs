@@ -1,5 +1,5 @@
 //! W6 E1: the apps and RCEdb are byte-identical on every commit. For each
-//! program, the reference trace (`rce trace --json` over its examples)
+//! program, the reference trace (`rce trace` over its examples)
 //! equals the committed golden in spec/traces/apps/, and every emitted
 //! target available here (Rust, Python, JS; Scala when scala-cli is
 //! present) prints exactly the reference observations. Regenerate the

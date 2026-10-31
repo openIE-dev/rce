@@ -94,13 +94,20 @@ fn b012_to_b014_diagnostics() {
 }
 
 #[test]
-fn b015_help_after_a_subcommand() {
+fn b015_help_is_a_command() {
+    // positional-cli.md PC-5: `--help` and `-h` became the command `help`
+    let a = vec!["help".to_string()];
+    let (mut out, mut err) = (vec![], vec![]);
+    let c = rce_spec_check::cli::main(&a, &mut &b""[..], &mut out, &mut err);
+    assert_eq!(c, 0);
+    assert!(String::from_utf8(out).unwrap().contains("usage:"));
     for a in [vec!["fmt", "--help"], vec!["check", "-h"], vec!["--help"], vec!["-h"]] {
         let a: Vec<String> = a.into_iter().map(String::from).collect();
         let (mut out, mut err) = (vec![], vec![]);
         let c = rce_spec_check::cli::main(&a, &mut &b""[..], &mut out, &mut err);
-        assert_eq!(c, 0, "{a:?}");
-        assert!(String::from_utf8(out).unwrap().contains("usage:"), "{a:?}");
+        assert_eq!(c, 2, "{a:?}");
+        assert!(String::from_utf8(err).unwrap().contains("was removed; write: rce help"), "{a:?}");
+        assert!(out.is_empty(), "{a:?}");
     }
 }
 

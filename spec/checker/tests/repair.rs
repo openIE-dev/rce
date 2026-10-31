@@ -94,6 +94,6 @@ fn text_report_and_words() {
     assert!(out.ends_with("closed tests/repair/enumerate.rce\n"), "{out}");
     let (code, out) = rce(&["repair", "bound", "x", "tests/repair/enumerate.rce"]);
     assert_eq!(code, 2, "{out}");
-    let (code, out) = rce(&["repair", "--json", "tests/repair/enumerate.rce"]);
+    let (code, out) = rce(&["repair", "json", "tests/repair/enumerate.rce"]);
     assert_eq!(code, 2, "{out}");
 }

@@ -95,7 +95,7 @@ fn emitted_targets_apply_the_events_after_a_kept_step() {
     assert!(want.iter().any(|l| l == "2 Inc Counter { n = 1 }"), "{want:?}");
     let d = std::env::temp_dir().join(format!("rce-kept-continues-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
-    let args = ["--trace", "--fuel-trace"];
+    let args = ["trace", "fuel-trace"];
     for lang in targets::covered(&targets::ALL, targets::oracle) {
         let code = emit(&m, lang).unwrap_or_else(|e| panic!("{lang:?}: {e}"));
         let f = d.join(format!("counter.{}", lang.ext()));

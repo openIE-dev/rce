@@ -1,27 +1,15 @@
 //! `rce`: the language commands of spec section 10 (check, run, test, emit,
 //! fmt, lsp), as implemented by `cli::main` in this crate.
-//! Usage: rce COMMAND ...   (run `rce` with no arguments for the list)
-//! `rce --version` (or `-V`) prints the commit the checker was built from,
-//! the specification draft it implements and the release label of the one
-//! language (2.7); it is a convenience of this program, not one of the
-//! language commands. No typed version number is printed: a build is named by
+//! Usage: rce COMMAND WORD... OPERAND...   (`rce help` prints the list)
+//! `rce version` prints the commit the checker was built from, the
+//! specification draft it implements and the release label of the one
+//! language (2.7). No typed version number is printed: a build is named by
 //! its commit, read from git by build.rs.
-
-/// The specification draft this checker implements.
-const SPEC_DRAFT: &str = "0.9";
 
 fn main() {
     // HC-5: `rce host run|serve` enters the sandbox's OS enforcement target after opening D.
     rce_spec_check::sandbox::enable();
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) && args.len() == 1 {
-        println!(
-            "rce commit {} (RCE specification draft {SPEC_DRAFT}; one language, release label {})",
-            env!("RCE_GIT_COMMIT"),
-            rce_spec_check::parse::LANGUAGE_RELEASE
-        );
-        return;
-    }
     // `rce host serve` reads stdin on its own thread (the host loop), so the
     // main thread must not hold the stdin lock.
     let serve = args.first().is_some_and(|a| a == "host") && args.get(1).is_some_and(|a| a == "serve");
