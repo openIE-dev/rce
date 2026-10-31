@@ -12,9 +12,10 @@
   <p>Type an RCE program. The reference checker, compiled to WebAssembly, parses, type checks and admits it in your browser and runs every <code>example</code>. Nothing is sent to a server.</p>
   <nav>
     <a href="https://github.com/openIE-dev/rce">Specification and checker</a>
-    <a href="https://github.com/openIE-dev/rce-book">The RCE Book</a>
-    <a href="https://github.com/openIE-dev/rce-examples">Examples</a>
-    <a href="https://github.com/openIE-dev/rce-ide/releases/latest">Desktop IDE and <code>rce</code> CLI</a>
+    <a href="https://openie-dev.github.io/rce/book/">The RCE Book</a>
+    <a href="https://github.com/openIE-dev/rce/tree/main/programs">Example programs</a>
+    <a href="https://github.com/openIE-dev/rce/releases">Releases of the <code>rce</code> CLI</a>
+    <a href="https://github.com/openIE-dev/rce/blob/main/scripts/install.sh">install.sh</a>
   </nav>
 </header>
 <main>
@@ -25,14 +26,14 @@
       <span id="ver"></span>
     </div>
     <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="RCE source"></textarea>
-    <p class="hint">Indent with spaces; a text with a tab requires change (W-LEX-1). Put <code># rce-version: 0.8</code> on the first line for language version 0.8 (context-typed text, <code>Secret</code>, <code>Cap</code>, <code>Guarded</code>; spec 5.16) or <code># rce-version: 0.7</code> for 0.7 (spec 2.7); without it a module is version 0.5.</p>
+    <p class="hint">Indent with spaces; a text with a tab requires change (W-LEX-1). There is one language (spec 2.7): a <code># rce-version:</code> line on the first line is a release label, tolerated and ignored, so a module means the same with or without it.</p>
   </section>
   <section class="out">
     <div id="verdict" class="verdict">loading the checker...</div>
     <div id="errors"></div>
     <div id="examples"></div>
     <details><summary>Form (JSON)</summary><pre id="form"></pre></details>
-    <p class="hint">The playground checks programs and shows their example traces. To run <code>fn main()</code> or emit a target language (Rust, Python, JavaScript or Scala today), install <code>rce</code> (see the specification README).</p>
+    <p class="hint">The playground checks programs and shows their example traces. To run <code>fn main()</code> or emit a target language (Rust, Python, JavaScript or Scala today), install <code>rce</code> with <code>curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh</code> (see the specification README).</p>
     <p class="hint">Host features do not run in the browser: media, the terminal (PTY), TLS between hosts, networking, files and the OS sandbox belong to <code>rce host</code> (Appendix E) and need a native <code>rce</code> build. The playground checks such programs and runs their <code>example</code> traces, which need no host.</p>
   </section>
 </main>

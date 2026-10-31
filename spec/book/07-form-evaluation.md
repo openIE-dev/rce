@@ -33,7 +33,7 @@ P = (S, E, δ, D, λ) is:
 
 **Canonical signature (normative).** This is the one signature; the engine
 profile (D.6), the engine IR (`FormIr::step`) and the language interpreter
-are instances of it, and any other text (FORM.md, papers) defers to it.
+are instances of it, and any other text (proposals, papers) defers to it.
 S = Σc × Σd (control regions, data: regions, clock, input count,
 relations); δ : S × E → S × O\* total; λ = π₂ ∘ δ; δ₁ = π₁ ∘ δ. An entry of
 D is the record {seq, event, prev_hash, state_hash, hash} where `seq` is
@@ -383,7 +383,7 @@ exactly.
     `log`, `sin`, `pow` and the like, and platform math libraries differ
     in the last bit, so no runtime takes one from its platform library and
     no Form op names one. A transcendental exists only as RCE source in
-    the standard library module `math` (rce-stdlib `lib/math/math.rce`),
+    the standard library module `math` (`stdlib/lib/math/math.rce`),
     built from the operations of F1 to F8 and integers, so every runtime
     carries the same algorithm and the result is the same bits on every
     target (vector parity: Rust, Python, JavaScript, Scala). Each function
@@ -492,4 +492,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 0dc0c2af67c908c2000eb760a3f14aa6dabf408b6729723fe42b4fcd39f788a8 -->
+<!-- body-sha256: c4765869e945dca69fceef55a29bff6571f4905257bc63107ec7dfa0edc40e66 -->

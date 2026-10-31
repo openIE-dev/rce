@@ -15,9 +15,12 @@ image.
 - Binary: `curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh`
   installs the release of the newest `main` commit that passed CI
   (`rce-latest`), checked against its SHA256SUMS; `sh install.sh COMMIT`
-  pins one commit. `rce --version` prints the commit.
+  pins one commit, where COMMIT is the 12-hex-digit short hash of the
+  release `rce-<commit>`. Only the 30 newest commit releases remain (the
+  release workflow deletes older ones), so an older commit cannot be pinned
+  this way. `rce --version` prints the commit.
 - Container: `ghcr.io/openie-dev/rce:latest`, or `ghcr.io/openie-dev/rce:<commit>`
-  to pin. The image runs `rce` as an unprivileged user with the working
+  to pin, where `<commit>` is the full 40-hex-digit commit hash. The image runs `rce` as an unprivileged user with the working
   directory `/srv` and the volume `/data`. To build it yourself:
   `docker build -f deploy/Dockerfile -t rce .`
 

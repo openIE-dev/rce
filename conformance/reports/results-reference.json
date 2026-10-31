@@ -2,7 +2,7 @@
  "format": "rce-results/2",
  "adapter": "reference",
  "hello": {
-  "commit": "67f713745127",
+  "commit": "ace06cc25c80",
   "features": [
    "fuel",
    "schedule_seed",
@@ -16,11 +16,10 @@
    "host",
    "replicate"
   ],
-  "protocol": "rce-adapter/1",
-  "version": "0.1.0"
+  "protocol": "rce-adapter/1"
  },
  "tally": {
-  "pass": 1964,
+  "pass": 1975,
   "unsupported": 15
  },
  "results": [
@@ -52,7 +51,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-001.rce",
@@ -82,7 +81,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 11
   },
   {
    "path": "tests/concurrency/generated/par-7-002.rce",
@@ -111,7 +110,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 6
   },
   {
    "path": "tests/concurrency/generated/par-7-003.rce",
@@ -141,7 +140,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-004.rce",
@@ -172,7 +171,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-005.rce",
@@ -233,7 +232,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 11
   },
   {
    "path": "tests/concurrency/generated/par-7-007.rce",
@@ -264,7 +263,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-008.rce",
@@ -294,7 +293,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-009.rce",
@@ -323,7 +322,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-010.rce",
@@ -352,7 +351,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-011.rce",
@@ -383,7 +382,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 11
   },
   {
    "path": "tests/concurrency/generated/par-7-012.rce",
@@ -414,7 +413,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 14
   },
   {
    "path": "tests/concurrency/generated/par-7-013.rce",
@@ -445,7 +444,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 17
   },
   {
    "path": "tests/concurrency/generated/par-7-014.rce",
@@ -475,7 +474,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-015.rce",
@@ -505,7 +504,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 14
   },
   {
    "path": "tests/concurrency/generated/par-7-016.rce",
@@ -534,7 +533,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 13
   },
   {
    "path": "tests/concurrency/generated/par-7-017.rce",
@@ -563,7 +562,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-018.rce",
@@ -592,7 +591,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-019.rce",
@@ -622,7 +621,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-020.rce",
@@ -652,7 +651,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-021.rce",
@@ -683,7 +682,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 15
   },
   {
    "path": "tests/concurrency/generated/par-7-022.rce",
@@ -713,7 +712,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 15
   },
   {
    "path": "tests/concurrency/generated/par-7-023.rce",
@@ -743,7 +742,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 8
   },
   {
    "path": "tests/concurrency/generated/par-7-024.rce",
@@ -772,7 +771,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-025.rce",
@@ -802,7 +801,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 8
   },
   {
    "path": "tests/concurrency/generated/par-7-026.rce",
@@ -833,7 +832,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 8
   },
   {
    "path": "tests/concurrency/generated/par-7-027.rce",
@@ -862,7 +861,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 13
   },
   {
    "path": "tests/concurrency/generated/par-7-028.rce",
@@ -893,7 +892,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 5
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-029.rce",
@@ -922,7 +921,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 6
   },
   {
    "path": "tests/concurrency/generated/par-7-030.rce",
@@ -951,7 +950,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 7
   },
   {
    "path": "tests/concurrency/generated/par-7-031.rce",
@@ -982,7 +981,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-032.rce",
@@ -1013,7 +1012,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-033.rce",
@@ -1042,7 +1041,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-034.rce",
@@ -1071,7 +1070,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 6
   },
   {
    "path": "tests/concurrency/generated/par-7-035.rce",
@@ -1102,7 +1101,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-036.rce",
@@ -1131,7 +1130,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 8
   },
   {
    "path": "tests/concurrency/generated/par-7-037.rce",
@@ -1160,7 +1159,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 7
   },
   {
    "path": "tests/concurrency/generated/par-7-038.rce",
@@ -1191,7 +1190,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 14
   },
   {
    "path": "tests/concurrency/generated/par-7-039.rce",
@@ -1221,7 +1220,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 13
   },
   {
    "path": "tests/concurrency/generated/par-overlap-7-000.rce",
@@ -1373,7 +1372,7 @@
      "W-PAR-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-overlap-7-008.rce",
@@ -2001,7 +2000,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-001.rce",
@@ -2021,7 +2020,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-002.rce",
@@ -2041,7 +2040,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-003.rce",
@@ -2061,7 +2060,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-004.rce",
@@ -2141,7 +2140,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-008.rce",
@@ -2161,7 +2160,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-009.rce",
@@ -2181,7 +2180,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-010.rce",
@@ -2221,7 +2220,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-012.rce",
@@ -2241,7 +2240,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-013.rce",
@@ -2301,7 +2300,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-016.rce",
@@ -2321,7 +2320,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-017.rce",
@@ -2421,7 +2420,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-022.rce",
@@ -2461,7 +2460,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-024.rce",
@@ -2481,7 +2480,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-025.rce",
@@ -2501,7 +2500,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-026.rce",
@@ -2561,7 +2560,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-prod-029.rce",
@@ -2581,7 +2580,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-prod-030.rce",
@@ -2601,7 +2600,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-prod-031.rce",
@@ -2641,7 +2640,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-033.rce",
@@ -2661,7 +2660,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-034.rce",
@@ -2681,7 +2680,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-prod-035.rce",
@@ -2701,7 +2700,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-036.rce",
@@ -2741,7 +2740,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-prod-038.rce",
@@ -2761,7 +2760,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-prod-039.rce",
@@ -2821,7 +2820,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-prod-064.rce",
@@ -2901,7 +2900,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-sum-001.rce",
@@ -2921,7 +2920,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-sum-002.rce",
@@ -2941,7 +2940,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-003.rce",
@@ -2961,7 +2960,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-004.rce",
@@ -2981,7 +2980,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-005.rce",
@@ -3001,7 +3000,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-sum-006.rce",
@@ -3021,7 +3020,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-007.rce",
@@ -3061,7 +3060,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-009.rce",
@@ -3081,7 +3080,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-sum-010.rce",
@@ -3101,7 +3100,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-011.rce",
@@ -3121,7 +3120,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-012.rce",
@@ -3161,7 +3160,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-014.rce",
@@ -3181,7 +3180,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-015.rce",
@@ -3201,7 +3200,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-016.rce",
@@ -3221,7 +3220,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-017.rce",
@@ -3241,7 +3240,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-018.rce",
@@ -3261,7 +3260,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-019.rce",
@@ -3281,7 +3280,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-020.rce",
@@ -3301,7 +3300,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-021.rce",
@@ -3321,7 +3320,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-022.rce",
@@ -3341,7 +3340,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/tree-sum-023.rce",
@@ -3401,7 +3400,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-026.rce",
@@ -3421,7 +3420,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-sum-027.rce",
@@ -3441,7 +3440,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-sum-028.rce",
@@ -3481,7 +3480,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-030.rce",
@@ -3501,7 +3500,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-031.rce",
@@ -3521,7 +3520,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-032.rce",
@@ -3601,7 +3600,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-sum-036.rce",
@@ -3621,7 +3620,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/tree-sum-037.rce",
@@ -3641,7 +3640,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/concurrency/generated/tree-sum-038.rce",
@@ -3661,7 +3660,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-039.rce",
@@ -3701,7 +3700,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/tree-sum-063.rce",
@@ -3721,7 +3720,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-064.rce",
@@ -3761,7 +3760,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/tree-sum-100.rce",
@@ -3954,7 +3953,7 @@
     "outputs": [],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/concurrency/harvested/05-priority-spawn-accept.rce",
@@ -3998,7 +3997,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/concurrency/harvested/05-supervisor-lvar-accept.rce",
@@ -4142,7 +4141,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 5
   },
   {
    "path": "tests/concurrency/harvested/14-select-accept.rce",
@@ -4208,7 +4207,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/harvested/37-actor-spawn-main.rce",
@@ -4365,7 +4364,7 @@
      "W-CRDT-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/harvested/w-dl-1-pure-change.rce",
@@ -4950,7 +4949,7 @@
      "W-OWN-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/harvested/w-ses-4-use-after-send-change.rce",
@@ -5035,7 +5034,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/concurrency/targeted/deadline-expires.rce",
@@ -5057,7 +5056,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/targeted/deadline-met.rce",
@@ -5077,7 +5076,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/concurrency/targeted/deadlock-recv.rce",
@@ -5127,7 +5126,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 17
   },
   {
    "path": "tests/concurrency/targeted/lex-merge-bitwise-change.rce",
@@ -5197,7 +5196,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/concurrency/targeted/scope-joins.rce",
@@ -5221,7 +5220,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 4
   },
   {
    "path": "tests/concurrency/targeted/scope-waits-for-blocked-child.rce",
@@ -5263,7 +5262,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/targeted/select-rotate-after.rce",
@@ -5291,7 +5290,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/concurrency/targeted/supervisor-stop-ends-run.rce",
@@ -5311,7 +5310,7 @@
     ],
     "outcome": "kept:supervisor Root stopped: child w restarted more than 2 times"
    },
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/concurrency/targeted/t18-tree-reduce-equals-fold.rce",
@@ -5339,7 +5338,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 12
   },
   {
    "path": "tests/concurrency/targeted/w-atom-2-two-nodes.rce",
@@ -5416,7 +5415,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/effects-capabilities/harvested/comptime-check-change.rce",
@@ -5452,7 +5451,7 @@
      "W-CT-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/effects-capabilities/harvested/device-emit-change.rce",
@@ -5691,7 +5690,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/effects-capabilities/targeted/w-cap-1-cap-in-state.rce",
@@ -5812,7 +5811,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-04-scope-atomic-main.rce",
@@ -5870,7 +5869,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 7
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-08-run-main-main.rce",
@@ -5899,7 +5898,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-13-spawn-chan-main.rce",
@@ -5929,7 +5928,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 21
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-37-actor-spawn-main.rce",
@@ -5957,7 +5956,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-write-back-methods-main.rce",
@@ -5995,7 +5994,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-02-hello-main-main.rce",
@@ -6047,7 +6046,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-05-priority-spawn-main.rce",
@@ -6074,7 +6073,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-08-run-main-main.rce",
@@ -6102,7 +6101,7 @@
     ],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-13-spawn-chan-main.rce",
@@ -6130,7 +6129,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-37-actor-spawn-main.rce",
@@ -6156,7 +6155,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-write-back-methods-main.rce",
@@ -6193,7 +6192,7 @@
     ],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 1
+   "ms": 6
   },
   {
    "path": "tests/evaluation-fuel/harvested/02-hello-main-accept.rce",
@@ -6231,7 +6230,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/evaluation-fuel/harvested/06-option-accept.rce",
@@ -6331,7 +6330,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/28-slices-accept.rce",
@@ -6364,7 +6363,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/32-comptime-block-accept.rce",
@@ -6380,7 +6379,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/evaluation-fuel/harvested/33-in-operator-accept.rce",
@@ -6429,7 +6428,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/evaluation-fuel/harvested/39-structural-recursion-accept.rce",
@@ -6523,7 +6522,7 @@
      "W-REC-1"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/evaluation-fuel/harvested/bad-loop-change.rce",
@@ -6580,7 +6579,7 @@
      "W-REC-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/bad-vary-change.rce",
@@ -6788,22 +6787,6 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/under-limit-accept.rce",
-   "id": "evaluation-fuel/harvested/under-limit-accept",
-   "area": "evaluation-fuel",
-   "clauses": [
-    "CH03-M-28cdd241",
-    "T10"
-   ],
-   "status": "pass",
-   "detail": "",
-   "observed": {
-    "verdict": "accept",
-    "codes": []
-   },
-   "ms": 37
-  },
-  {
    "path": "tests/evaluation-fuel/harvested/ok-evenodd-accept.rce",
    "id": "evaluation-fuel/harvested/ok-evenodd-accept",
    "area": "evaluation-fuel",
@@ -6861,7 +6844,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/ok-order-accept.rce",
@@ -6877,7 +6860,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/harvested/ok-swap-accept.rce",
@@ -6900,6 +6883,24 @@
    "ms": 0
   },
   {
+   "path": "tests/evaluation-fuel/harvested/over-limit-change.rce",
+   "id": "evaluation-fuel/harvested/over-limit-change",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "CH09-M-82e65964",
+    "W-INT-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-INT-1"
+    ]
+   },
+   "ms": 362
+  },
+  {
    "path": "tests/evaluation-fuel/harvested/rec-not-structural-change.rce",
    "id": "evaluation-fuel/harvested/rec-not-structural-change",
    "area": "evaluation-fuel",
@@ -6915,7 +6916,7 @@
      "W-REC-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/rec-same-arg-change.rce",
@@ -6955,25 +6956,7 @@
      "W-REC-1"
     ]
    },
-   "ms": 0
-  },
-  {
-   "path": "tests/evaluation-fuel/harvested/over-limit-change.rce",
-   "id": "evaluation-fuel/harvested/over-limit-change",
-   "area": "evaluation-fuel",
-   "clauses": [
-    "CH09-M-82e65964",
-    "W-INT-1"
-   ],
-   "status": "pass",
-   "detail": "",
-   "observed": {
-    "verdict": "change",
-    "codes": [
-     "W-INT-1"
-    ]
-   },
-   "ms": 48
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/u64-underflow-change.rce",
@@ -6991,7 +6974,23 @@
      "W-INT-1"
     ]
    },
-   "ms": 0
+   "ms": 7
+  },
+  {
+   "path": "tests/evaluation-fuel/harvested/under-limit-accept.rce",
+   "id": "evaluation-fuel/harvested/under-limit-accept",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "CH03-M-28cdd241",
+    "T10"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "accept",
+    "codes": []
+   },
+   "ms": 77
   },
   {
    "path": "tests/evaluation-fuel/harvested/unexpected-kept-change.rce",
@@ -7061,7 +7060,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 5
   },
   {
    "path": "tests/evaluation-fuel/harvested/wrong-example-value-change.rce",
@@ -7079,7 +7078,7 @@
      "W-INT-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/wrong-kept-reason-change.rce",
@@ -7115,7 +7114,7 @@
      "W-ITER-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-budget-else-as-does-not-catch.rce",
@@ -7131,7 +7130,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 4
+   "ms": 27
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-budget-else-does-not-catch.rce",
@@ -7148,7 +7147,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 5
+   "ms": 8
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-control-budget-is-catchable.rce",
@@ -7166,7 +7165,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 6
+   "ms": 7
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-control-enough-fuel.rce",
@@ -7184,7 +7183,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 27
+   "ms": 96
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-fuel-before-budget.rce",
@@ -7200,7 +7199,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 3
+   "ms": 10
   },
   {
    "path": "tests/evaluation-fuel/targeted/fuel-1-par-branch-not-caught.rce",
@@ -7217,7 +7216,7 @@
     "outputs": [],
     "outcome": "trap:comptime fuel exhausted"
    },
-   "ms": 12
+   "ms": 257
   },
   {
    "path": "tests/evaluation-fuel/targeted/lambda-calls.rce",
@@ -7239,7 +7238,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/evaluation-fuel/targeted/n8-index-out-of-range.rce",
@@ -7260,7 +7259,7 @@
     "outputs": [],
     "outcome": "trap:index 3 out of range"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/targeted/n8-slice-reversed.rce",
@@ -7283,7 +7282,7 @@
     "outputs": [],
     "outcome": "trap:slice bounds reversed"
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/evaluation-fuel/targeted/n9-size-limit.rce",
@@ -7306,7 +7305,7 @@
     "outputs": [],
     "outcome": "trap:size limit"
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/evaluation-fuel/targeted/s5-tail-value.rce",
@@ -7361,7 +7360,7 @@
      "fuel 37"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/generated/t7-55-rcedb-ex5-trace.rce",
@@ -7391,7 +7390,7 @@
      "fuel 30"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/generated/t7-55-rcedb-ex6-trace.rce",
@@ -7419,7 +7418,7 @@
      "fuel 12"
     ]
    },
-   "ms": 1
+   "ms": 6
   },
   {
    "path": "tests/forms-log/generated/t7-56-utf8-ex2-trace.rce",
@@ -7447,7 +7446,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/forms-log/generated/t7-56-utf8-ex3-trace.rce",
@@ -7533,7 +7532,7 @@
      "fuel 31"
     ]
    },
-   "ms": 1
+   "ms": 9
   },
   {
    "path": "tests/forms-log/harvested/01-counter-ex2-trace.rce",
@@ -7565,7 +7564,7 @@
      "fuel 11"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/01-counter-ex3-trace.rce",
@@ -7644,7 +7643,7 @@
      "fuel 20"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/04-bank-account-ex4.rce",
@@ -7670,7 +7669,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/04-bank-account-ex5-trace.rce",
@@ -7769,7 +7768,7 @@
      "fuel 11"
     ]
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/forms-log/harvested/17-traffic-light-ex2.rce",
@@ -7847,7 +7846,7 @@
      "fuel 13"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/30-state-machine-guarded-ex3.rce",
@@ -7873,7 +7872,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/30-state-machine-guarded-ex4-trace.rce",
@@ -7973,7 +7972,7 @@
      "fuel 5"
     ]
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/51-refined-input-ex5-trace.rce",
@@ -8001,7 +8000,7 @@
      "fuel 5"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/51-refined-input-ex6-trace.rce",
@@ -8061,7 +8060,7 @@
      "fuel 7"
     ]
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-accept.rce",
@@ -8080,7 +8079,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex5-trace.rce",
@@ -8108,7 +8107,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex5.rce",
@@ -8162,7 +8161,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex6.rce",
@@ -8188,7 +8187,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex7-trace.rce",
@@ -8216,7 +8215,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex7.rce",
@@ -8242,7 +8241,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/53-capability-accept.rce",
@@ -8261,7 +8260,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex5-trace.rce",
@@ -8288,7 +8287,7 @@
      "fuel 5"
     ]
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex5.rce",
@@ -8341,7 +8340,7 @@
      "fuel 9"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex6.rce",
@@ -8366,7 +8365,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex7-trace.rce",
@@ -8393,7 +8392,7 @@
      "fuel 6"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex7.rce",
@@ -8417,7 +8416,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/54-secret-accept.rce",
@@ -8464,7 +8463,7 @@
      "fuel 18"
     ]
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/54-secret-ex5.rce",
@@ -8490,7 +8489,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/54-secret-ex6-trace.rce",
@@ -8519,7 +8518,7 @@
      "fuel 18"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/54-secret-ex6.rce",
@@ -8577,7 +8576,7 @@
      "fuel 37"
     ]
    },
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/forms-log/harvested/55-rcedb-ex5-trace.rce",
@@ -8691,7 +8690,7 @@
      "fuel 7"
     ]
    },
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/forms-log/harvested/56-utf8-ex4-trace.rce",
@@ -8746,7 +8745,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex11-trace.rce",
@@ -8773,7 +8772,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex12-trace.rce",
@@ -8800,7 +8799,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex13-trace.rce",
@@ -8827,7 +8826,7 @@
      "fuel 7"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex14-trace.rce",
@@ -8854,7 +8853,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex15-trace.rce",
@@ -8881,7 +8880,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex16-trace.rce",
@@ -8908,7 +8907,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex17-trace.rce",
@@ -8935,7 +8934,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex18-trace.rce",
@@ -8962,7 +8961,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex19-trace.rce",
@@ -8989,7 +8988,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex20-trace.rce",
@@ -9016,7 +9015,7 @@
      "fuel 5"
     ]
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex21-trace.rce",
@@ -9043,7 +9042,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex22-trace.rce",
@@ -9070,7 +9069,7 @@
      "fuel 9"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex23-trace.rce",
@@ -9097,7 +9096,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex8-trace.rce",
@@ -9124,7 +9123,7 @@
      "fuel 9"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex9-trace.rce",
@@ -9151,7 +9150,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/chan-ex4-trace.rce",
@@ -9181,7 +9180,7 @@
      "fuel 29"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/echo-ex4-trace.rce",
@@ -9211,7 +9210,7 @@
      "fuel 24"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/files-ex4-trace.rce",
@@ -9241,7 +9240,7 @@
      "fuel 29"
     ]
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/foreign-ex4-trace.rce",
@@ -9271,7 +9270,7 @@
      "fuel 29"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-01-counter-events-events.rce",
@@ -9341,7 +9340,7 @@
      "fuel 11"
     ]
    },
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-01-counter-example-3.rce",
@@ -9399,7 +9398,7 @@
      "fuel 20"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-04-bank-account-example-5.rce",
@@ -9580,7 +9579,7 @@
      "fuel 5"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-51-refined-input-example-5.rce",
@@ -9607,7 +9606,7 @@
      "fuel 5"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-51-refined-input-example-6.rce",
@@ -9636,7 +9635,7 @@
      "fuel 11"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-51-refined-input-example-7.rce",
@@ -9665,7 +9664,7 @@
      "fuel 7"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-52-context-text-example-5.rce",
@@ -9692,7 +9691,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-52-context-text-example-6.rce",
@@ -9719,7 +9718,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-52-context-text-example-7.rce",
@@ -9746,7 +9745,7 @@
      "fuel 33"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-53-capability-example-5.rce",
@@ -9826,7 +9825,7 @@
      "fuel 6"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-54-secret-example-5.rce",
@@ -9854,7 +9853,7 @@
      "fuel 18"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-54-secret-example-6.rce",
@@ -9882,7 +9881,7 @@
      "fuel 18"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-55-rcedb-example-4.rce",
@@ -9942,7 +9941,7 @@
      "fuel 30"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-55-rcedb-example-6.rce",
@@ -10050,7 +10049,7 @@
      "fuel 8"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-10.rce",
@@ -10076,7 +10075,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-11.rce",
@@ -10102,7 +10101,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-12.rce",
@@ -10128,7 +10127,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-13.rce",
@@ -10154,7 +10153,7 @@
      "fuel 7"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-14.rce",
@@ -10180,7 +10179,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-15.rce",
@@ -10206,7 +10205,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-16.rce",
@@ -10232,7 +10231,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-17.rce",
@@ -10258,7 +10257,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-18.rce",
@@ -10284,7 +10283,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-19.rce",
@@ -10310,7 +10309,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-20.rce",
@@ -10336,7 +10335,7 @@
      "fuel 5"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-21.rce",
@@ -10362,7 +10361,7 @@
      "fuel 4"
     ]
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-22.rce",
@@ -10388,7 +10387,7 @@
      "fuel 9"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-23.rce",
@@ -10414,7 +10413,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-8.rce",
@@ -10440,7 +10439,7 @@
      "fuel 9"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-9.rce",
@@ -10466,7 +10465,7 @@
      "fuel 6"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/media-ex4-trace.rce",
@@ -10496,7 +10495,7 @@
      "fuel 31"
     ]
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/net-ex4-trace.rce",
@@ -10526,7 +10525,7 @@
      "fuel 30"
     ]
    },
-   "ms": 3
+   "ms": 6
   },
   {
    "path": "tests/forms-log/harvested/priority-ex5-trace.rce",
@@ -10585,7 +10584,7 @@
      "fuel 28"
     ]
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/records-ex4-trace.rce",
@@ -10665,7 +10664,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/forms-log/targeted/s1-guard-trap-keeps.rce",
@@ -10713,7 +10712,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/handler-spec/cur-1-zero-max-age.rce",
@@ -10915,7 +10914,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 10
+   "ms": 22
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-001.rce",
@@ -10937,7 +10936,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 37
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-002.rce",
@@ -10959,7 +10958,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 327
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-003.rce",
@@ -10981,7 +10980,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 8
+   "ms": 391
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-004.rce",
@@ -11003,7 +11002,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 8
+   "ms": 35
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-005.rce",
@@ -11025,7 +11024,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 39
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-006.rce",
@@ -11047,7 +11046,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 5
+   "ms": 24
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-007.rce",
@@ -11069,7 +11068,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 6
+   "ms": 19
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-008.rce",
@@ -11091,7 +11090,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 8
+   "ms": 40
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-009.rce",
@@ -11113,7 +11112,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 63
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-010.rce",
@@ -11135,7 +11134,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 34
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-011.rce",
@@ -11157,7 +11156,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 3
+   "ms": 33
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-012.rce",
@@ -11179,7 +11178,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 5
+   "ms": 32
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-013.rce",
@@ -11201,7 +11200,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 44
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-014.rce",
@@ -11223,7 +11222,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 11
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-015.rce",
@@ -11245,7 +11244,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 3
+   "ms": 19
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-016.rce",
@@ -11267,7 +11266,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 5
+   "ms": 35
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-017.rce",
@@ -11289,7 +11288,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 15
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-018.rce",
@@ -11311,7 +11310,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 3
+   "ms": 24
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-019.rce",
@@ -11333,7 +11332,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 25
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-020.rce",
@@ -11355,7 +11354,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 6
+   "ms": 36
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-021.rce",
@@ -11377,7 +11376,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 14
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-022.rce",
@@ -11399,7 +11398,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 23
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-023.rce",
@@ -11421,7 +11420,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 5
+   "ms": 8
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-024.rce",
@@ -11443,7 +11442,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 5
+   "ms": 36
   },
   {
    "path": "tests/host-contract/generated/replicate-11-000.rce",
@@ -11479,7 +11478,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-002.rce",
@@ -11515,7 +11514,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/host-contract/generated/replicate-11-004.rce",
@@ -11531,7 +11530,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/host-contract/generated/replicate-11-005.rce",
@@ -11567,7 +11566,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-007.rce",
@@ -11583,7 +11582,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-008.rce",
@@ -11601,7 +11600,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/host-contract/generated/replicate-11-009.rce",
@@ -11653,7 +11652,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-012.rce",
@@ -11723,7 +11722,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-016.rce",
@@ -11809,7 +11808,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-021.rce",
@@ -11843,7 +11842,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-023.rce",
@@ -11929,7 +11928,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-028.rce",
@@ -11947,7 +11946,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/host-contract/generated/replicate-11-029.rce",
@@ -12009,7 +12008,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/host-contract/harvested/echo-accept.rce",
@@ -12070,7 +12069,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/files-ex4.rce",
@@ -12097,7 +12096,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/host-contract/harvested/foreign-accept.rce",
@@ -12159,7 +12158,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/media-ex4.rce",
@@ -12187,7 +12186,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 11
   },
   {
    "path": "tests/host-contract/harvested/net-accept.rce",
@@ -12204,7 +12203,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/host-contract/harvested/net-ex4.rce",
@@ -12230,7 +12229,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 4
+   "ms": 6
   },
   {
    "path": "tests/host-contract/harvested/priority-accept.rce",
@@ -12272,7 +12271,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/host-contract/harvested/pty-accept.rce",
@@ -12290,7 +12289,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/pty-ex4.rce",
@@ -12318,7 +12317,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/host-contract/harvested/records-accept.rce",
@@ -12362,7 +12361,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/host-contract/harvested/ticked-accept.rce",
@@ -12380,7 +12379,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/host-contract/harvested/ticked-ex5.rce",
@@ -12424,7 +12423,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/host-contract/targeted/hc-7a-fuel-per-input.rce",
@@ -12441,7 +12440,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 96
+   "ms": 460
   },
   {
    "path": "tests/host-contract/targeted/hc-8-t32-t37-replay-equals-live.rce",
@@ -12461,7 +12460,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 388
   },
   {
    "path": "tests/host-contract/targeted/t38-torn-tail-keeps-prefix.rce",
@@ -12479,7 +12478,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 3
+   "ms": 18
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bad-escape-02-par-for-reduce-accept.rce",
@@ -12677,7 +12676,7 @@
      "W-LEX-3"
     ]
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bad-escape-ticked-accept.rce",
@@ -12749,7 +12748,7 @@
      "W-LEX-3"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bigint-05-priority-spawn-accept.rce",
@@ -12860,24 +12859,6 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/generated/mut-bigint-under-limit-accept.rce",
-   "id": "lexing-parsing/generated/mut-bigint-under-limit-accept",
-   "area": "lexing-parsing",
-   "clauses": [
-    "CH09-M-82e65964",
-    "W-LEX-3"
-   ],
-   "status": "pass",
-   "detail": "",
-   "observed": {
-    "verdict": "change",
-    "codes": [
-     "W-LEX-3"
-    ]
-   },
-   "ms": 0
-  },
-  {
    "path": "tests/lexing-parsing/generated/mut-bigint-ok-int-accept.rce",
    "id": "lexing-parsing/generated/mut-bigint-ok-int-accept",
    "area": "lexing-parsing",
@@ -12898,6 +12879,24 @@
   {
    "path": "tests/lexing-parsing/generated/mut-bigint-ok-swap-accept.rce",
    "id": "lexing-parsing/generated/mut-bigint-ok-swap-accept",
+   "area": "lexing-parsing",
+   "clauses": [
+    "CH09-M-82e65964",
+    "W-LEX-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-LEX-3"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/lexing-parsing/generated/mut-bigint-under-limit-accept.rce",
+   "id": "lexing-parsing/generated/mut-bigint-under-limit-accept",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
@@ -13569,7 +13568,7 @@
      "W-SYN-1"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/lexing-parsing/generated/mut-paren-43-simd-lanes-accept.rce",
@@ -13809,7 +13808,7 @@
      "W-LEX-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/generated/mut-tab-18-while-bound-accept.rce",
@@ -14378,7 +14377,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/harvested/if-expr-no-else-change.rce",
@@ -14585,7 +14584,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/lexing-parsing/targeted/r2-try-in-if-expr.rce",
@@ -14650,7 +14649,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/targeted/r4-assignment-in-expression.rce",
@@ -14739,7 +14738,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/targeted/r8-unit-variant-pattern.rce",
@@ -14764,7 +14763,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/targeted/r9-send-receive.rce",
@@ -14982,7 +14981,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 7312568454372194276502039446665852455 is outside u64"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0005.rce",
@@ -15008,7 +15007,7 @@
     "outputs": [],
     "outcome": "trap:overflow: -1692420980419363832697434237787796296503908952754690552920537789582314181042195122797885347169158193885740825152664865956004369456899371696332701593673968135089608751437005921230587186455184528204945767268608321964598099968 is outside i64"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-1-0006.rce",
@@ -15066,7 +15065,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0008.rce",
@@ -15095,7 +15094,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0009.rce",
@@ -15124,7 +15123,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0010.rce",
@@ -15321,7 +15320,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0017.rce",
@@ -15406,7 +15405,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0020.rce",
@@ -15434,7 +15433,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0021.rce",
@@ -15462,7 +15461,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0022.rce",
@@ -15547,7 +15546,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0025.rce",
@@ -15689,7 +15688,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 10
   },
   {
    "path": "tests/numbers/generated/num-1-0030.rce",
@@ -15772,7 +15771,7 @@
     "outputs": [],
     "outcome": "trap:overflow: -34265139674365899222 is outside i64"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0033.rce",
@@ -15800,7 +15799,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-1-0034.rce",
@@ -15969,7 +15968,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0040.rce",
@@ -16136,7 +16135,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 10
   },
   {
    "path": "tests/numbers/generated/num-1-0046.rce",
@@ -16249,7 +16248,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0050.rce",
@@ -16277,7 +16276,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0051.rce",
@@ -16472,7 +16471,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0058.rce",
@@ -16500,7 +16499,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0059.rce",
@@ -16584,7 +16583,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0062.rce",
@@ -16612,7 +16611,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0063.rce",
@@ -16837,7 +16836,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0071.rce",
@@ -17062,7 +17061,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0079.rce",
@@ -17231,7 +17230,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0085.rce",
@@ -17288,7 +17287,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0087.rce",
@@ -17429,7 +17428,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0092.rce",
@@ -17458,7 +17457,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0093.rce",
@@ -17514,7 +17513,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0095.rce",
@@ -17541,7 +17540,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0096.rce",
@@ -17569,7 +17568,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0097.rce",
@@ -17735,7 +17734,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0103.rce",
@@ -17764,7 +17763,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0104.rce",
@@ -17876,7 +17875,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0108.rce",
@@ -17989,7 +17988,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0112.rce",
@@ -18017,7 +18016,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0113.rce",
@@ -18102,7 +18101,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0116.rce",
@@ -18212,7 +18211,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0120.rce",
@@ -18297,7 +18296,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0123.rce",
@@ -18353,7 +18352,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0125.rce",
@@ -18859,7 +18858,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0143.rce",
@@ -18973,7 +18972,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0147.rce",
@@ -19086,7 +19085,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-1-0151.rce",
@@ -19196,7 +19195,7 @@
     "outputs": [],
     "outcome": "trap:overflow: -9007199254740993 is outside u64"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-1-0155.rce",
@@ -19224,7 +19223,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0156.rce",
@@ -19307,7 +19306,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0159.rce",
@@ -19643,7 +19642,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0171.rce",
@@ -19954,7 +19953,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0182.rce",
@@ -20349,7 +20348,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0196.rce",
@@ -20768,7 +20767,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0211.rce",
@@ -21355,7 +21354,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0232.rce",
@@ -21465,7 +21464,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0236.rce",
@@ -21493,7 +21492,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0237.rce",
@@ -21605,7 +21604,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0241.rce",
@@ -21634,7 +21633,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0242.rce",
@@ -21690,7 +21689,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0244.rce",
@@ -21776,7 +21775,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-1-0247.rce",
@@ -21833,7 +21832,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0249.rce",
@@ -21945,7 +21944,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-1-0253.rce",
@@ -22057,7 +22056,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0257.rce",
@@ -22142,7 +22141,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0260.rce",
@@ -22340,7 +22339,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0267.rce",
@@ -22368,7 +22367,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0268.rce",
@@ -22452,7 +22451,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0271.rce",
@@ -22565,7 +22564,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0275.rce",
@@ -22593,7 +22592,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0276.rce",
@@ -22621,7 +22620,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0277.rce",
@@ -22705,7 +22704,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0280.rce",
@@ -22788,7 +22787,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0283.rce",
@@ -22816,7 +22815,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0284.rce",
@@ -23097,7 +23096,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0294.rce",
@@ -23153,7 +23152,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0296.rce",
@@ -23263,7 +23262,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0000.rce",
@@ -23347,7 +23346,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0003.rce",
@@ -23405,7 +23404,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0005.rce",
@@ -23462,7 +23461,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0007.rce",
@@ -23490,7 +23489,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0008.rce",
@@ -23688,7 +23687,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0015.rce",
@@ -23799,7 +23798,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0019.rce",
@@ -23855,7 +23854,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0021.rce",
@@ -23912,7 +23911,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0023.rce",
@@ -23968,7 +23967,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0025.rce",
@@ -24024,7 +24023,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0027.rce",
@@ -24277,7 +24276,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0036.rce",
@@ -24305,7 +24304,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0037.rce",
@@ -24500,7 +24499,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0044.rce",
@@ -24809,7 +24808,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0055.rce",
@@ -24837,7 +24836,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0056.rce",
@@ -24947,7 +24946,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0060.rce",
@@ -25029,7 +25028,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0063.rce",
@@ -25590,7 +25589,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0083.rce",
@@ -25732,7 +25731,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0088.rce",
@@ -25845,7 +25844,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0092.rce",
@@ -25959,7 +25958,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0096.rce",
@@ -26043,7 +26042,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0099.rce",
@@ -26271,7 +26270,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0107.rce",
@@ -26299,7 +26298,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0108.rce",
@@ -26355,7 +26354,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0110.rce",
@@ -26413,7 +26412,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0112.rce",
@@ -26469,7 +26468,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0114.rce",
@@ -26525,7 +26524,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0116.rce",
@@ -26638,7 +26637,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0120.rce",
@@ -26723,7 +26722,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-2-0123.rce",
@@ -26751,7 +26750,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0124.rce",
@@ -26976,7 +26975,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0132.rce",
@@ -27061,7 +27060,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0135.rce",
@@ -27090,7 +27089,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-2-0136.rce",
@@ -27204,7 +27203,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0140.rce",
@@ -27315,7 +27314,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0144.rce",
@@ -27427,7 +27426,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 121114979656257237943277854281080147810371004499641353548159308359510541193820624444131062797299577843780828749515490730066744612412150288158611359482625536649381135101214857069246288184366124351359626338121123695539994302006551914557154650778129327891445985999702204291448510357420145561829376 is outside i64"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0148.rce",
@@ -27541,7 +27540,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0152.rce",
@@ -27625,7 +27624,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0155.rce",
@@ -27653,7 +27652,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0156.rce",
@@ -27737,7 +27736,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0159.rce",
@@ -27765,7 +27764,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0160.rce",
@@ -27959,7 +27958,7 @@
     "outputs": [],
     "outcome": "trap:division by zero"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0167.rce",
@@ -27987,7 +27986,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0168.rce",
@@ -28016,7 +28015,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0169.rce",
@@ -28072,7 +28071,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0171.rce",
@@ -28182,7 +28181,7 @@
     "outputs": [],
     "outcome": "trap:division by zero"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0175.rce",
@@ -28292,7 +28291,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0179.rce",
@@ -28517,7 +28516,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0187.rce",
@@ -28628,7 +28627,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0191.rce",
@@ -28656,7 +28655,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0192.rce",
@@ -28768,7 +28767,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0196.rce",
@@ -28824,7 +28823,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0198.rce",
@@ -28909,7 +28908,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0201.rce",
@@ -28993,7 +28992,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0204.rce",
@@ -29047,7 +29046,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368 is outside i64"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0206.rce",
@@ -29104,7 +29103,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0208.rce",
@@ -29216,7 +29215,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0212.rce",
@@ -29386,7 +29385,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0218.rce",
@@ -29554,7 +29553,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0224.rce",
@@ -29639,7 +29638,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0227.rce",
@@ -29696,7 +29695,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0229.rce",
@@ -29750,7 +29749,7 @@
     "outputs": [],
     "outcome": "trap:overflow: -38871912128570930129 is outside i64"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0231.rce",
@@ -29778,7 +29777,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0232.rce",
@@ -30005,7 +30004,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0240.rce",
@@ -30119,7 +30118,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0244.rce",
@@ -30147,7 +30146,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0245.rce",
@@ -30176,7 +30175,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0246.rce",
@@ -30315,7 +30314,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 6
   },
   {
    "path": "tests/numbers/generated/num-2-0251.rce",
@@ -30371,7 +30370,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0253.rce",
@@ -30428,7 +30427,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0255.rce",
@@ -30484,7 +30483,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0257.rce",
@@ -30540,7 +30539,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0259.rce",
@@ -30625,7 +30624,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0262.rce",
@@ -30651,7 +30650,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 43090851616359393242716111302594016635 is outside u64"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0263.rce",
@@ -30680,7 +30679,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0264.rce",
@@ -30849,7 +30848,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0270.rce",
@@ -30906,7 +30905,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0272.rce",
@@ -31076,7 +31075,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0278.rce",
@@ -31132,7 +31131,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0280.rce",
@@ -31247,7 +31246,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0284.rce",
@@ -31331,7 +31330,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0287.rce",
@@ -31360,7 +31359,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0288.rce",
@@ -31444,7 +31443,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0291.rce",
@@ -31556,7 +31555,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-2-0295.rce",
@@ -31640,7 +31639,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0298.rce",
@@ -31668,7 +31667,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0299.rce",
@@ -31753,7 +31752,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0302.rce",
@@ -31781,7 +31780,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0303.rce",
@@ -31864,7 +31863,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0306.rce",
@@ -31892,7 +31891,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0307.rce",
@@ -32005,7 +32004,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0311.rce",
@@ -32118,7 +32117,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0315.rce",
@@ -32309,7 +32308,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0322.rce",
@@ -32423,7 +32422,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0326.rce",
@@ -32533,7 +32532,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0330.rce",
@@ -32672,7 +32671,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0335.rce",
@@ -32700,7 +32699,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0336.rce",
@@ -32784,7 +32783,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0339.rce",
@@ -32868,7 +32867,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0342.rce",
@@ -33036,7 +33035,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0348.rce",
@@ -33149,7 +33148,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0352.rce",
@@ -33234,7 +33233,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0355.rce",
@@ -33263,7 +33262,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0356.rce",
@@ -33320,7 +33319,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0358.rce",
@@ -33376,7 +33375,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0360.rce",
@@ -33432,7 +33431,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0362.rce",
@@ -33489,7 +33488,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0364.rce",
@@ -33657,7 +33656,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0370.rce",
@@ -33770,7 +33769,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0374.rce",
@@ -33798,7 +33797,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0375.rce",
@@ -33883,7 +33882,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0378.rce",
@@ -33939,7 +33938,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0380.rce",
@@ -33965,7 +33964,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 2380489550198976903626042600601000 is outside i64"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0381.rce",
@@ -34104,7 +34103,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0386.rce",
@@ -34216,7 +34215,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0390.rce",
@@ -34244,7 +34243,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0391.rce",
@@ -34328,7 +34327,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0394.rce",
@@ -34356,7 +34355,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-2-0395.rce",
@@ -34384,7 +34383,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-2-0396.rce",
@@ -34442,7 +34441,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0398.rce",
@@ -34470,7 +34469,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-2-0399.rce",
@@ -34526,7 +34525,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0001.rce",
@@ -34583,7 +34582,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-3-0003.rce",
@@ -34610,7 +34609,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0004.rce",
@@ -34666,7 +34665,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0006.rce",
@@ -34694,7 +34693,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/numbers/generated/num-3-0007.rce",
@@ -34720,7 +34719,7 @@
     "outputs": [],
     "outcome": "trap:overflow: -10778489588176309548974715078456053586157212506397155265468381939163451005416000787238497215677405082538926196671678352142419535213998464719360517640049809665117221957250988759637559540718445953553981148756155429831049216 is outside i64"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0008.rce",
@@ -34748,7 +34747,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0009.rce",
@@ -34777,7 +34776,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0010.rce",
@@ -34805,7 +34804,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0011.rce",
@@ -34833,7 +34832,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0012.rce",
@@ -34890,7 +34889,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0014.rce",
@@ -34918,7 +34917,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-3-0015.rce",
@@ -35031,7 +35030,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0019.rce",
@@ -35116,7 +35115,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0022.rce",
@@ -35228,7 +35227,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-3-0026.rce",
@@ -35339,7 +35338,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0030.rce",
@@ -35396,7 +35395,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0032.rce",
@@ -35453,7 +35452,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0034.rce",
@@ -35566,7 +35565,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0038.rce",
@@ -35623,7 +35622,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0040.rce",
@@ -35736,7 +35735,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0044.rce",
@@ -35849,7 +35848,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0048.rce",
@@ -35959,7 +35958,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0052.rce",
@@ -36100,7 +36099,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/numbers/generated/num-3-0057.rce",
@@ -36184,7 +36183,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0060.rce",
@@ -36212,7 +36211,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0061.rce",
@@ -36269,7 +36268,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0063.rce",
@@ -36297,7 +36296,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 7
   },
   {
    "path": "tests/numbers/generated/num-3-0064.rce",
@@ -36325,7 +36324,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0065.rce",
@@ -36439,7 +36438,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0069.rce",
@@ -36523,7 +36522,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 7
   },
   {
    "path": "tests/numbers/generated/num-3-0072.rce",
@@ -36551,7 +36550,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0073.rce",
@@ -36636,7 +36635,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-3-0076.rce",
@@ -36746,7 +36745,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0080.rce",
@@ -36775,7 +36774,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0081.rce",
@@ -36888,7 +36887,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0085.rce",
@@ -37141,7 +37140,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0094.rce",
@@ -37223,7 +37222,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0097.rce",
@@ -37277,7 +37276,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0099.rce",
@@ -37359,7 +37358,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0102.rce",
@@ -37444,7 +37443,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0105.rce",
@@ -37557,7 +37556,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-3-0109.rce",
@@ -37783,7 +37782,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0117.rce",
@@ -38009,7 +38008,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0125.rce",
@@ -38093,7 +38092,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0128.rce",
@@ -38231,7 +38230,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0133.rce",
@@ -38402,7 +38401,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0139.rce",
@@ -38770,7 +38769,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0152.rce",
@@ -38826,7 +38825,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0154.rce",
@@ -39137,7 +39136,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0165.rce",
@@ -39585,7 +39584,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0181.rce",
@@ -39613,7 +39612,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0182.rce",
@@ -39811,7 +39810,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0189.rce",
@@ -39840,7 +39839,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0190.rce",
@@ -40039,7 +40038,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0197.rce",
@@ -40148,7 +40147,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0201.rce",
@@ -40374,7 +40373,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0209.rce",
@@ -40430,7 +40429,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0211.rce",
@@ -40515,7 +40514,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0214.rce",
@@ -40961,7 +40960,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-3-0230.rce",
@@ -41075,7 +41074,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0234.rce",
@@ -41103,7 +41102,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0235.rce",
@@ -41187,7 +41186,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0238.rce",
@@ -41385,7 +41384,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0245.rce",
@@ -41495,7 +41494,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 18446744073709551622 is outside u64"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0249.rce",
@@ -41604,7 +41603,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0253.rce",
@@ -41716,7 +41715,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0257.rce",
@@ -41859,7 +41858,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0262.rce",
@@ -41943,7 +41942,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0265.rce",
@@ -41972,7 +41971,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0266.rce",
@@ -42166,7 +42165,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0273.rce",
@@ -42280,7 +42279,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0277.rce",
@@ -42336,7 +42335,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0279.rce",
@@ -42392,7 +42391,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-3-0281.rce",
@@ -42449,7 +42448,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0283.rce",
@@ -42505,7 +42504,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0285.rce",
@@ -42727,7 +42726,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0293.rce",
@@ -42783,7 +42782,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0295.rce",
@@ -42838,7 +42837,7 @@
     "outputs": [],
     "outcome": "trap:overflow: 18952240502835155473 is outside u64"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0297.rce",
@@ -42866,7 +42865,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0298.rce",
@@ -42894,7 +42893,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 6
   },
   {
    "path": "tests/numbers/generated/num-3-0299.rce",
@@ -42922,7 +42921,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0300.rce",
@@ -43007,7 +43006,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0303.rce",
@@ -43093,7 +43092,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0306.rce",
@@ -43122,7 +43121,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-3-0307.rce",
@@ -43207,7 +43206,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0310.rce",
@@ -43235,7 +43234,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0311.rce",
@@ -43628,7 +43627,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0325.rce",
@@ -43656,7 +43655,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-3-0326.rce",
@@ -43740,7 +43739,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0329.rce",
@@ -43853,7 +43852,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0333.rce",
@@ -43966,7 +43965,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0337.rce",
@@ -44049,7 +44048,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-3-0340.rce",
@@ -44105,7 +44104,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0342.rce",
@@ -44163,7 +44162,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 7
   },
   {
    "path": "tests/numbers/generated/num-3-0344.rce",
@@ -44276,7 +44275,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0348.rce",
@@ -44474,7 +44473,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0355.rce",
@@ -44587,7 +44586,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0359.rce",
@@ -44643,7 +44642,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0361.rce",
@@ -44756,7 +44755,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0365.rce",
@@ -44897,7 +44896,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0370.rce",
@@ -44925,7 +44924,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0371.rce",
@@ -45037,7 +45036,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0375.rce",
@@ -45094,7 +45093,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-3-0377.rce",
@@ -45152,7 +45151,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-3-0379.rce",
@@ -45208,7 +45207,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0381.rce",
@@ -45320,7 +45319,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0385.rce",
@@ -45407,7 +45406,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-3-0388.rce",
@@ -45435,7 +45434,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0389.rce",
@@ -45872,7 +45871,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/10-comptime-accept.rce",
@@ -45888,7 +45887,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/numbers/harvested/16-multi-region-accept.rce",
@@ -45936,7 +45935,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/25-labels-accept.rce",
@@ -45952,7 +45951,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/27-bitops-accept.rce",
@@ -46078,7 +46077,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/45-byte-text-accept.rce",
@@ -46132,7 +46131,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/48-linear-handle-main.rce",
@@ -46177,7 +46176,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 504
+   "ms": 918
   },
   {
    "path": "tests/numbers/harvested/50-iterators-accept.rce",
@@ -46302,7 +46301,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/harvested/51-refined-input-ex7.rce",
@@ -46333,7 +46332,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/harvested/55-rcedb-accept.rce",
@@ -46416,7 +46415,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/55-rcedb-ex6.rce",
@@ -46447,7 +46446,7 @@
     ],
     "outcome": "kept:Missing"
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-accept.rce",
@@ -46492,7 +46491,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex11.rce",
@@ -46520,7 +46519,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 5
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex12.rce",
@@ -46548,7 +46547,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex13.rce",
@@ -46576,7 +46575,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex14.rce",
@@ -46604,7 +46603,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 6
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex15.rce",
@@ -46632,7 +46631,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex16.rce",
@@ -46660,7 +46659,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex17.rce",
@@ -46688,7 +46687,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex18.rce",
@@ -46716,7 +46715,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex19.rce",
@@ -46744,7 +46743,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 2
+   "ms": 5
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex20.rce",
@@ -46772,7 +46771,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex21.rce",
@@ -46800,7 +46799,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex22.rce",
@@ -46828,7 +46827,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex23.rce",
@@ -46856,7 +46855,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex8.rce",
@@ -46884,7 +46883,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex9.rce",
@@ -46912,7 +46911,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/emit-edge-accept.rce",
@@ -46929,7 +46928,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/ok-int-accept.rce",
@@ -46964,7 +46963,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/targeted/f5-inf-minus-inf.rce",
@@ -46991,7 +46990,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/targeted/f5-nan-traps.rce",
@@ -47018,7 +47017,7 @@
     "outputs": [],
     "outcome": "trap:non-finite float"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/targeted/f6-f32-tostr-minus-zero.rce",
@@ -47201,7 +47200,7 @@
     "outputs": [],
     "outcome": "trap:shift amount out of range"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/targeted/t13-f32-single-rounding.rce",
@@ -47229,7 +47228,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/targeted/t14-u64-edges.rce",
@@ -47369,7 +47368,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/proposed/tu-5-text-stays-ragged.rce",
@@ -47387,7 +47386,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/proposed/tu-6-schedule-never-changes-bits.rce",
@@ -47406,7 +47405,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 9
+   "ms": 43
   },
   {
    "path": "tests/text-unicode/harvested/09-generics-accept.rce",
@@ -47442,7 +47441,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/text-unicode/harvested/20-strings-accept.rce",
@@ -47492,7 +47491,7 @@
     "verdict": "accept",
     "codes": []
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/text-unicode/harvested/56-utf8-ex2.rce",
@@ -47518,7 +47517,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 3
+   "ms": 2
   },
   {
    "path": "tests/text-unicode/harvested/56-utf8-ex3.rce",
@@ -47593,7 +47592,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/text-unicode/targeted/n7-byte-len.rce",
@@ -47618,7 +47617,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/text-unicode/targeted/n7-codepoint-order.rce",
@@ -47642,7 +47641,7 @@
     ],
     "outcome": "done"
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/text-unicode/targeted/n7-not-char-boundary.rce",
@@ -47665,7 +47664,7 @@
     "outputs": [],
     "outcome": "trap:not a char boundary"
    },
-   "ms": 0
+   "ms": 9
   },
   {
    "path": "tests/tooling/emit-js-change.rce",
@@ -47677,7 +47676,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 5
   },
   {
    "path": "tests/tooling/emit-python-change.rce",
@@ -47689,7 +47688,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 9
   },
   {
    "path": "tests/tooling/emit-rust-change.rce",
@@ -47701,7 +47700,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 6
   },
   {
    "path": "tests/tooling/emit-scala-change.rce",
@@ -47713,7 +47712,31 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 352
+  },
+  {
+   "path": "tests/tooling/int-2-no-examples.rce",
+   "id": "tooling/int-2-no-examples",
+   "area": "tooling",
+   "clauses": [
+    "W-INT-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": null,
+   "ms": 10
+  },
+  {
+   "path": "tests/tooling/int-2-table-control.rce",
+   "id": "tooling/int-2-table-control",
+   "area": "tooling",
+   "clauses": [
+    "W-INT-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": null,
+   "ms": 7
   },
   {
    "path": "tests/tooling/run-change-one-line.rce",
@@ -47725,7 +47748,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 9
   },
   {
    "path": "tests/tooling/run-main-no-params.rce",
@@ -47737,7 +47760,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 11
   },
   {
    "path": "tests/tooling/run-main-ok.rce",
@@ -47750,7 +47773,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 6
   },
   {
    "path": "tests/tooling/run-needs-main.rce",
@@ -47762,7 +47785,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 4
+   "ms": 5
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-01-par-branches-accept.rce",
@@ -47816,7 +47839,7 @@
      "W-NAME-2"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-10-comptime-accept.rce",
@@ -47834,7 +47857,7 @@
      "W-NAME-2"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-12-borrow-accept.rce",
@@ -47888,7 +47911,7 @@
      "W-NAME-2"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-44-device-region-accept.rce",
@@ -47906,7 +47929,7 @@
      "W-NAME-2"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-47-select-fair-accept.rce",
@@ -47983,7 +48006,7 @@
      "W-NAME-2"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-06-device-kernel-accept.rce",
@@ -48055,7 +48078,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-37-actor-spawn-accept.rce",
@@ -48194,7 +48217,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-pty-accept.rce",
@@ -48234,7 +48257,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-04-scope-atomic-accept.rce",
@@ -48306,7 +48329,7 @@
      "W-SAFE-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-16-multi-region-accept.rce",
@@ -48447,7 +48470,7 @@
      "W-SAFE-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-ticked-accept.rce",
@@ -48593,7 +48616,7 @@
      "W-OWN-3"
     ]
    },
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/types-checking/harvested/ed25519-rce-change.rce",
@@ -48692,7 +48715,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/harvested/group-rce-change.rce",
@@ -48820,7 +48843,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 4
+   "ms": 7
   },
   {
    "path": "tests/types-checking/harvested/hpke-rce-change.rce",
@@ -49056,7 +49079,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/harvested/modify-while-iterating-change.rce",
@@ -49158,7 +49181,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/harvested/protect-rce-change.rce",
@@ -49326,7 +49349,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/types-checking/harvested/u64-mixed-change.rce",
@@ -49547,7 +49570,7 @@
      "W-TY-1"
     ]
    },
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/types-checking/harvested/w-ty-1-session-payload-change.rce",
@@ -49617,7 +49640,7 @@
      "W-NAME-1"
     ]
    },
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/types-checking/targeted/borrow-cannot-be-returned.rce",
@@ -49637,6 +49660,75 @@
     ]
    },
    "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/disjoint-field-borrows-run.rce",
+   "id": "types-checking/targeted/disjoint-field-borrows-run",
+   "area": "types-checking",
+   "clauses": [
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "outputs": [
+     "emit 11",
+     "emit 11"
+    ],
+    "outcome": "done"
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/let-borrow-state-element-trace.rce",
+   "id": "types-checking/targeted/let-borrow-state-element-trace",
+   "area": "types-checking",
+   "clauses": [
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "head": "c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72",
+    "lines": [
+     "0 (initial) S { xs = [0, 0, 0], i = 0 }",
+     "d applied 95c7b6f2bd919e70774519bd1cb9e7d74a382f7cadf3edb2a15155a2d99f6f38 {\"event\":{\"payload\":[1],\"type\":0},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"f2bef3773532002c5cea18c0a041537a48ae708e5628630dcebb09f11de5732a\"}",
+     "1 Hit(k: 1) S { xs = [0, 1, 0], i = 0 }",
+     "d applied 8c1bc07ebe1c9ca964b30f28d839af4835aa2de0b178045ba578b715ec3a36d5 {\"event\":{\"payload\":[1],\"type\":0},\"prev_hash\":\"95c7b6f2bd919e70774519bd1cb9e7d74a382f7cadf3edb2a15155a2d99f6f38\",\"seq\":1,\"state_hash\":\"29a3aa85d2911f8366c3472f25c0e2978332a0bb84ba1bb10dbea878b4d8b187\"}",
+     "2 Hit(k: 1) S { xs = [0, 2, 0], i = 0 }",
+     "d applied c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72 {\"event\":{\"payload\":[2],\"type\":0},\"prev_hash\":\"8c1bc07ebe1c9ca964b30f28d839af4835aa2de0b178045ba578b715ec3a36d5\",\"seq\":2,\"state_hash\":\"586dd9db153c8bb87e188ac1c4f2cf6968f11819f45c16ee30cf08b0d26905c1\"}",
+     "3 Hit(k: 2) S { xs = [0, 2, 1], i = 0 }",
+     "trace c7163251a5419d1f706a668136ab87b6c4ddca03d5bf2a3ca7c7924c8b202d72",
+     "fuel 74"
+    ]
+   },
+   "ms": 1
+  },
+  {
+   "path": "tests/types-checking/targeted/let-borrow-writes-through-run.rce",
+   "id": "types-checking/targeted/let-borrow-writes-through-run",
+   "area": "types-checking",
+   "clauses": [
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "outputs": [
+     "emit 6",
+     "emit 60",
+     "emit 1",
+     "emit 1",
+     "emit [1, 200, 3]",
+     "emit 2",
+     "emit 4"
+    ],
+    "outcome": "done"
+   },
+   "ms": 2
   },
   {
    "path": "tests/types-checking/targeted/s4-std-modules.rce",
@@ -49680,7 +49772,7 @@
    "status": "pass",
    "detail": "",
    "observed": null,
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/types-checking/targeted/w-match-2-unreachable.rce",
@@ -49717,7 +49809,7 @@
      "W-VIS-1"
     ]
    },
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/targeted/w-mod-2-cycle.rce",
@@ -49773,6 +49865,120 @@
     "codes": [
      "W-UNUSED-1",
      "W-NAME-1"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-call-elements.rce",
+   "id": "types-checking/targeted/w-own-2-call-elements",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-call-overlap.rce",
+   "id": "types-checking/targeted/w-own-2-call-overlap",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-let-borrow-field.rce",
+   "id": "types-checking/targeted/w-own-2-let-borrow-field",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-let-borrow-read.rce",
+   "id": "types-checking/targeted/w-own-2-let-borrow-read",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-let-borrow-shared-write.rce",
+   "id": "types-checking/targeted/w-own-2-let-borrow-shared-write",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
+    ]
+   },
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-own-2-let-borrow-write.rce",
+   "id": "types-checking/targeted/w-own-2-let-borrow-write",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "T6",
+    "W-OWN-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "observed": {
+    "verdict": "change",
+    "codes": [
+     "W-OWN-2"
     ]
    },
    "ms": 0

@@ -50,7 +50,9 @@ def label(d):
         return f"hello failed: {h['error'][:120]}"
     parts = [h.get("implementation", "?")]
     if h.get("commit"):
-        parts.append(f"version {h.get('version', '?')}, commit {h['commit']}")
+        # a report recorded before the reference stopped printing a typed
+        # version still carries `version`; current builds name only the commit
+        parts.append((f"version {h['version']}, " if h.get("version") else "") + f"commit {h['commit']}")
     if h.get("emitted_by"):
         parts.append(f"emitted by {h['emitted_by']}")
     if h.get("toolchain"):
