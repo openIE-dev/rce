@@ -797,6 +797,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 | `state_hash` and the entry `hash` over the positional forms (6.1, T7) | erratum, outside programs | the finding of 2026-10-22: the Lean model of T7 hashes declaration indices, the checker and the four runtimes hashed the canonical JSON keyed by region, field and type names, so a renamed program had different log hashes. The hashes now cover the positional forms and a renamed program has the same hashes, as T7 states. No program's outputs, states or outcomes change; every trace fixture, the conformance pins and the trace format (`rce-trace/2`) change, which is the log format and not a program's meaning |
+| a kept step does not end a run, a trace or an example (6.9, 10.3, 10.9) | erratum for runs and traces, extension for examples | T3 folds every event and HC-21 applies the next input after a kept step; `rce run`, `rce trace`, `rce run-core` and the emitted runtimes ended at the first kept step, so they now meet T3. An example whose earlier event is kept required change under W-INT-1 before and now holds when its last step and final state are as it states; every example that held before holds with the same trace, so no valid program changes meaning |
 
 The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
 what made the earlier text a different release. Every other row is an erratum, an extension or a
@@ -823,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 49e483f0feaec3fa0e01ead23f929e43e21bd2a464145581692bce29366aac48 -->
+<!-- body-sha256: c31f7a72b58278b52c6ffa13d2984b06563e73d695e5db7c670c9b4da5e2060f -->

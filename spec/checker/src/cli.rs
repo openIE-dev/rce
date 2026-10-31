@@ -13,9 +13,9 @@ use std::io::{BufRead, Write};
 pub const OK: i32 = 0;
 /// A text that is not in Form: it requires change.
 pub const REQUIRES_CHANGE: i32 = 1;
-/// A run of an admitted program that ended with a step whose event did not
-/// apply: the state was kept. Not a statement about the code; same status as
-/// spec 10.1 gives every non-zero outcome of a run.
+/// A run of an admitted program in which a step's event did not apply: the
+/// state was kept. Not a statement about the code; same status as spec 10.1
+/// gives every non-zero outcome of a run.
 pub const STEP_KEPT: i32 = 1;
 pub const USAGE: i32 = 2;
 /// A question the command could not decide within its bound (10.1):
@@ -86,17 +86,21 @@ fn show_state_redacted(s: &[Region], redact: &[&str]) -> String {
         .join("; ")
 }
 
-/// Outcome of `rce run`: the printed lines and whether the run ended with a
-/// kept step.
+/// Outcome of `rce run`: the printed lines and whether a step of the run
+/// kept the state (with events: any step; without: `main` did not finish).
 #[derive(Debug, PartialEq)]
 pub struct RunOut {
     pub lines: Vec<String>,
     pub kept: bool,
+    /// The last line is a kept step (with events) or the end of a `main`
+    /// that did not finish: the outcome of the run is in that line.
+    pub last_kept: bool,
 }
 
 /// `rce run FILE EVENTS`: apply δ to the initial state once per event, in
-/// order, printing the state and outputs after each. Stops at the first
-/// event whose step keeps the state. Without events, runs `fn main()` and prints its outputs.
+/// order, printing the state and outputs after each. A step that keeps the
+/// state (T8) is printed as kept and the next event is applied to the
+/// unchanged state, as on the host (HC-21). Without events, runs `fn main()` and prints its outputs.
 /// The module must be admitted first (as by `rce check`).
 pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let d = diagnostics(src, &HashSet::new());
@@ -125,7 +129,7 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
                 true
             }
         };
-        return Ok(RunOut { lines, kept });
+        return Ok(RunOut { lines, kept, last_kept: kept });
     };
     // The event list uses the syntax of an `example` line (3.x): parse it as one.
     let probe =
@@ -135,6 +139,7 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     };
     let mut s = it.initial_state().map_err(why)?;
     lines.push(format!("0 (initial) {}", show_state(&s)));
+    let (mut kept, mut last_kept) = (false, false);
     for (k, (evn, args)) in x.events.iter().enumerate() {
         it.scopes = vec![HashMap::new()];
         let ev: V = match it.construct(evn, args) {
@@ -152,17 +157,12 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
             }
             Err(r) => {
                 lines.push(format!("{} {} kept: {r}", k + 1, ev.show()));
-                return Ok(RunOut {
-                    lines,
-                    kept: true,
-                });
+                kept = true;
+                last_kept = k + 1 == x.events.len();
             }
         }
     }
-    Ok(RunOut {
-        lines,
-        kept: false,
-    })
+    Ok(RunOut { lines, kept, last_kept })
 }
 
 /// Number of `example` lines and `check` items in a module.

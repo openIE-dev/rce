@@ -997,11 +997,14 @@ def run_events(s0: Vector[Any], events: Vector[Any], d: DLog): Unit = {
     try ev = th() catch { case e: Flow => say(s"$k $name " + why(e)); return }
     if (ev == null) { say(s"$k $name not an event"); return }
     var r: (Vector[Any], Vector[Any]) = null
-    try r = delta(s, ev) catch { case e: Kept => if (tr) d.add(name, ev, s, true); say(s"$k " + show(ev) + " kept: " + e.r); return }
-    s = r._1
-    if (tr) d.add(name, ev, s, false)
-    say(s"$k " + show(ev) + " " + show_state(s))
-    for (o <- r._2) say("  emit " + show(o))
+    // a kept step keeps the state (T8) and the next event is applied to it
+    try r = delta(s, ev) catch { case e: Kept => if (tr) d.add(name, ev, s, true); say(s"$k " + show(ev) + " kept: " + e.r) }
+    if (r != null) {
+      s = r._1
+      if (tr) d.add(name, ev, s, false)
+      say(s"$k " + show(ev) + " " + show_state(s))
+      for (o <- r._2) say("  emit " + show(o))
+    }
   }
 }
 // ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it

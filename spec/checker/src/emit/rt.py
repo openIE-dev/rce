@@ -1058,7 +1058,7 @@ def run_events(s, events, d):
         try: s2, outs = delta(s, ev)
         except Kept as r:
             if TRACE: d.add(name, ev, s, True)
-            print("%d %s kept: %s" % (k, show(ev), r.r)); return
+            print("%d %s kept: %s" % (k, show(ev), r.r)); continue
         s = s2
         if TRACE: d.add(name, ev, s, False)
         print("%d %s %s" % (k, show(ev), show_state(s)))

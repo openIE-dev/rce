@@ -1,10 +1,11 @@
 {
   "format": "rce-interop-streams/1",
-  "note": "Each stream is a list of events as JSON objects: \"type\" names the event and every other key is a payload field. A kept step, when a stream has one, is its last event, so the transcript equals `rce run FILE EVENTS` byte for byte.",
+  "note": "Each stream is a list of events as JSON objects: \"type\" names the event and every other key is a payload field. A kept step keeps the state and the next event is applied to it, in `rce run FILE EVENTS` as in every host, so the transcript equals the reference byte for byte.",
   "programs": [
     {"name": "counter", "file": "spec/examples/01_counter.rce", "streams": [
       [{"type": "Inc"}, {"type": "Inc"}, {"type": "Dec"}, {"type": "Dec"}, {"type": "Dec"}],
-      [{"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}]]},
+      [{"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}, {"type": "Inc"}],
+      [{"type": "Dec"}, {"type": "Inc"}, {"type": "Dec"}, {"type": "Dec"}, {"type": "Inc"}]]},
     {"name": "bank", "file": "spec/examples/04_bank_account.rce", "streams": [
       [{"type": "Deposit", "amount": 50}, {"type": "Withdraw", "amount": 20}, {"type": "Deposit", "amount": 0}, {"type": "Withdraw", "amount": 100}],
       [{"type": "Deposit", "amount": 9007199254740993}, {"type": "Withdraw", "amount": 9007199254740992}]]},

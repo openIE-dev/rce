@@ -57,7 +57,7 @@ fn check_test_run_in_wasi() {
     assert!(r.fuel_used > 0 && r.fuel_used <= r.fuel_limit);
     assert_eq!(r.features().wasi_fuel, r.fuel_used);
     let r = sb.test(&w, "counter.rce", FUEL).unwrap();
-    assert!(r.stdout.contains("(2 examples, 0 checks)"), "{r:?}");
+    assert!(r.stdout.contains("(3 examples, 0 checks)"), "{r:?}");
     let r = sb.check(&w, "bad.rce", FUEL).unwrap();
     assert_eq!(r.exit_code, Some(1), "{r:?}");
     let r = sb

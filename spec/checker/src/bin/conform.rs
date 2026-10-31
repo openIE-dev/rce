@@ -122,9 +122,11 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
     }
     match cli::run(src, events) {
         Ok(r) => {
-            let outcome = outcome_of(&r.lines, r.kept);
+            // the outcome of a run is that of its last step: an earlier kept
+            // step is a line of the outputs, and the run went on (6.9)
+            let outcome = outcome_of(&r.lines, r.last_kept);
             let mut lines = r.lines.clone();
-            if r.kept {
+            if r.last_kept {
                 lines.pop();
             }
             json!({"verdict": "accept", "outputs": lines, "outcome": outcome})

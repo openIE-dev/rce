@@ -2798,12 +2798,13 @@ pub fn admit(m: &Module) -> Vec<String> {
                         }
                         s = s2;
                     }
+                    // 6.9: the example states the outcome of its last step;
+                    // an earlier kept step keeps the state (T8) and the next
+                    // event is applied to it
                     Err(r) => {
-                        if k + 1 == n && x.kept.as_deref() == Some(r.as_str()) {
-                        } else {
+                        if k + 1 == n && x.kept.as_deref() != Some(r.as_str()) {
                             bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
                         }
-                        break;
                     }
                 }
             }
@@ -2976,11 +2977,11 @@ pub fn trace_examples(m: &Module) -> Vec<(usize, Vec<TraceStep>)> {
                     });
                 }
                 Err(r) => {
+                    // a kept step keeps the state (T8); the next event is applied to it
                     steps.push(TraceStep {
                         event: label,
                         result: Err(r),
                     });
-                    break;
                 }
             }
         }
@@ -3434,7 +3435,7 @@ pub fn form_json(m: &Module) -> String {
                 };
                 let evj = event_json(evn, &ev, m);
                 let evp = event_pos_json(evn, &ev, m);
-                let (outcome, out, kept) = match it.delta(&s, &ev) {
+                let (outcome, out) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
                         let o = outs
@@ -3442,9 +3443,10 @@ pub fn form_json(m: &Module) -> String {
                             .map(|o| form_value(o, m).json())
                             .collect::<Vec<_>>()
                             .join(",");
-                        ("\"applied\"".to_string(), o, false)
+                        ("\"applied\"".to_string(), o)
                     }
-                    // T8: a kept step leaves the state unchanged.
+                    // T8: a kept step leaves the state unchanged, and the
+                    // next event is applied to that state.
                     Err(r) => (
                         format!("{{\"kept\":{}}}", jstr(&r)),
                         format!(
@@ -3452,7 +3454,6 @@ pub fn form_json(m: &Module) -> String {
                             jstr(&r),
                             form_value(&ev, m).json()
                         ),
-                        true,
                     ),
                 };
                 let st = state_fv(&s).json();
@@ -3469,9 +3470,6 @@ pub fn form_json(m: &Module) -> String {
                     "{{\"event\":{evj},\"hash\":\"{h}\",\"hashed\":{{\"event\":{evp},\"state\":{stp}}},\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
                 ));
                 prev = h;
-                if kept {
-                    break;
-                }
             }
             logs.push(format!(
                 "{{\"example_line\":{},\"D\":[{}]}}",

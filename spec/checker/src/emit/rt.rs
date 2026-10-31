@@ -994,7 +994,7 @@ fn run_example1(line: usize, events: Vec<Ev>) {
                 println!("{k} {} {}", show(&ev), show_state(&s));
                 for o in outs { println!("  emit {}", show(&o)); }
             }
-            Err(r) => { if tr { d.add(name, &ev, &s, true); } println!("{k} {} kept: {r}", show(&ev)); break; }
+            Err(r) => { if tr { d.add(name, &ev, &s, true); } println!("{k} {} kept: {r}", show(&ev)); }
         }
     }
     if tr { println!("trace {}", d.prev); }

@@ -4,7 +4,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the third event, whose step keeps the state, with exit status 1.
+and shows that the step of the third event keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -94,20 +94,22 @@ step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
 regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
-is `k EVENT kept: ERROR`, no later event is applied, and the status is
-1. Otherwise the status is 0. An event name that is not declared is a usage
+is `k EVENT kept: ERROR`, sₖ = sₖ₋₁ (T8), and the next event is applied to
+that state, as on the host (HC-21). The status is 1 when the step of some
+event keeps the state, and 0 otherwise. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
 
 For the counter `spec/examples/01_counter.rce`:
 
 ```
-$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec"
+$ rce run 01_counter.rce "Inc, Inc, Dec, Dec, Dec, Inc"
 0 (initial) Counter { n = 0 }
 1 Inc Counter { n = 1 }
 2 Inc Counter { n = 2 }
 3 Dec Counter { n = 1 }
 4 Dec Counter { n = 0 }
 5 Dec kept: Underflow
+6 Inc Counter { n = 1 }
 ```
 
 **Without EVENTS.** The module must declare `fn main()` with no
@@ -586,8 +588,10 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A kept step is the last step of its trace, with the unchanged state's
-hash (T8). A projector conforms on a module when, for every trace, its
+A kept step is a step of its trace, with outcome {`kept`: error name}
+and the unchanged state's hash (T8), and the next event is applied to
+that unchanged state, as on the host (HC-21); a trace ends only with its
+event list. A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
@@ -779,4 +783,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 5556bcf8874f54cf7e025c1a6ed9da54b1004927ffa2b8d0215930b24e193074 -->
+<!-- body-sha256: 72580ea7f87d6a9b7c097958d7c248a6fc6d86594bbff45fb74933de5a0342b6 -->
