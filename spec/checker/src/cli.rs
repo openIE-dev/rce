@@ -21,6 +21,9 @@ pub const USAGE: i32 = 2;
 /// A question the command could not decide within its bound (10.1):
 /// `rce equiv` and `rce change` when exploration reached `--fuel` first.
 pub const UNDECIDED: i32 = 3;
+/// A run the host cannot perform (10.1): `fn main` needs task threads and
+/// the host starts none (`conc::NO_TASK_THREADS`, `wasm32-wasip1`).
+pub const HOST_LIMIT: i32 = 4;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
 /// `known` is the set of module paths `use` may resolve to.
@@ -109,8 +112,9 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let Some(evs) = events else {
         // fn main() runs on the tick runtime of chapter C (tasks, channels,
         // actors, par, budgets, deadlines)
-        let r = crate::conc::run_main(&m, &crate::conc::RunCfg::default())
-            .map_err(|e| format!("{e}: give events, or declare `fn main()`"))?;
+        let r = crate::conc::run_main(&m, &crate::conc::RunCfg::default()).map_err(|e| {
+            if crate::conc::is_no_task_threads(&e) { e } else { format!("{e}: give events, or declare `fn main()`") }
+        })?;
         for o in &r.outputs {
             lines.push(format!("emit {}", o.show()));
         }
@@ -562,6 +566,14 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
 /// never checked: these are event lists, not examples (used by
 /// `scripts/xarch-streams.py` for the determinism streams of T37).
 pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, String> {
+    trace_report(file, src, streams).map(|(t, _)| t)
+}
+
+/// `trace_streams`, with the reason the trace of `fn main` is absent: when
+/// the host cannot start a task thread (`conc::NO_TASK_THREADS`), the trace
+/// of `fn main` is `{source: "main", outcome: {absent: REASON}, steps: []}`
+/// and the second value is REASON; the other traces are unchanged.
+pub fn trace_report(file: &str, src: &str, streams: &[&str]) -> Result<(String, Option<String>), String> {
     let d = diagnostics(src, &HashSet::new());
     if !d.is_empty() {
         return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
@@ -620,8 +632,16 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     if let (Some(evs), true) = (events, traces.is_empty()) {
         return Err(format!("events: `{evs}` gives no trace (no state, or an unknown event)"));
     }
+    let mut absent = None;
     if streams.is_empty() && has_main(&m) {
-        traces.push(main_trace(&m, &crate::conc::RunCfg::default())?);
+        match main_trace(&m, &crate::conc::RunCfg::default()) {
+            Ok(t) => traces.push(t),
+            Err(e) if crate::conc::is_no_task_threads(&e) => {
+                traces.push(serde_json::json!({ "source": "main", "outcome": { "absent": e }, "steps": [] }));
+                absent = Some(e);
+            }
+            Err(e) => return Err(e),
+        }
     }
     let name = std::path::Path::new(file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     let mut v = serde_json::json!({
@@ -634,7 +654,7 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     if streams.len() > 1 {
         v["streams"] = serde_json::json!(streams.len());
     }
-    Ok(crate::interp::canon_json(&v))
+    Ok((crate::interp::canon_json(&v), absent))
 }
 
 /// Whether a module declares `fn main()` with no parameters, the program
@@ -819,6 +839,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     }
                     if r.kept { STEP_KEPT } else { OK }
                 }
+                Err(e) if crate::conc::is_no_task_threads(&e) => {
+                    writeln!(err, "{}: {e}", rest[0]).map_err(w)?;
+                    HOST_LIMIT
+                }
                 Err(e) => {
                     writeln!(out, "requires change {}: {e}", rest[0]).map_err(w)?;
                     REQUIRES_CHANGE
@@ -873,10 +897,16 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
         }
         Some("trace") if (rest.len() == 2 || rest.len() == 3) && rest[0] == "--json" => {
-            match trace(&rest[1], &read_file(&rest[1])?, rest.get(2).map(String::as_str)) {
-                Ok(t) => {
+            let streams: Vec<&str> = rest.get(2).map(String::as_str).into_iter().collect();
+            match trace_report(&rest[1], &read_file(&rest[1])?, &streams) {
+                Ok((t, None)) => {
                     writeln!(out, "{t}").map_err(w)?;
                     OK
+                }
+                Ok((t, Some(e))) => {
+                    writeln!(out, "{t}").map_err(w)?;
+                    writeln!(err, "{}: no trace of fn main: {e}", rest[1]).map_err(w)?;
+                    HOST_LIMIT
                 }
                 Err(e) => {
                     writeln!(out, "requires change {}: {e}", rest[1]).map_err(w)?;

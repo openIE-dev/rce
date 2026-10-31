@@ -85,6 +85,46 @@ fn run_main_and_errors() {
     assert!(out.contains("Nope"), "{out}");
 }
 
+/// A host that cannot start a task thread (WASI preview 1 has none): `rce
+/// run` on `fn main` and the trace of `fn main` in `rce trace` fail with one
+/// line naming the limit and status 4, never a panic; `rce trace` still
+/// prints the example traces and a main trace `{outcome: {absent: R}}`.
+/// The limit is set on this test's thread, so other tests are not affected.
+#[test]
+fn main_without_task_threads_is_a_host_limit() {
+    use rce_spec_check::conc;
+    let spawn = "../examples/13_spawn_chan.rce";
+    // 0: the thread of main itself; 1: the task main spawns, during the run
+    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1)] {
+        conc::refuse_task_threads_after(Some(after));
+        let (c, out, err) = rce(&["run", file]);
+        assert_eq!((c, out.as_str()), (cli::HOST_LIMIT, ""), "{file} {after}: {err}");
+        assert_eq!(err.lines().count(), 1, "{err}");
+        assert!(err.starts_with(&format!("{file}: {}", conc::NO_TASK_THREADS)), "{err}");
+
+        conc::refuse_task_threads_after(Some(after));
+        let (c, out, err) = rce(&["trace", "--json", file]);
+        assert_eq!(c, cli::HOST_LIMIT, "{err}");
+        assert_eq!(err.lines().count(), 1, "{err}");
+        assert!(err.starts_with(&format!("{file}: no trace of fn main: {}", conc::NO_TASK_THREADS)), "{err}");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let ts = v["traces"].as_array().unwrap();
+        let main = ts.last().unwrap();
+        assert_eq!(main["source"], "main");
+        assert_eq!(main["steps"], json!([]));
+        assert!(main["outcome"]["absent"].as_str().unwrap().starts_with(conc::NO_TASK_THREADS));
+        // the example traces are those of a host with threads
+        conc::refuse_task_threads_after(None);
+        let (c, full, _) = rce(&["trace", "--json", file]);
+        assert_eq!(c, cli::OK);
+        let f: serde_json::Value = serde_json::from_str(&full).unwrap();
+        let fs = f["traces"].as_array().unwrap();
+        assert_eq!(ts[..ts.len() - 1], fs[..fs.len() - 1]);
+        assert_eq!(fs.last().unwrap()["source"], "main");
+    }
+    conc::refuse_task_threads_after(None);
+}
+
 #[test]
 fn run_is_deterministic() {
     let a = rce(&["run", COUNTER, "Inc, Dec, Inc"]);

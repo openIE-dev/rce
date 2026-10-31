@@ -16,6 +16,7 @@ want() { grep -v '^#' "$golden" | grep -Ev "$skip" || true; }
 got() { grep -Ev "$skip" "$out" || true; }
 if [ -n "${XARCH_SKIP:-}" ]; then
   echo "declared unsupported on this target (not compared): $(grep -v '^#' "$golden" | grep -Ec "$skip" || true) golden line(s) matching /$XARCH_SKIP/"
+  grep -v '^#' "$golden" | grep -E "$skip" | sed 's/^/  skipped: /' || true
 fi
 n=$(want | wc -l | tr -d ' ')
 if diff <(want) <(got); then

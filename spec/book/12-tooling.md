@@ -33,7 +33,9 @@ and stops at the third event, whose step keeps the state, with exit status 1.
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `--fuel` before either equivalence or a
-   distinguishing event sequence was established (10.11).
+   distinguishing event sequence was established (10.11). 4 means a run
+   the host cannot perform: `fn main` needs task threads and the host
+   cannot start one (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -117,6 +119,18 @@ The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
 runtime. The body runs on the tick runtime of 6.8 and Appendix C, whose log
 of the run is the trace of `fn main` in `rce trace` (10.9).
+
+The reference tick runtime runs each task, `fn main` included, on its own
+thread of the host. A host that cannot start a thread, such as WASI
+preview 1 (`rce` built for `wasm32-wasip1`), cannot perform the run: the
+command prints nothing on standard output and one line on standard error,
+`FILE: fn main needs task threads, which this host does not provide
+(HOST: REASON)`, HOST being the host's architecture and system and REASON
+the host's error, and the status is 4. Whatever output the run had
+produced before the failing start is not printed. A scheduler that runs
+tasks as state machines, without threads, is the next slice of the
+proposal `one-emitter.md` (section 13, 10.12); with it this run needs no
+thread.
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -570,7 +584,7 @@ resolution of C.15), compact, with sorted keys:
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
-| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line), `"events"` or `"main"`; a `"main"` trace also has `outcome` |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line), `"events"` or `"main"`; a `"main"` trace also has `outcome` (below) |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
 | `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
@@ -635,6 +649,16 @@ hashes of a main trace, where an example's (T7) stay the same. With
 `--trace`, an emitted program run with `--run` prints the trace of
 `fn main` as lines of D (10.5). The core evaluator (10.12) does not run
 `fn main` on the tick runtime, so it prints no trace of `fn main`.
+
+On a host that cannot start a task thread (10.3, WASI preview 1) the run
+does not happen, and the trace of `fn main` is absent: it is
+`{"source": "main", "outcome": {"absent": REASON}, "steps": []}`, REASON
+being the line of 10.3 after `FILE: `. The other traces are printed as on
+any host, standard error has one line `FILE: no trace of fn main:
+REASON`, and the status is 4. A projector conforms on such a module only
+on a host that runs `fn main`; the cross-architecture parity job
+(`.github/workflows/xarch-parity.yml`) lists the five examples with
+`fn main()` as not compared on `wasm32-wasip1`, for this reason.
 
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
@@ -792,8 +816,12 @@ The core evaluator observes `fn main` as one call of its body, as the
 `main` block of the proposal's trace (ONE-5) does, not as a run on the
 tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
 supervisor (status 2), and the core has no scheduler, so `rce run-core`
-prints no trace of `fn main` (10.9).
+prints no trace of `fn main` (10.9). The next slice of the proposal is a
+scheduler in the core that runs tasks as state machines, without threads
+of the host; the reference's run of `fn main` needs a thread per task, so
+on a host without threads (WASI preview 1) it is absent (10.3, 10.9), and
+that slice is what makes the run possible there.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 0875083252b811d45cd44c39dcdc82323323e87c22d585c793d0234f0016681f -->
+<!-- body-sha256: 6068f55aa66d7e498cad66bd807e7478ef6eb18e14223b3d0e6b9ecf82f673a6 -->
