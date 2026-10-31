@@ -1,0 +1,5 @@
+fn walk(n: u64) -> u64 bound 100
+    decreases n
+    if n == 0
+        return 0
+    return 1 + walk(n + 1)

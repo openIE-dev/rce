@@ -80,8 +80,62 @@ $ rce check mixed_types.rce
 - `text`: a string of Unicode text, such as `"hello"`. Chapter 8 covers it.
 - `()`: the unit type, the result of a function that returns nothing.
 
+## Every name is read
+
+A name that is declared and never read is either dead code or a mistake, so
+it requires change under rule `W-UNUSED-1`. This covers `let` and `var`
+names, parameters, names bound by patterns and modules named by `use`:
+
+```rce
+{{#include ../listings/ch02/change/unused.rce}}
+```
+
+```text
+$ rce check unused.rce
+{{#include ../listings/ch02/change/unused.out}}
+```
+
+When a name has to exist but is not needed, start it with `_`. That is the
+one spelling for "deliberately unused", so reading a name that starts with
+`_` requires change too. The same goes for values: a statement that computes
+a value and drops it, such as a bare call `double(4)`, requires change under
+`W-DROP-1` unless the function returns `()`. To drop a value on purpose,
+bind it to `_`:
+
+```rce
+{{#include ../listings/ch02/names.rce}}
+```
+
+```rce
+{{#include ../listings/ch02/change/dropped.rce}}
+```
+
+```text
+$ rce check dropped.rce
+{{#include ../listings/ch02/change/dropped.out}}
+```
+
+One name means one thing inside a function. A declaration whose name is
+already visible from an enclosing scope (a local, a parameter, a state
+field, a top-level name or an imported name) *shadows* it, and shadowing
+requires change under `W-NAME-3`. The report names both places:
+
+```rce
+{{#include ../listings/ch02/change/shadow.rce}}
+```
+
+```text
+$ rce check shadow.rce
+{{#include ../listings/ch02/change/shadow.out}}
+```
+
+(`if` is the subject of chapter 3; here it is enough that `cost` is
+declared twice, the second time inside the block under `if`.)
+
 ## What you learned
 
 - Functions, constants and `check` tests.
 - Integer types have exact ranges, and going outside a range traps.
 - Conversions between types are always written with `as`.
+- Every name and every computed value is used; `_` and a leading `_` mark
+  what is unused on purpose, and no name shadows another.

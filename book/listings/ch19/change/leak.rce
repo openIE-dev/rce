@@ -1,0 +1,10 @@
+label pii
+
+state Desk
+    shown: u64 = 0
+
+event Show(code: u64 @ {pii})
+
+step Desk on Show(code: c)
+    emit c
+    shown += 1

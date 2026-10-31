@@ -1,0 +1,17 @@
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn describe(xs: &[i64]) -> text
+    if let some(v) = first_even(xs) and v > 10
+        return "a big even number"
+    else
+        return "no big even number first"
+
+const SMALL: List[i64] = [1, 4, 12]
+const BIG: List[i64] = [3, 20]
+
+check describe(&SMALL) == "no big even number first"
+check describe(&BIG) == "a big even number"

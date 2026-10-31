@@ -43,14 +43,10 @@ the same gate, the reference trace of every example program byte for byte;
 the design is not built yet. This chapter
 uses the targets the reference checker emits today.
 
-`rce emit rust`, `rce emit python` and `rce emit js` translate a checked
-program into one self-contained file. Running that file prints the
+`rce emit rust`, `rce emit python`, `rce emit js` and `rce emit scala`
+translate a checked program into one self-contained file. Running that file prints the
 program's *observations*: the result of each check, and the state after
 each event of each example.
-
-![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
-
-*Test and differential results for the emitters and the IDE, October 2026. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
 ```text
 $ rce emit python counter.rce | python3 -
@@ -64,8 +60,14 @@ $ rce emit js counter.rce > counter.mjs && node counter.mjs
 
 The two outputs are the same line for line. The checker's own test suite
 holds the emitters to this: it emits every example program of the
-specification in all three languages, runs each one, and requires its
-output to equal the reference interpreter's.
+specification, runs each one, and requires its output to equal the
+reference interpreter's.
+
+Started with the argument `--run`, an emitted program runs `fn main`
+instead, with its tasks and channels (chapter 14). An emitter does not yet
+print a module with a contract (chapter 4) or a `ct fn` (chapter 19): for
+such a module `rce emit` prints the rule (`W-RES-1` or `W-CTFN-2`) and the
+construct, and exits with status 1. `rce run` and `rce test` still run it.
 
 ## What you learned
 

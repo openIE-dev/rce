@@ -1,6 +1,6 @@
 # Media, calls and end-to-end encryption
 
-This appendix describes the programs and libraries that give RCE
+This chapter describes the programs and libraries that give RCE
 programs media, calls and end-to-end encryption (E2EE): encryption in
 which only the communicating peers hold the keys, so relays and storage
 see ciphertext only. Everything here is ordinary RCE code run on the
@@ -30,7 +30,7 @@ event in the log D).
   them are entries of D. D is device-local; `rce host replay --redact`
   (chapter 16) shows such fields as digests.
 - **Checked against official vectors.** Each library carries `check`
-  lines for its primitives (run with `rce test lib/FILE.rce`), and the
+  lines for its primitives (run with `rce test stdlib/lib/FILE.rce`), and the
   test suite runs the official vectors of each standard as host steps
   and then replays the log.
 
@@ -132,7 +132,7 @@ The test suite checks the RFC 9180 base-mode vector at sequence numbers
 
 ## Group keys: MLS
 
-`stdlib/lib/mls.rce` is the first part of Messaging Layer Security (MLS), the
+`stdlib/lib/mls.rce` is the base of Messaging Layer Security (MLS), the
 group key agreement of RFC 9420, for cipher suite 1
 (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519). It provides:
 
@@ -149,9 +149,26 @@ group key agreement of RFC 9420, for cipher suite 1
   HPKE public key of an epoch.
 
 The test suite checks the official `tree-math.json` and
-`key-schedule.json` vectors (all five epochs of suite 1). TreeKEM path
-secrets, commits, adds and removes are later parts. A runnable example is `run.sh mls` in the examples of the host runtime, whose examples hold the epoch 0
-vector.
+`key-schedule.json` vectors (all five epochs of suite 1). A runnable
+example is `run.sh mls` in the examples of the host runtime, whose examples
+hold the epoch 0 vector.
+
+Five more modules of `stdlib/lib`, each pure RCE on the ones before it,
+carry MLS further, each checked against the official vectors of suite 1 by
+a test of the checker:
+
+- `treekem.rce`: ratchet trees (RFC 9420 section 7): decoding a serialized
+  tree, tree hashes, resolutions, parent-hash validity, and processing and
+  generating update paths (`tree-validation.json`, `treekem.json`).
+- `framing.rce`: the wire structures of section 6 and a decoder and encoder
+  for MLSMessage (`messages.json`).
+- `protect.rce`: message protection: the secret tree, the application and
+  handshake ratchets, and PrivateMessage and PublicMessage
+  (`secret-tree.json`, `message-protection.json`).
+- `welcome.rce`: joining a group from a Welcome message
+  (`welcome.json`, `passive-client-welcome.json`).
+- `grp.rce`: the group state of a passive member across epochs, applying
+  proposals and commits (`passive-client-handling-commit.json`).
 
 ## The sandbox under these programs
 

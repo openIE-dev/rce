@@ -57,8 +57,49 @@ expression over the final state, such as `light == Yellow` or
 `items == ["jam"] and adds == 2`. Chapter 10 has an example of the second
 kind.
 
+## Contracts
+
+A `check` tests one call. A *contract* states what every call of a function
+needs and gives back:
+
+```rce
+{{#include ../listings/ch04/contracts.rce}}
+```
+
+- `requires E` is a *precondition*: a condition on the arguments that the
+  caller must meet.
+- `ensures E` is a *postcondition*: a condition on the result, which the
+  clause names `result`, that the function must meet.
+- `ghost let before = balance` names a value that only the clauses read.
+  Code that runs may not read a ghost name (`W-GHOST-1`).
+
+The clauses come first in the body, before the first ordinary statement. A
+contract is enforced on every call: the checker turns each clause into a
+test that runs at that point, `requires` on entry and `ensures` at every
+`return`. There is no build in which contracts are switched off. A clause
+that does not hold traps, and the trap names which clause failed, by its
+kind, its position in the function (counting from 0) and the hash of the
+function:
+
+```rce
+{{#include ../listings/ch04/change/broken_contract.rce}}
+```
+
+```text
+$ rce check broken_contract.rce
+{{#include ../listings/ch04/change/broken_contract.out}}
+```
+
+The second clause, `amount <= balance`, is index 1. A trap inside a step
+keeps the state, as chapter 6 explains. The checker does not yet prove a
+contract before the program runs: it enforces it when the function is
+called, and the emitters of chapter 15 do not yet translate a function with
+a contract.
+
 ## What you learned
 
 - `check` and `example` are tests that live in the program.
 - A program whose tests fail requires change (rule `W-INT-1`).
 - `rce test` runs the same checks as `rce check` and counts them.
+- `requires` and `ensures` state a function's contract, enforced on every
+  call; `ghost let` names values only the clauses read.

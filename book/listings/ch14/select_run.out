@@ -1,0 +1,7 @@
+emit 100
+emit 200
+emit 101
+emit 102
+emit 201
+emit 202
+exit status: 0

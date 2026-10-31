@@ -1,0 +1,2 @@
+requires change ../tour/sloppy.rce: HC-27 the log counter.log was written by the program aea9cf3f1bbb06c23af9374ff3ccc3295504ab07d29e996dfd29ea4c41362d8a (counter.log.program), and this program is 5e28a5e5f5b8c9445609c55d58d8c62ebee8b465d5d7122c969e172bdd172e99; a log replays only with the program that wrote it: start a new log for a changed program, or, for a change `rce change` classifies as an erratum, write the new hash to counter.log.program
+exit status: 1

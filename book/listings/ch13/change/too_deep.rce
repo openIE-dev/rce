@@ -1,0 +1,6 @@
+fn depth(n: u64) -> u64 bound 10
+    if n == 0
+        return 0
+    return 1 + depth(n - 1)
+
+check depth(50) == 50

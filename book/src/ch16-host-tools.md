@@ -138,6 +138,50 @@ Three inputs reach a program on the host that it never asks for.
   with `interrupted` (HC-22). New ids start at `below`, so an id the
   program kept from before the restart names no new socket.
 
+## A log belongs to its program
+
+A log D replays to the state its program derived only with that same
+program. So the host binds the two (HC-27): beside D it keeps the file
+`D.program`, which holds the *module hash* of the program, the SHA-256 of
+its text in canonical layout (so layout and comments are not part of it).
+`rce host run` and `rce host serve` write `D.program` when it is absent.
+A program whose hash differs from it requires change on that log: the host
+names both hashes and opens nothing, so D is unchanged. `rce host replay`
+checks it too. Here the log `counter.log` was written by the counter of the
+tour, and the version that stops at zero without saying so is offered to
+it:
+
+```text
+$ rce host replay ../tour/sloppy.rce --log counter.log
+{{#include ../listings/ch16/bound_log.out}}
+```
+
+A changed program starts a new log. For a change that `rce change`
+(chapter 18) classifies as an erratum, the operator may instead write the
+new hash into `D.program`, and that write is the record of the decision.
+The module hash covers the program's own text, not the library modules it
+uses, which the `rce` build pins.
+
+## Running a program as a service
+
+`docs/DEPLOY.md` in the repository runs `programs/network/notes_http.rce`
+as a service, with the released binary (chapter 1) or the container image
+`ghcr.io/openie-dev/rce`. The image runs `rce` as an unprivileged user, with
+the working directory `/srv` and the volume `/data` for logs:
+
+```sh
+docker run -d --name notes -p 8080:8080 \
+  -v rce-data:/data -v "$PWD/programs/network:/srv:ro" \
+  ghcr.io/openie-dev/rce:latest \
+  host serve /srv/notes_http.rce --log /data/notes --http 0.0.0.0:8080
+```
+
+The state is always the replay of D, so D is the only thing to keep.
+Stopping the container sends the termination signal, which ends the loop
+after the entry in progress; a new process on the same log continues where
+the last one stopped. To back up, stop the service, copy the log directory
+and check the copy with `rce host replay`.
+
 ## The net adapter: `--net HOST:PORT`
 
 `--net HOST:PORT` grants connections of the Transmission Control

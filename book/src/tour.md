@@ -114,4 +114,5 @@ $ rce equiv --fuel 1000 counter.rce sloppy.rce
 - [The Form and the emitters](ch15-form-emitters.md) prints this program as
   Rust, Python, JavaScript or Scala with the same trace.
 - [Behaviour, sameness and dimension](ch18-behaviour-dimension.md) covers
-  `rce equiv` and `rce dim`.
+  `rce equiv`, `rce dim` and `rce change`, which classifies a change to a
+  program by its exports and its behaviour.
