@@ -393,7 +393,7 @@ fn main() {
         let events = req["events"].as_str();
         let mut resp = match req["op"].as_str().unwrap_or("") {
             "hello" => json!({"protocol": "rce-adapter/1", "implementation": "rce reference interpreter",
-                              "version": env!("CARGO_PKG_VERSION"), "commit": rce_spec_check::GIT_COMMIT, "ops": ["check", "run", "trace", "host", "replicate"],
+                              "commit": rce_spec_check::GIT_COMMIT, "ops": ["check", "run", "trace", "host", "replicate"],
                               "features": ["fuel", "schedule_seed", "trace"]}),
             "check" => {
                 let files: Vec<(String, String)> = match req["files"].as_object() {

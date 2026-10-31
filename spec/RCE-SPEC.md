@@ -101,10 +101,11 @@ conforms when it accepts exactly the programs this document accepts and gives
 each one the meaning this document gives it.
 
 **Document status.** This specification is the only normative text.
-`SURFACE.md` (the native surface design) and `FORM.md` (the compiler
-notes) are informative: two normative texts with two grammars could
-disagree, and only one of them is checked by machine. Their programs
-must still be accepted by the reference checker. The Form signature is
+`SURFACE.md` (the native surface design) and the proposals in
+`spec/proposals/` are informative: two normative texts with two grammars
+could disagree, and only one of them is checked by machine. The programs
+in `SURFACE.md` must still be accepted by the reference checker
+(`spec/checker/tests/surface_status.rs`). The Form signature is
 6.1.
 
 The normative grammar is section 3, and it is also the machine-readable one:
@@ -114,17 +115,17 @@ shift/reduce or reduce/reduce conflict, then parses every program in
 `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
 reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
-form one program and must be accepted; the 12 syntax rejects, the 48
+form one program and must be accepted; the 12 syntax rejects, the 49
 programs in `spec/examples/change/types/` and the 16 in
 `spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
-with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
-1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
-12/12 requiring change; checker 62/62 accepted, 12/12 and 64/64 requiring change (16 of them
-inadmissible). Until 2026-10-12 the same grammar was kept as
+with C.2 and F.13, 0 conflicts (119 rules, 590 productions,
+1219 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
+12/12 requiring change; checker 62/62 accepted, 12/12 and 65/65 requiring change (16 of them
+inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
 `rce-fuzz N SEED` generates random type-directed programs from the
@@ -1373,7 +1374,7 @@ P = (S, E, δ, D, λ) is:
 
 **Canonical signature (normative).** This is the one signature; the engine
 profile (D.6), the engine IR (`FormIr::step`) and the language interpreter
-are instances of it, and any other text (FORM.md, papers) defers to it.
+are instances of it, and any other text (proposals, papers) defers to it.
 S = Σc × Σd (control regions, data: regions, clock, input count,
 relations); δ : S × E → S × O\* total; λ = π₂ ∘ δ; δ₁ = π₁ ∘ δ. An entry of
 D is the record {seq, event, prev_hash, state_hash, hash} where `seq` is
@@ -1723,7 +1724,7 @@ exactly.
     `log`, `sin`, `pow` and the like, and platform math libraries differ
     in the last bit, so no runtime takes one from its platform library and
     no Form op names one. A transcendental exists only as RCE source in
-    the standard library module `math` (rce-stdlib `lib/math/math.rce`),
+    the standard library module `math` (`stdlib/lib/math/math.rce`),
     built from the operations of F1 to F8 and integers, so every runtime
     carries the same algorithm and the result is the same bits on every
     target (vector parity: Rust, Python, JavaScript, Scala). Each function

@@ -17,15 +17,15 @@ In plain words:
 
 ## Quickstart
 
-Build `rce` from the [rce repository](https://github.com/openIE-dev/rce)
-or download it with the desktop IDE from the
-[rce-ide releases page](https://github.com/openIE-dev/rce-ide/releases/latest),
-then:
+Install `rce` from the release of the newest `main` commit (Linux, macOS on
+Apple silicon, or Windows with Git Bash; the script checks the archive
+against the release's SHA256SUMS), or build it from source as the
+[rce README](../README.md) describes, then:
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh
 git clone https://github.com/openIE-dev/rce
 cd rce/programs
-cd rce-examples
 rce test money/account.rce
 rce run systems/ring_buffer.rce "Push(v: 7), Push(v: 8), Pop, Pop, Pop"
 ```
@@ -57,8 +57,8 @@ RCE=/path/to/rce scripts/check.sh
 
 ## Areas without examples yet
 
-Some kinds of program have no example here, because RCE language version 0.5 (sections 2 to 10 of the
-specification) has no construct for them:
+Some kinds of program have no example here, because the RCE language of
+the current specification draft has no construct for them:
 
 - **Machine learning.** There is no tensor type and no automatic
   differentiation.
@@ -75,8 +75,8 @@ with the text of its `.expect` file in the report; a `.cmd` file holds a command
 output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 
-All programs are version 0.5 modules (sections 2 to 10 of the specification).
-They are checked by `programs.yml` against the reference checker built from
+All programs are in the one language of the current specification draft
+(spec 2.7: a `# rce-version:` label selects nothing). They are checked by `programs.yml` against the reference checker built from
 the same commit, so there is no commit to name: `scripts/check.sh` must report
 every program passed at the current head (42 checks, 0 failed, on 29 October 2026). The
 `ecosystem/` programs import modules of the standard library (`use hpke`,

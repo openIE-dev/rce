@@ -2,7 +2,8 @@
 # Package release archives from already-built targets. Publishes nothing.
 set -eu
 cd "$(dirname "$0")/.."
-V=0.1.2
+# V is the release label; the ide release workflow passes it from the ide-v* tag.
+V=${V:-0.1.2}
 OUT=release/dist
 rm -rf "$OUT"; mkdir -p "$OUT"
 python3 release/third_party.py > release/THIRD-PARTY-LICENSES.txt

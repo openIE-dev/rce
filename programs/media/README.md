@@ -12,7 +12,7 @@ Lane-wise arithmetic applies an operator to each element of two arrays of
 the same length. The result is defined element by element, so it is the
 same on every target.
 
-Limits in draft 0.5: there are no stream or sample-rate types and no FFT
+Limits in the current draft: there are no stream or sample-rate types and no FFT
 primitive.
 
 Check this folder with `rce test *.rce`, or the whole repository with

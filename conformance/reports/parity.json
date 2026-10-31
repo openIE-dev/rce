@@ -1,28 +1,28 @@
 {
  "format": "rce-parity/2",
  "compared": "bytes of the canonical JSON of each answer",
- "reference": "rce reference interpreter; version 0.1.0, commit 511c3e5a71ee",
+ "reference": "rce reference interpreter; commit ace06cc25c80",
  "adapters": {
   "emit-js": {
-   "same": 1459,
+   "same": 1462,
    "different": 0,
    "no answer": 0,
-   "n/a": 520,
+   "n/a": 528,
    "unsupported": 0,
    "not run": 0,
    "not compared": 0,
-   "run": "rce emit js; emitted by rce 0.1.0 (511c3e5a71ee); v22.22.0",
+   "run": "rce emit js; emitted by rce commit ace06cc25c80; v22.22.0",
    "results_format": "rce-results/2"
   },
   "emit-python": {
-   "same": 1459,
+   "same": 1462,
    "different": 0,
    "no answer": 0,
-   "n/a": 520,
+   "n/a": 528,
    "unsupported": 0,
    "not run": 0,
    "not compared": 0,
-   "run": "rce emit python; emitted by rce 0.1.0 (511c3e5a71ee); Python 3.13.16",
+   "run": "rce emit python; emitted by rce commit ace06cc25c80; Python 3.13.16",
    "results_format": "rce-results/2"
   },
   "emit-rust": {
@@ -32,7 +32,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1979,
+   "not compared": 1990,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -43,7 +43,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1979,
+   "not compared": 1990,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -54,7 +54,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1979,
+   "not compared": 1990,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -65,7 +65,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1979,
+   "not compared": 1990,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   }

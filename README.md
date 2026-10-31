@@ -90,9 +90,12 @@ teaches the language from first principles.
 
 ## Install
 
-Every commit of `main` that passes CI is released as `rce-<commit>`, and
-`rce-latest` points at the newest; there is no typed version number, and
-`rce --version` prints the commit. To install the newest on Linux (x86_64,
+Every commit of `main` that passes CI is released as `rce-<commit>`, where
+`<commit>` is the first 12 hex digits of the commit hash, and `rce-latest`
+points at the newest; there is no typed version number, and
+`rce --version` prints the commit. The release workflow retains only the 30
+newest `rce-<commit>` releases and deletes older ones, so a commit can be
+pinned by its release only while it is among those 30. To install the newest on Linux (x86_64,
 aarch64), macOS (Apple silicon) or Windows (Git Bash), checked against the
 release's SHA256SUMS:
 
@@ -100,8 +103,10 @@ release's SHA256SUMS:
 curl -fsSL https://raw.githubusercontent.com/openIE-dev/rce/main/scripts/install.sh | sh
 ```
 
-`sh install.sh COMMIT` installs one commit's release. The container image
-is `ghcr.io/openie-dev/rce` (tags `latest` and the full commit hash);
+`sh install.sh COMMIT` installs one commit's release; COMMIT is the
+12-hex-digit short hash, as in `rce-<commit>`. The container image is
+`ghcr.io/openie-dev/rce`, tagged `latest` and with the full 40-hex-digit
+commit hash;
 [docs/DEPLOY.md](docs/DEPLOY.md) runs a program as a service with it.
 
 ## Build
@@ -118,8 +123,12 @@ cargo build --release
 install -m 755 target/release/rce ~/.local/bin/
 ```
 
-The desktop IDE, with its own copy of `rce`, is released separately under
-the `ide-v*` tags of the [releases page](https://github.com/openIE-dev/rce/releases).
+The desktop IDE, with its own copy of `rce`, is built from `ide/` (see
+[ide/README.md](ide/README.md)). Its releases v0.1.0 to v0.1.3 are on the
+[releases page of openIE-dev/rce-ide](https://github.com/openIE-dev/rce-ide/releases),
+the repository the IDE lived in before it moved here. New IDE releases are
+published from this repository by `.github/workflows/ide-release.yml` when an
+`ide-v*` tag is pushed; none has been pushed yet.
 
 ## Quickstart
 
@@ -192,8 +201,7 @@ Section 10 of the specification defines each command.
 | `tree-sitter/` | the tree-sitter grammar package for editors (grammar, generated parser, queries, bindings); the checker's independent second parser |
 | `book/` | The RCE Book (mdBook); every listing is checked by `book/scripts/check-listings.sh` |
 | `playground/` | the browser playground |
-| `stdlib/` | the standard library (`stdlib/lib/`), its vectors and checks |
-| `lib/` | libraries written in RCE: `crypto.rce` (SHA-2, X25519, Ed25519, X3DH, double ratchet), `hpke.rce` (RFC 9180), `mls.rce` (RFC 9420), `pq.rce` (ML-KEM) and their companions |
+| `stdlib/` | the standard library (`stdlib/lib/`), its vectors and checks; the protocol libraries written in RCE are `stdlib/lib/crypto.rce` (SHA-2, X25519, Ed25519, X3DH, double ratchet), `stdlib/lib/hpke.rce` (RFC 9180), `stdlib/lib/mls.rce` (RFC 9420), `stdlib/lib/pq.rce` (ML-KEM) and their companions (`framing.rce`, `grp.rce`, `protect.rce`, `treekem.rce`, `welcome.rce`) |
 | `rcedb/` | RCEdb: the log as the database, indexes written in RCE |
 | `apps/` | applications run by `rce host`: end-to-end encrypted chat, an SFU and a terminal |
 | `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media, multi) and the ecosystem programs |

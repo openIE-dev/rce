@@ -10,15 +10,18 @@ the state, with nothing half done.
 | `checkout.rce` | a checkout with 40 independent options (tax regions, holds, promo codes, flags) in one record state |
 | `change/decimal.rce` | shows that there is no `decimal` type |
 
-Money is kept in integer cents. Draft 0.5 has no decimal or fixed-point
-type, and a program that uses one requires change:
+Money is held in integer cents. The language has no built-in decimal or
+fixed-point type, and a program that names one requires change:
 
 ```text
 $ rce check change/decimal.rce
 requires change change/decimal.rce: line 1: W-NAME-1 unknown type `decimal`; line 1: W-TY-1 expected never, found ?0
 ```
 
-(`decimal.cmd` and `decimal.out` keep this transcript checked.) Integer arithmetic in RCE traps
+(`decimal.cmd` and `decimal.out` keep this transcript checked.) Decimals
+and binary fixed-point numbers are in the standard library module
+`core.exact` (`use core.exact`; `rce lib core.exact` prints it), as values
+built from integers, not as a type of the language. Integer arithmetic in RCE traps
 on overflow instead of wrapping, so a balance cannot silently become wrong.
 
 **Many independent options.** `checkout.rce` is written by a generator
