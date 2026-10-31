@@ -1535,6 +1535,14 @@ final class Sched(val links: Vector[Vector[Any]]) {
   var rrep: ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])] = restart_inputs()
   val events: Vector[(Long, Any)] = event_inputs()
   var fuelS: Long = FUEL_LIMIT.toLong
+  // the log D of the run, as the reference writes it (conc::Entry):
+  // (entry text, positional state of the run when written, with --trace)
+  val tlog = ArrayBuffer[(String, String)]()
+  val traced = ARGS.contains("--trace")
+  def ent(what: String): Unit = tlog += ((what, if (traced) stateJson() else null))
+  def alogAdd(what: String): Unit = { alog += what; ent(what) }
+  def stateJson(): String =
+    fv_json(V(BigInt(tick), actors.toVector.map { case (id, a) => V(id, vec(a.fields).map(f => form_value_pos(at(f, 1)))) }))
   def spawnTask(f: String, args: Vector[Any], tid: String, prio: Int, parent: Any, scope: Int): Unit = {
     val sl = new Slot(tid, prio, parent, scope)
     val t = new Thread(null, () => task_body(sl, f, args), "rce-task", 1L << 28)
@@ -1571,7 +1579,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
   def route(from: Int, target: Any, m: Any): Unit = {
     val to = target match { case a: Actor => NODE_OF.getOrElse(a.ty, 0); case _ => 0 }
     val key = (math.min(from, to), math.max(from, to))
-    if (from != to && parted.contains(key)) { heldLinks += ((from, to, target, m)); return }
+    if (from != to && parted.contains(key)) { ent("Held(" + NODE_NAMES(from) + " -> " + NODE_NAMES(to) + ")"); heldLinks += ((from, to, target, m)); return }
     target match {
       case a: Actor => mailStaged += ((a.id, a.ty, m))
       case ch: Chan => val c = chan(ch); if (space(c)) staged += ((c, m)) else chans(c).held += ((m, null))
@@ -1592,7 +1600,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
   }
   def onCrash(id: String, reason: String): Unit = {
     // restart as input (C.11.11)
-    alog += "Kept(" + reason + ")"
+    alogAdd("Kept(" + reason + ")")
     val ty = actors(id).ty
     val sv = SUPERVISORS.getOrElse(ty, null)
     if (sv == null) return
@@ -1615,8 +1623,8 @@ final class Sched(val links: Vector[Vector[Any]]) {
     }
     rlog += dec
     val c = rlog.count(r => r._2 == sup && r._3 == child && (RESTART_WINDOW == 0 || tick - r._1 < RESTART_WINDOW))
-    if (dec._5) { alog += "Stopped(supervisor " + sup + ")"; stop = V("stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"); return }
-    alog += "Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")"
+    if (dec._5) { alogAdd("Stopped(supervisor " + sup + ")"); stop = V("stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"); return }
+    alogAdd("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")")
     for (aid <- dec._6) actors.get(aid).foreach(a => a.fields = actor_init(a.ty))
   }
   def commitHandler(id: String, r: Any): Unit = {
@@ -1624,8 +1632,8 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val v = vec(r)
     val a = actors(id)
     a.fields = v(0)
-    outputs ++= vec(v(1))
-    for (p <- vec(v(2))) { val q = vec(p); route(a.node, q(0), q(1)) }
+    for (o <- vec(v(1))) { ent("Emit(" + show(o) + ")"); outputs += o }
+    for (p <- vec(v(2))) { val q = vec(p); ent("Send(" + show(q(1)) + ")"); route(a.node, q(0), q(1)) }
   }
   def actorsPhase(): Boolean = {
     var progress = false
@@ -1639,13 +1647,14 @@ final class Sched(val links: Vector[Vector[Any]]) {
       while (k < txn.length && kept == null) {
         val (id, ty, m) = txn(k)
         ensureActor(id, ty); busy += id
+        ent("Deliver(" + show(m) + ")")
         val r = handler(id, m)
         if (!r._1) kept = r._2.toString else results += ((id, r._2))
         k += 1
       }
       if (kept != null) {
         val failed = results.length
-        for ((t, j) <- txn.zipWithIndex) { if (j == failed) onCrash(t._1, kept) else alog += "Kept(" + kept + ")" }
+        for ((t, j) <- txn.zipWithIndex) { if (j == failed) onCrash(t._1, kept) else alogAdd("Kept(" + kept + ")") }
         if (stop != null) brk = true
       } else for ((id, r) <- results) commitHandler(id, r)
     }
@@ -1654,6 +1663,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
       val a = actors(id)
       if (!busy.contains(id) && a.mailbox.nonEmpty) {
         val m = a.mailbox.remove(0); progress = true
+        ent("Deliver(" + show(m) + ")")
         val r = handler(id, m)
         if (r._1) commitHandler(id, r._2) else onCrash(id, r._2.toString)
       }
@@ -1666,9 +1676,9 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val evs = events.filter(_._1 == tick).map(_._2)
     for (v <- evs) {
       val n = v.asInstanceOf[Rec].n
-      alog += "Input(" + show(v) + ")"
+      alogAdd("Input(" + show(v) + ")")
       val to = actors.toVector.filter { case (_, a) => ACTOR_EVENTS.getOrElse(a.ty, Vector()).contains(n) }
-      if (to.isEmpty) alog += "Unhandled(" + show(v) + ")"
+      if (to.isEmpty) alogAdd("Unhandled(" + show(v) + ")")
       for ((id, a) <- to) mailStaged += ((id, a.ty, v))
     }
     evs.nonEmpty
@@ -1680,8 +1690,9 @@ final class Sched(val links: Vector[Vector[Any]]) {
       if (x >= 0 && y >= 0) {
         any = true
         val key = (math.min(x, y), math.max(x, y))
-        if (e(1) == true) { if (!parted.contains(key)) parted += key }
+        if (e(1) == true) { ent("Partition(" + e(2) + ", " + e(3) + ")"); if (!parted.contains(key)) parted += key }
         else {
+          ent("Heal(" + e(2) + ", " + e(3) + ")")
           parted = parted.filter(_ != key)
           val held = heldLinks; heldLinks = ArrayBuffer()
           for (h <- held) { if ((math.min(h._1, h._2), math.max(h._1, h._2)) == key) route(h._1, h._3, h._4) else heldLinks += h }
@@ -1694,7 +1705,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val r = slots(i).result
     new Rec("TaskFailed", Vector(("task", slots(i).id), ("reason", if (r != null && r(0) == "err") r(1) else "")))
   }
-  def pickSelect(arms: Vector[Any], key: Vector[Any], nondet: Boolean): Int = {
+  def pickSelect(i: Int, arms: Vector[Any], key: Vector[Any], nondet: Boolean): Int = {
     val ready = ArrayBuffer[Int]()
     for ((a0, k) <- arms.zipWithIndex) {
       val a = vec(a0)
@@ -1710,7 +1721,9 @@ final class Sched(val links: Vector[Vector[Any]]) {
     }
     val M = (BigInt(1) << 64) - 1
     rng ^= (rng << 13) & M; rng ^= rng >> 7; rng ^= (rng << 17) & M
-    ready((rng % ready.length).toInt)
+    val arm = ready((rng % ready.length).toInt)
+    ent("Choice(task " + slots(i).id + ", select line " + toL(key(0)) + ", execution " + toL(key(1)) + ", arm " + arm + ")")
+    arm
   }
   def handle(i: Int, req: Vector[Any]): Vector[Any] = {
     val op = vec(req(0)); val dl = vec(req(1))
@@ -1720,36 +1733,39 @@ final class Sched(val links: Vector[Vector[Any]]) {
       if (tick > toL(d(1))) {
         if (sl.holding != null) { val c = sl.holding; sl.holding = null; chans.get(c).foreach(st => st.held.filterInPlace(_._2 != i)) }
         sl.released = false; sl.since = 0
+        ent("Cancelled(task " + sl.id + ")")
         return V("cancel", d(0))
       }
     }
     if (sl.cancel) return V("cancel", CANCEL_TASK)
     op(0) match {
-      case "emit" => outputs += op(1); V("val", UNIT)
+      case "emit" => ent("Emit(" + show(op(1)) + ")"); outputs += op(1); V("val", UNIT)
       case "send" =>
         val target = op(1); val v = op(2)
-        if (target.isInstanceOf[Actor]) { route(0, target, v); return V("val", UNIT) }
+        if (target.isInstanceOf[Actor]) { ent("Send(" + show(v) + ")"); route(0, target, v); return V("val", UNIT) }
         val c = chan(target)
         if (c == null) return null
         if (sl.holding != null) { if (sl.released) { sl.released = false; sl.holding = null; return V("val", UNIT) }; return null }
         if (chans(c).closed) { stop = V("stopped", "trap: send on a closed channel"); return V("cancel", CANCEL_TASK) }
+        ent("Send(" + show(v) + ")")
         if (space(c)) { staged += ((c, v)); return V("val", UNIT) }
+        ent("Backpressure")
         chans(c).held += ((v, i)); sl.holding = c
         null
       case "recv" =>
         val c = chan(op(1))
         if (c == null) return null
         val (has, closed) = readable(c)
-        if (has) V("val", new Opt(takeMsg(c).get)) else if (closed) V("val", NONE) else null
-      case "close" => val c = chan(op(1)); if (c == null) null else { chans(c).closed = true; V("val", UNIT) }
+        if (has) { val m = takeMsg(c).get; ent("Recv(" + show(m) + ")"); V("val", new Opt(m)) } else if (closed) { ent("Recv(none)"); V("val", NONE) } else null
+      case "close" => val c = chan(op(1)); if (c == null) null else { chans(c).closed = true; ent("Close"); V("val", UNIT) }
       case "select" =>
         val arms = vec(op(1)); val key = vec(op(2)); val nondet = op(3) == true
-        val a = pickSelect(arms, key, nondet)
+        val a = pickSelect(i, arms, key, nondet)
         if (a >= 0) {
           sl.since = 0
           val arm = vec(arms(a))
-          if (arm(0) == "recv") { val m = takeMsg(chan(arm(1))); return V("arm", a, m.map(x => new Opt(x)).getOrElse(NONE)) }
-          if (arm(0) == "send") { staged += ((chan(arm(1)), arm(2))); return V("arm", a, null) }
+          if (arm(0) == "recv") { val m = takeMsg(chan(arm(1))); ent(m.map(x => "Recv(" + show(x) + ")").getOrElse("Recv(none)")); return V("arm", a, m.map(x => new Opt(x)).getOrElse(NONE)) }
+          if (arm(0) == "send") { ent("Send(" + show(arm(2)) + ")"); staged += ((chan(arm(1)), arm(2))); return V("arm", a, null) }
           return V("arm", a, null)
         }
         val d = arms.indexWhere(x => vec(x)(0) == "default")
@@ -1780,8 +1796,9 @@ final class Sched(val links: Vector[Vector[Any]]) {
           if (st.closed || BigInt(st.buf.length + stg + need) > st.cap) return null
         }
         val txn = ArrayBuffer[(String, String, Any)]()
-        for (p <- sends) p(0) match { case a: Actor => txn += ((a.id, a.ty, p(1))); case t => staged += ((chan(t), p(1))) }
+        for (p <- sends) { ent("Send(" + show(p(1)) + ")"); p(0) match { case a: Actor => txn += ((a.id, a.ty, p(1))); case t => staged += ((chan(t), p(1))) } }
         if (txn.nonEmpty) txnStaged += txn.toVector
+        ent("Atomic")
         V("val", UNIT)
       case _ => null
     }
@@ -1790,6 +1807,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val res = if (r(0) == "ok") r else if (r(1) == true) V("err", "cancelled") else V("err", why(r(2).asInstanceOf[Throwable]))
     val failed = r(0) == "err" && r(1) != true
     val sl = slots(i); sl.result = res
+    ent("Done(task " + sl.id + ")")
     if (i == 0) { if (res(0) == "err") return V("stopped", res(1)) }
     else if (failed) for ((t, k) <- slots.zipWithIndex) if (k != i && t.parent == sl.parent && t.scope == sl.scope) t.cancel = true
     for (t <- slots) if (t.parent == i) t.cancel = true
@@ -1823,6 +1841,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
               if (op(0) == "spawn" && rp(0) == "spawned") {
                 val f = op(1).toString
                 if (!FNS.contains(f)) return V("stopped", "trap: no task function " + f)
+                ent("Spawn(task " + rp(1) + ", priority " + toL(op(3)) + ")")
                 spawnTask(f, vec(op(2)), rp(1).toString, toL(op(3)).toInt, i, toL(op(6)).toInt)
               }
               sl.st = V("ready", rp)
@@ -1925,6 +1944,23 @@ def run_tasks(entry: String): Unit = {
   if (ARGS.contains("--restart-log")) {
     out.print("restartlog v1 tree=" + SUP_TREE.mkString(",") + "\n")
     for (r <- s.rlog) out.print("restartin " + r._1 + "|" + r._2 + "|" + r._3 + "|" + r._4 + "|" + (if (r._5) 1 else 0) + "|" + r._6.mkString(",") + "\n")
+  }
+  if (s.traced) {
+    // --run --trace: the run's D as the trace of fn main (10.9): one line
+    // `d applied|kept HASH BODY` per entry, BODY the canonical JSON of
+    // {event, prev_hash, seq, state_hash} with event {payload, type} from
+    // the entry text `K` or `K(A)`, then `trace HEAD`
+    var prev = D_GENESIS
+    for (((what, st), seq) <- s.tlog.zipWithIndex) {
+      val p = what.indexOf('(')
+      val k = if (p < 0) what else what.substring(0, p)
+      val a = if (p >= 0 && what.endsWith(")")) what.substring(p + 1, what.length - 1) else null
+      val body = "{\"event\":{\"payload\":" + (if (a == null) "null" else jstr(a)) + ",\"type\":" + jstr(k) + "},\"prev_hash\":\"" + prev + "\",\"seq\":" + seq + ",\"state_hash\":\"" + d_sha(st) + "\"}"
+      val h = d_sha(body)
+      out.print("d " + (if (k == "Kept" && a != null) "kept" else "applied") + " " + h + " " + body + "\n")
+      prev = h
+    }
+    out.print("trace " + prev + "\n")
   }
   out.print(if (o(0) == "done") "outcome Done\n" else if (o(0) == "deadlock") "outcome Deadlock\n" else "outcome Stopped: " + o(1) + "\n")
   out.flush()

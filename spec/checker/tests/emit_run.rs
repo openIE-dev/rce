@@ -1279,3 +1279,104 @@ fn scala_actor_programs_agree_with_the_reference() {
         assert_eq!(run_log(&exe), want_log(src), "{n}");
     }
 }
+
+/// The trace of `fn main` (10.9) as an emitted program prints it under
+/// `--run --trace`: one `d applied|kept HASH BODY` line per step of the
+/// reference's trace (`cli::main_trace`), BODY the canonical JSON its hash
+/// is over, then `trace HEAD` and the outcome line of `--run`
+fn want_main_trace(src: &str, cfg: &RunCfg) -> Vec<String> {
+    use rce_spec_check::interp::{D_GENESIS, canon_json};
+    let d = rce_spec_check::check_program(&[("t.rce".into(), src.to_string())], false);
+    assert!(d[0].1.is_ok(), "not admitted: {:?}\n{src}", d[0].1);
+    let t = rce_spec_check::cli::main_trace(&parse(src).unwrap(), cfg).unwrap();
+    let mut v = vec![];
+    let mut head = D_GENESIS.to_string();
+    for s in t["steps"].as_array().unwrap() {
+        let body = canon_json(&serde_json::json!({
+            "event": s["hashed"]["event"], "prev_hash": s["prev_hash"], "seq": s["seq"], "state_hash": s["state_hash"],
+        }));
+        head = s["hash"].as_str().unwrap().to_string();
+        v.push(format!("d {} {head} {body}", if s["outcome"] == "applied" { "applied" } else { "kept" }));
+    }
+    v.push(format!("trace {head}"));
+    v.push(match &t["outcome"] {
+        o if o == "done" => "outcome Done".into(),
+        o if o == "deadlock" => "outcome Deadlock".into(),
+        o => format!("outcome Stopped: {}", o["stopped"].as_str().unwrap()),
+    });
+    v
+}
+
+/// the trace of `fn main` that an emitted program prints with `--run --trace`
+fn got_main_trace(exe: &Exe, extra: &[String]) -> Vec<String> {
+    let mut c = Command::new("timeout");
+    c.arg("120");
+    if !exe.0.is_empty() {
+        c.arg(&exe.0);
+    }
+    let o = c.arg(&exe.1).args(["--run", "--trace"]).args(extra).output().unwrap();
+    assert!(o.status.success(), "{:?}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
+    String::from_utf8(o.stdout)
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("d ") || l.starts_with("trace ") || l.starts_with("outcome "))
+        .map(String::from)
+        .collect()
+}
+
+/// The trace of `fn main` (10.9) on every covered target: for every task
+/// and actor program of this file, the spec examples with `fn main()`, the
+/// partition cases and the program events, each runtime prints, under
+/// `--run --trace`, the reference's steps (entry, state hash, chain hash),
+/// head and outcome, line for line. The programs give the reference steps
+/// of every kind the tick runtime writes; each kind is checked to occur.
+#[test]
+fn main_traces_agree_on_every_target() {
+    let mut progs = corpus();
+    progs.push(("kept".into(), KEPT_STEPS.into()));
+    for f in ["../examples/37_actor_spawn.rce", "../conc06b/accept/07_session_tree.rce", "../conc06b/accept/08_session_priorities.rce"] {
+        let stem = PathBuf::from(f).file_stem().unwrap().to_string_lossy().into_owned();
+        progs.push((format!("x{stem}"), std::fs::read_to_string(f).unwrap()));
+    }
+    let none = RunCfg::default();
+    let mut cases: Vec<(String, String, RunCfg, Vec<String>)> = progs.into_iter().map(|(n, s)| (n, s, none.clone(), vec![])).collect();
+    for (k, l) in partition_cases().into_iter().enumerate() {
+        let args = l.iter().map(|(t, p, a, b)| format!("--link={t},{},{a},{b}", if *p { "partition" } else { "heal" })).collect();
+        cases.push((format!("partitions_{k}"), ACTORS.into(), RunCfg { links: l, ..RunCfg::default() }, args));
+    }
+    {
+        use rce_spec_check::interp::V;
+        let rec = |n: &str, fs: Vec<(&str, V)>| V::Rec(n.into(), fs.into_iter().map(|(a, b)| (a.to_string(), b)).collect());
+        let cfg = RunCfg {
+            events: vec![(5, rec("Hit", vec![("k", V::Int(3, "i64"))])), (8, rec("Show", vec![])), (12, rec("Nobody", vec![]))],
+            ..RunCfg::default()
+        };
+        let args = ["5|Hit|k=3", "8|Show", "12|Nobody"].iter().map(|e| format!("--event={e}")).collect();
+        cases.push(("events".into(), EVENTS.into(), cfg, args));
+    }
+    let want: Vec<Vec<String>> = cases.iter().map(|(_, s, cfg, _)| want_main_trace(s, cfg)).collect();
+    let kinds = [
+        "Emit", "Send", "Recv", "Backpressure", "Close", "Atomic", "Deliver", "Kept", "Restart", "Stopped", "Input", "Unhandled",
+        "Partition", "Heal", "Held", "Done", "Spawn", "Choice", "Cancelled",
+    ];
+    for k in kinds {
+        let tag = format!("\"type\":\"{k}\"");
+        assert!(want.iter().flatten().any(|l| l.contains(&tag)), "no reference step of kind {k}");
+    }
+    for lang in run_targets() {
+        let exes: Vec<Exe> = std::thread::scope(|s| {
+            let hs: Vec<_> = cases.iter().map(|(n, src, _, _)| s.spawn(move || build_lang(lang, &format!("mt_{n}"), src))).collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let mut bad = vec![];
+        for ((n, _, _, args), (exe, w)) in cases.iter().zip(exes.iter().zip(&want)) {
+            let g = got_main_trace(exe, args);
+            if &g != w {
+                let k = g.iter().zip(w).position(|(a, b)| a != b).unwrap_or(g.len().min(w.len()));
+                bad.push(format!("{n}: first difference at line {k}:\n want {:?}\n got  {:?}", w.get(k), g.get(k)));
+            }
+        }
+        assert!(bad.is_empty(), "{lang:?}:\n{}", bad.join("\n"));
+        eprintln!("{lang:?}: the trace of fn main agrees with the reference on {} programs", cases.len());
+    }
+}

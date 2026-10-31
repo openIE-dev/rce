@@ -17,7 +17,7 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `c8fe36deaaec46aaf012062797642bafc2ba8cf235e5c15aa17bd6fde819e7ec` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
 | `10-theorems.md` | `0827a0cecea9f014e17e0fd134d7bc2009c6a0979a5f3eeff4123228d4cbc962` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `f59a404300eae78da54846bbfeb67fd4129498b1e1043eb7a88f7b7e9caf0831` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `72580ea7f87d6a9b7c097958d7c248a6fc6d86594bbff45fb74933de5a0342b6` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `abcb945e09636753ba5546fad2205da1cb2fc2377fc702e61f1b4e6ad23ac5c8` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `c31f7a72b58278b52c6ffa13d2984b06563e73d695e5db7c670c9b4da5e2060f` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `aae630976deb0a9785fa66664bfaa6b662998b4d70aa6cb978085e45c087dc5f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 043d64392d9812893e62ca656bd785215ee0467f209249731abdebdb133b8996 -->
+<!-- body-sha256: 80c0b6824fe6d26f861ef6a4a58c84a69b92349a735b9ce410034375124ff862 -->

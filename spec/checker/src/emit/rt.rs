@@ -1660,8 +1660,24 @@ struct Sched {
     alog: Vec<String>,
     /// program events (HC-6): (tick, event value)
     events: Vec<(u64, V)>,
+    /// the log D of the run, as the reference writes it (`conc::Entry`):
+    /// (entry text, positional state of the run when written, with `--trace`)
+    tlog: Vec<(String, String)>,
+    trace: bool,
 }
 impl Sched {
+    fn ent(&mut self, what: String) {
+        let st = if self.trace { self.state_json() } else { String::new() };
+        self.tlog.push((what, st));
+    }
+    fn alog_add(&mut self, what: String) {
+        self.alog.push(what.clone());
+        self.ent(what);
+    }
+    fn state_json(&self) -> String {
+        let actors = self.actors.iter().map(|(id, a)| FV::List(vec![FV::Text(id.clone()), FV::List(a.fields.iter().map(|(_, v)| form_value_pos(v)).collect())])).collect();
+        FV::List(vec![FV::Int(self.tick as i128), FV::List(actors)]).json()
+    }
     fn spawn_task(&mut self, f: String, args: Vec<V>, id: String, prio: u8, parent: Option<usize>, scope: u64) {
         let (req_tx, req_rx) = mpsc::channel::<Req>();
         let (rep_tx, rep_rx) = mpsc::channel::<(u64, Rep)>();
@@ -1708,7 +1724,12 @@ impl Sched {
     fn route(&mut self, from: usize, target: V, m: V) {
         let to = match &target { V::Actor(_, ty) => node_of(ty), _ => 0 };
         let key = (from.min(to), from.max(to));
-        if from != to && self.parted.contains(&key) { self.held_links.push((from, to, target, m)); return; }
+        if from != to && self.parted.contains(&key) {
+            let what = format!("Held({} -> {})", self.nodes[from], self.nodes[to]);
+            self.ent(what);
+            self.held_links.push((from, to, target, m));
+            return;
+        }
         match target {
             V::Actor(id, ty) => self.mail_staged.push((id, ty, m)),
             V::Chan(..) => {
@@ -1743,7 +1764,7 @@ impl Sched {
     fn on_crash(&mut self, id: &str, reason: &str) {
         // restart as input (C.11.11): record the decision, or on replay
         // take it from the logged inputs (--restart=...) without the policy
-        self.alog.push(format!("Kept({reason})"));
+        self.alog_add(format!("Kept({reason})"));
         let ty = self.actors[id].ty.clone();
         let Some((sup, strat, tys, child, bound)) = supervisor_of(&ty) else { return };
         let (tick, w) = (self.tick, restart_window());
@@ -1769,19 +1790,19 @@ impl Sched {
         self.rlog.push(dec.clone());
         let count = self.rlog.iter().filter(|r| r.1 == sup && r.2 == child && (w == 0 || tick.saturating_sub(r.0) < w)).count();
         if dec.4 {
-            self.alog.push(format!("Stopped(supervisor {sup})"));
+            self.alog_add(format!("Stopped(supervisor {sup})"));
             self.stop = Some(Outcome::Stopped(format!("supervisor {sup} stopped: child {child} restarted more than {bound} times")));
             return;
         }
-        self.alog.push(format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
+        self.alog_add(format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
         for aid in dec.5 { if let Some(t) = self.actors.get(&aid).map(|a| a.ty.clone()) { self.actors.get_mut(&aid).unwrap().fields = actor_init(&t); } }
     }
     fn commit_handler(&mut self, id: &str, r: HandlerOut) {
         let Some((fs, outs, sends)) = r else { return };
         let node = self.actors[id].node;
         self.actors.get_mut(id).unwrap().fields = fs;
-        self.outputs.extend(outs);
-        for (t, v) in sends { self.route(node, t, v); }
+        for o in outs { self.ent(format!("Emit({})", show(&o))); self.outputs.push(o); }
+        for (t, v) in sends { self.ent(format!("Send({})", show(&v))); self.route(node, t, v); }
     }
     fn actors_phase(&mut self) -> bool {
         let mut progress = false;
@@ -1792,12 +1813,13 @@ impl Sched {
             let mut kept = None;
             for (id, ty, m) in &txn {
                 self.ensure_actor(id, ty);
+                self.ent(format!("Deliver({})", show(m)));
                 busy.insert(id.clone());
                 match self.handler(id, m) { Ok(r) => results.push((id.clone(), r)), Err(e) => { kept = Some(e); break; } }
             }
             if let Some(e) = kept {
                 let failed = results.len();
-                for (k, (id, _, _)) in txn.iter().enumerate() { if k == failed { self.on_crash(id, &e); } else { self.alog.push(format!("Kept({e})")); } }
+                for (k, (id, _, _)) in txn.iter().enumerate() { if k == failed { self.on_crash(id, &e); } else { self.alog_add(format!("Kept({e})")); } }
                 if self.stop.is_some() { break; }
                 continue;
             }
@@ -1808,6 +1830,7 @@ impl Sched {
             if busy.contains(&id) { continue; }
             let Some(m) = self.actors.get_mut(&id).and_then(|a| a.mailbox.pop_front()) else { continue };
             progress = true;
+            self.ent(format!("Deliver({})", show(&m)));
             match self.handler(&id, &m) { Ok(r) => self.commit_handler(&id, r), Err(e) => self.on_crash(&id, &e) }
             if self.stop.is_some() { break; }
         }
@@ -1820,9 +1843,9 @@ impl Sched {
         let any = !evs.is_empty();
         for v in evs {
             let name = match &v { V::Rec(n, _) => n.clone(), _ => String::new() };
-            self.alog.push(format!("Input({})", show(&v)));
+            self.alog_add(format!("Input({})", show(&v)));
             let to: Vec<(String, String)> = self.actors.iter().filter(|(_, a)| actor_events(&a.ty).contains(&name.as_str())).map(|(id, a)| (id.clone(), a.ty.clone())).collect();
-            if to.is_empty() { self.alog.push(format!("Unhandled({})", show(&v))); }
+            if to.is_empty() { self.alog_add(format!("Unhandled({})", show(&v))); }
             for (id, ty) in to { self.mail_staged.push((id, ty, v.clone())); }
         }
         any
@@ -1834,7 +1857,8 @@ impl Sched {
             let (Some(x), Some(y)) = (self.nodes.iter().position(|n| *n == a), self.nodes.iter().position(|n| *n == b)) else { continue };
             any = true;
             let key = (x.min(y), x.max(y));
-            if part { if !self.parted.contains(&key) { self.parted.push(key); } } else {
+            if part { self.ent(format!("Partition({a}, {b})")); if !self.parted.contains(&key) { self.parted.push(key); } } else {
+                self.ent(format!("Heal({a}, {b})"));
                 self.parted.retain(|k| *k != key);
                 for (f, t, target, m) in std::mem::take(&mut self.held_links) {
                     if (f.min(t), f.max(t)) == key { self.route(f, target, m); } else { self.held_links.push((f, t, target, m)); }
@@ -1847,7 +1871,7 @@ impl Sched {
         let reason = match &self.slots[i].result { Some(Err(r)) => r.clone(), _ => String::new() };
         V::Rec("TaskFailed".into(), vec![("task".into(), V::Text(self.slots[i].id.clone())), ("reason".into(), V::Text(reason))])
     }
-    fn pick_select(&mut self, arms: &[SArm], key: (usize, u64), nondet: bool) -> Option<usize> {
+    fn pick_select(&mut self, i: usize, arms: &[SArm], key: (usize, u64), nondet: bool) -> Option<usize> {
         let mut ready = vec![];
         for (k, a) in arms.iter().enumerate() {
             let ok = match a {
@@ -1860,27 +1884,32 @@ impl Sched {
         if ready.is_empty() { return None; }
         if !nondet { let n = arms.len(); let s = (key.1 % n as u64) as usize; return (0..n).map(|j| (s + j) % n).find(|j| ready.contains(j)); }
         self.rng ^= self.rng << 13; self.rng ^= self.rng >> 7; self.rng ^= self.rng << 17;
-        Some(ready[(self.rng % ready.len() as u64) as usize])
+        let arm = ready[(self.rng % ready.len() as u64) as usize];
+        self.ent(format!("Choice(task {}, select line {}, execution {}, arm {arm})", self.slots[i].id, key.0, key.1));
+        Some(arm)
     }
     fn handle(&mut self, i: usize, req: &Req) -> Option<Rep> {
         if let Some((fid, _)) = req.dl.iter().find(|(_, e)| self.tick > *e) {
             if let Some(c) = self.slots[i].holding.take() { if let Some(st) = self.chans.get_mut(&c) { st.held.retain(|(_, o)| *o != Some(i)); } }
             self.slots[i].released = false;
             self.slots[i].since = 0;
+            self.ent(format!("Cancelled(task {})", self.slots[i].id));
             return Some(Rep::Cancel(*fid));
         }
         if self.slots[i].cancel { return Some(Rep::Cancel(CANCEL_TASK)); }
         match &req.op {
-            Op::Emit(v) => { self.outputs.push(v.clone()); Some(Rep::Val(V::Unit)) }
+            Op::Emit(v) => { self.ent(format!("Emit({})", show(v))); self.outputs.push(v.clone()); Some(Rep::Val(V::Unit)) }
             Op::Send(target, v) => {
-                if let V::Actor(..) = target { self.route(0, target.clone(), v.clone()); return Some(Rep::Val(V::Unit)); }
+                if let V::Actor(..) = target { self.ent(format!("Send({})", show(v))); self.route(0, target.clone(), v.clone()); return Some(Rep::Val(V::Unit)); }
                 let c = self.chan(target)?;
                 if self.slots[i].holding.is_some() {
                     if self.slots[i].released { self.slots[i].released = false; self.slots[i].holding = None; return Some(Rep::Val(V::Unit)); }
                     return None;
                 }
                 if self.chans[&c].closed { self.stop = Some(Outcome::Stopped("trap: send on a closed channel".into())); return Some(Rep::Cancel(CANCEL_TASK)); }
+                self.ent(format!("Send({})", show(v)));
                 if self.space(&c) { self.staged.push((c, v.clone())); Some(Rep::Val(V::Unit)) } else {
+                    self.ent("Backpressure".into());
                     self.chans.get_mut(&c).unwrap().held.push_back((v.clone(), Some(i)));
                     self.slots[i].holding = Some(c);
                     None
@@ -1889,15 +1918,15 @@ impl Sched {
             Op::Recv(cv) => {
                 let c = self.chan(cv)?;
                 let (has, closed) = self.readable(&c);
-                if has { let m = self.take(&c).unwrap(); Some(Rep::Val(V::Opt(Some(Box::new(m))))) } else if closed { Some(Rep::Val(V::Opt(None))) } else { None }
+                if has { let m = self.take(&c).unwrap(); self.ent(format!("Recv({})", show(&m))); Some(Rep::Val(V::Opt(Some(Box::new(m))))) } else if closed { self.ent("Recv(none)".into()); Some(Rep::Val(V::Opt(None))) } else { None }
             }
-            Op::Close(cv) => { let c = self.chan(cv)?; self.chans.get_mut(&c).unwrap().closed = true; Some(Rep::Val(V::Unit)) }
+            Op::Close(cv) => { let c = self.chan(cv)?; self.chans.get_mut(&c).unwrap().closed = true; self.ent("Close".into()); Some(Rep::Val(V::Unit)) }
             Op::Select { arms, key, nondet } => {
-                if let Some(k) = self.pick_select(arms, *key, *nondet) {
+                if let Some(k) = self.pick_select(i, arms, *key, *nondet) {
                     self.slots[i].since = 0;
                     return Some(match &arms[k] {
-                        SArm::Recv(cv, _) => { let c = self.chan(cv).unwrap(); match self.take(&c) { Some(m) => Rep::Arm(k, Some(V::Opt(Some(Box::new(m))))), None => Rep::Arm(k, Some(V::Opt(None))) } }
-                        SArm::Send(cv, v) => { let c = self.chan(cv).unwrap(); self.staged.push((c, v.clone())); Rep::Arm(k, None) }
+                        SArm::Recv(cv, _) => { let c = self.chan(cv).unwrap(); match self.take(&c) { Some(m) => { self.ent(format!("Recv({})", show(&m))); Rep::Arm(k, Some(V::Opt(Some(Box::new(m))))) } None => { self.ent("Recv(none)".into()); Rep::Arm(k, Some(V::Opt(None))) } } }
+                        SArm::Send(cv, v) => { let c = self.chan(cv).unwrap(); self.ent(format!("Send({})", show(v))); self.staged.push((c, v.clone())); Rep::Arm(k, None) }
                         _ => Rep::Arm(k, None),
                     });
                 }
@@ -1933,12 +1962,14 @@ impl Sched {
                 }
                 let mut txn = vec![];
                 for (t, v) in sends {
+                    self.ent(format!("Send({})", show(v)));
                     match t {
                         V::Actor(id, ty) => txn.push((id.clone(), ty.clone(), v.clone())),
                         _ => { let c = self.chan(t).unwrap(); self.staged.push((c, v.clone())); }
                     }
                 }
                 if !txn.is_empty() { self.txn_staged.push(txn); }
+                self.ent("Atomic".into());
                 Some(Rep::Val(V::Unit))
             }
             Op::Done(_) => None,
@@ -1948,6 +1979,7 @@ impl Sched {
         let res = match r { Ok(v) => Ok(v.clone()), Err(Flow::Cancel(_)) => Err("cancelled".to_string()), Err(f) => Err(why(f)) };
         let failed = matches!(r, Err(f) if !matches!(f, Flow::Cancel(_)));
         self.slots[i].result = Some(res.clone());
+        self.ent(format!("Done(task {})", self.slots[i].id));
         if i == 0 { if let Err(e) = res { return Some(Outcome::Stopped(e)); } } else if failed {
             let (p, sc) = (self.slots[i].parent, self.slots[i].scope);
             for k in 0..self.slots.len() { if k != i && self.slots[k].parent == p && self.slots[k].scope == sc { self.slots[k].cancel = true; } }
@@ -1986,6 +2018,7 @@ impl Sched {
                 progress = true;
                 if let (Op::Spawn { f, args, prio, scope, .. }, Rep::Spawned(id)) = (&req.op, &rep) {
                     if !has_user_fn(f) { return Outcome::Stopped(format!("trap: no task function {f}")); }
+                    self.ent(format!("Spawn(task {id}, priority {prio})"));
                     self.spawn_task(f.clone(), args.clone(), id.clone(), *prio, Some(i), *scope);
                 }
                 self.slots[i].st = St::Ready(rep);
@@ -2071,6 +2104,22 @@ fn tree_migrates(rec: &[String], cur: &[&str]) -> Result<(), String> {
     }
     Ok(())
 }
+/// `--run --trace`: the run's D as the trace of fn main (10.9): one line
+/// `d applied|kept HASH BODY` per entry, BODY the canonical JSON of {event,
+/// prev_hash, seq, state_hash} with event {payload, type} from the entry
+/// text `K` or `K(A)`, then `trace HEAD`
+fn print_main_trace(tlog: &[(String, String)]) {
+    let mut prev = D_GENESIS.to_string();
+    for (seq, (what, st)) in tlog.iter().enumerate() {
+        let (k, a) = match what.split_once('(') { Some((k, a)) => (k, a.strip_suffix(')')), None => (what.as_str(), None) };
+        let payload = a.map_or("null".to_string(), jstr);
+        let body = format!("{{\"event\":{{\"payload\":{payload},\"type\":{}}},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{}\"}}", jstr(k), sha256_hex(st.as_bytes()));
+        let h = sha256_hex(body.as_bytes());
+        println!("d {} {h} {body}", if k == "Kept" && a.is_some() { "kept" } else { "applied" });
+        prev = h;
+    }
+    println!("trace {prev}");
+}
 /// `--run`: `fn main` on the tick runtime; prints the outputs and the outcome
 pub fn run_tasks(main: &str) {
     // logged link inputs: --link=TICK,partition|heal,NODE,NODE
@@ -2080,7 +2129,8 @@ pub fn run_tasks(main: &str) {
         Some((p.first()?.parse().ok()?, *p.get(1)? == "partition", p.get(2)?.to_string(), p.get(3)?.to_string()))
     }).collect();
     let mut s = Sched { slots: vec![], chans: BTreeMap::new(), staged: vec![], outputs: vec![], rng: 0x5eed | 1, tick: 0, stop: None, max_ticks: 100_000,
-        actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![], rlog: vec![], rrep: restart_inputs(), events: event_inputs() };
+        actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![], rlog: vec![], rrep: restart_inputs(), events: event_inputs(),
+        tlog: vec![], trace: std::env::args().any(|a| a == "--trace") };
     if s.rrep.is_some() { if let Some(rec) = restart_tree_arg() { if let Err(e) = tree_migrates(&rec, &sup_tree()) { s.stop = Some(Outcome::Stopped(e)); } } }
     s.spawn_task(main.to_string(), vec![], hid("main"), 0, None, 0);
     let o = s.run();
@@ -2095,6 +2145,7 @@ pub fn run_tasks(main: &str) {
     for v in &s.outputs { println!("emit {}", show(v)); }
     if std::env::args().any(|a| a == "--actor-log") { for e in &s.alog { println!("actorlog {e}"); } }
     if std::env::args().any(|a| a == "--restart-log") { println!("restartlog v1 tree={}", sup_tree().join(",")); for r in &s.rlog { println!("restartin {}|{}|{}|{}|{}|{}", r.0, r.1, r.2, r.3, u8::from(r.4), r.5.join(",")); } }
+    if s.trace { print_main_trace(&s.tlog); }
     match o { Outcome::Done => println!("outcome Done"), Outcome::Deadlock => println!("outcome Deadlock"), Outcome::Stopped(e) => println!("outcome Stopped: {e}") }
 }
 
