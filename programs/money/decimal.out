@@ -1,2 +1,2 @@
-requires change change/decimal.rce: line 1: W-NAME-1 unknown type `decimal`; line 1: W-TY-1 expected never, found ?0
+requires change change/decimal.rce: line 1: W-NAME-1 unknown type `decimal` [requires change]; line 1: W-TY-1 expected never, found ?0 [requires change]
 exit status: 1
