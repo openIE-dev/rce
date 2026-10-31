@@ -67,15 +67,17 @@ no extra capability is needed.
 
 ## Changing the program
 
-Two limits matter today:
+A log is bound to the program that wrote it (HC-27): beside D the host
+keeps `D.program`, the program's module hash, and `rce host run`, `serve`
+and `replay` refuse a program whose hash differs, naming both hashes,
+before D is opened. Layout and comments are not part of the hash.
 
-- The host does not yet record which program wrote a log. Started with a
-  changed program on an existing log, it applies the new step to new events
-  and replays the old ones with the new program, without a warning. Keep one
-  log per program text until the host checks this, and treat a change of
-  meaning as a new service with a new log.
-- `rce change OLD NEW` classifies a change as an erratum, a meaning change
-  or an interface change, but its behaviour check covers the event alphabet
-  it explores, not every input. A change in how an unexplored request is
-  answered (in a test, a wrong method's status changed from 405 to 501) can
-  be classified as an erratum. Read its verdict as holding on that alphabet.
+- A change of meaning is a new service with a new log.
+- For a change that `rce change OLD NEW` classifies as an erratum, write the
+  new hash to `D.program` (the refusal prints it) and restart; that write is
+  the record of the decision.
+- `rce change` checks behaviour on the event alphabet it explores, not on
+  every input. A change in how an unexplored request is answered (in a
+  test, a wrong method's status changed from 405 to 501) can be classified
+  as an erratum, so read its verdict as holding on that alphabet before
+  rebinding a log.
