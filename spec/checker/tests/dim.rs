@@ -223,3 +223,53 @@ fn equiv_is_undecided_when_only_the_frontier_separates() {
     assert_eq!(code, 3, "{out}");
     assert!(out.contains("verdict             undecided"), "{out}");
 }
+
+// The explored alphabet of 10.11 harvests the literals a step compares an
+// event field with. In notes_http a wrong method's status is reached only on
+// a target the step matches ("/health", "/notes"), which the boundary set of
+// text ("", "a") never produces.
+const NOTES: &str = "../../programs/network/notes_http.rce";
+
+#[test]
+fn change_of_an_unexplored_status_is_a_meaning_change() {
+    let src = std::fs::read_to_string(NOTES).unwrap();
+    let a = tmp("notes_v1", &src);
+    let b = tmp("notes_v2", &src.replace("405", "501"));
+    assert_eq!(rce(&["check", &b]).0, 0, "the changed program, examples included, is accepted");
+    let (status, out) = rce(&["change", &a, &b]);
+    assert_eq!(status, 1, "{out}");
+    assert!(out.contains("verdict             meaning change"), "{out}");
+    assert!(out.contains("behaviour after               HttpRequest(0, \"\", \"/health\""), "{out}");
+    assert!(out.contains("status: 405") && out.contains("status: 501"), "{out}");
+}
+
+#[test]
+fn layout_and_reshaping_of_notes_http_keep_its_behaviour() {
+    let src = std::fs::read_to_string(NOTES).unwrap();
+    let a = tmp("notes_l1", &src);
+    // layout only: a comment and blank lines; the program hash is unchanged
+    let layout = tmp("notes_l2", &src.replace("state Server\n", "# the server's state\n\n\nstate Server\n"));
+    let (status, out) = rce(&["change", &a, &layout]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("verdict             same program"), "{out}");
+    // a reshaping with the same behaviour: a new program hash, an erratum
+    let reshaped = tmp("notes_l3", &src.replace("if c == \"fuel\" then", "if \"fuel\" == c then"));
+    let (status, out) = rce(&["change", &a, &reshaped]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("verdict             erratum  every export compatible"), "{out}");
+}
+
+#[test]
+fn equiv_joins_the_literals_of_both_programs() {
+    // `x < 5` harvests 4, 5, 6 and `x <= 4` harvests 3, 4, 5; both programs
+    // are explored over the union, so they are compared on the same values
+    let p = "state S\n    n: u64 = 0\n\nevent Put(x: u64)\n\nstep S on Put(x: x)\n    emit x < 5\n";
+    let a = tmp("lt", p);
+    let b = tmp("le", &p.replace("x < 5", "x <= 4"));
+    let (status, out) = rce(&["equiv", &a, &b]);
+    assert_eq!(status, 0, "{out}");
+    let c = tmp("le3", &p.replace("x < 5", "x <= 3"));
+    let (status, out) = rce(&["equiv", &a, &c]);
+    assert_eq!(status, 1, "{out}");
+    assert!(out.contains("Put(4)"), "{out}");
+}

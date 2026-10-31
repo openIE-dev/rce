@@ -2163,7 +2163,7 @@ control quotient of the explored concrete machine instead.
 **Canonical control form.** Let M_c be the minimal machine of P_c, its
 states numbered by first visit in a breadth-first traversal from s₀ taking
 events in declaration order (the name-free key of 6.6) and payloads in the
-order of their boundary sets (Reis, Moreira and Almeida 2005: the
+order of their columns in the explored alphabet of 10.11 (Reis, Moreira and Almeida 2005: the
 canonical string of an initially connected DFA is unique and name-free by
 construction). `shape_ctl(P)` is the SHA-256 over the canonical JSON (6.1.1)
 of that string. `shape_ctl` equal means the same control behaviour up to
@@ -2377,7 +2377,7 @@ Classical.choice). Status per theorem:
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 | T57 | proved for the morphism equation (one-step unfolding of the behaviour of 6.10) on the Form of `RCE/Form.lean`; uniqueness of the morphism (Rutten 2000) is stated, unproved | `beh_cons` (`RCE/Behaviour.lean`) |
 | T58 | proved on the Form of `RCE/Form.lean`, for one program and for two: a bisimulation forces equal behaviours and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`, `bisim2_beh`, `beh_bisim2` |
-| T59 | proved over an explicit finite alphabet (the declared events over the boundary sets that `rce dim` explores), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
+| T59 | proved over an explicit finite alphabet (the explored alphabet of 10.11: the declared events over the boundary sets of 6.3 and the literals harvested from the steps), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
 | T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 | T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
@@ -3594,13 +3594,43 @@ give equal output bytes.
 ### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
 
 `rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
-Form. It explores reach(P) breadth-first from s₀: at each state it applies
-every declared event with payloads drawn from each field's refinement type
-(T35 fragment: the bounds and the values next to them) or, for a field
-without one, from the boundary set of 6.3 (the type's minimum, −1, 0, 1,
-maximum; the empty text, list or map and one of one element). Exploration
-stops at `--fuel` states (default 100,000) and reports whether the bound
-was reached. On the explored graph it runs partition refinement (Hopcroft)
+Form, with its `use` imports linked. It explores reach(P) breadth-first
+from s₀: at each state it applies every instance of the *explored
+alphabet*, defined here. Each payload field has a column of candidate
+values: first the boundary set of 6.3 for the field's base type (the
+type's minimum, −1, 0, 1 and maximum for a signed integer; 0, 1 and the
+maximum for an unsigned one; −1.0, 0.0 and 1.0 for a float; `()`; `false` and
+`true`; the texts `""` and `"a"`; for `T?`, `none` and `some` of each
+value of T; for `List[T]`, the empty list and the list of the second value
+of T's set), then the field's *harvested values*. A field of another type
+has no boundary set, and its event is not explored (the report lists it).
+
+*Literal harvesting* finds the literals a program compares a field with.
+A field's value is followed from the step pattern (or actor handler) that
+binds it, through `let` and `var` bindings whose value is the name itself,
+`copy(x)`, `&x`, `x as T`, or `if c then x else y` with x or y followed,
+into the arms of a `match` on it (or on a tuple position that holds it),
+and into a parameter of a function of the module it is passed to, each
+(function, parameter, field) once. A literal (an integer, float or text
+literal, a negated one, or a constant whose value is one) is harvested
+when it meets a followed value in `==`, `!=`, `<`, `<=`, `>` or `>=`, as a
+literal or range-end pattern of a step pattern or a `match` arm, or in the
+predicate of the field's refined type (5.1) with `self` the field. A value
+computed by a method call or an operator (`t.split("/")`, `x + 1`) is not
+followed. The harvested values of an integer field are each harvested
+integer and its two neighbours within the type's range; of a float field,
+each harvested float and it ± 1.0; of a text field, each harvested text,
+and, when both `""` and `"a"` are harvested, the first of `"aa"`,
+`"aaa"`, … that is not, so some value of the column equals none of the
+literals. Values already in the column are not repeated; at most 64 are
+added per field, the smallest in value order, plus that one text. A field
+of another type harvests nothing. The instances of an event are the
+Cartesian product of its columns in field order, the first field varying
+slowest, cut at 4,096 instances per event; an instance that a refined type
+refuses at construction (T35) is not explored and is listed.
+
+Exploration stops at `--fuel` states (default 100,000) and reports whether
+the bound was reached. On the explored graph it runs partition refinement (Hopcroft)
 with the per-step output of λ as the initial partition, giving the number
 of distinct behaviours among explored states, which is dim(P) exactly when
 the bound was not reached and a lower bound otherwise. It prints, per
@@ -3648,8 +3678,11 @@ bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
 `rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
-behaviour (6.10): it explores both from their initial states over the same
-event instances, compares every step by its name-free output (emitted
+behaviour (6.10): it links both and explores both from their initial
+states over the same event instances (the explored alphabet above, with
+the harvested literals of A and B joined per event, by declaration index,
+and per field, by position, so `x < 5` and `x <= 4` are compared on the
+same values), compares every step by its name-free output (emitted
 values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
@@ -3661,7 +3694,9 @@ separates the initial states but no distinguishing sequence exists within
 the explored graph, the separation may come from the unexplored frontier,
 so the verdict is `undecided` with status 3, never `different`.
 The verdict is over the explored alphabet and, when a bound is reached, to
-that bound; T59 bounds what agreement to a depth proves. A program and its
+that bound; T59 bounds what agreement to a depth proves. Two programs that
+differ only on a payload value outside that alphabet (a target that only
+`t.split("/")` distinguishes, for example) are called equivalent. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 

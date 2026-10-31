@@ -49,21 +49,28 @@ so the cost is one hash per (state, instance), never one per sequence
 **What it guarantees.** Two programs with the same output on every event
 sequence of length at most n have the same fingerprint at depth n; this
 follows from the definition by induction on n. In particular, when
-`rce equiv A B` judges A and B equivalent and both fingerprints are
-computed, A and B have the same fingerprint at every depth: equivalence is
+`rce equiv A B` judges A and B equivalent, both fingerprints are computed
+and A and B harvest the same literals (10.11), A and B have the same
+fingerprint at every depth: equivalence is
 bisimilarity on the explored graph (T58), and the partition it computes is
 stable, so the outputs of every sequence that stays within both explored
 graphs agree. Equal fingerprints do not imply equivalence: two programs
 that differ only after n events share the fingerprint at depth n. A shared
 fingerprint is therefore a candidate, confirmed or refuted by
-`rce equiv`. Different alphabets never share a fingerprint, as `rce equiv`
-never calls them equivalent.
+`rce equiv`. Different alphabets never share a fingerprint, as the
+alphabet's keys are hashed in.
 
 **The limit.** Equality is up to the bound in two senses: the alphabet is
-the boundary set of 6.3, not every payload value, and the sequences are at
-most n long. Two programs that differ on a payload outside the boundary
-set, or only after more than n events, share a fingerprint and are called
-equivalent by `rce equiv` alike. For two machines whose reachable graphs
+the explored alphabet of 10.11 (the boundary set of 6.3 and the literals
+harvested from the program's comparisons), not every payload value, and
+the sequences are at most n long. Two programs that differ on a payload
+outside that alphabet, or only after more than n events, share a
+fingerprint and are called equivalent by `rce equiv` alike. Since
+2026-10-31 the alphabet depends on the literals a program compares, and
+`rce fingerprint` reads one program, so two programs that compare
+different literals (`x < 5` and `x <= 4`) have different alphabets and
+different fingerprints even when `rce equiv`, which joins the two
+programs' literals, calls them equivalent. For two machines whose reachable graphs
 are fully explored with a and b states, depth a + b − 1 separates every
 pair that `rce equiv` separates (Moore 1956); a smaller depth may not.
 `--fuel` bounds the states stepped; a fingerprint that would need a state
@@ -91,5 +98,6 @@ program texts are commands, which have no event alphabet.
 
 Whether `rce index` should carry the fingerprint per program so that
 `rce search` can retrieve by it; a Lean statement of the guarantee above
-next to T58 and T59 in `RCE/Behaviour.lean`; a fingerprint over the
-refinement fragment of T35 instead of the base type's boundary set.
+next to T58 and T59 in `RCE/Behaviour.lean`; a fingerprint over one
+alphabet shared by every program of an index, so that programs that
+compare different literals can share one.

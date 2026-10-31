@@ -2,9 +2,10 @@
 //! in and the redundancy of its state.
 //!
 //! Exploration: breadth-first from s₀ over every declared event, with
-//! payloads drawn from the boundary set of 6.3 per field type (the T35
-//! refinement fragment is not read yet: a refined field gets its base type's
-//! boundary set). Partition refinement: Moore's iterative algorithm on the
+//! payloads drawn per field from the boundary set of 6.3 of its base type
+//! and the field's harvested values (`harvest`, 10.11): the literals the
+//! steps compare the field with, including those of a refined type's
+//! predicate. Partition refinement: Moore's iterative algorithm on the
 //! explored graph with the per-step output of λ as the initial partition.
 //! It is quadratic in the worst case where Hopcroft is n log n; it is kept
 //! because its order of operations is obviously deterministic and the graphs
