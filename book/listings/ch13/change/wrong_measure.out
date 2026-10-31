@@ -1,0 +1,2 @@
+requires change wrong_measure.rce: line 5: W-DEC-1 the call of `walk` does not pass a measure strictly smaller than the entry measure of `walk` (lexicographic, shown by a constant difference)
+exit status: 1

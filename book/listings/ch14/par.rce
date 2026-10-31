@@ -1,0 +1,23 @@
+fn stats(xs: &[i64]) -> (i64, i64)
+    var total: i64 = 0
+    var biggest: i64 = 0
+    par
+        branch sum
+            for x in xs
+                total += x
+        branch max
+            for x in xs
+                if x > biggest
+                    biggest = x
+    (total, biggest)
+
+fn sum_squares(n: i64) -> i64
+    var s: i64 = 0
+    for i in 0..n par
+        s += i * i
+    s
+
+const XS: List[i64] = [3, 9, 4]
+
+check stats(&XS) == (16, 9)
+check sum_squares(4) == 14

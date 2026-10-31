@@ -1,0 +1,2 @@
+requires change broken_contract.rce: line 6: W-INT-1 check: trap: {"clause":"requires","function":"2f3a4ac2d55793ee0e2b2f323428aeec6ad4c38d9a0e4ed4883421aae464c716","index":1,"kind":"contract"}
+exit status: 1

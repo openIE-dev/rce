@@ -1,0 +1,11 @@
+fn page(who: &text) -> text = Html.t"<p>Hello, {who}</p>".raw()
+
+fn link(who: &text) -> text = Url.t"https://example.org/?q={who}".raw()
+
+fn echo_cmd(who: text) -> text = Shell.cmd("echo", [ShellArg.encode(who)]).raw()
+
+const NAME: text = "<b>Ann</b>"
+
+check page(&NAME) == "<p>Hello, &lt;b&gt;Ann&lt;/b&gt;</p>"
+check link(&NAME) == "https://example.org/?q=%3Cb%3EAnn%3C%2Fb%3E"
+check echo_cmd("a b; rm") == "{\"args\":[\"a b; rm\"],\"program\":\"echo\"}"

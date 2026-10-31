@@ -1,0 +1,18 @@
+event Add(k: i64)
+event Total(reply: chan i64)
+
+actor Tally
+    total: i64 = 0
+    on Add(k: k) -> total + k
+    on Total(reply: r)
+        r <- total
+
+fn main()
+    let t = Tally()
+    let r = chan[i64](1)
+    t <- Add(k: 5)
+    t <- Add(k: 7)
+    t <- Total(reply: r)
+    match <- r
+        some(v) -> emit v
+        none -> emit -1

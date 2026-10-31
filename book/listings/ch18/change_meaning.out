@@ -1,0 +1,11 @@
+program             4631c798c37181944d74d4c6a90fdfc273747787b15df8388f524550327c4cb5
+                    fe1f224134b853b16bb3cac10037d20b40584f8e60ce726a02062a59842da59b
+api                 breaking	error Underflow	export removed or renamed
+behaviour alphabet            2        event instances explored
+behaviour states              1000 / 1000
+behaviour verdict             different
+behaviour after               Dec()
+behaviour   A                 kept: Underflow
+behaviour   B                 silent
+verdict             meaning change  the behaviour of the program changed
+exit status: 1

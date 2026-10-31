@@ -1,0 +1,12 @@
+# Two values compared without a branch, an index or an early exit that depends on the key.
+ct fn same_tag(key: List[i64] @ {secret}, tag: List[i64]) -> bool @ {secret}
+    var diff: i64 @ {secret} = 0
+    for i in 0..4
+        diff = diff | (key[i] ^ tag[i])
+    return diff == 0
+
+ct fn pick(flag: bool @ {secret}, a: i64, b: i64) -> i64 @ {secret} = ct_choose(flag, a, b)
+
+check same_tag([1, 2, 3, 4], [1, 2, 3, 4])
+check not same_tag([1, 2, 3, 4], [1, 2, 3, 5])
+check pick(true, 7, 9) == 7

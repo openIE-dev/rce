@@ -1,0 +1,8 @@
+error Full
+
+fn send_two(out: chan i64, x: i64) -> i64 ! Full
+    out <- x
+    if x > 9
+        fail Full
+    out <- x
+    return x
