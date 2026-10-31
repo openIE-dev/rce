@@ -849,8 +849,9 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if files.len() != 2 {
                 return Err("change: OLD and NEW are needed".into());
             }
-            let a = parse(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
-            let b = parse(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
+            let (sa, sb) = (read_file(&files[0])?, read_file(&files[1])?);
+            let a = parse(&sa).map_err(|e| format!("{}: {e}", files[0]))?;
+            let b = parse(&sb).map_err(|e| format!("{}: {e}", files[1]))?;
             let ha = crate::apidiff::program_hash(std::slice::from_ref(&a));
             let hb = crate::apidiff::program_hash(std::slice::from_ref(&b));
             writeln!(out, "program             {ha}").map_err(w)?;
@@ -867,7 +868,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if rows.is_empty() {
                 writeln!(out, "api                 no export changed").map_err(w)?;
             }
-            let beh = match crate::dim::equiv(&a, &b, fuel) {
+            // behaviour is compared on the linked programs, as `rce dim` explores
+            // them: a step that calls an imported function needs its module
+            let linked = crate::program(&sa).and_then(|la| Ok((la, crate::program(&sb)?)));
+            let beh = match linked.and_then(|(la, lb)| crate::dim::equiv(&la, &lb, fuel)) {
                 Ok(e) => {
                     write!(out, "{}", crate::dim::equiv_report(&e).lines().map(|l| format!("behaviour {l}\n")).collect::<String>()).map_err(w)?;
                     Some(e)
@@ -913,8 +917,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if files.len() != 2 {
                 return Err("equiv: two files are needed".into());
             }
-            let a = parse(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
-            let b = parse(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
+            let a = crate::program(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
+            let b = crate::program(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
             let e = crate::dim::equiv(&a, &b, fuel)?;
             if json {
                 writeln!(out, "{}", crate::dim::equiv_json(&e)).map_err(w)?;
@@ -954,7 +958,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let one = files.len() == 1;
             let mut status = OK;
             for f in &files {
-                let m = parse(&read_file(f)?).map_err(|e| format!("{f}: {e}"))?;
+                let m = crate::program(&read_file(f)?).map_err(|e| format!("{f}: {e}"))?;
                 match crate::dim::fingerprint(&m, depth, fuel) {
                     Ok(fp) if json => writeln!(out, "{}", crate::dim::fingerprint_json(&fp)).map_err(w)?,
                     Ok(fp) if one => write!(out, "{}", crate::dim::fingerprint_report(&fp)).map_err(w)?,
