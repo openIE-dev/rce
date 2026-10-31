@@ -455,7 +455,7 @@ impl Server {
                                      "hoverProvider": true, "definitionProvider": true,
                                      "documentSymbolProvider": true,
                                      "completionProvider": {"triggerCharacters": ["."]}},
-                    "serverInfo": {"name": "rce", "version": env!("CARGO_PKG_VERSION")}}))],
+                    "serverInfo": {"name": "rce", "version": crate::GIT_COMMIT}}))],
                 None,
             ),
             "textDocument/didOpen" => {

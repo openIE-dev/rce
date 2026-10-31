@@ -2,8 +2,11 @@ name: release
 
 # Every commit of main that passes ci is released: the `rce` binary for five
 # platforms and the container image. A release is named by its commit, never
-# by a typed version: `rce-<commit>` stays for pinning, and `rce-latest` is
-# recreated to point at the newest. scripts/install.sh installs from it.
+# by a typed version: `rce-<commit>` (the first 12 hex digits of the commit)
+# serves for pinning while it is among the 30 newest commit releases (the
+# publish job deletes older ones), and `rce-latest` is recreated to point at
+# the newest. The image is tagged with the full commit hash and `latest`.
+# scripts/install.sh installs from these releases.
 on:
   workflow_run:
     workflows: [ci]

@@ -52,17 +52,17 @@ let tree = parser.parse("fn half(x: u64) -> u64 = x / 2\n", None).unwrap();
 | `queries/folds.scm`, `queries/indents.scm` | folding and indentation captures (nvim-treesitter names) |
 | `test/corpus/` | parse tests (`tree-sitter test`) |
 | `test/highlight/` | highlight query tests (`tree-sitter test`) |
-| `scripts/check-queries.sh` | compiles every query, runs it over the examples, and checks the version comment gate |
+| `scripts/check-queries.sh` | compiles every query, runs it over the examples, and checks that `par` is a reserved word and a loop modifier |
 | `bindings/` | Rust, Node and C bindings |
-| `scripts/check-sync.sh` | checks that this grammar matches the copy in the rce repository |
 
 ## Language coverage
 
-The grammar tracks the RCE specification at openIE-dev/rce: language
-versions 0.5 to 0.8, including refined types `type R = τ where p` (`where`
-is a keyword only after the type of a type declaration and stays an
-ordinary name elsewhere), declared recursion bounds `fn … bound n`, and the
-version 0.8 indexed types `Text[Html]`, `Text[Url]`, `Text[Sql]`,
+The grammar tracks the RCE specification in `../spec/book/`: the one
+language of the current draft (spec 2.7: a `# rce-version:` release label is
+an ordinary comment that selects and gates nothing), including refined
+types `type R = τ where p` (`where` is a keyword only after the type of a
+type declaration and stays an ordinary name elsewhere), declared recursion
+bounds `fn … bound n`, and the indexed types `Text[Html]`, `Text[Url]`, `Text[Sql]`,
 `Text[Json]`, `Secret[τ]`, `Cap[A]` and `Guarded[τ, A]`, which parse as
 ordinary type applications and are highlighted as `@type.builtin`. Type
 rules such as W-CTX-1 or W-REC-1 belong to the checker, not the grammar.
@@ -77,10 +77,6 @@ decides `INDENT` and `DEDENT` is read from the next code line, as spec 2.6
 requires. Apart from the added `comment` nodes, the trees are unchanged.
 
 ## Known limits
-
-- The `tree-sitter test` corpus runner does not apply the
-  `# rce-version: 0.6` gate (spec 2.7), so tests for draft 0.6 keywords
-  live in `scripts/check-queries.sh`, which parses with the CLI.
 
 - Node names follow the reference grammar's rule names (for example
   `step_decl`, `cmp_expr`), so the tree mirrors section 3 of the

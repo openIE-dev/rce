@@ -41,7 +41,9 @@ Dijkstra on a path of 100, 200, 400 and 800 vertices took 0.07, 0.14, 0.29
 and 1.0 s; DPLL on the pigeonhole formulas PHP(m+1, m), m = 2 to 5 (all
 unsatisfiable), took 0.009, 0.017, 0.088 and 0.99 s.
 
-Limits in draft 0.5: there are no tensor or sparse matrix types.
+Limits in the current draft: there are no tensor or sparse matrix types.
+Dense matrices are in the standard library module `num.linalg`
+(`use num.linalg`), with `num.special` and `num.stats` beside it.
 
 Check this folder with `rce test *.rce`, or the whole repository with
 `scripts/check.sh`.

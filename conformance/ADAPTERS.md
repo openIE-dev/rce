@@ -7,7 +7,8 @@ stdin and reads one JSON response per line from its stdout. The adapter file
 Requests (`op`):
 
 - `hello` -> `{"protocol":"rce-adapter/1","implementation":...}`; the
-  reference adds `version` and `commit`, an emitter adds `emitted_by` (the
+  reference adds `commit` (the commit it was built from; there is no typed
+  version), an emitter adds `emitted_by` (the
   checker named in an emitted file's first line) and `toolchain` (the
   target's version line); the harness records the answer in the results
 - `check {files}` -> `{"ok":true}` or `{"ok":false,"diagnostics":[...]}`

@@ -79,7 +79,7 @@ on CI, not locally.
 - `spec/book/`: the specification's source chapters.
 - `spec/proposals/`: proposals and `LEDGER.md`, which records each one and
   its decision. `rce-form.md` is the one form that lifting and emitting
-  share; `rce-form-how.md` (when merged) covers how a program is realised.
+  share; `rce-form-how.md` covers how a program is realised.
 - `spec/checker/`: the reference checker `rce`.
 - `conformance/`: the language-independent conformance suite.
 - `lang/`: pinned oracles and corpora for lifting other languages.

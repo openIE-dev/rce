@@ -100,7 +100,7 @@ def check(c):
         need(f"grammar {ga[0]}/{ga[1]} accepted, {ga[2]}/{ga[3]} requiring change" in o, "00-overview: grammar accepted/requiring change", errs)
         need(f"checker {ck[0]}/{ck[1]} accepted, {ck[2]}/{ck[3]} and {ck[4]}/{ck[5]} requiring change ({ck[6]} of them inadmissible)" in o, "00-overview: checker line", errs)
         need(ga[1] == c["examples_total"], "spec-check example count != files counted", errs)
-        need(ck[5] == c["examples_ill_typed"] + c["examples_inadmissible"], "ill_typed+inadmissible != 64", errs)
+        need(ck[5] == c["examples_ill_typed"] + c["examples_inadmissible"], f"checker's requiring-change count {ck[5]} != files in change/types + change/admission ({c['examples_ill_typed'] + c['examples_inadmissible']})", errs)
     t = re.sub(r"\s+", " ", tool)
     need(f"emits all {c['examples_total']} programs of `spec/examples/`" in t, "12-tooling: emitter corpus size", errs)
     s3 = re.sub(r"\s+", " ", syn)

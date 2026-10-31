@@ -232,11 +232,12 @@ def trace(src, events):
 
 def emitted_by():
     """The checker that emits, from the provenance line of an emitted file
-    (`emitted by rce VERSION (COMMIT)`)."""
+    (`emitted by rce commit COMMIT`; builds before that change printed
+    `emitted by rce VERSION (COMMIT)`)."""
     f = os.path.join(TMP, "hello.rce")
     write(f, "const K: i64 = 1\n")
     rc, out, err = sh([RCE, "emit", LANG, f])
-    m = re.search(r"emitted by (rce \S+ \([^)]*\))", out.splitlines()[0] if out else "")
+    m = re.search(r"emitted by (rce commit \S+|rce \S+ \([^)]*\))", out.splitlines()[0] if out else "")
     return m.group(1) if m else f"unknown: {(err or out).strip()[:200]}"
 
 for line in sys.stdin:
