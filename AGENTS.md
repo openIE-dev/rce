@@ -62,13 +62,18 @@ cargo build --release
 bash ../../scripts/ci-tests.sh fast
 cargo clippy --release --all-targets
 cargo run --release --bin rce-spec-check
-cargo run --release --bin rce-book -- build --check
+cargo run --release --bin rce-book -- build check
 python3 ../../scripts/check-removed-paths.py
+python3 ../../scripts/check-flags.py
 ```
 
 `check-removed-paths.py` fails when any file names a path that git history
 deleted or renamed; name the current path instead. The ledger, which records
 past changes, is exempt.
+`check-flags.py` fails when any file still gives an RCE command a flag: a
+command line is `PROGRAM COMMAND-PATH WORD... OPERAND...` and no argument
+starts with `-` (spec/proposals/positional-cli.md); `scripts/flag-allow.tsv`
+lists the exempt lines, such as other programs' own flags.
 
 Run the slow test binaries your change touches with
 `scripts/ci-tests.sh bin NAME`. The full Rust emitter conformance suite runs

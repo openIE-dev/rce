@@ -1202,7 +1202,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             // rce dim [control] [json] [fuel N] FILE   (10.11)
             let (fuel, control, json) = (p.count("fuel", 100_000, "a count of states")?, p.has("control"), p.has("json"));
             let file = &rest[0];
-            let src = read_file(&file)?;
+            let src = read_file(file)?;
             let d = diagnostics(&src, &HashSet::new());
             if !d.is_empty() {
                 writeln!(out, "requires change {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
@@ -1430,7 +1430,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             code
         }
         ["index"] => {
-            let o = crate::brick::Opts { vectors: p.count("vectors", 0, "a count of vectors")?, ..Default::default() };
+            let o = crate::brick::Opts { vectors: p.count("vectors", 0, "a count of vectors")? };
             let c = crate::brick::index_with(&load(rest)?, &o);
             writeln!(out, "{}", crate::brick::canon(&c)).map_err(w)?;
             OK

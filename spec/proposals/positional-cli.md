@@ -1,8 +1,8 @@
 # Proposal: positional command lines (no flags)
 
-Status: accepted 2026-10-31, implementation pending. Design only: no code
-changes in this proposal. The implementation is one later change, made after the open pull
-requests that touch the same files have merged (section 4).
+Status: accepted 2026-10-31; implemented 2026-10-31 by the change on branch
+`claude/positional-cli-impl` (the ledger row of that date). Sections 1 to 4
+are the design as accepted; the inventory counts `main` before that change.
 
 AGENTS.md already states the rule: "Commands take positional arguments
 only." The tools do not follow it yet. This proposal lists every place

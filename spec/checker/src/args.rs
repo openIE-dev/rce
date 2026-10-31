@@ -261,10 +261,8 @@ pub fn removed_flag(program: &str, table: &[Command], removed: &[Removed], args:
         match r.fate {
             Fate::Word => {
                 // decision 4: two things joined with `=` are two arguments
-                if vals.len() == 1 && matches!(f.as_str(), "--key" | "--peer") {
-                    if let Some((x, y)) = vals[0].clone().split_once('=') {
-                        vals = vec![x.to_string(), y.to_string()];
-                    }
+                if let (1, "--key" | "--peer", Some((x, y))) = (vals.len(), f.as_str(), vals.first().and_then(|v| v.split_once('='))) {
+                    vals = vec![x.to_string(), y.to_string()];
                 }
                 words.push(f.trim_start_matches('-').to_string());
                 words.extend(vals);
@@ -344,7 +342,8 @@ mod tests {
     }
     #[test]
     fn words_then_operands() {
-        let (c, r) = find(T, &s(&["dim", "fuel", "9", "json", "fuel.rce"])).unwrap();
+        let v = s(&["dim", "fuel", "9", "json", "fuel.rce"]);
+        let (c, r) = find(T, &v).unwrap();
         let p = parse(c, r, "rce").unwrap();
         assert_eq!(p.value("fuel"), Some("9"));
         assert!(p.has("json"));
@@ -354,11 +353,13 @@ mod tests {
     }
     #[test]
     fn tls_then_peer() {
-        let (c, r) = find(T, &s(&["host", "serve", "tls", "peer", "a:1", "ab", "peer", "b:2", "cd", "f.rce", "d"])).unwrap();
+        let v = s(&["host", "serve", "tls", "peer", "a:1", "ab", "peer", "b:2", "cd", "f.rce", "d"]);
+        let (c, r) = find(T, &v).unwrap();
         let p = parse(c, r, "rce").unwrap();
         assert_eq!(p.all("peer").len(), 2);
         assert_eq!(p.operands, s(&["f.rce", "d"]));
-        let (c, r) = find(T, &s(&["host", "serve", "peer", "a:1", "tls", "f.rce", "d"])).unwrap();
+        let v = s(&["host", "serve", "peer", "a:1", "tls", "f.rce", "d"]);
+        let (c, r) = find(T, &v).unwrap();
         assert!(parse(c, r, "rce").unwrap_err().contains("PC-4"));
     }
     #[test]

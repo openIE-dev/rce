@@ -44,6 +44,8 @@ SHELLISH = (".sh", ".yml", ".yaml", ".md", ".cmd", ".bash")
 CODE = (".rs", ".py", ".js", ".mjs", ".cjs")
 RUNS = re.compile(r"CARGO_BIN_EXE_|\brce\(&\[|\brun\(&\[|\[RCE\b|\"\$RCE\"|\bRCE\b.*\b(run|call|check_output|Popen)\(|cli::main")
 DASH_LIT = re.compile(r"[\"']-{1,2}[A-Za-z][\w-]*")
+CARGO_RUN = re.compile(r"cargo run [^\n]*--bin rce[\w-]* [^\n]*?-- (.*)")
+AFTER_DASHES = re.compile(r"(?<![\w-])--?[A-Za-z]")
 SKIP_DIRS = ("ide/vendor/", "stdlib/vectors/", "lang/corpus/", "tree-sitter/src/")
 TEXT = SHELLISH + CODE + (".toml", ".json", ".lean", ".txt", ".rce", ".scala", ".html", ".tsv", "Dockerfile")
 
@@ -81,7 +83,12 @@ def main():
         code = f.endswith(CODE)
         for n, line in enumerate(text.split("\n"), 1):
             found = NAMES.search(line) or (shellish and CMDLINE.search(line)) or (code and RUNS.search(line) and DASH_LIT.search(line))
-            if found and not allowed(rules, f, line):
+            # `cargo run --bin rce... -- ARGS`: cargo's flags are cargo's, but
+            # ARGS are the RCE binary's, so no allow rule exempts them
+            after = CARGO_RUN.search(line)
+            if after and AFTER_DASHES.search(after.group(1)) and not allowed(rules, f, after.group(1)):
+                hits.append(f"{f}:{n}: {line.strip()[:160]}")
+            elif found and not allowed(rules, f, line):
                 hits.append(f"{f}:{n}: {line.strip()[:160]}")
     for h in hits:
         print(h)

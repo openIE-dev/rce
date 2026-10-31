@@ -19,6 +19,8 @@ jobs:
           fetch-depth: 0
       - name: No mention of a removed path
         run: python3 scripts/check-removed-paths.py
+      - name: No command line gives an RCE command a flag (positional-cli.md 4.3)
+        run: python3 scripts/check-flags.py
 
   spec:
     runs-on: ubuntu-latest
@@ -38,7 +40,7 @@ jobs:
       - name: Check the specification and examples
         run: cargo run --release --bin rce-spec-check
       - name: Check the book is in sync
-        run: cargo run --release --bin rce-book -- build --check
+        run: cargo run --release --bin rce-book -- build check
       # every figure the prose quotes (grammar and example counts from
       # rce-spec-check, built above) must equal the source
       - name: Check the quoted counts (claim-counts)

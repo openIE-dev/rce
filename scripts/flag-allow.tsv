@@ -10,7 +10,7 @@ ide/release/RELEASE.md		dated release notes keep their words
 **	unshare[^\n]*--net	unshare's own flag
 **	tree-sitter[^\n]*--wasm|"--wasm"\]	tree-sitter's own flag
 **	\bgh [^\n]*--json	the GitHub CLI's own flag
-**	cargo [^\n]*(--release|--bin|--features|--test|--lib|--all-targets|--locked|--manifest-path|--version|--check|-j)	cargo's own flags
+**	cargo [^\n]*(--release|--bin|--features|--test|--lib|--all-targets|--locked|--manifest-path|--version|-j)	cargo's own flags
 **	(rustc|node|python3|scala-cli|mdbook|lean|lake|wasmtime|elan|tree-sitter|java|go|deno|bun|npm|pnpm|pip|uv|clang|gcc|cc|zig|docker|git|curl|jq)\b[^\n]*--version|tool_version\(|\.arg\("--version"\)|"--version"\]|\[t, "--version"\]|`--version`	--version of other programs
 **	rustfmt[^\n]*--check|cargo fmt[^\n]*--check	rustfmt's own flag
 **	black[^\n]*--check|ruff[^\n]*--check|prettier[^\n]*--check	formatters' own flags
@@ -41,3 +41,4 @@ ide/crates/rce-ide/tests/rce_bin.rs	"--energy-budget"|"--version"	the test that 
 ide/crates/rce-mcp/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
 ide/crates/rce-ide/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
 scripts/positional.py	`--log D`|`--NAME`	the reader of removed flags (decision 2)
+spec/checker/tests/repair.rs	"repair", "--json"	the test that a dash argument exits 2
