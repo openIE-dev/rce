@@ -201,7 +201,12 @@ fn streams_trace_every_list_in_one_run() {
     assert!(v["events"].is_null());
     let names: Vec<&str> = v["traces"].as_array().unwrap().iter().map(|t| t["source"].as_str().unwrap()).collect();
     assert_eq!(names, ["stream@0", "stream@1", "stream@2"]);
-    assert_eq!(v["traces"][1]["steps"].as_array().unwrap().len(), 1, "a first event whose step is kept ends the stream");
+    // a kept step keeps the state (T8) and the next event is applied to it
+    let st = v["traces"][1]["steps"].as_array().unwrap();
+    assert_eq!(st.len(), 2, "a kept first step does not end the stream");
+    assert_eq!(st[0]["outcome"]["kept"], "Underflow");
+    assert_eq!(st[1]["outcome"], "applied");
+    assert_eq!(st[0]["state_hash"], v["traces"][0]["steps"][1]["state_hash"], "the kept step has the initial state's hash");
     let one = trace(&c.to_string_lossy(), &src, Some("Inc, Inc, Inc")).unwrap();
     let o: serde_json::Value = serde_json::from_str(&one).unwrap();
     assert_eq!(o["events"], "Inc, Inc, Inc");

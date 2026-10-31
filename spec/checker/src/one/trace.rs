@@ -143,7 +143,6 @@ fn example(m: &Module, x: &Example, out: &mut Vec<String>) {
                     Err(r) => {
                         d.add(m, evn, &ev, &s);
                         out.push(format!("{k} {} kept: {r}", ev.show()));
-                        break;
                     }
                 }
             }

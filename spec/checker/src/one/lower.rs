@@ -7336,8 +7336,8 @@ impl<'m> Lw<'m> {
                                 lw.dlog(fx, ev_json, sha, prev, seq, &ev, s)?;
                                 let es = lw.call_rt(fx, ev_show, vec![ev.clone()]);
                                 let l = fx.b.cats(vec![Atom::bytes(format!("{k} ").as_bytes()), es, Atom::bytes(b" kept: "), q, Atom::bytes(b"\n")])?;
+                                // a kept step keeps the state (T8); the next event is applied to it
                                 fx.b.out(l);
-                                fx.b.brk(fx.depth - 1 - eb);
                                 Ok(())
                             }
                         })

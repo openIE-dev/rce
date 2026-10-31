@@ -904,7 +904,7 @@ function runEvents(s, events, d) {
     try { ev = th(); } catch (e) { if (!isFlow(e)) throw e; say(k + " " + name + " " + why(e)); return; }
     if (ev === null) { say(k + " " + name + " not an event"); return; }
     let r;
-    try { r = delta(s, ev); } catch (e) { if (e instanceof Kept) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " kept: " + e.r); return; } throw e; }
+    try { r = delta(s, ev); } catch (e) { if (e instanceof Kept) { if (TRACE) d.add(name, ev, s, true); say(k + " " + show(ev) + " kept: " + e.r); continue; } throw e; }
     s = r[0];
     if (TRACE) d.add(name, ev, s, false);
     say(k + " " + show(ev) + " " + showState(s));

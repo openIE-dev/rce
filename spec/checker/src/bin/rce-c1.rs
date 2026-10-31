@@ -949,9 +949,9 @@ fn main() {
                                 eprintln!("case {id}: used {used} bp {bp} ev {}\n{full}", ev.show());
                             }
                         }
-                        match r {
-                            Ok((s2, _)) => s = s2,
-                            Err(_) => break,
+                        // a kept step keeps the state (T8); the next event is applied to it
+                        if let Ok((s2, _)) = r {
+                            s = s2;
                         }
                     }
                 }

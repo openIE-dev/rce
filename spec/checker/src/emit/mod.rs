@@ -267,8 +267,8 @@ fn obs_example1<'a>(m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &m
                 if trace {
                     d.add(m, evn, &ev, &s, true, out);
                 }
+                // a kept step keeps the state (T8); the next event is applied to it
                 out.push(format!("{k} {} kept: {r}", ev.show()));
-                break;
             }
         }
     }
