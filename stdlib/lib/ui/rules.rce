@@ -1,0 +1,2018 @@
+module ui.rules
+use ui.view
+
+# Exact accessibility rules over ui.view trees and traces of them, for every
+# success criterion (SC) of level A and AA of WCAG 2.2 (Web Content
+# Accessibility Guidelines, W3C). Pure. Proposal:
+# spec/proposals/human-interface.md.
+#
+# Terms.
+# - A view is a ui.view tree; node 0 is its root.
+# - A trace is a list of Step(ev, ms, v): the view v a program shows after
+#   event ev, ms milliseconds after the previous step. Event words: "start",
+#   "tick", "focus K", "input K", "activate K", "key NAME", "hover K",
+#   "unhover", "navigate" (K is a node's ui.view key, NAME a UI Events key
+#   value as in ui.input). A rule over one view applies to every step's view.
+# - A finding is one result of a rule at one node of one frame: "fails" or
+#   "undecided" (a needed value is missing, or the case is too close to
+#   call). A rule never meets on missing data.
+# - A verdict is the outcome of one SC for a trace: "meets", "fails",
+#   "undecided", "not applicable" (with the reason) or "attested".
+# - Class of an SC (criteria()): E exact on one view, L exact on a trace,
+#   P partly exact (a rule for the exact part; a person decides the rest),
+#   H human only.
+# - An attestation is the root attribute attest-ID (ID an SC number) with
+#   the value "WHO;YYYY-MM-DD": a person named WHO decided on that date that
+#   the part of the SC no rule decides is met. An SC whose human part
+#   applies has the verdict "undecided" until every frame carries one; an
+#   attestation never turns an exact "fails" or "undecided" into a meet.
+# - exempt (a comma-separated list of SC numbers) on a node claims one of
+#   the SC's exceptions (essential, logotype, real-time and so on): the
+#   rule skips the node, and the SC then needs an attestation.
+#
+# Vocabulary rce.ui.attrs/1 (all values are text, as ui.view requires;
+# booleans are "true"/"false", numbers decimal integers, colours "#rrggbb"):
+# - WAI-ARIA 1.2 names: role (a role of ROLE_NAME), aria-label,
+#   aria-labelledby, aria-describedby, aria-errormessage and aria-controls
+#   (space-separated ui.view keys), aria-hidden, aria-disabled,
+#   aria-checked, aria-pressed, aria-expanded, aria-selected,
+#   aria-required, aria-invalid, aria-modal, aria-level, aria-valuenow,
+#   aria-valuemin, aria-valuemax, aria-live, aria-keyshortcuts.
+# - HTML names: tabindex (an integer; >= 0 is focusable, in the order of
+#   focus_order), lang (root: the view's language), title (root: the
+#   view's title), autocomplete (an input purpose of WCAG 2.2 section 7),
+#   href ("#K" names the node with key K), value.
+# - Presentation: fg, bg, border, focus-fg, focus-bg, focus-border,
+#   focus-outline, bg-image, font-px, font-weight, w, h (declared minimum
+#   size in CSS px), inline, layer (> 0: drawn above the flow), graphic,
+#   orientation, user-scale, max-scale (percent), user-spacing.
+# - Behaviour: action (the event the node raises when activated; a node
+#   with action is interactive), focused (the node with focus), context
+#   (root: the id of the view's context), dismiss-key, dismisses,
+#   captures-tab, shortcut-scope, shortcut-off-action,
+#   shortcut-remap-action, gesture, drag, alt-action, activate-on,
+#   undo-action, confirm-action, review-action, motion-action,
+#   motion-off-action, popup, time-limit-ms, time-left-ms,
+#   time-off-action, time-adjust-action, time-adjust-max-ms,
+#   time-extend-action, time-extend-max, time-warning, moving,
+#   duration-ms, pause-action, volume-action, status-msg, help, entry,
+#   entry-offer, commits, auth, paste.
+# - Media: media (audio, video or audio-video), media-live, autoplay,
+#   captions, audio-description, transcript, audio-track.
+# - exempt and attest-ID as above.
+#
+# Contrast is integer arithmetic: LIN holds each linearised sRGB channel
+# times 10^12 within 1/2, so a luminance times 10^16 is within 5000 of
+# its exact value and contrast_at_least decides a ratio exactly unless the
+# exact value lies within that bound of the threshold (then undecided).
+
+pub struct Finding
+    sc: text
+    rule: text
+    frame: i64
+    at: i64
+    outcome: text
+    reason: text
+
+pub struct Verdict
+    sc: text
+    outcome: text
+    reason: text
+
+pub struct Step
+    ev: text
+    ms: i64
+    v: View
+
+# A step with facts every rule reads, computed once per frame: role,
+# role index, hidden, inactive, interactive, focusable, and visible
+# element (an element not hidden).
+pub struct Frame
+    ev: text
+    ms: i64
+    v: View
+    role: List[text]
+    ri: List[i64]
+    hid: List[bool]
+    off: List[bool]
+    inter: List[bool]
+    foc: List[bool]
+    vis: List[bool]
+
+pub struct Criterion
+    id: text
+    level: text
+    class: text
+    rule: text
+    human: text
+
+# ---------------- the criteria ----------------
+fn cr(id: text, level: text, class: text, rule: text, human: text) -> Criterion = Criterion(id: id, level: level, class: class, rule: rule, human: human)
+
+# Every level A and AA SC of WCAG 2.2 (4.1.1 Parsing is obsolete), in
+# document order: id, level, class, rule ("-" for none), what a person
+# decides ("" for nothing).
+pub fn criteria() -> List[Criterion]
+    var c: List[Criterion] = []
+    c.push(cr("1.1.1", "A", "P", "text_alternative", "whether each text alternative serves the purpose of its image"))
+    c.push(cr("1.2.1", "A", "P", "media_alternative", "whether each transcript or audio track presents the same information as the media"))
+    c.push(cr("1.2.2", "A", "P", "captions_prerecorded", "whether the captions are accurate and synchronised"))
+    c.push(cr("1.2.3", "A", "P", "description_or_alternative", "whether the audio description or alternative is accurate"))
+    c.push(cr("1.2.4", "AA", "P", "captions_live", "whether the live captions are accurate and synchronised"))
+    c.push(cr("1.2.5", "AA", "P", "audio_description", "whether the audio description is accurate"))
+    c.push(cr("1.3.1", "A", "P", "info_relationships", "whether every structure and relationship shown is expressed by roles and states"))
+    c.push(cr("1.3.2", "A", "H", "-", "whether the reading order (tree order) preserves meaning"))
+    c.push(cr("1.3.3", "A", "H", "-", "whether instructions rely on shape, colour, size, location, orientation or sound alone"))
+    c.push(cr("1.3.4", "AA", "P", "orientation", "whether a declared orientation lock is essential"))
+    c.push(cr("1.3.5", "AA", "P", "input_purpose", "whether every field that collects information about the user declares its purpose"))
+    c.push(cr("1.4.1", "A", "H", "-", "whether colour is the only visual means of conveying information"))
+    c.push(cr("1.4.2", "A", "E", "audio_control", ""))
+    c.push(cr("1.4.3", "AA", "E", "contrast_minimum", ""))
+    c.push(cr("1.4.4", "AA", "E", "resize_text", "layout geometry, which RCE does not have yet: text resized to 200 percent without loss of content"))
+    c.push(cr("1.4.5", "AA", "H", "-", "whether images of text are essential or customisable"))
+    c.push(cr("1.4.10", "AA", "E", "reflow", "layout geometry, which RCE does not have yet: content at 320 CSS px without two-dimensional scrolling"))
+    c.push(cr("1.4.11", "AA", "P", "non_text_contrast", "which boundaries and graphics are required to identify components and understand content"))
+    c.push(cr("1.4.12", "AA", "E", "text_spacing", "layout geometry, which RCE does not have yet: no loss of content under the stated text spacing"))
+    c.push(cr("1.4.13", "AA", "L", "hover_focus_content", ""))
+    c.push(cr("2.1.1", "A", "E", "keyboard", ""))
+    c.push(cr("2.1.2", "A", "E", "no_keyboard_trap", ""))
+    c.push(cr("2.1.4", "A", "E", "character_key_shortcuts", ""))
+    c.push(cr("2.2.1", "A", "L", "timing_adjustable", ""))
+    c.push(cr("2.2.2", "A", "L", "pause_stop_hide", ""))
+    c.push(cr("2.3.1", "A", "P", "three_flashes", "flashing inside media and images, which the tree does not describe"))
+    c.push(cr("2.4.1", "A", "P", "bypass_blocks", "whether blocks repeat across views when no main landmark, heading or skip link is declared"))
+    c.push(cr("2.4.2", "A", "P", "page_titled", "whether the title describes the topic or purpose"))
+    c.push(cr("2.4.3", "A", "P", "focus_order", "whether the focus order preserves meaning and operability"))
+    c.push(cr("2.4.4", "A", "P", "link_purpose", "whether each link's purpose follows from its name and context"))
+    c.push(cr("2.4.5", "AA", "H", "-", "whether more than one way locates this view within its set"))
+    c.push(cr("2.4.6", "AA", "H", "-", "whether headings and labels describe topic or purpose"))
+    c.push(cr("2.4.7", "AA", "E", "focus_visible", ""))
+    c.push(cr("2.4.11", "AA", "E", "focus_not_obscured", "layout geometry, which RCE does not have yet: whether a declared layer hides the focused component"))
+    c.push(cr("2.5.1", "A", "E", "pointer_gestures", ""))
+    c.push(cr("2.5.2", "A", "E", "pointer_cancellation", ""))
+    c.push(cr("2.5.3", "A", "P", "label_in_name", "labels shown outside the component or as images of text"))
+    c.push(cr("2.5.4", "A", "E", "motion_actuation", ""))
+    c.push(cr("2.5.7", "AA", "E", "dragging", ""))
+    c.push(cr("2.5.8", "AA", "E", "target_size", "layout geometry, which RCE does not have yet: the spacing exception for targets under 24 by 24"))
+    c.push(cr("3.1.1", "A", "P", "language_of_page", "whether lang names the language of the content"))
+    c.push(cr("3.1.2", "AA", "P", "language_of_parts", "whether every passage in another language declares lang"))
+    c.push(cr("3.2.1", "A", "L", "on_focus", ""))
+    c.push(cr("3.2.2", "A", "L", "on_input", ""))
+    c.push(cr("3.2.3", "AA", "L", "consistent_navigation", ""))
+    c.push(cr("3.2.4", "AA", "L", "consistent_identification", ""))
+    c.push(cr("3.2.6", "A", "L", "consistent_help", ""))
+    c.push(cr("3.3.1", "A", "P", "error_identification", "whether every detected error sets aria-invalid and its message describes the error"))
+    c.push(cr("3.3.2", "A", "P", "labels_or_instructions", "whether the labels and instructions are sufficient"))
+    c.push(cr("3.3.3", "AA", "H", "-", "whether a known correction is suggested"))
+    c.push(cr("3.3.4", "AA", "P", "error_prevention", "whether every submission with legal, financial or data commitments declares commits"))
+    c.push(cr("3.3.7", "A", "L", "redundant_entry", ""))
+    c.push(cr("3.3.8", "AA", "P", "accessible_authentication", "whether any other cognitive function test is used, and the object and personal-content exceptions"))
+    c.push(cr("4.1.2", "A", "E", "name_role_value", ""))
+    c.push(cr("4.1.3", "AA", "L", "status_messages", ""))
+    return c
+
+# The rules this module implements, by name.
+pub fn rule_names() -> List[text]
+    return ["text_alternative", "media_alternative", "captions_prerecorded", "description_or_alternative", "captions_live", "audio_description", "info_relationships", "orientation", "input_purpose", "audio_control", "contrast_minimum", "resize_text", "reflow", "non_text_contrast", "text_spacing", "hover_focus_content", "keyboard", "no_keyboard_trap", "character_key_shortcuts", "timing_adjustable", "pause_stop_hide", "three_flashes", "bypass_blocks", "page_titled", "focus_order", "link_purpose", "focus_visible", "focus_not_obscured", "pointer_gestures", "pointer_cancellation", "label_in_name", "motion_actuation", "dragging", "target_size", "language_of_page", "language_of_parts", "on_focus", "on_input", "consistent_navigation", "consistent_identification", "consistent_help", "error_identification", "labels_or_instructions", "error_prevention", "redundant_entry", "accessible_authentication", "name_role_value", "status_messages"]
+
+# ---------------- attributes ----------------
+fn av(v: &View, n: i64, name: text) -> text = view.attr(v, n, &name).or("")
+fn av_of(v: &View, n: i64, name: &text) -> text = view.attr(v, n, name).or("")
+fn present(v: &View, n: i64, name: text) -> bool = view.attr(v, n, &name).issome()
+fn has(v: &View, n: i64, name: text) -> bool = av(v, n, name).strip() != ""
+fn yes(v: &View, n: i64, name: text) -> bool = av(v, n, name).strip() == "true"
+fn el(v: &View, n: i64) -> bool = v.tag[n as usize] != ""
+fn nodes(v: &View) -> usize = v.tag.len()
+
+# nearest value on n or an ancestor; "" when none
+fn up(v: &View, n: i64, name: text) -> text
+    var m = n
+    while m >= 0 bound 65536
+        let a = view.attr(v, m, &name)
+        if a.issome()
+            return a.or("")
+        m = v.parent[m as usize]
+    return ""
+
+fn up_true(v: &View, n: i64, name: text) -> bool
+    var m = n
+    while m >= 0 bound 65536
+        if av(v, m, copy(name)) == "true"
+            return true
+        m = v.parent[m as usize]
+    return false
+
+# hidden from assistive technology (aria-hidden on n or an ancestor)
+pub fn hidden(v: &View, n: i64) -> bool = up_true(v, n, "aria-hidden")
+# inactive (aria-disabled on n or an ancestor)
+pub fn inactive(v: &View, n: i64) -> bool = up_true(v, n, "aria-disabled")
+
+# a decimal integer of at most 15 digits, optionally negative
+pub fn int_ok(t: &text) -> bool
+    let s = t.strip()
+    if s.len_chars() == 0 or s.len_chars() > 16
+        return false
+    if s.isdigit()
+        return s.len_chars() <= 15
+    let p = s.split("-")
+    return p.len() == 2 and p[0] == "" and p[1].isdigit() and p[1].len_chars() <= 15
+
+# a non-negative integer attribute, or -1 when absent or not one
+fn nat(v: &View, n: i64, name: text) -> i64
+    let s = av(v, n, name)
+    if not int_ok(&s)
+        return -1
+    let x = s.strip().toint()
+    if x < 0
+        return -1
+    return x
+
+fn in_list(x: &text, xs: &[text]) -> bool
+    for y in xs
+        if y == x
+            return true
+    return false
+
+fn words_of(t: &text) -> List[text] = t.words()
+
+pub fn role_index(r: &text) -> i64
+    if r == ""
+        return -1
+    for i in 0..ROLE_NAME.len()
+        if ROLE_NAME[i] == r
+            return i as i64
+    return -1
+
+pub fn role(v: &View, n: i64) -> text = av(v, n, "role").strip()
+
+# widget roles a person operates (ARIA type widget, without progressbar)
+pub fn widget(r: &text) -> bool
+    let i = role_index(r)
+    return i >= 0 and ROLE_TYPE[i as usize] == "widget" and r != "progressbar"
+
+pub fn input_role(r: &text) -> bool
+    let xs = ["textbox", "searchbox", "combobox", "checkbox", "radio", "switch", "slider", "spinbutton", "listbox"]
+    return in_list(r, &xs)
+
+pub fn text_input(r: &text) -> bool = r == "textbox" or r == "searchbox" or r == "combobox"
+
+# interactive: an element with an action or a widget role
+pub fn interactive(v: &View, n: i64) -> bool
+    if not el(v, n)
+        return false
+    let r = role(v, n)
+    return has(v, n, "action") or widget(&r)
+
+pub fn focusable(v: &View, n: i64) -> bool
+    let s = av(v, n, "tabindex")
+    return el(v, n) and int_ok(&s) and s.strip().toint() >= 0
+
+pub fn find_key(v: &View, k: &text) -> i64
+    if k == ""
+        return -1
+    for i in 0..nodes(v)
+        if v.key[i] == k
+            return i as i64
+    return -1
+
+fn focused_node(v: &View) -> i64
+    for i in 0..nodes(v)
+        if yes(v, i as i64, "focused")
+            return i as i64
+    return -1
+
+fn focused_key(v: &View) -> text
+    let f = focused_node(v)
+    if f < 0
+        return ""
+    return copy(v.key[f as usize])
+
+fn ctx(v: &View) -> text = av(v, 0, "context")
+
+fn is_desc(v: &View, n: i64, a: i64) -> bool
+    var m = n
+    while m >= 0 bound 65536
+        if m == a
+            return true
+        m = v.parent[m as usize]
+    return false
+
+# pre-order (tree order) from the root
+pub fn preorder(v: &View) -> List[i64]
+    var out: List[i64] = []
+    var st: List[i64] = [0]
+    while st.len() > 0 bound 16777216
+        let u = st[st.len() - 1]
+        let _ = st.pop()
+        out.push(u)
+        var t = v.kids[u as usize].len()
+        while t > 0 bound 16777216
+            t -= 1
+            st.push(v.kids[u as usize][t])
+    return out
+
+# the visible text of the subtree under n, words joined by one space
+pub fn text_of(v: &View, n: i64) -> text
+    var parts: List[text] = []
+    var st: List[i64] = [n]
+    while st.len() > 0 bound 16777216
+        let u = st[st.len() - 1]
+        let _ = st.pop()
+        if av(v, u, "aria-hidden") != "true"
+            if v.tag[u as usize] == ""
+                for w in v.text[u as usize].words()
+                    parts.push(w)
+            else
+                var t = v.kids[u as usize].len()
+                while t > 0 bound 16777216
+                    t -= 1
+                    st.push(v.kids[u as usize][t])
+    return " ".join(parts)
+
+fn keys_text(v: &View, ks: &text) -> text
+    var parts: List[text] = []
+    for k in ks.words()
+        let m = find_key(v, &k)
+        if m >= 0
+            let t = text_of(v, m)
+            if t != ""
+                parts.push(t)
+    return " ".join(parts)
+
+# accessible name: aria-label, else aria-labelledby, else content for roles
+# whose name comes from content (and elements with an action and no role)
+pub fn name_of(v: &View, n: i64) -> text
+    let l = " ".join(av(v, n, "aria-label").words())
+    if l != ""
+        return l
+    let lb = av(v, n, "aria-labelledby")
+    if lb.strip() != ""
+        return keys_text(v, &lb)
+    let r = role(v, n)
+    let i = role_index(&r)
+    if (i >= 0 and ROLE_NAME_CONTENT[i as usize]) or (r == "" and has(v, n, "action"))
+        return text_of(v, n)
+    return ""
+
+# exception claimed for SC sc on n or an ancestor
+fn exempt(v: &View, n: i64, sc: &text) -> bool
+    var m = n
+    while m >= 0 bound 65536
+        for x in av(v, m, "exempt").split(",")
+            if x.strip() == sc
+                return true
+        m = v.parent[m as usize]
+    return false
+
+# ---------------- colour and contrast ----------------
+fn hexval(c: &text) -> i64
+    let ds = "0123456789abcdef".chars()
+    for i in 0..16
+        if ds[i] == c
+            return i as i64
+    return -1
+
+# "#rrggbb" as 0xrrggbb, or -1
+pub fn parse_color(t: text) -> i64
+    let cs = t.strip().lower().chars()
+    if cs.len() != 7 or cs[0] != "#"
+        return -1
+    var x: i64 = 0
+    for i in 1..7
+        let d = hexval(&cs[i])
+        if d < 0
+            return -1
+        x = x * 16 + d
+    return x
+
+fn color_up(v: &View, n: i64, name: text) -> i64 = parse_color(up(v, n, name))
+
+pub const LUM_ERR: i64 = 5000
+pub const LUM_OFFSET: i64 = 500000000000000
+
+# relative luminance times 10^16 (within LUM_ERR)
+pub fn lum(c: i64) -> i64 = 2126 * LIN[((c >> 16) & 255) as usize] + 7152 * LIN[((c >> 8) & 255) as usize] + 722 * LIN[(c & 255) as usize]
+
+# 1 when the contrast ratio of a and b is at least kn/kd, 0 when it is
+# less, -1 when the bound cannot decide (or a colour is missing)
+pub fn contrast_at_least(a: i64, b: i64, kn: i64, kd: i64) -> i64
+    if a < 0 or b < 0
+        return -1
+    let x = lum(a) + LUM_OFFSET
+    let y = lum(b) + LUM_OFFSET
+    let h = if x >= y then x else y
+    let l = if x >= y then y else x
+    if (h - LUM_ERR) * kd >= kn * (l + LUM_ERR)
+        return 1
+    if (h + LUM_ERR) * kd < kn * (l - LUM_ERR)
+        return 0
+    return -1
+
+# the contrast ratio in millionths: a lower and an upper bound
+pub fn ratio_micro_lo(a: i64, b: i64) -> i64
+    let x = lum(a) + LUM_OFFSET
+    let y = lum(b) + LUM_OFFSET
+    let h = if x >= y then x else y
+    let l = if x >= y then y else x
+    return ((h - LUM_ERR) / 100000) * 1000000 / ((l + LUM_ERR) / 100000 + 1)
+
+pub fn ratio_micro_hi(a: i64, b: i64) -> i64
+    let x = lum(a) + LUM_OFFSET
+    let y = lum(b) + LUM_OFFSET
+    let h = if x >= y then x else y
+    let l = if x >= y then y else x
+    return ((h + LUM_ERR) / 100000 + 1) * 1000000 / ((l - LUM_ERR) / 100000) + 1
+
+# "4.47" style text of the lower bound, for reasons
+fn ratio_text(a: i64, b: i64) -> text
+    let m = ratio_micro_lo(a, b) / 10000
+    let f = m % 100
+    return (m / 100).tostr() + "." + (if f < 10 then "0" else "") + f.tostr()
+
+# ---------------- findings ----------------
+fn fl(out: &mut List[Finding], sc: text, rule: text, fr: i64, at: i64, outcome: text, reason: text)
+    out.push(Finding(sc: sc, rule: rule, frame: fr, at: at, outcome: outcome, reason: reason))
+
+fn fails(out: &mut List[Finding], sc: text, rule: text, fr: i64, at: i64, reason: text) = fl(out, sc, rule, fr, at, "fails", reason)
+fn undecided(out: &mut List[Finding], sc: text, rule: text, fr: i64, at: i64, reason: text) = fl(out, sc, rule, fr, at, "undecided", reason)
+
+fn nm(v: &View, n: i64) -> text
+    if v.key[n as usize] != ""
+        return "node " + n.tostr() + " (key " + v.key[n as usize] + ")"
+    return "node " + n.tostr()
+
+fn visible_el(v: &View, n: i64) -> bool = el(v, n) and not hidden(v, n)
+
+# ---------------- rules over one view ----------------
+# 1.1.1: every image has a text alternative.
+fn r_text_alternative(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let r = copy(x.role[n as usize])
+        if x.vis[n as usize] and (r == "img" or r == "image") and name_of(v, n) == ""
+            fails(out, "1.1.1", "text_alternative", fr, n, nm(v, n) + " has role " + r + " and no text alternative (aria-label)")
+
+fn media_kind(v: &View, n: i64) -> text
+    let m = av(v, n, "media").strip()
+    if m == "audio" or m == "video" or m == "audio-video"
+        return m
+    if m == ""
+        return ""
+    return "?"
+
+fn media_check(x: &Frame, fr: i64, out: &mut List[Finding], sc: text, rule: text, kd: text, live: bool, need1: text, need2: text, unknown: bool)
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let k = media_kind(v, n)
+        if x.vis[n as usize] and k != ""
+            if k == "?" and unknown
+                undecided(out, copy(sc), copy(rule), fr, n, nm(v, n) + " declares media \"" + av(v, n, "media") + "\"; use audio, video or audio-video")
+            elif k == kd and yes(v, n, "media-live") == live
+                if not has(v, n, copy(need1)) and (need2 == "" or not has(v, n, copy(need2)))
+                    fails(out, copy(sc), copy(rule), fr, n, nm(v, n) + " (" + kd + (if live then ", live" else "") + ") declares no " + need1 + (if need2 != "" then " or " + need2 else ""))
+
+# 1.2.1: prerecorded audio-only has a transcript; video-only a transcript or an audio track.
+fn r_media_alternative(x: &Frame, fr: i64, out: &mut List[Finding])
+    media_check(x, fr, out, "1.2.1", "media_alternative", "audio", false, "transcript", "", true)
+    media_check(x, fr, out, "1.2.1", "media_alternative", "video", false, "transcript", "audio-track", false)
+# 1.2.2: prerecorded synchronised media has captions.
+fn r_captions_prerecorded(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.2", "captions_prerecorded", "audio-video", false, "captions", "", true)
+# 1.2.3: prerecorded synchronised media has an audio description or a media alternative.
+fn r_description_or_alternative(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.3", "description_or_alternative", "audio-video", false, "audio-description", "transcript", true)
+# 1.2.4: live synchronised media has captions.
+fn r_captions_live(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.4", "captions_live", "audio-video", true, "captions", "", true)
+# 1.2.5: prerecorded synchronised media has an audio description.
+fn r_audio_description(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.5", "audio_description", "audio-video", false, "audio-description", "", true)
+
+# the nearest ancestor with a role that is not none, presentation or generic
+fn role_parent(v: &View, n: i64) -> i64
+    var m = v.parent[n as usize]
+    while m >= 0 bound 65536
+        let r = role(v, m)
+        if r != "" and r != "none" and r != "presentation" and r != "generic"
+            return m
+        m = v.parent[m as usize]
+    return -1
+
+# 1.3.1: roles that need a context role have one (WAI-ARIA required context).
+fn r_info_relationships(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let r = copy(x.role[n as usize])
+        let ri = x.ri[n as usize]
+        if x.vis[n as usize] and ri >= 0 and ROLE_CTX[ri as usize] != ""
+            let p = role_parent(v, n)
+            let pr = if p >= 0 then role(v, p) else ""
+            let ctxs = ROLE_CTX[ri as usize].split(",")
+            if not in_list(&pr, &ctxs)
+                fails(out, "1.3.1", "info_relationships", fr, n, nm(v, n) + " has role " + r + " but no ancestor role of " + ROLE_CTX[ri as usize])
+
+# 1.3.4: orientation is "any", "portrait" or "landscape" (a lock needs attestation).
+fn r_orientation(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    let o = av(v, 0, "orientation").strip()
+    if o != "" and o != "any" and o != "portrait" and o != "landscape"
+        fails(out, "1.3.4", "orientation", fr, 0, "orientation \"" + o + "\" is not any, portrait or landscape")
+
+# 1.3.5: a declared input purpose is one of WCAG 2.2 section 7.
+fn r_input_purpose(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and has(v, n, "autocomplete")
+            let ws = av(v, n, "autocomplete").words()
+            let last = copy(ws[ws.len() - 1])
+            if not (last == "on" or last == "off" or in_list(&last, &PURPOSES))
+                fails(out, "1.3.5", "input_purpose", fr, n, nm(v, n) + " autocomplete \"" + last + "\" is not an input purpose of WCAG 2.2 section 7")
+
+# 1.4.2: audio that plays by itself for more than 3 s can be paused or its volume set.
+fn r_audio_control(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let k = media_kind(v, n)
+        if x.vis[n as usize] and (k == "audio" or k == "audio-video") and yes(v, n, "autoplay")
+            let d = nat(v, n, "duration-ms")
+            if d < 0
+                undecided(out, "1.4.2", "audio_control", fr, n, nm(v, n) + " plays audio by itself; declare duration-ms")
+            elif d > 3000 and not has(v, n, "pause-action") and not has(v, n, "volume-action")
+                fails(out, "1.4.2", "audio_control", fr, n, nm(v, n) + " plays audio for " + d.tostr() + " ms by itself with no pause-action or volume-action")
+
+# 1.4.3: text has contrast 4.5 : 1, or 3 : 1 when large (24 px, or 19 px at weight 700).
+fn r_contrast_minimum(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if v.tag[i] == "" and v.text[i].strip() != "" and not x.hid[n as usize]
+            let p = v.parent[i]
+            if not x.off[p as usize]
+                let f = color_up(v, p, "fg")
+                let b = color_up(v, p, "bg")
+                let px = parse_px(up(v, p, "font-px"))
+                let wt = parse_px(up(v, p, "font-weight"))
+                if up(v, p, "bg-image") == "true"
+                    undecided(out, "1.4.3", "contrast_minimum", fr, n, nm(v, n) + " is drawn over a background image")
+                elif f < 0 or b < 0
+                    undecided(out, "1.4.3", "contrast_minimum", fr, n, nm(v, n) + " text needs a declared fg and bg")
+                else
+                    let large = px >= 24 or (px >= 19 and wt >= 700)
+                    let d45 = contrast_at_least(f, b, 9, 2)
+                    let d3 = contrast_at_least(f, b, 3, 1)
+                    let d = if large then d3 else d45
+                    let why = nm(v, n) + " text contrast " + ratio_text(f, b) + " : 1"
+                    if px < 0 and d45 != 1 and d3 != 0
+                        undecided(out, "1.4.3", "contrast_minimum", fr, n, why + "; declare font-px to know whether it is large")
+                    elif d == 0 or (px < 0 and d3 == 0)
+                        fails(out, "1.4.3", "contrast_minimum", fr, n, why + (if large then ", under 3 : 1 (large text)" else ", under 4.5 : 1"))
+                    elif d < 0
+                        undecided(out, "1.4.3", "contrast_minimum", fr, n, why + ", within the table bound of the threshold")
+
+fn parse_px(s: text) -> i64
+    if not int_ok(&s)
+        return -1
+    let x = s.strip().toint()
+    return if x < 0 then -1 else x
+
+# 1.4.4: the view does not forbid zoom (user-scale "no", max-scale under 200).
+fn r_resize_text(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    if av(v, 0, "user-scale").strip() == "no"
+        fails(out, "1.4.4", "resize_text", fr, 0, "user-scale is no")
+    if has(v, 0, "max-scale")
+        let m = nat(v, 0, "max-scale")
+        if m < 200
+            fails(out, "1.4.4", "resize_text", fr, 0, "max-scale " + av(v, 0, "max-scale") + " is under 200 percent")
+
+fn two_d(v: &View, n: i64) -> bool
+    let xs = ["img", "image", "table", "grid", "treegrid", "application", "math", "toolbar"]
+    var m = n
+    while m >= 0 bound 65536
+        let r = role(v, m)
+        if in_list(&r, &xs) or media_kind(v, m) != ""
+            return true
+        m = v.parent[m as usize]
+    return false
+
+# 1.4.10: no flow content declares a width over 320 CSS px.
+fn r_reflow(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let w = nat(v, n, "w")
+        if x.vis[n as usize] and w > 320 and not two_d(v, n)
+            fails(out, "1.4.10", "reflow", fr, n, nm(v, n) + " declares w " + w.tostr() + " over 320 CSS px")
+
+# 1.4.11: a declared component boundary or graphic has contrast 3 : 1 with what is next to it.
+fn r_non_text_contrast(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and not x.off[n as usize]
+            let p = v.parent[i]
+            if x.inter[n as usize] and has(v, n, "border")
+                let c = parse_color(av(v, n, "border"))
+                let b = if p >= 0 then color_up(v, p, "bg") else -1
+                nt_pair(out, fr, n, c, b, nm(v, n) + " border")
+            if yes(v, n, "graphic")
+                nt_pair(out, fr, n, color_up(v, n, "fg"), color_up(v, n, "bg"), nm(v, n) + " graphic")
+
+fn nt_pair(out: &mut List[Finding], fr: i64, n: i64, c: i64, b: i64, what: text)
+    if c < 0 or b < 0
+        undecided(out, "1.4.11", "non_text_contrast", fr, n, what + " needs declared colours on both sides")
+    else
+        let d = contrast_at_least(c, b, 3, 1)
+        if d == 0
+            fails(out, "1.4.11", "non_text_contrast", fr, n, what + " contrast " + ratio_text(c, b) + " : 1, under 3 : 1")
+        elif d < 0
+            undecided(out, "1.4.11", "non_text_contrast", fr, n, what + " contrast within the table bound of 3 : 1")
+
+# 1.4.12: the view does not refuse the user's text spacing.
+fn r_text_spacing(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    if av(v, 0, "user-spacing").strip() == "no"
+        fails(out, "1.4.12", "text_spacing", fr, 0, "user-spacing is no")
+
+# 2.1.1: every enabled interactive node is focusable or has a key shortcut.
+fn r_keyboard(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.inter[n as usize] and not x.hid[n as usize] and not x.off[n as usize] and not x.foc[n as usize] and not has(v, n, "aria-keyshortcuts")
+            fails(out, "2.1.1", "keyboard", fr, n, nm(v, n) + " is interactive but not focusable (tabindex) and has no aria-keyshortcuts")
+
+# 2.1.2: a modal or Tab-capturing node declares how focus leaves it.
+fn r_no_keyboard_trap(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and (yes(v, n, "aria-modal") or yes(v, n, "captures-tab")) and not has(v, n, "dismiss-key")
+            var ok = false
+            if yes(v, n, "aria-modal")
+                for j in 0..nodes(v)
+                    if j != i and is_desc(v, j as i64, n) and x.foc[j] and yes(v, j as i64, "dismisses")
+                        ok = true
+            if not ok
+                fails(out, "2.1.2", "no_keyboard_trap", fr, n, nm(v, n) + " holds focus and declares no dismiss-key or focusable node that dismisses it")
+
+fn printable_shortcut(s: &text) -> bool
+    let ps = s.split("+")
+    for i in 0..ps.len() - 1
+        if ps[i] != "Shift"
+            return false
+    let last = copy(ps[ps.len() - 1])
+    return last.len_chars() == 1 and not last.isspace()
+
+# 2.1.4: a shortcut of one printable character can be turned off or remapped, or acts only on focus.
+fn r_character_key_shortcuts(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    let root_ok = has(v, 0, "shortcut-off-action") or has(v, 0, "shortcut-remap-action")
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize]
+            for s in av(v, n, "aria-keyshortcuts").words()
+                if printable_shortcut(&s) and not root_ok and not (x.foc[n as usize] and av(v, n, "shortcut-scope") == "focus")
+                    fails(out, "2.1.4", "character_key_shortcuts", fr, n, nm(v, n) + " shortcut \"" + s + "\" is one printable character, with no shortcut-off-action or shortcut-remap-action on the root and not limited to focus")
+
+# 2.4.1: skip links name an existing node (the mechanism itself is in human_need).
+fn r_bypass_blocks(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let h = av(v, n, "href").strip()
+        if x.vis[n as usize] and h.startswith("#")
+            let k = copy(h.split("#")[1])
+            if find_key(v, &k) < 0
+                fails(out, "2.4.1", "bypass_blocks", fr, n, nm(v, n) + " links to #" + k + ", which no node has as key")
+
+fn bypass_mechanism(x: &Frame) -> bool
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let r = copy(x.role[n as usize])
+        let h = av(v, n, "href").strip()
+        if x.vis[n as usize] and (r == "main" or r == "heading" or (r == "link" and h.startswith("#")))
+            return true
+    return false
+
+# 2.4.2: the view has a title.
+fn r_page_titled(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    if not has(v, 0, "title")
+        fails(out, "2.4.2", "page_titled", fr, 0, "the root declares no title")
+
+# The focus order: positive tabindex ascending (tree order among equals),
+# then tabindex 0 in tree order.
+pub fn focus_order(v: &View) -> List[i64]
+    let pre = preorder(v)
+    var pos: List[i64] = []
+    var zero: List[i64] = []
+    for n in pre
+        if focusable(v, n) and not hidden(v, n) and not inactive(v, n)
+            if av(v, n, "tabindex").strip().toint() > 0
+                pos.push(n)
+            else
+                zero.push(n)
+    var out: List[i64] = []
+    var used: List[bool] = []
+    for _p in pos
+        used.push(false)
+    for _k in 0..pos.len()
+        var best: i64 = -1
+        for j in 0..pos.len()
+            if not used[j] and (best < 0 or av(v, pos[j], "tabindex").strip().toint() < av(v, pos[best as usize], "tabindex").strip().toint())
+                best = j as i64
+        used[best as usize] = true
+        out.push(pos[best as usize])
+    for z in zero
+        out.push(z)
+    return out
+
+# 2.4.3: every tabindex is an integer.
+fn r_focus_order(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let s = av(v, n, "tabindex")
+        if el(v, n) and present(v, n, "tabindex") and not int_ok(&s)
+            fails(out, "2.4.3", "focus_order", fr, n, nm(v, n) + " tabindex \"" + s + "\" is not an integer")
+
+# 2.4.4: every link has a name.
+fn r_link_purpose(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and role(v, n) == "link" and name_of(v, n) == ""
+            fails(out, "2.4.4", "link_purpose", fr, n, nm(v, n) + " is a link with no name")
+
+fn differs(v: &View, n: i64, fattr: text, base: text) -> bool
+    if not has(v, n, copy(fattr))
+        return false
+    let f = parse_color(av(v, n, fattr))
+    let b = color_up(v, n, base)
+    return f >= 0 and f != b
+
+# 2.4.7: every focusable node declares a focus style that differs from its unfocused style.
+fn r_focus_visible(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.foc[n as usize] and not x.hid[n as usize]
+            let o = av(v, n, "focus-outline").strip()
+            let border_differs = has(v, n, "focus-border") and parse_color(av(v, n, "focus-border")) >= 0 and parse_color(av(v, n, "focus-border")) != parse_color(av(v, n, "border"))
+            if not (differs(v, n, "focus-fg", "fg") or differs(v, n, "focus-bg", "bg") or border_differs or (o != "" and o != "none"))
+                fails(out, "2.4.7", "focus_visible", fr, n, nm(v, n) + " is focusable and declares no focus-fg, focus-bg, focus-border or focus-outline that differs from its unfocused style")
+
+# 2.4.11: layer values are non-negative integers (whether a layer hides
+# the focused node needs layout; see human_need).
+fn r_focus_not_obscured(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if has(v, n, "layer") and nat(v, n, "layer") < 0
+            fails(out, "2.4.11", "focus_not_obscured", fr, n, nm(v, n) + " layer \"" + av(v, n, "layer") + "\" is not a non-negative integer")
+
+fn layered(x: &Frame) -> bool
+    let v = &x.v
+    var any_layer = false
+    for i in 0..nodes(v)
+        if nat(v, i as i64, "layer") > 0
+            any_layer = true
+    if not any_layer
+        return false
+    for i in 0..nodes(v)
+        if x.foc[i]
+            var m = i as i64
+            var inside = false
+            while m >= 0 bound 65536
+                if nat(v, m, "layer") > 0
+                    inside = true
+                m = v.parent[m as usize]
+            if not inside
+                return true
+    return false
+
+fn single_pointer(v: &View, n: i64) -> bool = has(v, n, "action") or has(v, n, "alt-action")
+
+# 2.5.1: a multipoint or path gesture has a single-pointer alternative.
+fn r_pointer_gestures(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let g = av(v, n, "gesture").strip()
+        if x.vis[n as usize] and g != ""
+            if g != "multipoint" and g != "path"
+                fails(out, "2.5.1", "pointer_gestures", fr, n, nm(v, n) + " gesture \"" + g + "\" is not multipoint or path")
+            elif not single_pointer(v, n)
+                fails(out, "2.5.1", "pointer_gestures", fr, n, nm(v, n) + " takes a " + g + " gesture and has no action or alt-action")
+
+# 2.5.2: activation on the down event can be undone.
+fn r_pointer_cancellation(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let a = av(v, n, "activate-on").strip()
+        if x.vis[n as usize] and a != "" and a != "up"
+            if a != "down"
+                fails(out, "2.5.2", "pointer_cancellation", fr, n, nm(v, n) + " activate-on \"" + a + "\" is not up or down")
+            elif not has(v, n, "undo-action")
+                fails(out, "2.5.2", "pointer_cancellation", fr, n, nm(v, n) + " activates on the down event and has no undo-action")
+
+# 2.5.3: the name contains the visible text.
+fn r_label_in_name(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.inter[n as usize] and not x.hid[n as usize] and has(v, n, "aria-label")
+            let r = copy(x.role[n as usize])
+            let ri = x.ri[n as usize]
+            if (ri >= 0 and ROLE_NAME_CONTENT[ri as usize]) or r == ""
+                let vis = text_of(v, n).lower()
+                let name = " ".join(av(v, n, "aria-label").words()).lower()
+                if vis != "" and not name.contains(copy(vis))
+                    fails(out, "2.5.3", "label_in_name", fr, n, nm(v, n) + " shows \"" + vis + "\" but its name is \"" + name + "\"")
+
+# 2.5.4: motion has a component alternative and can be turned off.
+fn r_motion_actuation(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and has(v, n, "motion-action")
+            if not single_pointer(v, n)
+                fails(out, "2.5.4", "motion_actuation", fr, n, nm(v, n) + " acts on motion and has no action or alt-action")
+            if not has(v, 0, "motion-off-action")
+                fails(out, "2.5.4", "motion_actuation", fr, n, nm(v, n) + " acts on motion and the root has no motion-off-action")
+
+# 2.5.7: dragging has a single-pointer alternative.
+fn r_dragging(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and yes(v, n, "drag") and not single_pointer(v, n)
+            fails(out, "2.5.7", "dragging", fr, n, nm(v, n) + " is dragged and has no action or alt-action")
+
+# 2.5.8: every target declares its size (24 by 24 or more, or inline).
+fn r_target_size(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.inter[n as usize] and not x.hid[n as usize] and not x.off[n as usize] and not yes(v, n, "inline")
+            if nat(v, n, "w") < 0 or nat(v, n, "h") < 0
+                undecided(out, "2.5.8", "target_size", fr, n, nm(v, n) + " is a target with no declared w and h")
+
+fn undersized(x: &Frame) -> i64
+    let v = &x.v
+    var c: i64 = 0
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.inter[n as usize] and not x.hid[n as usize] and not x.off[n as usize] and not yes(v, n, "inline") and nat(v, n, "w") >= 0 and nat(v, n, "h") >= 0 and (nat(v, n, "w") < 24 or nat(v, n, "h") < 24)
+            c += 1
+    return c
+
+# a BCP 47 tag in shape: a primary subtag of 2 to 8 letters, then subtags
+# of 1 to 8 letters or digits
+pub fn lang_ok(t: &text) -> bool
+    let ps = t.strip().split("-")
+    for i in 0..ps.len()
+        let p = copy(ps[i])
+        let n = p.len_chars()
+        if n < 1 or n > 8 or (i == 0 and (n < 2 or not p.isalpha()))
+            return false
+        for c in p.chars()
+            if not (c.isalpha() or c.isdigit())
+                return false
+    return true
+
+# 3.1.1: the root declares a well-formed lang.
+fn r_language_of_page(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    let l = av(v, 0, "lang")
+    if not lang_ok(&l)
+        fails(out, "3.1.1", "language_of_page", fr, 0, "the root lang \"" + l + "\" is not a language tag")
+
+# 3.1.2: every lang below the root is well-formed.
+fn r_language_of_parts(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 1..nodes(v)
+        let n = i as i64
+        if el(v, n) and present(v, n, "lang")
+            let l = av(v, n, "lang")
+            if not lang_ok(&l)
+                fails(out, "3.1.2", "language_of_parts", fr, n, nm(v, n) + " lang \"" + l + "\" is not a language tag")
+
+# 3.3.1: an invalid field names an error message with text.
+fn r_error_identification(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize] and yes(v, n, "aria-invalid")
+            let ks = av(v, n, "aria-errormessage") + " " + av(v, n, "aria-describedby")
+            if keys_text(v, &ks) == ""
+                fails(out, "3.3.1", "error_identification", fr, n, nm(v, n) + " is invalid and its aria-errormessage or aria-describedby names no node with text")
+
+# 3.3.2: every input has a name.
+fn r_labels_or_instructions(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let r = copy(x.role[n as usize])
+        if x.vis[n as usize] and input_role(&r) and name_of(v, n) == ""
+            fails(out, "3.3.2", "labels_or_instructions", fr, n, nm(v, n) + " (" + r + ") has no label")
+
+# 3.3.4: a legal, financial or data commitment can be undone, reviewed or confirmed.
+fn r_error_prevention(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        let c = av(v, n, "commits").strip()
+        if x.vis[n as usize] and c != ""
+            if c != "legal" and c != "financial" and c != "data"
+                fails(out, "3.3.4", "error_prevention", fr, n, nm(v, n) + " commits \"" + c + "\" is not legal, financial or data")
+            elif not (has(v, n, "undo-action") or has(v, n, "review-action") or has(v, n, "confirm-action"))
+                fails(out, "3.3.4", "error_prevention", fr, n, nm(v, n) + " commits " + c + " data with no undo-action, review-action or confirm-action")
+
+# 3.3.8: password fields accept paste and autofill; a cognitive test has an alternative.
+fn r_accessible_authentication(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if x.vis[n as usize]
+            let a = av(v, n, "autocomplete").strip()
+            let pw = av(v, n, "auth").strip() == "password" or a == "current-password" or a == "new-password" or a == "one-time-code"
+            if pw and av(v, n, "paste").strip() == "false"
+                fails(out, "3.3.8", "accessible_authentication", fr, n, nm(v, n) + " is a password field that refuses paste")
+            if pw and a == "off"
+                fails(out, "3.3.8", "accessible_authentication", fr, n, nm(v, n) + " is a password field with autocomplete off")
+            if av(v, n, "auth").strip() == "cognitive" and not has(v, n, "alt-action")
+                fails(out, "3.3.8", "accessible_authentication", fr, n, nm(v, n) + " is a cognitive function test with no alt-action")
+
+fn one_of(t: &text, xs: &[text]) -> bool
+    let s = t.strip()
+    return in_list(&s, xs)
+
+# 4.1.2: roles are known, interactive nodes have a role and a name,
+# required states are present and valid, references resolve, nothing
+# focusable is hidden, at most one node has focus.
+fn r_name_role_value(x: &Frame, fr: i64, out: &mut List[Finding])
+    let v = &x.v
+    let sc = "4.1.2"
+    let rn = "name_role_value"
+    let tf = ["true", "false"]
+    let tfm = ["true", "false", "mixed"]
+    var nfocus = 0
+    for i in 0..nodes(v)
+        let n = i as i64
+        if el(v, n)
+            if yes(v, n, "focused")
+                nfocus += 1
+            let r = copy(x.role[n as usize])
+            let ri = x.ri[n as usize]
+            if r != "" and ri < 0
+                fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " role \"" + r + "\" is not a WAI-ARIA role")
+            if x.foc[n as usize] and x.hid[n as usize]
+                fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " is focusable but hidden from assistive technology")
+            if not x.hid[n as usize]
+                let ia = x.inter[n as usize]
+                if ia and (r == "" or r == "none" or r == "presentation" or r == "generic")
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " is interactive and has no widget role")
+                if (ia or (ri >= 0 and ROLE_NAME_REQ[ri as usize])) and name_of(v, n) == ""
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " has no accessible name")
+                if ri >= 0 and ROLE_REQ[ri as usize] != ""
+                    for a in ROLE_REQ[ri as usize].split(",")
+                        let need = not (a == "aria-valuenow" and r == "separator" and not x.foc[n as usize]) and not (a == "aria-controls" and r == "combobox" and not yes(v, n, "aria-expanded"))
+                        if need and not has(v, n, copy(a))
+                            fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " (" + r + ") lacks " + a)
+                for a in ["aria-expanded", "aria-selected", "aria-hidden", "aria-disabled", "aria-required", "aria-modal"]
+                    let val = av_of(v, n, &a)
+                    if present(v, n, copy(a)) and not one_of(&val, &tf)
+                        fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " " + a + " is not true or false")
+                for a in ["aria-checked", "aria-pressed"]
+                    let val = av_of(v, n, &a)
+                    if present(v, n, copy(a)) and not one_of(&val, &tfm)
+                        fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " " + a + " is not true, false or mixed")
+                if (r == "radio" or r == "switch" or r == "menuitemradio") and av(v, n, "aria-checked").strip() == "mixed"
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " (" + r + ") cannot be mixed")
+                let iv = av(v, n, "aria-invalid").strip()
+                if present(v, n, "aria-invalid") and not (iv == "true" or iv == "false" or iv == "grammar" or iv == "spelling")
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " aria-invalid \"" + iv + "\" is not a WAI-ARIA value")
+                let lv = av(v, n, "aria-live").strip()
+                if present(v, n, "aria-live") and not (lv == "off" or lv == "polite" or lv == "assertive")
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " aria-live \"" + lv + "\" is not off, polite or assertive")
+                if present(v, n, "aria-level") and nat(v, n, "aria-level") < 1
+                    fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " aria-level is not a positive integer")
+                range_check(x, fr, n, out)
+                for a in ["aria-labelledby", "aria-describedby", "aria-errormessage", "aria-controls"]
+                    for k in av(v, n, copy(a)).words()
+                        if find_key(v, &k) < 0
+                            fails(out, copy(sc), copy(rn), fr, n, nm(v, n) + " " + a + " names " + k + ", which no node has as key")
+    if nfocus > 1
+        fails(out, copy(sc), copy(rn), fr, 0, nfocus.tostr() + " nodes declare focused")
+
+fn range_check(x: &Frame, fr: i64, n: i64, out: &mut List[Finding])
+    let v = &x.v
+    var vals: List[i64] = []
+    for a in ["aria-valuemin", "aria-valuenow", "aria-valuemax"]
+        let s = av(v, n, copy(a))
+        if view.attr(v, n, &a).issome()
+            if int_ok(&s)
+                vals.push(s.strip().toint())
+            else
+                undecided(out, "4.1.2", "name_role_value", fr, n, nm(v, n) + " " + a + " \"" + s + "\" is not an integer")
+    if vals.len() == 3 and (vals[0] > vals[1] or vals[1] > vals[2])
+        fails(out, "4.1.2", "name_role_value", fr, n, nm(v, n) + " aria-valuenow is outside aria-valuemin to aria-valuemax")
+
+fn view_rule(name: &text, v: &Frame, fr: i64, out: &mut List[Finding]) -> bool
+    if name == "text_alternative"
+        r_text_alternative(v, fr, out)
+    elif name == "media_alternative"
+        r_media_alternative(v, fr, out)
+    elif name == "captions_prerecorded"
+        r_captions_prerecorded(v, fr, out)
+    elif name == "description_or_alternative"
+        r_description_or_alternative(v, fr, out)
+    elif name == "captions_live"
+        r_captions_live(v, fr, out)
+    elif name == "audio_description"
+        r_audio_description(v, fr, out)
+    elif name == "info_relationships"
+        r_info_relationships(v, fr, out)
+    elif name == "orientation"
+        r_orientation(v, fr, out)
+    elif name == "input_purpose"
+        r_input_purpose(v, fr, out)
+    elif name == "audio_control"
+        r_audio_control(v, fr, out)
+    elif name == "contrast_minimum"
+        r_contrast_minimum(v, fr, out)
+    elif name == "resize_text"
+        r_resize_text(v, fr, out)
+    elif name == "reflow"
+        r_reflow(v, fr, out)
+    elif name == "non_text_contrast"
+        r_non_text_contrast(v, fr, out)
+    elif name == "text_spacing"
+        r_text_spacing(v, fr, out)
+    elif name == "keyboard"
+        r_keyboard(v, fr, out)
+    elif name == "no_keyboard_trap"
+        r_no_keyboard_trap(v, fr, out)
+    elif name == "character_key_shortcuts"
+        r_character_key_shortcuts(v, fr, out)
+    elif name == "bypass_blocks"
+        r_bypass_blocks(v, fr, out)
+    elif name == "page_titled"
+        r_page_titled(v, fr, out)
+    elif name == "focus_order"
+        r_focus_order(v, fr, out)
+    elif name == "link_purpose"
+        r_link_purpose(v, fr, out)
+    elif name == "focus_visible"
+        r_focus_visible(v, fr, out)
+    elif name == "focus_not_obscured"
+        r_focus_not_obscured(v, fr, out)
+    elif name == "pointer_gestures"
+        r_pointer_gestures(v, fr, out)
+    elif name == "pointer_cancellation"
+        r_pointer_cancellation(v, fr, out)
+    elif name == "label_in_name"
+        r_label_in_name(v, fr, out)
+    elif name == "motion_actuation"
+        r_motion_actuation(v, fr, out)
+    elif name == "dragging"
+        r_dragging(v, fr, out)
+    elif name == "target_size"
+        r_target_size(v, fr, out)
+    elif name == "language_of_page"
+        r_language_of_page(v, fr, out)
+    elif name == "language_of_parts"
+        r_language_of_parts(v, fr, out)
+    elif name == "error_identification"
+        r_error_identification(v, fr, out)
+    elif name == "labels_or_instructions"
+        r_labels_or_instructions(v, fr, out)
+    elif name == "error_prevention"
+        r_error_prevention(v, fr, out)
+    elif name == "accessible_authentication"
+        r_accessible_authentication(v, fr, out)
+    elif name == "name_role_value"
+        r_name_role_value(v, fr, out)
+    else
+        return false
+    return true
+
+# ---------------- rules over a trace ----------------
+fn ev_word(s: &Frame) -> text
+    let ws = s.ev.words()
+    return if ws.len() > 0 then copy(ws[0]) else ""
+
+fn ev_arg(s: &Frame) -> text
+    let ws = s.ev.words()
+    return if ws.len() > 1 then copy(ws[1]) else ""
+
+# a node's identity across frames: the keys (or child positions) from the
+# root, for every node
+pub fn pids(v: &View) -> List[text]
+    var out: List[text] = []
+    for _i in 0..nodes(v)
+        out.push("")
+    var q: List[i64] = [0]
+    var h: usize = 0
+    while h < q.len() bound 16777216
+        let u = q[h] as usize
+        for j in 0..v.kids[u].len()
+            let c = v.kids[u][j] as usize
+            let seg = if v.key[c] != "" then "k" + v.key[c] else "i" + j.tostr()
+            out[c] = out[u] + "/" + seg
+            q.push(c as i64)
+        h += 1
+    return out
+
+fn pid_map(ps: &[text]) -> Map[text, i64]
+    var m: Map[text, i64] = {}
+    for i in 0..ps.len()
+        m[copy(ps[i])] = i as i64
+    return m
+
+# the subtree under n as text (tags, keys, attributes, text, in pre-order)
+fn sig(v: &View, n: i64) -> text
+    var parts: List[text] = []
+    var st: List[i64] = [n]
+    while st.len() > 0 bound 16777216
+        let u = st[st.len() - 1] as usize
+        let _ = st.pop()
+        parts.push(copy(v.tag[u]) + "#" + copy(v.key[u]) + "{" + ";".join(copy(v.names[u])) + "=" + ";".join(copy(v.values[u])) + "}" + copy(v.text[u]) + "(" + v.kids[u].len().tostr())
+        var t = v.kids[u].len()
+        while t > 0 bound 16777216
+            t -= 1
+            st.push(v.kids[u][t])
+    return "|".join(parts)
+
+fn live_region(v: &View, n: i64) -> bool
+    let xs = ["status", "alert", "log", "marquee", "timer"]
+    var m = n
+    while m >= 0 bound 65536
+        let r = role(v, m)
+        let l = av(v, m, "aria-live").strip()
+        if in_list(&r, &xs) or l == "polite" or l == "assertive"
+            return true
+        m = v.parent[m as usize]
+    return false
+
+# 1.4.13: content shown on hover or focus can be dismissed with Escape
+# without moving focus, stays while hovered, and stays on ticks.
+fn r_hover_focus_content(t: &List[Frame], out: &mut List[Finding])
+    var ks: List[text] = []
+    var hovers: List[text] = []
+    for f in 0..t.len()
+        for i in 0..nodes(&t[f].v)
+            let n = i as i64
+            let p = av(&t[f].v, n, "popup").strip()
+            if el(&t[f].v, n) and (p == "hover" or p == "focus") and not t[f].hid[n as usize]
+                if p == "hover" and t[f].v.key[i] != "" and not hovers.contains(t[f].v.key[i])
+                    hovers.push(copy(t[f].v.key[i]))
+                if t[f].v.key[i] == ""
+                    undecided(out, "1.4.13", "hover_focus_content", f as i64, n, nm(&t[f].v, n) + " is popup content with no key")
+                elif not ks.contains(t[f].v.key[i])
+                    ks.push(copy(t[f].v.key[i]))
+    for k in ks
+        var dismissed = false
+        var hovered = false
+        let is_hover = hovers.contains(k)
+        for f in 1..t.len()
+            let a = find_key(&t[f - 1].v, &k)
+            let b = find_key(&t[f].v, &k)
+            if a >= 0
+                let w = ev_word(&t[f])
+                if t[f].ev == "key Escape"
+                    dismissed = true
+                    if b >= 0
+                        fails(out, "1.4.13", "hover_focus_content", f as i64, b, "popup " + k + " stays after Escape")
+                    elif focused_key(&t[f].v) != focused_key(&t[f - 1].v)
+                        fails(out, "1.4.13", "hover_focus_content", f as i64, -1, "Escape on popup " + k + " moves focus")
+                elif w == "tick" and b < 0
+                    fails(out, "1.4.13", "hover_focus_content", f as i64, -1, "popup " + k + " disappears on a tick")
+                elif w == "hover" and ev_arg(&t[f]) == k
+                    hovered = true
+                    if b < 0
+                        fails(out, "1.4.13", "hover_focus_content", f as i64, -1, "popup " + k + " disappears when hovered")
+        if not dismissed
+            undecided(out, "1.4.13", "hover_focus_content", -1, -1, "no step presses Escape while popup " + k + " is shown")
+        if is_hover and not hovered
+            undecided(out, "1.4.13", "hover_focus_content", -1, -1, "no step hovers popup " + k + " while it is shown")
+
+# 2.2.1: a time limit can be turned off, adjusted ten-fold, or extended
+# after a warning given at least 20 s before it expires; a context change
+# on a tick needs a declared time limit.
+fn r_timing_adjustable(t: &List[Frame], out: &mut List[Finding])
+    var extend_only = false
+    var warned_left: i64 = -1
+    var expired_unwarned = false
+    for f in 0..t.len()
+        let v = &t[f].v
+        let lim = nat(v, 0, "time-limit-ms")
+        if has(v, 0, "time-limit-ms") and lim < 0
+            fails(out, "2.2.1", "timing_adjustable", f as i64, 0, "time-limit-ms is not a non-negative integer")
+        if lim >= 0 and lim <= 72000000
+            let off_ok = has(v, 0, "time-off-action")
+            let adj_ok = has(v, 0, "time-adjust-action") and nat(v, 0, "time-adjust-max-ms") >= 10 * lim
+            let ext_ok = has(v, 0, "time-extend-action")
+            if not (off_ok or adj_ok or ext_ok)
+                fails(out, "2.2.1", "timing_adjustable", f as i64, 0, "time limit of " + lim.tostr() + " ms with no time-off-action, ten-fold time-adjust-action or time-extend-action")
+            if ext_ok and not off_ok and not adj_ok
+                extend_only = true
+                if has(v, 0, "time-extend-max") and nat(v, 0, "time-extend-max") < 10
+                    fails(out, "2.2.1", "timing_adjustable", f as i64, 0, "time-extend-max under 10")
+                var warn = false
+                for i in 0..nodes(v)
+                    if yes(v, i as i64, "time-warning")
+                        warn = true
+                let left = nat(v, 0, "time-left-ms")
+                if warn and warned_left < 0
+                    warned_left = left
+                if left == 0 and warned_left < 0
+                    expired_unwarned = true
+        if f > 0 and ev_word(&t[f]) == "tick" and ctx(v) != ctx(&t[f - 1].v) and nat(&t[f - 1].v, 0, "time-limit-ms") < 0
+            fails(out, "2.2.1", "timing_adjustable", f as i64, 0, "the context changes on a tick with no declared time-limit-ms")
+    if extend_only
+        if expired_unwarned
+            fails(out, "2.2.1", "timing_adjustable", -1, 0, "the time limit expires with no time-warning shown")
+        elif warned_left < 0
+            undecided(out, "2.2.1", "timing_adjustable", -1, 0, "no step shows the time-warning; extend the trace")
+        elif warned_left < 20000
+            fails(out, "2.2.1", "timing_adjustable", -1, 0, "the warning comes with " + warned_left.tostr() + " ms left, under 20 s")
+
+fn covered_by_pause(v: &View, n: i64) -> i64
+    var m = n
+    while m >= 0 bound 65536
+        if has(v, m, "pause-action")
+            return m
+        m = v.parent[m as usize]
+    return -1
+
+# 2.2.2: moving content over 5 s, and content that changes on a tick,
+# has a pause-action, and activating it stops the change.
+fn r_pause_stop_hide(t: &List[Frame], out: &mut List[Finding])
+    for f in 0..t.len()
+        let v = &t[f].v
+        for i in 0..nodes(v)
+            let n = i as i64
+            if visible_el(v, n) and yes(v, n, "moving") and covered_by_pause(v, n) < 0
+                let d = nat(v, n, "duration-ms")
+                if d < 0
+                    undecided(out, "2.2.2", "pause_stop_hide", f as i64, n, nm(v, n) + " moves; declare duration-ms or a pause-action")
+                elif d > 5000
+                    fails(out, "2.2.2", "pause_stop_hide", f as i64, n, nm(v, n) + " moves for " + d.tostr() + " ms with no pause-action")
+    # nodes that change on ticks: the deepest changed node of each change
+    var pauses: List[text] = []
+    for f in 1..t.len()
+        if ev_word(&t[f]) == "tick"
+            let a = &t[f - 1].v
+            let b = &t[f].v
+            let pidb = pids(b)
+            let pida = pids(a)
+            let am = pid_map(&pida)
+            var changed: List[i64] = []
+            var mark: List[bool] = []
+            for i in 0..nodes(b)
+                let n = i as i64
+                var ch = false
+                if el(b, n)
+                    let m = am.get(copy(pidb[i])) catch -1
+                    ch = m < 0 or not el(a, m) or sig(a, m) != sig(b, n)
+                    if ch
+                        changed.push(n)
+                mark.push(ch)
+            for n in changed
+                var deepest = true
+                for c in b.kids[n as usize]
+                    if mark[c as usize]
+                        deepest = false
+                if deepest
+                    let pa = covered_by_pause(b, n)
+                    if pa < 0
+                        fails(out, "2.2.2", "pause_stop_hide", f as i64, n, nm(b, n) + " changes on a tick and no pause-action covers it")
+                    elif b.key[pa as usize] == ""
+                        undecided(out, "2.2.2", "pause_stop_hide", f as i64, pa, nm(b, pa) + " has a pause-action and no key")
+                    elif not pauses.contains(b.key[pa as usize])
+                        pauses.push(copy(b.key[pa as usize]))
+    for k in pauses
+        var exercised = false
+        var paused = false
+        for f in 1..t.len()
+            let w = ev_word(&t[f])
+            if w == "activate"
+                let arg = ev_arg(&t[f])
+                let target = find_key(&t[f - 1].v, &arg)
+                let pn = find_key(&t[f - 1].v, &k)
+                if target >= 0 and pn >= 0 and av(&t[f - 1].v, target, "action") == av(&t[f - 1].v, pn, "pause-action")
+                    paused = not paused
+                    exercised = true
+            elif w == "tick" and paused
+                let a = find_key(&t[f - 1].v, &k)
+                let b = find_key(&t[f].v, &k)
+                if a >= 0 and b >= 0 and sig(&t[f - 1].v, a) != sig(&t[f].v, b)
+                    fails(out, "2.2.2", "pause_stop_hide", f as i64, b, "node " + k + " still changes after its pause-action")
+        if not exercised
+            undecided(out, "2.2.2", "pause_stop_hide", -1, -1, "no step activates the pause-action of " + k)
+
+# 2.3.1: no declared background flashes more than three times in one
+# second (general flash: opposing luminance changes of 0.1 or more with
+# the darker state under 0.8), unless the flashing nodes together cover at
+# most 21,824 CSS px squared (a quarter of 341 by 256) of any one 341 by
+# 256 field. Without positions: one node whose part inside such a field
+# exceeds that fails; nodes whose parts sum to at most that meet; between
+# the two is undecided (layout geometry). A red flash is
+# not computed in this slice: frequent changes involving a saturated red
+# are undecided.
+fn r_three_flashes(t: &List[Frame], out: &mut List[Finding])
+    var ks: List[text] = []
+    for f in 0..t.len()
+        for i in 0..nodes(&t[f].v)
+            if has(&t[f].v, i as i64, "bg") and t[f].v.key[i] != "" and not ks.contains(t[f].v.key[i])
+                ks.push(copy(t[f].v.key[i]))
+    var area: i64 = 0
+    var biggest: i64 = 0
+    var area_known = true
+    var flashing: List[text] = []
+    var maybe: List[text] = []
+    for k in ks
+        var times: List[i64] = []
+        var cols: List[i64] = []
+        var now: i64 = 0
+        var last_n: i64 = -1
+        var last_f: usize = 0
+        for f in 0..t.len()
+            now += t[f].ms
+            let n = find_key(&t[f].v, &k)
+            if n >= 0
+                let c = parse_color(av(&t[f].v, n, "bg"))
+                if c >= 0
+                    times.push(now)
+                    cols.push(c)
+                    last_n = n
+                    last_f = f
+        let cnt = flash_count(&times, &cols)
+        if cnt[0] >= 8
+            flashing.push(copy(k))
+            let w = nat(&t[last_f].v, last_n, "w")
+            let h = nat(&t[last_f].v, last_n, "h")
+            if w < 0 or h < 0
+                area_known = false
+            else
+                # the part of the node inside one 341 by 256 field
+                let a = (if w < 341 then w else 341) * (if h < 256 then h else 256)
+                area += a
+                if a > biggest
+                    biggest = a
+        elif cnt[1] >= 8 or cnt[2] >= 8
+            maybe.push(copy(k))
+    if flashing.len() > 0
+        if not area_known
+            undecided(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second; declare w and h to apply the small-area threshold")
+        elif biggest > 21824
+            fails(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second over " + biggest.tostr() + " CSS px squared of one 341 by 256 field")
+        elif area > 21824
+            undecided(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second; whether they share one 341 by 256 field needs layout geometry")
+    for k in maybe
+        undecided(out, "2.3.1", "three_flashes", -1, -1, "node " + k + " changes colour often enough that a general or red flash cannot be ruled out")
+
+pub const FLASH_STEP: i64 = 1000000000000000
+pub const FLASH_DARK: i64 = 8000000000000000
+
+# the most transitions in any one second: [certain general, possible
+# general, colour changes involving a saturated red]
+pub fn flash_count(times: &[i64], cols: &[i64]) -> List[i64]
+    # extremes of the luminance series
+    var et: List[i64] = []
+    var el_: List[i64] = []
+    var ec: List[i64] = []
+    for i in 0..cols.len()
+        let l = lum(cols[i])
+        let m = el_.len()
+        if m == 0
+            et.push(times[i])
+            el_.push(l)
+            ec.push(cols[i])
+        elif l != el_[m - 1] or cols[i] != ec[m - 1]
+            if m >= 2 and ((el_[m - 1] > el_[m - 2] and l > el_[m - 1]) or (el_[m - 1] < el_[m - 2] and l < el_[m - 1]))
+                et[m - 1] = times[i]
+                el_[m - 1] = l
+                ec[m - 1] = cols[i]
+            else
+                et.push(times[i])
+                el_.push(l)
+                ec.push(cols[i])
+    var tt: List[i64] = []
+    var sure: List[bool] = []
+    var poss: List[bool] = []
+    var red: List[bool] = []
+    for i in 1..el_.len()
+        let d = (el_[i] - el_[i - 1]).abs()
+        let dark = if el_[i] < el_[i - 1] then el_[i] else el_[i - 1]
+        tt.push(et[i])
+        sure.push(d >= FLASH_STEP + 2 * LUM_ERR and dark < FLASH_DARK - LUM_ERR)
+        poss.push(d >= FLASH_STEP - 2 * LUM_ERR and dark < FLASH_DARK + LUM_ERR)
+        red.push(sat_red(ec[i]) or sat_red(ec[i - 1]))
+    var best: List[i64] = [0, 0, 0]
+    for i in 0..tt.len()
+        var c: List[i64] = [0, 0, 0]
+        for j in i..tt.len()
+            if tt[j] - tt[i] < 1000
+                if sure[j]
+                    c[0] = c[0] + 1
+                if poss[j]
+                    c[1] = c[1] + 1
+                if red[j]
+                    c[2] = c[2] + 1
+        for x in 0..3
+            if c[x] > best[x]
+                best[x] = c[x]
+    return best
+
+fn sat_red(c: i64) -> bool
+    let r = (c >> 16) & 255
+    let s = r + ((c >> 8) & 255) + (c & 255)
+    return s > 0 and 5 * r >= 4 * s
+
+# 3.2.1: focusing a node changes neither the context nor where focus is;
+# every focusable node is focused at some step.
+fn r_on_focus(t: &List[Frame], out: &mut List[Finding])
+    var ks: List[text] = []
+    for f in 0..t.len()
+        for i in 0..nodes(&t[f].v)
+            let n = i as i64
+            if t[f].foc[n as usize] and not t[f].hid[n as usize] and not t[f].off[n as usize]
+                if t[f].v.key[i] == ""
+                    undecided(out, "3.2.1", "on_focus", f as i64, n, nm(&t[f].v, n) + " is focusable and has no key, so no step can focus it")
+                elif not ks.contains(t[f].v.key[i])
+                    ks.push(copy(t[f].v.key[i]))
+    var seen: List[text] = []
+    for f in 1..t.len()
+        if ev_word(&t[f]) == "focus"
+            let k = ev_arg(&t[f])
+            seen.push(copy(k))
+            if ctx(&t[f].v) != ctx(&t[f - 1].v)
+                fails(out, "3.2.1", "on_focus", f as i64, 0, "focusing " + k + " changes the context")
+            elif focused_key(&t[f].v) != k
+                fails(out, "3.2.1", "on_focus", f as i64, focused_node(&t[f].v), "focusing " + k + " leaves focus on " + focused_key(&t[f].v))
+    for k in ks
+        if not seen.contains(k)
+            undecided(out, "3.2.1", "on_focus", -1, -1, "no step focuses " + k)
+
+# 3.2.2: changing an input's value changes neither the context nor focus;
+# every input is changed at some step.
+fn r_on_input(t: &List[Frame], out: &mut List[Finding])
+    var ks: List[text] = []
+    for f in 0..t.len()
+        for i in 0..nodes(&t[f].v)
+            let n = i as i64
+            let r = copy(t[f].role[n as usize])
+            if t[f].vis[n as usize] and input_role(&r) and not t[f].off[n as usize]
+                if t[f].v.key[i] == ""
+                    undecided(out, "3.2.2", "on_input", f as i64, n, nm(&t[f].v, n) + " is an input with no key, so no step can change it")
+                elif not ks.contains(t[f].v.key[i])
+                    ks.push(copy(t[f].v.key[i]))
+    var seen: List[text] = []
+    let sc32 = "3.2.2"
+    for f in 1..t.len()
+        if ev_word(&t[f]) == "input"
+            let k = ev_arg(&t[f])
+            seen.push(copy(k))
+            let n = find_key(&t[f - 1].v, &k)
+            if n >= 0 and exempt(&t[f - 1].v, n, &sc32)
+                fails(out, "3.2.2", "on_input", (f - 1) as i64, n, "input " + k + " changes the context or focus under a claimed exception")
+            elif ctx(&t[f].v) != ctx(&t[f - 1].v)
+                fails(out, "3.2.2", "on_input", f as i64, 0, "changing " + k + " changes the context")
+            elif focused_key(&t[f].v) != focused_key(&t[f - 1].v)
+                fails(out, "3.2.2", "on_input", f as i64, 0, "changing " + k + " moves focus")
+    for k in ks
+        if not seen.contains(k)
+            undecided(out, "3.2.2", "on_input", -1, -1, "no step changes " + k)
+
+fn contexts(t: &List[Frame]) -> List[text]
+    var cs: List[text] = []
+    for f in 0..t.len()
+        let c = ctx(&t[f].v)
+        if not cs.contains(c)
+            cs.push(c)
+    return cs
+
+fn first_frame(t: &List[Frame], c: &text) -> usize
+    for f in 0..t.len()
+        if ctx(&t[f].v) == c
+            return f
+    return 0
+
+# xs and ys order their common items the same way
+fn same_order(xs: &[text], ys: &[text]) -> bool
+    var a: List[text] = []
+    for x in xs
+        if ys.contains(x) and not a.contains(x)
+            a.push(copy(x))
+    var b: List[text] = []
+    for y in ys
+        if a.contains(y) and not b.contains(y)
+            b.push(copy(y))
+    return a == b
+
+fn nav_names(v: &View) -> List[text]
+    var out: List[text] = []
+    for n in preorder(v)
+        if visible_el(v, n) and interactive(v, n)
+            var m = n
+            var inside = false
+            while m >= 0 bound 65536
+                if role(v, m) == "navigation"
+                    inside = true
+                m = v.parent[m as usize]
+            if inside
+                out.push(name_of(v, n))
+    return out
+
+fn help_kinds(v: &View) -> List[text]
+    var out: List[text] = []
+    for n in preorder(v)
+        if visible_el(v, n) and has(v, n, "help")
+            out.push(av(v, n, "help").strip())
+    return out
+
+# 3.2.3: navigation repeated across contexts keeps its relative order.
+fn r_consistent_navigation(t: &List[Frame], out: &mut List[Finding])
+    let cs = contexts(t)
+    for i in 0..cs.len()
+        for j in (i + 1)..cs.len()
+            let a = nav_names(&t[first_frame(t, &cs[i])].v)
+            let b = nav_names(&t[first_frame(t, &cs[j])].v)
+            if not same_order(&a, &b)
+                fails(out, "3.2.3", "consistent_navigation", first_frame(t, &cs[j]) as i64, -1, "navigation order differs between contexts " + cs[i] + " and " + cs[j])
+
+# 3.2.4: nodes with the same action have the same name in every context.
+fn r_consistent_identification(t: &List[Frame], out: &mut List[Finding])
+    var acts: List[text] = []
+    var names: List[text] = []
+    var cts: List[text] = []
+    for f in 0..t.len()
+        let v = &t[f].v
+        for i in 0..nodes(v)
+            let n = i as i64
+            if visible_el(v, n) and has(v, n, "action")
+                let a = av(v, n, "action").strip()
+                let nmv = name_of(v, n).lower()
+                var found = false
+                for x in 0..acts.len()
+                    if acts[x] == a and cts[x] != ctx(v)
+                        found = true
+                        if names[x] != nmv
+                            fails(out, "3.2.4", "consistent_identification", f as i64, n, "action " + a + " is named \"" + names[x] + "\" in context " + cts[x] + " and \"" + nmv + "\" in context " + ctx(v))
+                if not found
+                    acts.push(copy(a))
+                    names.push(copy(nmv))
+                    cts.push(ctx(v))
+
+# 3.2.6: help mechanisms keep their relative order across contexts.
+fn r_consistent_help(t: &List[Frame], out: &mut List[Finding])
+    let cs = contexts(t)
+    for i in 0..cs.len()
+        for j in (i + 1)..cs.len()
+            let a = help_kinds(&t[first_frame(t, &cs[i])].v)
+            let b = help_kinds(&t[first_frame(t, &cs[j])].v)
+            if not same_order(&a, &b)
+                fails(out, "3.2.6", "consistent_help", first_frame(t, &cs[j]) as i64, -1, "help order differs between contexts " + cs[i] + " and " + cs[j])
+
+# 3.3.7: information entered earlier is filled in or offered when asked
+# again in another context; with more than one context, every input
+# declares entry (an id of the information, or "none").
+fn r_redundant_entry(t: &List[Frame], out: &mut List[Finding])
+    let multi = contexts(t).len() > 1
+    var given: List[text] = []
+    var given_ctx: List[text] = []
+    for f in 0..t.len()
+        let v = &t[f].v
+        for i in 0..nodes(v)
+            let n = i as i64
+            let r = role(v, n)
+            if visible_el(v, n) and input_role(&r)
+                let e = av(v, n, "entry").strip()
+                if e == "" and multi
+                    undecided(out, "3.3.7", "redundant_entry", f as i64, n, nm(v, n) + " is an input with no entry")
+                elif e != "" and e != "none"
+                    var offered = has(v, n, "value")
+                    for j in 0..nodes(v)
+                        if av(v, j as i64, "entry-offer").strip() == e
+                            offered = true
+                    for x in 0..given.len()
+                        if given[x] == e and given_ctx[x] != ctx(v) and not offered
+                            fails(out, "3.3.7", "redundant_entry", f as i64, n, nm(v, n) + " asks again for " + e + ", entered in context " + given_ctx[x] + ", with no value or entry-offer")
+                    if has(v, n, "value") and not given.contains(e)
+                        given.push(copy(e))
+                        given_ctx.push(ctx(v))
+
+# 4.1.3: a declared status message is in a live region; text that changes
+# between two frames of one context, outside the focused node and outside
+# a live region, declares status-msg ("true" or "false").
+fn r_status_messages(t: &List[Frame], out: &mut List[Finding])
+    for f in 0..t.len()
+        let v = &t[f].v
+        for i in 0..nodes(v)
+            let n = i as i64
+            if visible_el(v, n) and yes(v, n, "status-msg") and not live_region(v, n)
+                fails(out, "4.1.3", "status_messages", f as i64, n, nm(v, n) + " is a status message outside a live region")
+    for f in 1..t.len()
+        let a = &t[f - 1].v
+        let b = &t[f].v
+        if ctx(a) == ctx(b)
+            let fo = focused_node(b)
+            let pidb = pids(b)
+            let pida = pids(a)
+            let am = pid_map(&pida)
+            for i in 0..nodes(b)
+                let n = i as i64
+                if v_text(b, n) and not hidden(b, n) and not live_region(b, n) and not (fo >= 0 and is_desc(b, n, fo)) and up(b, n, "status-msg") == ""
+                    let m = am.get(copy(pidb[i])) catch -1
+                    let unchanged = m >= 0 and v_text(a, m) and a.text[m as usize] == b.text[i]
+                    if not unchanged
+                        undecided(out, "4.1.3", "status_messages", f as i64, n, nm(b, n) + " text \"" + b.text[i].strip() + "\" changes; declare status-msg on it or its parent")
+
+fn v_text(v: &View, n: i64) -> bool = v.tag[n as usize] == "" and v.text[n as usize].strip() != ""
+
+fn trace_rule(name: &text, t: &List[Frame], out: &mut List[Finding]) -> bool
+    if name == "hover_focus_content"
+        r_hover_focus_content(t, out)
+    elif name == "timing_adjustable"
+        r_timing_adjustable(t, out)
+    elif name == "pause_stop_hide"
+        r_pause_stop_hide(t, out)
+    elif name == "three_flashes"
+        r_three_flashes(t, out)
+    elif name == "on_focus"
+        r_on_focus(t, out)
+    elif name == "on_input"
+        r_on_input(t, out)
+    elif name == "consistent_navigation"
+        r_consistent_navigation(t, out)
+    elif name == "consistent_identification"
+        r_consistent_identification(t, out)
+    elif name == "consistent_help"
+        r_consistent_help(t, out)
+    elif name == "redundant_entry"
+        r_redundant_entry(t, out)
+    elif name == "status_messages"
+        r_status_messages(t, out)
+    else
+        return false
+    return true
+
+# Findings of one rule over a trace (a view rule runs on every frame).
+pub fn rule_findings(name: &text, t: &List[Step]) -> List[Finding]
+    let fs = frames(t)
+    return findings_of(name, &fs)
+
+fn findings_of(name: &text, t: &List[Frame]) -> List[Finding]
+    var out: List[Finding] = []
+    if not trace_rule(name, t, &mut out)
+        for f in 0..t.len()
+            let _ = view_rule(name, &t[f], f as i64, &mut out)
+    return out
+
+pub fn frame_of(s: &Step) -> Frame
+    let v = &s.v
+    let n = nodes(v)
+    var rl: List[text] = []
+    var ri: List[i64] = []
+    var hid: List[bool] = []
+    var off: List[bool] = []
+    var inter: List[bool] = []
+    var foc: List[bool] = []
+    var vis: List[bool] = []
+    for _i in 0..n
+        rl.push("")
+        ri.push(-1)
+        hid.push(false)
+        off.push(false)
+        inter.push(false)
+        foc.push(false)
+        vis.push(false)
+    # parents before children: breadth first from the root
+    var q: List[i64] = [0]
+    var h: usize = 0
+    while h < q.len() bound 16777216
+        let u = q[h]
+        let k = u as usize
+        let p = v.parent[k]
+        let r = role(v, u)
+        let x = role_index(&r)
+        let e = el(v, u)
+        hid[k] = av(v, u, "aria-hidden") == "true" or (p >= 0 and hid[p as usize])
+        off[k] = av(v, u, "aria-disabled") == "true" or (p >= 0 and off[p as usize])
+        inter[k] = e and (has(v, u, "action") or (x >= 0 and ROLE_TYPE[x as usize] == "widget" and r != "progressbar"))
+        foc[k] = focusable(v, u)
+        vis[k] = e and not hid[k]
+        rl[k] = r
+        ri[k] = x
+        for c in v.kids[k]
+            q.push(c)
+        h += 1
+    return Frame(ev: copy(s.ev), ms: s.ms, v: copy(s.v), role: rl, ri: ri, hid: hid, off: off, inter: inter, foc: foc, vis: vis)
+
+pub fn frames(t: &List[Step]) -> List[Frame]
+    var out: List[Frame] = []
+    for s in t
+        out.push(frame_of(&s))
+    return out
+
+pub fn has_rule(name: &text) -> bool
+    let names = rule_names()
+    return names.contains(name)
+
+# Findings of one rule over one view.
+pub fn view_findings(name: &text, v: &View) -> List[Finding]
+    let t = [Step(ev: "start", ms: 0, v: copy(v))]
+    return rule_findings(name, &t)
+
+# ---------------- applicability and the human part ----------------
+fn any_node(t: &List[Frame], what: text) -> bool
+    for f in 0..t.len()
+        for i in 0..nodes(&t[f].v)
+            if not t[f].hid[i] and node_is(&t[f], i as i64, &what)
+                return true
+    return false
+
+fn node_is(x: &Frame, n: i64, what: &text) -> bool
+    let v = &x.v
+    let r = copy(x.role[n as usize])
+    let k = if what.startswith("media") or what.startswith("av") or what == "autoplay" then media_kind(v, n) else ""
+    if what == "text"
+        return v_text(v, n)
+    if what == "content"
+        return v_text(v, n) or (el(v, n) and r != "")
+    if what == "img"
+        return el(v, n) and (r == "img" or r == "image")
+    if what == "media-pre"
+        return (k == "audio" or k == "video" or k == "?") and not yes(v, n, "media-live")
+    if what == "av-pre"
+        return (k == "audio-video" or k == "?") and not yes(v, n, "media-live")
+    if what == "av-live"
+        return (k == "audio-video" or k == "?") and yes(v, n, "media-live")
+    if what == "autoplay"
+        return k != "" and yes(v, n, "autoplay")
+    if what == "input"
+        return el(v, n) and input_role(&r)
+    if what == "interactive"
+        return x.inter[n as usize]
+    if what == "nontext"
+        return x.inter[n as usize] or yes(v, n, "graphic")
+    if what == "focusable"
+        return x.foc[n as usize]
+    if what == "link"
+        return r == "link"
+    if what == "heading-or-input"
+        return r == "heading" or (el(v, n) and input_role(&r))
+    if what == "labelled-widget"
+        return x.inter[n as usize] and has(v, n, "aria-label") and text_of(v, n) != ""
+    if what == "media-or-img"
+        return k != "" or r == "img" or r == "image"
+    if what == "role-or-interactive"
+        return (el(v, n) and r != "") or x.inter[n as usize]
+    if what == "status"
+        return yes(v, n, "status-msg")
+    if what == "navigation"
+        return r == "navigation"
+    if what == "help"
+        return has(v, n, "help")
+    if what == "action"
+        return has(v, n, "action")
+    if what == "auth"
+        return has(v, n, "auth") or (el(v, n) and text_input(&r))
+    return has(v, n, copy(what))
+
+fn changes(t: &List[Frame], tick_only: bool) -> bool
+    for f in 1..t.len()
+        if (not tick_only or ev_word(&t[f]) == "tick") and sig(&t[f - 1].v, 0) != sig(&t[f].v, 0)
+            return true
+    return false
+
+fn text_changes(t: &List[Frame]) -> bool
+    for f in 1..t.len()
+        if ctx(&t[f - 1].v) == ctx(&t[f].v) and text_of(&t[f - 1].v, 0) != text_of(&t[f].v, 0)
+            return true
+    return false
+
+fn ctx_change_on_tick(t: &List[Frame]) -> bool
+    for f in 1..t.len()
+        if ev_word(&t[f]) == "tick" and ctx(&t[f - 1].v) != ctx(&t[f].v)
+            return true
+    return false
+
+# "" when sc applies to the trace, else the reason it does not
+pub fn not_applicable(sc: &text, t: &List[Frame]) -> text
+    let multi = contexts(t).len() > 1
+    if sc == "1.1.1" and not any_node(t, "img")
+        return "no node has role img"
+    if sc == "1.2.1" and not any_node(t, "media-pre")
+        return "no prerecorded audio-only or video-only media"
+    if (sc == "1.2.2" or sc == "1.2.3" or sc == "1.2.5") and not any_node(t, "av-pre")
+        return "no prerecorded audio-video media"
+    if sc == "1.2.4" and not any_node(t, "av-live")
+        return "no live audio-video media"
+    if (sc == "1.3.1" or sc == "1.4.1" or sc == "2.4.1") and not any_node(t, "content")
+        return "no text and no roles"
+    if (sc == "1.3.2" or sc == "1.3.3" or sc == "1.4.3" or sc == "1.4.4" or sc == "1.4.10" or sc == "1.4.12" or sc == "3.1.2") and not any_node(t, "text")
+        return "no text"
+    if (sc == "1.3.5" or sc == "3.2.2" or sc == "3.3.1" or sc == "3.3.2" or sc == "3.3.3") and not any_node(t, "input")
+        return "no input"
+    if sc == "1.4.2" and not any_node(t, "autoplay")
+        return "no media plays by itself"
+    if sc == "1.4.5" and not any_node(t, "img")
+        return "no image"
+    if sc == "1.4.11" and not any_node(t, "nontext")
+        return "no component or graphic"
+    if sc == "1.4.13" and not any_node(t, "popup")
+        return "no content shown on hover or focus"
+    if (sc == "2.1.1" or sc == "2.5.2" or sc == "2.5.8" or sc == "3.3.4") and not any_node(t, "interactive")
+        return "no interactive node"
+    if (sc == "2.1.2" or sc == "2.4.3" or sc == "2.4.7" or sc == "2.4.11" or sc == "3.2.1") and not any_node(t, "focusable")
+        return "no focusable node"
+    if sc == "2.1.4" and not any_node(t, "aria-keyshortcuts")
+        return "no key shortcut"
+    if sc == "2.2.1" and not any_node(t, "time-limit-ms") and not ctx_change_on_tick(t)
+        return "no time limit is declared and no tick changes the context"
+    if sc == "2.2.2" and not any_node(t, "moving") and not changes(t, true)
+        return "nothing moves and no tick changes the view"
+    if sc == "2.4.4" and not any_node(t, "link")
+        return "no link"
+    if sc == "2.4.6" and not any_node(t, "heading-or-input")
+        return "no heading and no input"
+    if sc == "2.5.1" and not any_node(t, "gesture")
+        return "no gesture"
+    if sc == "2.5.3" and not any_node(t, "labelled-widget")
+        return "no component with both aria-label and visible text"
+    if sc == "2.5.4" and not any_node(t, "motion-action")
+        return "no motion action"
+    if sc == "2.5.7" and not any_node(t, "drag")
+        return "no dragging"
+    if sc == "3.2.3" and (not any_node(t, "navigation") or not multi)
+        return "no navigation repeated across contexts (one context, or no navigation landmark)"
+    if sc == "3.2.4" and (not any_node(t, "action") or not multi)
+        return "no component repeated across contexts"
+    if sc == "3.2.6" and (not any_node(t, "help") or not multi)
+        return "no help mechanism repeated across contexts"
+    if sc == "3.3.7" and (not any_node(t, "input") or not multi)
+        return "no input in a process of more than one context"
+    if sc == "3.3.8" and not any_node(t, "auth")
+        return "no authentication field"
+    if sc == "4.1.2" and not any_node(t, "role-or-interactive")
+        return "no role and no interactive node"
+    if sc == "4.1.3" and not any_node(t, "status") and not text_changes(t)
+        return "no status message declared and no text changes"
+    return ""
+
+fn any_frame(t: &List[Frame], what: text) -> bool
+    for f in 0..t.len()
+        let v = &t[f].v
+        if what == "lock"
+            let o = av(v, 0, "orientation").strip()
+            if o == "portrait" or o == "landscape"
+                return true
+        elif what == "no-bypass"
+            if not bypass_mechanism(&t[f])
+                return true
+        elif what == "layered"
+            if layered(&t[f])
+                return true
+        elif what == "undersized"
+            if undersized(&t[f]) > 0
+                return true
+        elif what == "multi-focus"
+            if focus_order(v).len() > 1
+                return true
+    return false
+
+# "" when no part of sc is left to a person for this trace, else what is
+pub fn human_need(c: &Criterion, t: &List[Frame]) -> text
+    if c.class == "H"
+        return copy(c.human)
+    let id = copy(c.id)
+    if id == "1.3.4" and not any_frame(t, "lock")
+        return ""
+    if id == "2.3.1" and not any_node(t, "media-or-img")
+        return ""
+    if id == "2.4.1" and not any_frame(t, "no-bypass")
+        return ""
+    if id == "2.4.3" and not any_frame(t, "multi-focus")
+        return ""
+    if id == "2.4.11" and not any_frame(t, "layered")
+        return ""
+    if id == "2.5.8" and not any_frame(t, "undersized")
+        return ""
+    return copy(c.human)
+
+# the attestation of sc on every frame: "WHO on DATE", "" when missing,
+# "?" when malformed
+pub fn attestation(sc: &text, t: &List[Frame]) -> text
+    var r = ""
+    for f in 0..t.len()
+        let a = av(&t[f].v, 0, "attest-" + sc)
+        if a.strip() == ""
+            return ""
+        let p = a.split(";")
+        if p.len() != 2 or p[0].strip() == "" or not date_ok(&p[1])
+            return "?"
+        if f == 0
+            r = p[0].strip() + " on " + p[1].strip()
+    return r
+
+fn date_ok(d: &text) -> bool
+    let p = d.strip().split("-")
+    return p.len() == 3 and p[0].len_chars() == 4 and p[1].len_chars() == 2 and p[2].len_chars() == 2 and p[0].isdigit() and p[1].isdigit() and p[2].isdigit()
+
+# ---------------- verdicts ----------------
+fn verdict(c: &Criterion, t: &List[Frame]) -> Verdict
+    let na = not_applicable(&c.id, t)
+    if na != ""
+        return Verdict(sc: copy(c.id), outcome: "not applicable", reason: na)
+    var nfail = 0
+    var nund = 0
+    var nex = 0
+    var first = ""
+    if c.rule != "-"
+        let fs = findings_of(&c.rule, t)
+        for x in fs
+            let claimed = x.frame >= 0 and x.at >= 0 and exempt(&t[x.frame as usize].v, x.at, &c.id)
+            if claimed
+                nex += 1
+            elif x.outcome == "fails"
+                if nfail == 0
+                    first = copy(x.reason)
+                nfail += 1
+            else
+                nund += 1
+        if nfail == 0
+            for x in fs
+                let claimed = x.frame >= 0 and x.at >= 0 and exempt(&t[x.frame as usize].v, x.at, &c.id)
+                if not claimed and first == ""
+                    first = copy(x.reason)
+    if nfail > 0
+        return Verdict(sc: copy(c.id), outcome: "fails", reason: first + (if nfail > 1 then " (and " + (nfail - 1).tostr() + " more)" else ""))
+    if nund > 0
+        return Verdict(sc: copy(c.id), outcome: "undecided", reason: first + (if nund > 1 then " (and " + (nund - 1).tostr() + " more)" else ""))
+    var need = human_need(c, t)
+    if nex > 0
+        need = (if need != "" then need + "; " else "") + nex.tostr() + " nodes claim an exception"
+    if need == ""
+        return Verdict(sc: copy(c.id), outcome: "meets", reason: "")
+    let a = attestation(&c.id, t)
+    if a == "?"
+        return Verdict(sc: copy(c.id), outcome: "undecided", reason: "attest-" + c.id + " is not WHO;YYYY-MM-DD")
+    if a == ""
+        return Verdict(sc: copy(c.id), outcome: "undecided", reason: "needs human attestation: " + need)
+    return Verdict(sc: copy(c.id), outcome: "attested", reason: "by " + a + ": " + need)
+
+# The verdict of every criterion for a trace, and for one view.
+pub fn report(t: &List[Step]) -> List[Verdict]
+    let fs = frames(t)
+    var out: List[Verdict] = []
+    for c in criteria()
+        out.push(verdict(&c, &fs))
+    return out
+
+pub fn report_view(v: &View) -> List[Verdict]
+    let t = [Step(ev: "start", ms: 0, v: copy(v))]
+    return report(&t)
+
+# Verdicts that are not meets, attested or not applicable: what keeps a
+# trace from full WCAG 2.2 AA.
+pub fn unmet(t: &List[Step]) -> List[Verdict]
+    var out: List[Verdict] = []
+    for x in report(t)
+        if x.outcome == "fails" or x.outcome == "undecided"
+            out.push(x)
+    return out
+
+pub fn unmet_view(v: &View) -> List[Verdict]
+    let t = [Step(ev: "start", ms: 0, v: copy(v))]
+    return unmet(&t)
+
+pub fn verdict_text(x: &Verdict) -> text = x.sc + " " + x.outcome + (if x.reason != "" then ": " + x.reason else "")
+
+# ---- data (generated by scripts/gen/rules_gen.py; do not edit below)
+# LIN[v]: the sRGB channel value v/255 linearised as in the WCAG 2.2
+# definition of relative luminance, times 10^12, rounded to the nearest
+# integer (60-digit decimal arithmetic); each entry is within 1/2 of the
+# exact value.
+pub const LIN: [i64; 256] = [0, 303526984, 607053967, 910580951, 1214107934, 1517634918, 1821161901, 2124688885, 2428215868, 2731742852, 3035269835, 3346535764, 3676507324, 4024717018, 4391442037, 4776953481, 5181516702, 5605391624, 6048833023, 6512090793, 6995410187, 7499032043, 8023192985, 8568125618, 9134058702, 9721217320, 10329823030, 10960094006, 11612245180, 12286488357, 12983032342, 13702083047, 14443843596, 15208514423, 15996293366, 16807375753, 17641954488, 18500220128, 19382360957, 20288563057, 21219010376, 22173884793, 23153366178, 24157632449, 25186859627, 26241221895, 27320891639, 28426039504, 29556834438, 30713443733, 31896033073, 33104766571, 34339806809, 35601314875, 36889450401, 38204371595, 39546235277, 40915196907, 42311410621, 43735029257, 45186204386, 46665086337, 48171824227, 49706565984, 51269458374, 52860647023, 54480276442, 56128490050, 57805430191, 59511238163, 61246054232, 63010017653, 64803266693, 66625938644, 68478169844, 70360095697, 72271850682, 74213568380, 76185381481, 78187421805, 80219820314, 82282707130, 84376211544, 86500462037, 88655586286, 90841711183, 93058962847, 95307466631, 97587347142, 99898728247, 102241733088, 104616484091, 107023102978, 109461710778, 111932427837, 114435373827, 116970667759, 119538427988, 122138772230, 124771817561, 127437680436, 130136476690, 132868321554, 135633329655, 138431615032, 141263291140, 144128470858, 147027266498, 149959789811, 152926151996, 155926463708, 158960835061, 162029375639, 165132194502, 168269400190, 171441100733, 174647403656, 177888415984, 181164244250, 184474994500, 187820772301, 191201682741, 194617830442, 198069319560, 201556253794, 205078736390, 208636870145, 212230757414, 215860500114, 219526199729, 223227957317, 226965873510, 230740048524, 234550582161, 238397573812, 242281122466, 246201326708, 250158284730, 254152094331, 258182852922, 262250657530, 266355604803, 270497791013, 274677312060, 278894263477, 283148740430, 287440837727, 291770649818, 296138270798, 300543794416, 304987314070, 309468922818, 313988713376, 318546778125, 323143209113, 327778098057, 332451536346, 337163615048, 341914424909, 346704056355, 351532599500, 356400144146, 361306779784, 366252595599, 371237680474, 376262122991, 381326011433, 386429433787, 391572477750, 396755230726, 401977779832, 407240211902, 412542613484, 417885070848, 423267669986, 428690496614, 434153636175, 439657173841, 445201194516, 450785782838, 456411023180, 462076999654, 467783796112, 473531496148, 479320183101, 485149940056, 491020849848, 496932995061, 502886458033, 508881320855, 514917665377, 520995573204, 527115125706, 533276404011, 539479489012, 545724461370, 552011401512, 558340389634, 564711505705, 571124829465, 577580440430, 584078417891, 590618840919, 597201788364, 603827338855, 610495570808, 617206562420, 623960391675, 630757136346, 637596873994, 644479681971, 651405637420, 658374817279, 665387298282, 672443156958, 679542469633, 686685312435, 693871761292, 701101891933, 708375779892, 715693500506, 723055128922, 730460740090, 737910408773, 745404209540, 752942216776, 760524504675, 768151147248, 775822218317, 783537791526, 791297940333, 799102738014, 806952257669, 814846572216, 822785754396, 830769876775, 838799011741, 846873231510, 854992608124, 863157213454, 871367119199, 879622396888, 887923117882, 896269353374, 904661174391, 913098651793, 921581856277, 930110858375, 938685728458, 947306536733, 955973353249, 964686247894, 973445290398, 982250550333, 991102097114, 1000000000000]
+
+# WAI-ARIA roles (vectors/ui/aria-roles.tsv, from axe-core's standards
+# table): name, type, required states and properties, required context
+# roles, whether a name is required, whether the name comes from content.
+pub const ROLE_COUNT: i64 = 87
+pub const ROLE_NAME: [text; 87] = ["alert", "alertdialog", "application", "article", "banner", "blockquote", "button", "caption", "cell", "checkbox", "code", "columnheader", "combobox", "comment", "complementary", "contentinfo", "definition", "deletion", "dialog", "document", "emphasis", "feed", "figure", "form", "grid", "gridcell", "group", "heading", "image", "img", "insertion", "link", "list", "listbox", "listitem", "log", "main", "mark", "marquee", "math", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio", "meter", "navigation", "none", "note", "option", "paragraph", "presentation", "progressbar", "radio", "radiogroup", "region", "row", "rowgroup", "rowheader", "scrollbar", "search", "searchbox", "sectionfooter", "sectionheader", "separator", "slider", "spinbutton", "status", "strong", "subscript", "suggestion", "superscript", "switch", "tab", "table", "tablist", "tabpanel", "term", "text", "textbox", "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem"]
+pub const ROLE_TYPE: [text; 87] = ["structure", "window", "landmark", "structure", "landmark", "structure", "widget", "structure", "structure", "widget", "structure", "structure", "widget", "structure", "landmark", "landmark", "structure", "structure", "window", "structure", "structure", "structure", "structure", "landmark", "composite", "widget", "structure", "structure", "structure", "structure", "structure", "widget", "structure", "widget", "structure", "structure", "landmark", "structure", "structure", "structure", "composite", "composite", "widget", "widget", "widget", "structure", "landmark", "structure", "structure", "widget", "structure", "structure", "widget", "widget", "composite", "landmark", "structure", "structure", "structure", "widget", "landmark", "widget", "structure", "structure", "structure", "widget", "widget", "structure", "structure", "structure", "structure", "structure", "widget", "widget", "structure", "composite", "structure", "structure", "structure", "widget", "structure", "structure", "structure", "structure", "composite", "composite", "widget"]
+pub const ROLE_REQ: [text; 87] = ["", "", "", "", "", "", "", "", "", "aria-checked", "", "", "aria-expanded,aria-controls", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "aria-level", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "aria-checked", "aria-checked", "aria-valuenow", "", "", "", "", "", "", "", "aria-checked", "", "", "", "", "", "aria-valuenow", "", "", "", "", "aria-valuenow", "aria-valuenow", "", "", "", "", "", "", "aria-checked", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+pub const ROLE_CTX: [text; 87] = ["", "", "", "", "", "", "", "figure,table,grid,treegrid", "row", "", "", "row", "", "", "", "", "", "", "", "", "", "", "", "", "", "row", "", "", "", "", "", "", "", "", "list", "", "", "", "", "", "", "", "menu,menubar,group", "menu,menubar,group", "menu,menubar,group", "", "", "", "", "group,listbox", "", "", "", "", "", "", "grid,rowgroup,table,treegrid", "grid,table,treegrid", "row", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "tablist", "", "", "", "", "", "", "", "", "", "", "", "", "group,tree"]
+pub const ROLE_NAME_REQ: [bool; 87] = [false, true, true, false, false, false, true, false, false, true, false, false, true, false, false, false, false, false, true, false, false, false, false, false, false, false, false, false, true, true, false, true, false, true, false, false, false, false, false, false, false, false, true, true, true, true, false, false, false, true, false, false, true, true, false, false, false, false, false, false, false, true, false, false, false, true, true, false, false, false, false, false, true, false, false, false, false, false, false, true, false, false, true, false, false, false, true]
+pub const ROLE_NAME_CONTENT: [bool; 87] = [false, false, false, false, false, false, true, false, true, true, false, true, false, false, false, false, false, false, false, false, false, false, true, false, false, true, false, true, false, false, false, true, false, false, true, false, false, false, false, false, false, false, true, true, true, false, false, false, false, true, false, false, false, true, false, false, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true, true, false, false, true, true, false, false, false, false, true, false, false, true]
+
+# The input purposes of WCAG 2.2 section 7 (vectors/ui/input-purposes.txt).
+pub const PURPOSES: [text; 53] = ["name", "honorific-prefix", "given-name", "additional-name", "family-name", "honorific-suffix", "nickname", "organization-title", "username", "new-password", "current-password", "organization", "street-address", "address-line1", "address-line2", "address-line3", "address-level4", "address-level3", "address-level2", "address-level1", "country", "country-name", "postal-code", "cc-name", "cc-given-name", "cc-additional-name", "cc-family-name", "cc-number", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-csc", "cc-type", "transaction-currency", "transaction-amount", "language", "bday", "bday-day", "bday-month", "bday-year", "sex", "url", "photo", "tel", "tel-country-code", "tel-national", "tel-area-code", "tel-local", "tel-local-prefix", "tel-local-suffix", "tel-extension", "email", "impp"]

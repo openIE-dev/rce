@@ -1,0 +1,55 @@
+1.1.1	non-text-content	A	Non-text Content
+1.2.1	audio-only-and-video-only-prerecorded	A	Audio-only and Video-only (Prerecorded)
+1.2.2	captions-prerecorded	A	Captions (Prerecorded)
+1.2.3	audio-description-or-media-alternative-prerecorded	A	Audio Description or Media Alternative (Prerecorded)
+1.2.4	captions-live	AA	Captions (Live)
+1.2.5	audio-description-prerecorded	AA	Audio Description (Prerecorded)
+1.3.1	info-and-relationships	A	Info and Relationships
+1.3.2	meaningful-sequence	A	Meaningful Sequence
+1.3.3	sensory-characteristics	A	Sensory Characteristics
+1.3.4	orientation	AA	Orientation
+1.3.5	identify-input-purpose	AA	Identify Input Purpose
+1.4.1	use-of-color	A	Use of Color
+1.4.2	audio-control	A	Audio Control
+1.4.3	contrast-minimum	AA	Contrast (Minimum)
+1.4.4	resize-text	AA	Resize Text
+1.4.5	images-of-text	AA	Images of Text
+1.4.10	reflow	AA	Reflow
+1.4.11	non-text-contrast	AA	Non-text Contrast
+1.4.12	text-spacing	AA	Text Spacing
+1.4.13	content-on-hover-or-focus	AA	Content on Hover or Focus
+2.1.1	keyboard	A	Keyboard
+2.1.2	no-keyboard-trap	A	No Keyboard Trap
+2.1.4	character-key-shortcuts	A	Character Key Shortcuts
+2.2.1	timing-adjustable	A	Timing Adjustable
+2.2.2	pause-stop-hide	A	Pause, Stop, Hide
+2.3.1	three-flashes-or-below-threshold	A	Three Flashes or Below Threshold
+2.4.1	bypass-blocks	A	Bypass Blocks
+2.4.2	page-titled	A	Page Titled
+2.4.3	focus-order	A	Focus Order
+2.4.4	link-purpose-in-context	A	Link Purpose (In Context)
+2.4.5	multiple-ways	AA	Multiple Ways
+2.4.6	headings-and-labels	AA	Headings and Labels
+2.4.7	focus-visible	AA	Focus Visible
+2.4.11	focus-not-obscured-minimum	AA	Focus Not Obscured (Minimum)
+2.5.1	pointer-gestures	A	Pointer Gestures
+2.5.2	pointer-cancellation	A	Pointer Cancellation
+2.5.3	label-in-name	A	Label in Name
+2.5.4	motion-actuation	A	Motion Actuation
+2.5.7	dragging-movements	AA	Dragging Movements
+2.5.8	target-size-minimum	AA	Target Size (Minimum)
+3.1.1	language-of-page	A	Language of Page
+3.1.2	language-of-parts	AA	Language of Parts
+3.2.1	on-focus	A	On Focus
+3.2.2	on-input	A	On Input
+3.2.3	consistent-navigation	AA	Consistent Navigation
+3.2.4	consistent-identification	AA	Consistent Identification
+3.2.6	consistent-help	A	Consistent Help
+3.3.1	error-identification	A	Error Identification
+3.3.2	labels-or-instructions	A	Labels or Instructions
+3.3.3	error-suggestion	AA	Error Suggestion
+3.3.4	error-prevention-legal-financial-data	AA	Error Prevention (Legal, Financial, Data)
+3.3.7	redundant-entry	A	Redundant Entry
+3.3.8	accessible-authentication-minimum	AA	Accessible Authentication (Minimum)
+4.1.2	name-role-value	A	Name, Role, Value
+4.1.3	status-messages	AA	Status Messages

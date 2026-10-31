@@ -1,0 +1,461 @@
+# Fixtures for ui.rules: for every rule a view (or trace) that meets it and
+# one that fails it, written in a small notation. tv(s) builds a view from
+# lines: the first is the root, each further line starts with one dot per
+# level below the root, then either "~TEXT" (a text node) or
+# "TAG#KEY|NAME=VALUE|..." (an element; "#KEY" and the attributes are
+# optional). fx(rule, s) lists the findings of one rule as
+# "OUTCOME@NODE", comma-separated ("" when there are none).
+fn rest(cs: &[text], start: usize) -> text
+    var r = ""
+    for j in start..cs.len()
+        r = r + cs[j]
+    return r
+
+fn tv(s: text) -> View
+    let ls = s.split("\n")
+    var v = view.view_new("div", "")
+    var stack: List[i64] = [0]
+    for i in 0..ls.len()
+        let cs = ls[i].chars()
+        var d: usize = 0
+        while d < cs.len() and cs[d] == "." bound 64
+            d += 1
+        let body = rest(&cs, d)
+        var n: i64 = 0
+        if i > 0 and body.startswith("~")
+            let bc = body.chars()
+            let _ = view.add_text(&mut v, stack[d - 1], rest(&bc, 1))
+        else
+            let parts = body.split("|")
+            let tk = parts[0].split("#")
+            if i == 0
+                v = view.view_new(copy(tk[0]), if tk.len() > 1 then copy(tk[1]) else "")
+            else
+                n = view.add_el(&mut v, stack[d - 1], copy(tk[0]), if tk.len() > 1 then copy(tk[1]) else "")
+            for j in 1..parts.len()
+                let kv = parts[j].split("=")
+                var val = copy(kv[1])
+                for x in 2..kv.len()
+                    val = val + "=" + kv[x]
+                view.set_attr(&mut v, n, copy(kv[0]), val)
+            while stack.len() > d bound 64
+                let _ = stack.pop()
+            stack.push(n)
+    return v
+
+fn shw(fs: &[Finding]) -> text
+    var o: List[text] = []
+    for f in fs
+        o.push(f.outcome + "@" + f.at.tostr())
+    return ",".join(o)
+
+fn fx(rule: text, s: text) -> text
+    let v = tv(s)
+    let fs = view_findings(&rule, &v)
+    return shw(&fs)
+
+fn sp(ev: text, ms: i64, s: text) -> Step = Step(ev: ev, ms: ms, v: tv(s))
+
+fn tfx(rule: text, t: List[Step]) -> text
+    let fs = rule_findings(&rule, &t)
+    return shw(&fs)
+
+fn vd(sc: text, t: List[Step]) -> text
+    for x in report(&t)
+        if x.sc == sc
+            return x.outcome
+    return "?"
+
+fn vdv(sc: text, s: text) -> text = vd(sc, [sp("start", 0, s)])
+
+fn hr(s: text) -> bool = has_rule(&s)
+fn sz(s: text) -> i64
+    let v = tv(s)
+    return view.size(&v)
+fn avt(s: text, n: i64, name: text) -> text
+    let v = tv(s)
+    return av(&v, n, name)
+fn tof(s: text) -> text
+    let v = tv(s)
+    return text_of(&v, 0)
+fn nmof(s: text, n: i64) -> text
+    let v = tv(s)
+    return name_of(&v, n)
+fn ford(s: text) -> List[i64]
+    let v = tv(s)
+    return focus_order(&v)
+fn iok(s: text) -> bool = int_ok(&s)
+fn lok(s: text) -> bool = lang_ok(&s)
+fn und(s: text) -> i64
+    let st0 = sp("start", 0, s)
+    let x = frame_of(&st0)
+    return undersized(&x)
+fn um(t: List[Step]) -> List[Verdict] = unmet(&t)
+fn umt(t: List[Step]) -> text
+    let u = unmet(&t)
+    return verdict_text(&u[0])
+
+# ---- the table: every A and AA criterion once, one class each, every
+# E, L and P row names a rule of this module, every rule is used once
+fn table_ok() -> bool
+    let cs = criteria()
+    var ids: List[text] = []
+    var used: List[text] = []
+    for c in cs
+        if ids.contains(c.id)
+            return false
+        ids.push(copy(c.id))
+        if not (c.level == "A" or c.level == "AA")
+            return false
+        if c.class == "H"
+            if c.rule != "-" or c.human == ""
+                return false
+        elif c.class == "E" or c.class == "L" or c.class == "P"
+            if not has_rule(&c.rule) or used.contains(c.rule)
+                return false
+            used.push(copy(c.rule))
+            if c.class == "P" and c.human == ""
+                return false
+        else
+            return false
+    return used.len() == rule_names().len()
+
+fn class_count(k: text) -> i64
+    var n: i64 = 0
+    for c in criteria()
+        if c.class == k
+            n += 1
+    return n
+
+fn class_ids(k: text) -> text
+    var o: List[text] = []
+    for c in criteria()
+        if c.class == k
+            o.push(copy(c.id))
+    return " ".join(o)
+
+check criteria().len() == 55
+check table_ok() == true
+check class_count("E") == 16
+check class_count("L") == 10
+check class_count("P") == 22
+check class_count("H") == 7
+check class_ids("L") == "1.4.13 2.2.1 2.2.2 3.2.1 3.2.2 3.2.3 3.2.4 3.2.6 3.3.7 4.1.3"
+check class_ids("H") == "1.3.2 1.3.3 1.4.1 1.4.5 2.4.5 2.4.6 3.3.3"
+check hr("no_such_rule") == false
+
+# ---- notation and helpers
+check sz("div\n.p#a|x=1\n..~Hi\n.q") == 4
+check avt("div\n.p#a|x=a=b", 1, "x") == "a=b"
+check tof("div\n.p\n..~Open  the\n..b|aria-hidden=true\n...~secret\n..~door") == "Open the door"
+check nmof("div\n.b|role=button|aria-label=Close dialog\n..~X", 1) == "Close dialog"
+check nmof("div\n.b|role=button\n..~Save", 1) == "Save"
+check nmof("div\n.t|role=textbox\n..~typed", 1) == ""
+check nmof("div\n.l#l\n..~Email\n.t|role=textbox|aria-labelledby=l", 3) == "Email"
+check ford("div\n.a|tabindex=0\n.b|tabindex=2\n.c|tabindex=1\n.d|tabindex=-1") == [3, 2, 1]
+check iok("-12") == true
+check iok("1x") == false
+check iok("1234567890123456") == false
+check parse_color("#FFa500") == 16753920
+check parse_color("ffa500") == -1
+check lok("en-GB") == true
+check lok("zh-Hant-TW") == true
+check lok("e") == false
+check lok("en_GB") == false
+check lok("") == false
+
+# ---- 1.1.1 text_alternative
+check fx("text_alternative", "div\n.img#a|role=img|aria-label=A door") == ""
+check fx("text_alternative", "div\n.img#a|role=img") == "fails@1"
+check fx("text_alternative", "div|aria-hidden=true\n.img#a|role=img") == ""
+# ---- 1.2.1 media_alternative
+check fx("media_alternative", "div\n.m|media=audio|transcript=t1") == ""
+check fx("media_alternative", "div\n.m|media=video|audio-track=a1") == ""
+check fx("media_alternative", "div\n.m|media=video") == "fails@1"
+check fx("media_alternative", "div\n.m|media=film") == "undecided@1"
+# ---- 1.2.2 captions_prerecorded
+check fx("captions_prerecorded", "div\n.m|media=audio-video|captions=en") == ""
+check fx("captions_prerecorded", "div\n.m|media=audio-video") == "fails@1"
+check fx("captions_prerecorded", "div\n.m|media=audio-video|media-live=true") == ""
+# ---- 1.2.3 description_or_alternative
+check fx("description_or_alternative", "div\n.m|media=audio-video|transcript=t") == ""
+check fx("description_or_alternative", "div\n.m|media=audio-video|captions=en") == "fails@1"
+# ---- 1.2.4 captions_live
+check fx("captions_live", "div\n.m|media=audio-video|media-live=true|captions=en") == ""
+check fx("captions_live", "div\n.m|media=audio-video|media-live=true") == "fails@1"
+# ---- 1.2.5 audio_description
+check fx("audio_description", "div\n.m|media=audio-video|audio-description=ad") == ""
+check fx("audio_description", "div\n.m|media=audio-video|transcript=t") == "fails@1"
+# ---- 1.3.1 info_relationships
+check fx("info_relationships", "div\n.ul|role=list\n..li|role=listitem\n...~One") == ""
+check fx("info_relationships", "div\n.ul|role=list\n..d|role=generic\n...li|role=listitem") == ""
+check fx("info_relationships", "div\n.li|role=listitem\n..~One") == "fails@1"
+# ---- 1.3.4 orientation
+check fx("orientation", "div|orientation=portrait") == ""
+check fx("orientation", "div|orientation=sideways") == "fails@0"
+# ---- 1.3.5 input_purpose
+check fx("input_purpose", "div\n.i|role=textbox|autocomplete=shipping email") == ""
+check fx("input_purpose", "div\n.i|role=textbox|autocomplete=e-mail") == "fails@1"
+# ---- 1.4.2 audio_control
+check fx("audio_control", "div\n.m|media=audio|autoplay=true|duration-ms=9000|pause-action=pause") == ""
+check fx("audio_control", "div\n.m|media=audio|autoplay=true|duration-ms=2000") == ""
+check fx("audio_control", "div\n.m|media=audio|autoplay=true|duration-ms=9000") == "fails@1"
+check fx("audio_control", "div\n.m|media=audio|autoplay=true") == "undecided@1"
+# ---- 1.4.3 contrast_minimum
+check fx("contrast_minimum", "div|fg=#000000|bg=#ffffff\n.~Hello") == ""
+check fx("contrast_minimum", "div|fg=#cccccc|bg=#ffffff\n.~Hello") == "fails@1"
+check fx("contrast_minimum", "div|fg=#949494|bg=#ffffff\n.~Hello") == "undecided@1"
+check fx("contrast_minimum", "div|fg=#949494|bg=#ffffff|font-px=24\n.~Hello") == ""
+check fx("contrast_minimum", "div|fg=#949494|bg=#ffffff|font-px=16\n.~Hello") == "fails@1"
+check fx("contrast_minimum", "div|fg=#949494|bg=#ffffff|font-px=19|font-weight=700\n.~Hello") == ""
+check fx("contrast_minimum", "div|fg=#949494|bg=#ffffff|font-px=18|font-weight=700\n.~Hello") == "fails@1"
+check fx("contrast_minimum", "div|fg=#000000\n.~Hi") == "undecided@1"
+check fx("contrast_minimum", "div|fg=#cccccc|bg=#ffffff|aria-disabled=true\n.~Hi") == ""
+check fx("contrast_minimum", "div|fg=#000000|bg=#ffffff|bg-image=true\n.~Hi") == "undecided@1"
+check fx("contrast_minimum", "div|fg=#000000|bg=#ffffff|font-px=16\n.p|fg=#777777\n..~Grey") == "fails@2"
+check fx("contrast_minimum", "div|fg=#000000|bg=#ffffff\n.p|fg=#777777\n..~Grey") == "undecided@2"
+# ---- 1.4.4 resize_text
+check fx("resize_text", "div|max-scale=500") == ""
+check fx("resize_text", "div|user-scale=no") == "fails@0"
+check fx("resize_text", "div|max-scale=150") == "fails@0"
+# ---- 1.4.10 reflow
+check fx("reflow", "div\n.p|w=320") == ""
+check fx("reflow", "div\n.p|w=640") == "fails@1"
+check fx("reflow", "div\n.t|role=table|w=900\n..r|w=900") == ""
+# ---- 1.4.11 non_text_contrast
+check fx("non_text_contrast", "div|bg=#ffffff\n.b|action=go|border=#767676") == ""
+check fx("non_text_contrast", "div|bg=#ffffff\n.b|action=go|border=#cccccc") == "fails@1"
+check fx("non_text_contrast", "div\n.b|action=go|border=#000000") == "undecided@1"
+check fx("non_text_contrast", "div|bg=#ffffff\n.g|graphic=true|fg=#ffff00") == "fails@1"
+check fx("non_text_contrast", "div|bg=#ffffff\n.g|graphic=true|fg=#000000") == ""
+# ---- 1.4.12 text_spacing
+check fx("text_spacing", "div\n.~Hi") == ""
+check fx("text_spacing", "div|user-spacing=no\n.~Hi") == "fails@0"
+# ---- 2.1.1 keyboard
+check fx("keyboard", "div\n.b|role=button|action=go|tabindex=0\n..~Go") == ""
+check fx("keyboard", "div\n.b|role=button|action=go\n..~Go") == "fails@1"
+check fx("keyboard", "div\n.b|role=button|action=go|aria-keyshortcuts=Control+G\n..~Go") == ""
+check fx("keyboard", "div\n.b|role=button|action=go|aria-disabled=true\n..~Go") == ""
+check fx("keyboard", "div\n.b|role=button|action=go|tabindex=-1\n..~Go") == "fails@1"
+# ---- 2.1.2 no_keyboard_trap
+check fx("no_keyboard_trap", "div\n.d|role=dialog|aria-modal=true|dismiss-key=Escape") == ""
+check fx("no_keyboard_trap", "div\n.d|role=dialog|aria-modal=true\n..b|tabindex=0|dismisses=true") == ""
+check fx("no_keyboard_trap", "div\n.d|role=dialog|aria-modal=true\n..b|tabindex=0") == "fails@1"
+check fx("no_keyboard_trap", "div\n.e|role=textbox|captures-tab=true|tabindex=0") == "fails@1"
+# ---- 2.1.4 character_key_shortcuts
+check fx("character_key_shortcuts", "div\n.b|aria-keyshortcuts=Control+K") == ""
+check fx("character_key_shortcuts", "div|shortcut-off-action=keys-off\n.b|aria-keyshortcuts=k") == ""
+check fx("character_key_shortcuts", "div\n.b|tabindex=0|shortcut-scope=focus|aria-keyshortcuts=k") == ""
+check fx("character_key_shortcuts", "div\n.b|aria-keyshortcuts=k") == "fails@1"
+check fx("character_key_shortcuts", "div\n.b|aria-keyshortcuts=Shift+K") == "fails@1"
+# ---- 2.4.1 bypass_blocks
+check fx("bypass_blocks", "div\n.a|role=link|href=#main|aria-label=Skip\n.m#main|role=main") == ""
+check fx("bypass_blocks", "div\n.a|role=link|href=#nowhere") == "fails@1"
+# ---- 2.4.2 page_titled
+check fx("page_titled", "div|title=Door panel") == ""
+check fx("page_titled", "div") == "fails@0"
+# ---- 2.4.3 focus_order
+check fx("focus_order", "div\n.a|tabindex=0") == ""
+check fx("focus_order", "div\n.a|tabindex=first") == "fails@1"
+# ---- 2.4.4 link_purpose
+check fx("link_purpose", "div\n.a|role=link\n..~Home") == ""
+check fx("link_purpose", "div\n.a|role=link") == "fails@1"
+# ---- 2.4.7 focus_visible
+check fx("focus_visible", "div|fg=#000000\n.a|tabindex=0|focus-outline=#005fcc") == ""
+check fx("focus_visible", "div\n.a|tabindex=0|bg=#ffffff|focus-bg=#000000") == ""
+check fx("focus_visible", "div\n.a|tabindex=0") == "fails@1"
+check fx("focus_visible", "div|bg=#ffffff\n.a|tabindex=0|focus-bg=#ffffff") == "fails@1"
+# ---- 2.4.11 focus_not_obscured
+check fx("focus_not_obscured", "div\n.h|layer=1") == ""
+check fx("focus_not_obscured", "div\n.h|layer=top") == "fails@1"
+# ---- 2.5.1 pointer_gestures
+check fx("pointer_gestures", "div\n.m|gesture=path|alt-action=zoom") == ""
+check fx("pointer_gestures", "div\n.m|gesture=path") == "fails@1"
+check fx("pointer_gestures", "div\n.m|gesture=swipe|action=next") == "fails@1"
+# ---- 2.5.2 pointer_cancellation
+check fx("pointer_cancellation", "div\n.b|activate-on=up") == ""
+check fx("pointer_cancellation", "div\n.b|activate-on=down|undo-action=undo") == ""
+check fx("pointer_cancellation", "div\n.b|activate-on=down") == "fails@1"
+# ---- 2.5.3 label_in_name
+check fx("label_in_name", "div\n.b|role=button|action=send|aria-label=Send message now\n..~Send message") == ""
+check fx("label_in_name", "div\n.b|role=button|action=send|aria-label=Submit\n..~Send") == "fails@1"
+# ---- 2.5.4 motion_actuation
+check fx("motion_actuation", "div|motion-off-action=still\n.p|motion-action=shake|alt-action=undo") == ""
+check fx("motion_actuation", "div\n.p|motion-action=shake|alt-action=undo") == "fails@1"
+check fx("motion_actuation", "div|motion-off-action=still\n.p|motion-action=shake") == "fails@1"
+# ---- 2.5.7 dragging
+check fx("dragging", "div\n.s|drag=true|alt-action=move") == ""
+check fx("dragging", "div\n.s|drag=true") == "fails@1"
+# ---- 2.5.8 target_size
+check fx("target_size", "div\n.b|action=go|w=24|h=24") == ""
+check fx("target_size", "div\n.b|action=go|inline=true") == ""
+check fx("target_size", "div\n.b|action=go") == "undecided@1"
+check und("div\n.b|action=go|w=20|h=24") == 1
+# ---- 3.1.1 language_of_page
+check fx("language_of_page", "div|lang=en-GB") == ""
+check fx("language_of_page", "div") == "fails@0"
+check fx("language_of_page", "div|lang=en_GB") == "fails@0"
+# ---- 3.1.2 language_of_parts
+check fx("language_of_parts", "div|lang=en\n.p|lang=fr") == ""
+check fx("language_of_parts", "div|lang=en\n.p|lang=french!") == "fails@1"
+# ---- 3.3.1 error_identification
+check fx("error_identification", "div\n.i|role=textbox|aria-invalid=true|aria-errormessage=e1\n.p#e1\n..~Enter a date") == ""
+check fx("error_identification", "div\n.i|role=textbox|aria-invalid=true") == "fails@1"
+check fx("error_identification", "div\n.i|role=textbox|aria-invalid=true|aria-errormessage=e1\n.p#e1") == "fails@1"
+# ---- 3.3.2 labels_or_instructions
+check fx("labels_or_instructions", "div\n.i|role=textbox|aria-label=Email") == ""
+check fx("labels_or_instructions", "div\n.c|role=checkbox|aria-checked=false\n..~Agree") == ""
+check fx("labels_or_instructions", "div\n.i|role=textbox") == "fails@1"
+# ---- 3.3.4 error_prevention
+check fx("error_prevention", "div\n.b|commits=financial|confirm-action=confirm") == ""
+check fx("error_prevention", "div\n.b|commits=financial") == "fails@1"
+check fx("error_prevention", "div\n.b|commits=money|undo-action=undo") == "fails@1"
+# ---- 3.3.8 accessible_authentication
+check fx("accessible_authentication", "div\n.p|role=textbox|autocomplete=current-password") == ""
+check fx("accessible_authentication", "div\n.p|role=textbox|autocomplete=current-password|paste=false") == "fails@1"
+check fx("accessible_authentication", "div\n.q|auth=cognitive") == "fails@1"
+check fx("accessible_authentication", "div\n.q|auth=cognitive|alt-action=email-link") == ""
+# ---- 4.1.2 name_role_value
+check fx("name_role_value", "div\n.b|role=button|action=go|tabindex=0\n..~Go") == ""
+check fx("name_role_value", "div\n.b|action=go|tabindex=0\n..~Go") == "fails@1"
+check fx("name_role_value", "div\n.b|role=buton") == "fails@1"
+check fx("name_role_value", "div\n.b|role=button|tabindex=0") == "fails@1"
+check fx("name_role_value", "div\n.c|role=checkbox|aria-label=Agree") == "fails@1"
+check fx("name_role_value", "div\n.c|role=checkbox|aria-label=Agree|aria-checked=yes") == "fails@1"
+check fx("name_role_value", "div\n.s|role=slider|aria-label=Volume|aria-valuemin=0|aria-valuenow=11|aria-valuemax=10") == "fails@1"
+check fx("name_role_value", "div\n.s|role=slider|aria-label=Volume|aria-valuemin=0|aria-valuenow=5|aria-valuemax=10") == ""
+check fx("name_role_value", "div\n.s|role=slider|aria-label=Volume|aria-valuenow=0.5") == "undecided@1"
+check fx("name_role_value", "div|aria-hidden=true\n.b|tabindex=0") == "fails@1"
+check fx("name_role_value", "div\n.b|role=button|aria-label=Go|aria-describedby=nope") == "fails@1"
+check fx("name_role_value", "div\n.a|focused=true\n.b|focused=true") == "fails@0"
+check fx("name_role_value", "div\n.h|role=heading\n..~Title") == "fails@1"
+check fx("name_role_value", "div\n.h|role=heading|aria-level=2\n..~Title") == ""
+check fx("name_role_value", "div\n.c|role=combobox|aria-label=City|aria-expanded=false") == ""
+check fx("name_role_value", "div\n.c|role=combobox|aria-label=City|aria-expanded=true") == "fails@1"
+
+# ---- 1.4.13 hover_focus_content
+fn tip(shown: bool) -> text = "div\n.b#b|tabindex=0|focused=true" + (if shown then "\n.t#tip|role=tooltip|popup=hover\n..~Hint" else "")
+check tfx("hover_focus_content", [sp("start", 0, tip(true)), sp("hover tip", 16, tip(true)), sp("tick", 16, tip(true)), sp("key Escape", 16, tip(false))]) == ""
+check tfx("hover_focus_content", [sp("start", 0, tip(true)), sp("hover tip", 16, tip(true)), sp("key Escape", 16, tip(true))]) == "fails@2"
+check tfx("hover_focus_content", [sp("start", 0, tip(true)), sp("hover tip", 16, tip(true)), sp("tick", 16, tip(false))]) == "fails@-1,undecided@-1"
+check tfx("hover_focus_content", [sp("start", 0, tip(true))]) == "undecided@-1,undecided@-1"
+
+# ---- 2.2.1 timing_adjustable
+fn tl(left: i64, warn: bool) -> text = "div|time-limit-ms=60000|time-extend-action=extend|time-left-ms=" + left.tostr() + (if warn then "\n.w|time-warning=true" else "")
+check tfx("timing_adjustable", [sp("start", 0, tl(60000, false)), sp("tick", 40000, tl(20000, true)), sp("tick", 20000, tl(0, true))]) == ""
+check tfx("timing_adjustable", [sp("start", 0, tl(60000, false)), sp("tick", 50000, tl(10000, true))]) == "fails@0"
+check tfx("timing_adjustable", [sp("start", 0, tl(60000, false)), sp("tick", 60000, tl(0, false))]) == "fails@0"
+check tfx("timing_adjustable", [sp("start", 0, tl(60000, false))]) == "undecided@0"
+check tfx("timing_adjustable", [sp("start", 0, "div|time-limit-ms=60000")]) == "fails@0"
+check tfx("timing_adjustable", [sp("start", 0, "div|time-limit-ms=60000|time-off-action=off")]) == ""
+check tfx("timing_adjustable", [sp("start", 0, "div|time-limit-ms=60000|time-adjust-action=adjust|time-adjust-max-ms=600000")]) == ""
+check tfx("timing_adjustable", [sp("start", 0, "div|context=a"), sp("tick", 16, "div|context=b")]) == "fails@0"
+
+# ---- 2.2.2 pause_stop_hide
+fn clk(t: text, pa: bool) -> text = "div\n.c#clock" + (if pa then "|pause-action=pause-clock" else "") + "\n..~" + t + "\n.p#pb|role=button|action=pause-clock|tabindex=0\n..~Pause"
+check tfx("pause_stop_hide", [sp("start", 0, clk("10:00", true)), sp("tick", 1000, clk("10:01", true)), sp("activate pb", 16, clk("10:01", true)), sp("tick", 1000, clk("10:01", true))]) == ""
+check tfx("pause_stop_hide", [sp("start", 0, clk("10:00", false)), sp("tick", 1000, clk("10:01", false))]) == "fails@1"
+check tfx("pause_stop_hide", [sp("start", 0, clk("10:00", true)), sp("tick", 1000, clk("10:01", true)), sp("activate pb", 16, clk("10:01", true)), sp("tick", 1000, clk("10:02", true))]) == "fails@1"
+check tfx("pause_stop_hide", [sp("start", 0, clk("10:00", true)), sp("tick", 1000, clk("10:01", true))]) == "undecided@-1"
+check tfx("pause_stop_hide", [sp("start", 0, "div\n.m|moving=true|duration-ms=8000")]) == "fails@1"
+check tfx("pause_stop_hide", [sp("start", 0, "div\n.m|moving=true|duration-ms=3000")]) == ""
+
+# ---- 2.3.1 three_flashes
+fn flash(a: text, b: text, ms: i64, n: i64, sizes: text) -> List[Step]
+    var t: List[Step] = []
+    for i in 0..n
+        let c = if i % 2 == 0 then copy(a) else copy(b)
+        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else ms, "div\n.f#f|bg=" + c + sizes))
+    return t
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=400|h=400")) == "fails@-1"
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=100|h=100")) == ""
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=1000|h=30")) == ""
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=1000|h=80")) == "fails@-1"
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "")) == "undecided@-1"
+check tfx("three_flashes", flash("#000000", "#ffffff", 300, 10, "|w=400|h=400")) == ""
+check tfx("three_flashes", flash("#ff0000", "#cc0000", 100, 10, "|w=400|h=400")) == "undecided@-1"
+check tfx("three_flashes", flash("#202020", "#303030", 100, 10, "|w=400|h=400")) == ""
+
+# ---- 3.2.1 on_focus
+fn fov(c: text, f: text) -> text = "div|context=" + c + "\n.a#a|tabindex=0" + (if f == "a" then "|focused=true" else "") + "\n.b#b|tabindex=0" + (if f == "b" then "|focused=true" else "")
+check tfx("on_focus", [sp("start", 0, fov("x", "")), sp("focus a", 16, fov("x", "a")), sp("focus b", 16, fov("x", "b"))]) == ""
+check tfx("on_focus", [sp("start", 0, fov("x", "")), sp("focus a", 16, fov("x", "a")), sp("focus b", 16, fov("y", "b"))]) == "fails@0"
+check tfx("on_focus", [sp("start", 0, fov("x", "")), sp("focus a", 16, fov("x", "a")), sp("focus b", 16, fov("x", "a"))]) == "fails@1"
+check tfx("on_focus", [sp("start", 0, fov("x", "")), sp("focus a", 16, fov("x", "a"))]) == "undecided@-1"
+check tfx("on_focus", [sp("start", 0, "div\n.x|tabindex=0")]) == "undecided@1"
+
+# ---- 3.2.2 on_input
+fn inp(c: text, val: text) -> text = "div|context=" + c + "\n.i#q|role=textbox|aria-label=Search|tabindex=0|focused=true" + (if val != "" then "|value=" + val else "")
+check tfx("on_input", [sp("start", 0, inp("x", "")), sp("input q", 16, inp("x", "door"))]) == ""
+check tfx("on_input", [sp("start", 0, inp("x", "")), sp("input q", 16, inp("y", "door"))]) == "fails@0"
+check tfx("on_input", [sp("start", 0, inp("x", ""))]) == "undecided@-1"
+
+# ---- 3.2.3 consistent_navigation, 3.2.4 consistent_identification, 3.2.6 consistent_help
+fn nav(c: text, a: text, b: text) -> text = "div|context=" + c + "\n.n|role=navigation\n..a|role=link|action=go-" + a + "\n...~" + a + "\n..b|role=link|action=go-" + b + "\n...~" + b
+check tfx("consistent_navigation", [sp("start", 0, nav("p1", "Home", "About")), sp("navigate", 16, nav("p2", "Home", "About"))]) == ""
+check tfx("consistent_navigation", [sp("start", 0, nav("p1", "Home", "About")), sp("navigate", 16, nav("p2", "About", "Home"))]) == "fails@-1"
+fn srch(c: text, lb: text) -> text = "div|context=" + c + "\n.b|role=button|action=search\n..~" + lb
+check tfx("consistent_identification", [sp("start", 0, srch("p1", "Search")), sp("navigate", 16, srch("p2", "Search"))]) == ""
+check tfx("consistent_identification", [sp("start", 0, srch("p1", "Search")), sp("navigate", 16, srch("p2", "Find"))]) == "fails@1"
+fn hlp(c: text, a: text, b: text) -> text = "div|context=" + c + "\n.x|help=" + a + "\n.y|help=" + b
+check tfx("consistent_help", [sp("start", 0, hlp("p1", "contact", "faq")), sp("navigate", 16, hlp("p2", "contact", "faq"))]) == ""
+check tfx("consistent_help", [sp("start", 0, hlp("p1", "contact", "faq")), sp("navigate", 16, hlp("p2", "faq", "contact"))]) == "fails@-1"
+
+# ---- 3.3.7 redundant_entry
+fn em(c: text, extra: text) -> text = "div|context=" + c + "\n.i#e" + c + "|role=textbox|aria-label=Email" + extra
+check tfx("redundant_entry", [sp("start", 0, em("a", "|entry=email|value=a@b.c")), sp("navigate", 16, em("b", "|entry=email|value=a@b.c"))]) == ""
+check tfx("redundant_entry", [sp("start", 0, em("a", "|entry=email|value=a@b.c")), sp("navigate", 16, em("b", "|entry=email"))]) == "fails@1"
+check tfx("redundant_entry", [sp("start", 0, em("a", "|entry=email|value=a@b.c")), sp("navigate", 16, em("b", ""))]) == "undecided@1"
+
+# ---- 4.1.3 status_messages
+check tfx("status_messages", [sp("start", 0, "div\n.s#s|role=status\n..~Saved 0"), sp("activate x", 16, "div\n.s#s|role=status\n..~Saved 1")]) == ""
+check tfx("status_messages", [sp("start", 0, "div\n.s|status-msg=true\n..~Saved")]) == "fails@1"
+check tfx("status_messages", [sp("start", 0, "div\n.p#p\n..~Count 0"), sp("tick", 16, "div\n.p#p\n..~Count 1")]) == "undecided@2"
+check tfx("status_messages", [sp("start", 0, "div\n.p#p|status-msg=false\n..~Count 0"), sp("tick", 16, "div\n.p#p|status-msg=false\n..~Count 1")]) == ""
+
+# ---- verdicts: a door panel that reaches full WCAG 2.2 AA through exact
+# rules and attestations, and what each missing piece does
+fn att(ids: text) -> text
+    var o = ""
+    for i in ids.words()
+        o = o + "|attest-" + i + "=A. Reviewer;2026-10-31"
+    return o
+fn door(focus: bool, extra: text) -> text = "div|lang=en|title=Door|context=door|fg=#000000|bg=#ffffff|font-px=16" + extra + "\n.m|role=main\n..h|role=heading|aria-level=1\n...~Door\n..b#open|role=button|action=open|tabindex=0|w=44|h=44|border=#000000|focus-outline=#005fcc" + (if focus then "|focused=true" else "") + "\n...~Open"
+fn door_attest() -> text = att("1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
+fn door_trace(extra: text) -> List[Step] = [sp("start", 0, door(false, copy(extra))), sp("focus open", 16, door(true, copy(extra)))]
+fn outcomes(t: List[Step], k: text) -> i64
+    var n: i64 = 0
+    for x in report(&t)
+        if x.outcome == k
+            n += 1
+    return n
+check um(door_trace(door_attest())).len() == 0
+check outcomes(door_trace(door_attest()), "attested") == 14
+check outcomes(door_trace(door_attest()), "meets") + outcomes(door_trace(door_attest()), "not applicable") == 41
+check vd("2.1.1", door_trace(door_attest())) == "meets"
+check vd("1.2.2", door_trace(door_attest())) == "not applicable"
+check vd("2.4.6", door_trace(door_attest())) == "attested"
+# one attestation missing: that criterion is undecided, nothing else changes
+check um(door_trace(att("1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 3.1.1 3.1.2 3.3.4"))).len() == 1
+check umt(door_trace(att("1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 3.1.1 3.1.2 3.3.4"))) == "2.4.6 undecided: needs human attestation: whether headings and labels describe topic or purpose"
+# a malformed attestation is undecided
+check vd("2.4.6", door_trace(door_attest() + "|attest-2.4.6=nobody")) == "undecided"
+# one view alone: the button is never focused, so 3.2.1 is undecided
+check vd("3.2.1", [sp("start", 0, door(false, door_attest()))]) == "undecided"
+# an attestation never covers an exact failure
+check vd("2.4.2", door_trace(door_attest() + "|title=")) == "fails"
+# an exception claimed on a node needs an attestation
+check vdv("1.4.3", "div|fg=#cccccc|bg=#ffffff\n.p|exempt=1.4.3\n..~Logo") == "undecided"
+check vdv("1.4.3", "div|fg=#cccccc|bg=#ffffff|attest-1.4.3=A. Reviewer;2026-10-31\n.p\n..~Logo") == "fails"
+check vdv("1.4.3", "div|fg=#cccccc|bg=#ffffff\n.~Logo") == "fails"
+check vdv("1.2.1", "div") == "not applicable"
+check vdv("2.4.5", "div") == "undecided"
+
+# two flashing nodes whose parts in one field sum past the threshold: undecided without positions
+fn flash2(n: i64) -> List[Step]
+    var t: List[Step] = []
+    for i in 0..n
+        let c = if i % 2 == 0 then "#000000" else "#ffffff"
+        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else 100, "div\n.f#f|w=341|h=40|bg=" + c + "\n.g#g|w=341|h=40|bg=" + c))
+    return t
+check tfx("three_flashes", flash2(10)) == "undecided@-1"
