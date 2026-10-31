@@ -1,5 +1,5 @@
 LANGUAGE_NAME := tree-sitter-rce
-HOMEPAGE_URL := https://github.com/openIE-dev/tree-sitter-rce
+HOMEPAGE_URL := https://github.com/openIE-dev/rce/tree/main/tree-sitter
 VERSION := 0.1.0
 DESCRIPTION := RCE grammar for tree-sitter
 
