@@ -1,0 +1,11 @@
+# Every name is read. A name that is deliberately unused starts with `_`.
+fn area(width: i64, height: i64) -> i64 = width * height
+
+# The label is part of the signature, but this version does not need it.
+fn square_area(side: i64, _label: text) -> i64 = area(side, side)
+
+fn main()
+    let _ = area(2, 3)
+    emit square_area(4, "kitchen")
+
+check square_area(3, "hall") == 9

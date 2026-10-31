@@ -1,0 +1,17 @@
+kind Nat
+    Zero
+    Succ(p: Box[Nat])
+
+fn is_even(n: &Nat) -> bool
+    match n
+        Zero -> return true
+        Succ(p: p) -> return is_odd(p)
+
+fn is_odd(n: &Nat) -> bool
+    match n
+        Zero -> return false
+        Succ(p: p) -> return is_even(p)
+
+const THREE: Nat = Succ(p: Box(Succ(p: Box(Succ(p: Box(Zero))))))
+check is_odd(&THREE)
+check not is_even(&THREE)

@@ -1,0 +1,20 @@
+fn producer(out: chan i64, start: i64, n: i64)
+    for i in 0..n
+        out <- start + i
+    out.close()
+
+fn main()
+    let a = chan[i64](4)
+    let b = chan[i64](4)
+    spawn producer(a, 100, 3)
+    spawn producer(b, 200, 3)
+    var open_a = true
+    var open_b = true
+    loop bound 100
+        if not open_a and not open_b
+            break
+        select
+            recv some(x) from a -> emit x
+            recv some(y) from b -> emit y
+            recv none from a -> open_a = false
+            recv none from b -> open_b = false

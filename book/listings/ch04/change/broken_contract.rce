@@ -1,0 +1,6 @@
+fn withdraw(balance: u64, amount: u64) -> u64
+    requires amount > 0
+    requires amount <= balance
+    return balance - amount
+
+check withdraw(3, 10) == 0

@@ -1,0 +1,15 @@
+program             4631c798c37181944d74d4c6a90fdfc273747787b15df8388f524550327c4cb5
+                    7d16ded6e2398dda981219bd7ade850624b68f4b8b7bbe74115287c9d87e383f
+api                 compatible	error BelowZero	export added
+api                 breaking	state Counter	export removed or renamed
+api                 breaking	event Dec	export removed or renamed
+api                 compatible	event Down	export added
+api                 breaking	event Inc	export removed or renamed
+api                 compatible	state Tally	export added
+api                 breaking	error Underflow	export removed or renamed
+api                 compatible	event Up	export added
+behaviour alphabet            2        event instances explored
+behaviour states              1000 / 1000
+behaviour verdict             equivalent  same behaviour on the explored alphabet (to the explored bound)
+verdict             interface change  behaviour kept, an export broken (F.4.3): callers must change
+exit status: 1

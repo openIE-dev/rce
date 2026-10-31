@@ -50,8 +50,25 @@ only borrow a *place*, such as a variable or a constant, not a value that
 was just built. That is why the checks use the named constants `BOX` and
 `NOTHING`.
 
+## `if let`
+
+When only one case of an option matters, `if let` matches one pattern and
+names its parts, without a full `match`:
+
+```rce
+{{#include ../listings/ch07/iflet.rce}}
+```
+
+`if let some(v) = first_even(xs) and v > 10` runs its block when
+`first_even` returns `some` and the value is over 10; otherwise the `else`
+block runs. The conditions after `and` are comparisons that may use the
+names the pattern binds. A pattern that always matches, such as a plain
+name, requires change: write `let` instead. Chaining a second `let` with
+`and let` is reserved, not implemented.
+
 ## What you learned
 
 - `kind` with variants, `struct` with fields, `impl` for functions on a type.
 - `match` must cover every case (rule `W-MATCH-1`).
 - `T?` options with `some` and `none` instead of null.
+- `if let PATTERN = VALUE [and CONDITION]` for the one case that matters.

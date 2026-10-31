@@ -1,0 +1,8 @@
+use enc
+
+# Base64 of the bytes of "hi!", standard alphabet, with padding.
+fn hi_base64() -> text
+    let bytes: List[i64] = [104, 105, 33]
+    return enc.b64_encode(&bytes, false, true)
+
+check hi_base64() == "aGkh"

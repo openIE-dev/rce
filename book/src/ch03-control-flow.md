@@ -43,8 +43,24 @@ $ rce check spin.rce
 {{#include ../listings/ch03/change/spin.out}}
 ```
 
-The loop condition is always `true`, so the eleventh repetition traps, the
-check cannot be evaluated, and the program requires change.
+`spin(100)` needs 100 repetitions but allows 10, so the eleventh
+repetition traps, the check cannot be evaluated, and the program requires
+change.
+
+A condition that can never change is a mistake of another kind. A literal
+`true` or `false` as the condition of an `if`, `elif`, `while` or guard
+requires change under `W-UNUSED-2`, because one of its branches is dead
+code. A loop that runs until it is stopped is written `loop bound n` with a
+`break`:
+
+```rce
+{{#include ../listings/ch03/change/forever.rce}}
+```
+
+```text
+$ rce check forever.rce
+{{#include ../listings/ch03/change/forever.out}}
+```
 
 ## `var` and assignment
 
@@ -53,8 +69,24 @@ change it with `=` or with a compound operator such as `+=`, `-=`, `*=`.
 Assignment is a statement, never an expression, so `if (x = 1)` is a
 syntax error.
 
+A value stored in a `var` must be read before it is replaced. An
+assignment whose value is overwritten later in the same block, with no
+read in between, is an unused store and requires change under
+`W-ASSIGN-1`:
+
+```rce
+{{#include ../listings/ch03/change/dead_store.rce}}
+```
+
+```text
+$ rce check dead_store.rce
+{{#include ../listings/ch03/change/dead_store.out}}
+```
+
 ## What you learned
 
 - `if` statements, `if ... then ... else ...` expressions, ranges with `in`.
 - `for`, `while ... bound` and `loop bound`, and why each one is limited.
 - `let` for fixed names, `var` for names that change.
+- A constant condition (`W-UNUSED-2`) and a store that is overwritten
+  before it is read (`W-ASSIGN-1`) require change.

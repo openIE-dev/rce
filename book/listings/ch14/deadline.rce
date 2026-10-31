@@ -1,0 +1,7 @@
+fn main()
+    let quiet = chan[i64](1)
+    with deadline 3
+        let v = <- quiet
+        emit v
+    else
+        emit "no value within 3 ticks"
