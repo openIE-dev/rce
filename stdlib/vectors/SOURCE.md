@@ -843,6 +843,70 @@ text, its child list, then its matched children), where Vue patches
 children depth first while scanning. In `diff_vue` minimality holds for the moves given Vue's matching;
 `diff` is optimal over all matchings.
 
+## ui.rules (`lib/ui/rules.rce`)
+
+Pure. Rules over `ui.view` trees for every level A and AA success
+criterion (SC) of WCAG 2.2; the table of criteria, their classes and the
+attribute vocabulary are in `spec/proposals/human-interface.md` 4.2.
+Generator: `scripts/gen/rules_gen.py` (the data section of the module and
+`tests/ui/rules_checks_contrast.rce`; `refresh WCAG AXE` re-reads the
+sources below).
+
+- **official:** `vectors/ui/wcag22-sc.tsv` (the 55 SCs of level A and AA:
+  id, anchor, level, title, in document order; 4.1.1 Parsing is obsolete
+  in WCAG 2.2 and has no level) and `vectors/ui/input-purposes.txt` (the
+  53 input purposes of WCAG 2.2 section 7), read from
+  `guidelines/index.html`, `guidelines/sc/**` and
+  `guidelines/input-purposes.html` of https://github.com/w3c/wcag, branch
+  main, commit 9b94e18a0738a2b5eeca6895cc211553bf06e77a (2026-10-29), the
+  editor's draft of WCAG 2.2 (`specStatus` ED, `shortName` WCAG22). The
+  relative-luminance definition is `guidelines/terms/20/relative-luminance.html`
+  of that commit (threshold 0.04045; the older 0.03928 selects the same
+  branch for every 8-bit channel value, since 10/255 < 0.03928 and
+  11/255 > 0.04045).
+- **official (via a reference implementation):** `vectors/ui/aria-roles.tsv`:
+  the WAI-ARIA roles of axe-core's standards table
+  (`axe.utils.getStandards().ariaRoles` of the axe-core npm package 4.14.0;
+  the git repository https://github.com/dequelabs/axe-core at commit
+  6b52b841461bd23345970b91ec75fdaff6bad31a has the same version), without
+  abstract and deprecated roles and without the DPUB-ARIA (`doc-*`) and
+  Graphics-ARIA (`graphics-*`) modules: 87 roles with their type, required
+  states and properties, required context, whether a name is required and
+  whether the name comes from content.
+- **reference:** `vectors/ui/contrast-axe.tsv`: 319 colour pairs (15
+  named ones, among them the IDE and playground colours of the proposal's
+  1.4 at 8 bits, the gray pairs nearest 4.5 : 1 and 3 : 1 on white and on
+  black, and 300 pairs from seed 20261031) with the ratio axe-core 4.14.0
+  computes (`axe.commons.color.getContrast`, run in Node 22) and the WCAG
+  formula evaluated with 60-digit decimal arithmetic. The generator asserts
+  that the two agree within 10^-12 and decide 4.5 : 1 and 3 : 1 alike (axe
+  decides with `>`, WCAG with `>=`; no pair is within 10^-9 of either
+  threshold). Each pair becomes three checks: the axe ratio lies in the
+  interval `ratio_micro_lo`..`ratio_micro_hi` that ui.rules proves, and
+  `contrast_at_least` gives axe's decision at 4.5 : 1 and at 3 : 1 (957
+  checks). Result: all 319 pairs agree; none is undecided.
+- **derived:** the table `LIN` (each sRGB channel value linearised, times
+  10^12, rounded) is computed by the generator with 60-digit decimal
+  arithmetic and asserted within 1/2 of the exact value, so a luminance
+  times 10^16 is within 5000 and `contrast_at_least` is exact except within
+  that bound of a threshold, where it is undecided.
+- **fixtures:** `tests/ui/rules_checks.rce`: for every rule a view or
+  trace that meets it and one that fails it (or is undecided), the table
+  checks (55 criteria, one class each, every E, L and P row naming a rule
+  of the module), and verdicts with attestations (222 checks);
+  `tests/ui/rules_checks_fuel.rce`: the report over three frames of an
+  801-node view runs within one file's comptime fuel.
+- **table:** `tests/ui/rules_table_probes.py` checks that `criteria()`
+  lists exactly the SCs of `wcag22-sc.tsv`, that every row has one class,
+  that every rule a row names is defined and dispatched, and that the
+  table of `spec/proposals/human-interface.md` agrees.
+
+Not covered: layout geometry (the parts of 1.4.4, 1.4.10, 1.4.12, 2.4.11
+and the 2.5.8 spacing exception that need positions are left to an
+attestation until a renderer reports geometry); the red flash of 2.3.1
+(CIE 1976 u'v' distance, not yet written: frequent changes involving a
+saturated red are undecided); fractional ARIA values (undecided).
+
 ## ui.states (`lib/ui/states.rce`), ui.ecma (`lib/ui/ecma.rce`), text.xml (`lib/text/xml.rce`)
 
 Pure (survey M53). `ui.states` is an SCXML interpreter that follows the

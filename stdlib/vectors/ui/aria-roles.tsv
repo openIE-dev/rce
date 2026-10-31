@@ -1,0 +1,87 @@
+alert	structure			0	0
+alertdialog	window			1	0
+application	landmark			1	0
+article	structure			0	0
+banner	landmark			0	0
+blockquote	structure			0	0
+button	widget			1	1
+caption	structure		figure,table,grid,treegrid	0	0
+cell	structure		row	0	1
+checkbox	widget	aria-checked		1	1
+code	structure			0	0
+columnheader	structure		row	0	1
+combobox	widget	aria-expanded,aria-controls		1	0
+comment	structure			0	0
+complementary	landmark			0	0
+contentinfo	landmark			0	0
+definition	structure			0	0
+deletion	structure			0	0
+dialog	window			1	0
+document	structure			0	0
+emphasis	structure			0	0
+feed	structure			0	0
+figure	structure			0	1
+form	landmark			0	0
+grid	composite			0	0
+gridcell	widget		row	0	1
+group	structure			0	0
+heading	structure	aria-level		0	1
+image	structure			1	0
+img	structure			1	0
+insertion	structure			0	0
+link	widget			1	1
+list	structure			0	0
+listbox	widget			1	0
+listitem	structure		list	0	1
+log	structure			0	0
+main	landmark			0	0
+mark	structure			0	0
+marquee	structure			0	0
+math	structure			0	0
+menu	composite			0	0
+menubar	composite			0	0
+menuitem	widget		menu,menubar,group	1	1
+menuitemcheckbox	widget	aria-checked	menu,menubar,group	1	1
+menuitemradio	widget	aria-checked	menu,menubar,group	1	1
+meter	structure	aria-valuenow		1	0
+navigation	landmark			0	0
+none	structure			0	0
+note	structure			0	0
+option	widget		group,listbox	1	1
+paragraph	structure			0	0
+presentation	structure			0	0
+progressbar	widget			1	0
+radio	widget	aria-checked		1	1
+radiogroup	composite			0	0
+region	landmark			0	0
+row	structure		grid,rowgroup,table,treegrid	0	1
+rowgroup	structure		grid,table,treegrid	0	1
+rowheader	structure		row	0	1
+scrollbar	widget	aria-valuenow		0	0
+search	landmark			0	0
+searchbox	widget			1	0
+sectionfooter	structure			0	0
+sectionheader	structure			0	0
+separator	structure	aria-valuenow		0	0
+slider	widget	aria-valuenow		1	0
+spinbutton	widget			1	0
+status	structure			0	0
+strong	structure			0	0
+subscript	structure			0	0
+suggestion	structure			0	0
+superscript	structure			0	0
+switch	widget	aria-checked		1	1
+tab	widget		tablist	0	1
+table	structure			0	1
+tablist	composite			0	0
+tabpanel	structure			0	0
+term	structure			0	1
+text	structure			0	1
+textbox	widget			1	0
+time	structure			0	0
+timer	structure			0	0
+toolbar	structure			1	0
+tooltip	structure			0	1
+tree	composite			0	0
+treegrid	composite			0	0
+treeitem	widget		group,tree	1	1

@@ -1,0 +1,29 @@
+# Fuel: the report over a trace of three frames of a view with 400
+# buttons (801 nodes) runs within one file's comptime fuel. Frame facts
+# (role, hidden, inactive, interactive, focusable) are computed once per
+# frame, and nodes are matched across frames through a map of their
+# paths, so the work grows with the number of nodes, not its square.
+fn big(n: i64) -> View
+    var v = view.view_new("div", "")
+    for kv in [["lang", "en"], ["title", "Big"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"]]
+        view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
+    for i in 0..n
+        let b = view.add_el(&mut v, 0, "b", "k" + i.tostr())
+        for kv in [["role", "button"], ["action", "a" + i.tostr()], ["tabindex", "0"], ["w", "44"], ["h", "44"], ["focus-outline", "#005fcc"]]
+            view.set_attr(&mut v, b, copy(kv[0]), copy(kv[1]))
+        let _ = view.add_text(&mut v, b, "Button " + i.tostr())
+    return v
+
+fn big_unmet(n: i64) -> text
+    var b = big(n)
+    let a = big(n)
+    b.text[2] = "changed"
+    var c = big(n)
+    view.set_attr(&mut c, 1, "focused", "true")
+    let t = [Step(ev: "start", ms: 0, v: a), Step(ev: "tick", ms: 16, v: b), Step(ev: "focus k0", ms: 16, v: c)]
+    var o: List[text] = []
+    for x in unmet(&t)
+        o.push(x.sc + " " + x.outcome)
+    return ", ".join(o)
+
+check big_unmet(400) == "1.3.1 undecided, 1.3.2 undecided, 1.3.3 undecided, 1.4.1 undecided, 1.4.4 undecided, 1.4.10 undecided, 1.4.11 undecided, 1.4.12 undecided, 2.2.2 fails, 2.4.1 undecided, 2.4.2 undecided, 2.4.3 undecided, 2.4.5 undecided, 3.1.1 undecided, 3.1.2 undecided, 3.2.1 undecided, 3.3.4 undecided, 4.1.3 undecided"
