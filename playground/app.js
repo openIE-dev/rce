@@ -25,9 +25,15 @@ function run() {
 const schedule = () => { clearTimeout(timer); timer = setTimeout(run, 200); };
 
 src.addEventListener("input", schedule);
+// Tab indents, so the editor would hold keyboard focus (WCAG 2.1.2): Esc
+// makes the next Tab move focus on, and Shift+Tab always moves back.
+let tabMoves = false;
 src.addEventListener("keydown", (e) => {
-  if (e.key === "Tab") { e.preventDefault(); document.execCommand("insertText", false, "    "); }
+  if (e.key === "Escape") { tabMoves = true; return; }
+  if (e.key === "Tab" && !e.shiftKey && !tabMoves && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); document.execCommand("insertText", false, "    "); }
+  tabMoves = false;
 });
+src.addEventListener("blur", () => { tabMoves = false; });
 
 function encode(s) { return btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function decode(s) { const b = atob(s.replace(/-/g, "+").replace(/_/g, "/")); return new TextDecoder().decode(Uint8Array.from(b, (c) => c.charCodeAt(0))); }
@@ -35,8 +41,9 @@ function decode(s) { const b = atob(s.replace(/-/g, "+").replace(/_/g, "/")); re
 $("share").addEventListener("click", async () => {
   const url = location.href.split("#")[0] + "#code=" + encode(src.value);
   history.replaceState(null, "", url);
-  try { await navigator.clipboard.writeText(url); $("share").textContent = "Link copied"; } catch { $("share").textContent = "Link in address bar"; }
-  setTimeout(() => ($("share").textContent = "Copy link"), 1500);
+  // The button keeps its name; the outcome is a status message (WCAG 4.1.3).
+  try { await navigator.clipboard.writeText(url); $("shared").textContent = "Link copied"; } catch { $("shared").textContent = "Link in address bar"; }
+  setTimeout(() => ($("shared").textContent = ""), 3000);
 });
 
 await init();

@@ -224,6 +224,9 @@ pub enum Focus {
     #[default]
     Editor,
     Memory,
+    /// The n-th button of `view::controls`, in the order the view lays
+    /// them out, so every button is reachable from the keyboard.
+    Control(u32),
 }
 
 /// Everything the view draws.

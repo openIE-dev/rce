@@ -5,8 +5,8 @@ Status: open. The owner decided its first two questions on 2026-10-31
 `ui.rules`) is implemented by the change on branch `claude/ui-rules`
 (ledger row of 2026-10-31). H1 (4.3), the frame sink and replay of
 frames, is implemented by the change on branch `claude/frame-replay`
-as HC-29, which also decides Q4 (ledger row of 2026-11-01); every other
-later item is a plan. Sections 1
+as HC-29, which also decides Q4 (ledger row of 2026-11-01). H6's fixes
+of the 1.4 findings are done (4.5); every other later item is a plan. Sections 1
 to 3 describe `main` at a5df5be7, before that change.
 
 The RCE owner wrote, after reading the Raven GUI library: "this is the
@@ -178,7 +178,7 @@ program, and the reason face B is in scope. At 8 bits per channel (the
 IDE colours rounded to `#548cf2` and `#262930`) the first two ratios are
 4.44 : 1 and 3.28 : 1; both pairs, and the playground pair, are contrast
 vectors of `ui.rules` (`stdlib/vectors/ui/contrast-axe.tsv`). Fixing them
-is a separate change (4.5).
+is a separate change (4.5); the table records the state before it.
 
 ## 2. The lens in two faces
 
@@ -761,10 +761,19 @@ proposal.
 1. **Done:** 4.2 (`ui.rules`), this change. Touches only `stdlib/` and
    this proposal.
 2. **Next, in parallel:** the rest of H2 (`ui.alarm`). Only `stdlib/`.
-3. **Next, small:** H6's fixes, as a separate change: the playground
-   (`playground/style.css`, `app.js`; pull request #25 also edits the
-   playground, so merge it first or coordinate) and the IDE colours in
-   `ide/crates/rce-ide/src/view.rs`.
+3. **Done:** H6's fixes of the 1.4 findings, as a separate change. The
+   IDE (`ide/crates/rce-ide/src/view.rs`): the accent is #5c94f5 (panel
+   title 4.86 : 1 on `PANEL`), button labels are dark on their fills
+   (5.16 to 7.88 : 1), a selected line with a diagnostic is drawn in `FG`,
+   the memory query has an edge (4.61 : 1), the focused button or field has
+   a 2 px white outline, and F6, Tab outside the editor and Escape in the
+   editor reach every button, which Enter or Space presses
+   (`tests/ide.rs`). The playground: the editor border is #8a8a8a (3.45 : 1
+   on white, 3.21 : 1 on the page), focus has a 2 px outline, the verdict
+   and the copy-link result are status messages (`role="status"`), and Esc
+   then Tab leaves the editor. The rest of H6 (the photon tree projected
+   into `ui.view` for `ui.rules`, axe-core in CI, an accessibility bridge)
+   remains a plan.
 4. **Done:** H1 (frame sink, replay mode word `frames`, HC-29). It
    edits `host.rs`, `cli.rs` and Appendix E, and its words follow PC-1 to
    PC-8.

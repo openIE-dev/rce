@@ -292,10 +292,12 @@ mod desktop {
                         self.drain();
                         return;
                     }
-                    let handled = match self.ide.focus {
-                        Focus::Editor => self.editor_key(&logical_key),
-                        Focus::Memory => self.memory_key(&logical_key),
-                    };
+                    let handled = self.focus_key(&logical_key)
+                        || match self.ide.focus {
+                            Focus::Editor => self.editor_key(&logical_key),
+                            Focus::Memory => self.memory_key(&logical_key),
+                            Focus::Control(_) => self.control_key(&logical_key),
+                        };
                     if !handled
                         && !self.composing
                         && !self.mods.control_key()
@@ -422,7 +424,45 @@ mod desktop {
             match self.ide.focus {
                 Focus::Editor => self.q.borrow_mut().push(Action::Edit(EditOp::Insert(t))),
                 Focus::Memory => self.ide.memory.query.push_str(&t),
+                Focus::Control(_) => {}
             }
+        }
+
+        /// Keyboard reach: F6 and Shift+F6 move focus from anywhere; Tab and
+        /// Shift+Tab move it outside the editor (where Tab indents); Escape
+        /// in the editor moves it to the memory query. The order is
+        /// `view::focus_step`: editor, memory query, then every button.
+        fn focus_key(&mut self, k: &Key) -> bool {
+            let back = self.mods.shift_key();
+            let step = match k {
+                Key::Named(NamedKey::F6) => true,
+                Key::Named(NamedKey::Tab) => self.ide.focus != Focus::Editor,
+                Key::Named(NamedKey::Escape) => self.ide.focus == Focus::Editor,
+                _ => false,
+            };
+            if !step {
+                return false;
+            }
+            let to = view::focus_step(&self.ide.panels(), back);
+            self.q.borrow_mut().push(Action::Focus(to));
+            true
+        }
+
+        /// A focused button: Enter or Space presses it, Escape returns to
+        /// the editor.
+        fn control_key(&mut self, k: &Key) -> bool {
+            match k {
+                Key::Named(NamedKey::Enter | NamedKey::Space) => {
+                    if let Some(a) = view::focused_action(&self.ide.panels()) {
+                        self.q.borrow_mut().push(a);
+                    }
+                }
+                Key::Named(NamedKey::Escape) => {
+                    self.q.borrow_mut().push(Action::Focus(Focus::Editor))
+                }
+                _ => return false,
+            }
+            true
         }
 
         fn memory_key(&mut self, k: &Key) -> bool {

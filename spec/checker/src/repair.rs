@@ -18,8 +18,10 @@
 //!   definition becomes a call of another visible function of the same type
 //!   on the same parameters, and (2) the callee of a call becomes another
 //!   visible function of the callee's type, in `rce search` rank order.
-//! - **c, altered rules**: skipped. The altered rewrites of `rce fmt`
-//!   (`alter.rs`, 7.1) are not yet wired into the ladder.
+//! - **c, altered rules**: the text `rce fmt` writes for the rules whose
+//!   method is altered (7.1, `alter.rs`: W-UNUSED-1 and W-DROP-1), every
+//!   rewrite in the order `alter` writes them; one candidate, the canonical
+//!   text of that program, and none when `alter` writes nothing.
 //! - **d, bounded enumeration**: one small edit at one site: an operator
 //!   swapped within its class, an integer literal moved to n + 1, n - 1, 0
 //!   or 1, a boolean literal flipped, the operands of an ordering comparison
@@ -55,7 +57,7 @@ enum Unit {
 /// What the ladder did.
 pub struct Outcome {
     pub closed: bool,
-    /// "a", "b", "d", or "none" when the program already complies
+    /// "a", "b", "c", "d", or "none" when the program already complies
     pub rung: Option<String>,
     pub edit: Option<String>,
     pub diff: Vec<String>,
@@ -109,7 +111,7 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
         tried: BTreeMap::new(),
         verdict: String::new(),
         attempts: vec![],
-        skipped: vec!["c: the altered rewrites of rce fmt (alter.rs) are not yet wired into the ladder".into()],
+        skipped: vec![],
         repaired: None,
         canonical_same_report: None,
     };
@@ -126,7 +128,7 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
     let m = match crate::parse::parse(src) {
         Ok(m) => m,
         Err(e) => {
-            out.skipped.push(format!("a, b, d: the text does not parse ({e}); every rung edits the parsed module"));
+            out.skipped.push(format!("a, b, c, d: the text does not parse ({e}); every rung edits the parsed module"));
             return out;
         }
     };
@@ -143,6 +145,7 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
     let units = order_units(&m, &err);
     let found = rung_a(&m, &units, others, &mut cx)
         .or_else(|| rung_b(&m, &units, file, src, others, &mut cx))
+        .or_else(|| rung_c(src, &mut cx))
         .or_else(|| rung_d(&m, &units, bound, &mut cx));
     out.tried = cx.tried;
     out.attempts = cx.attempts;
@@ -800,6 +803,27 @@ fn rung_b(m: &Module, units: &[Unit], file: &str, src: &str, others: &[(String, 
     None
 }
 
+// ---------- rung c: altered rules ----------
+
+/// The rewrites `rce fmt` writes (10.6) for the rules whose method is
+/// altered (7.1): `alter` on the text of FILE, kept as `rce fmt` keeps it
+/// (only when the canonical layout accepts the altered text). The candidate
+/// is the canonical text of the altered program, so it is judged like every
+/// other candidate; the edit lists the rewrites in the order `alter` wrote
+/// them, each with the line `rce fmt` reports for it.
+fn rung_c(src: &str, cx: &mut Ctx) -> Option<(String, String, String)> {
+    let (altered, done) = crate::alter::alter(src);
+    if done.is_empty() || altered == src || crate::cli::fmt_text(&altered).is_err() {
+        return None;
+    }
+    let m = crate::parse::parse(&altered).ok()?;
+    let text = unparse(&m);
+    let what: Vec<String> = done.iter().map(|a| format!("line {}: {} {}", a.line, a.rule, a.what)).collect();
+    let edit = format!("the rewrites of rce fmt: {}", what.join("; "));
+    let unit = done.iter().map(|a| a.rule).collect::<BTreeSet<_>>().into_iter().collect::<Vec<_>>().join(", ");
+    cx.judge("c", &format!("module ({unit})"), &edit, &text).map(|t| ("c".into(), edit, t))
+}
+
 // ---------- rung d: bounded enumeration ----------
 
 const CLASSES: &[&[&str]] = &[&["+", "-", "*", "/", "%"], &["<", "<=", ">", ">="], &["==", "!="], &["and", "or"], &["&", "|", "^"], &["<<", ">>"]];
@@ -878,6 +902,7 @@ pub fn report(file: &str, o: &Outcome) -> String {
     let rung = |r: &str| match r {
         "a" => "a reuse",
         "b" => "b lookup by type",
+        "c" => "c altered rules",
         "d" => "d bounded enumeration",
         "none" => "none (nothing to repair)",
         _ => "?",

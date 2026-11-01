@@ -23,13 +23,15 @@
     <div class="bar">
       <label>Example <select id="pick"></select></label>
       <button id="share" type="button">Copy link</button>
+      <span id="shared" role="status"></span>
       <span id="ver"></span>
     </div>
-    <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="RCE source"></textarea>
+    <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="RCE source" aria-describedby="keys"></textarea>
+    <p class="hint" id="keys">Tab indents by four spaces. To leave the editor from the keyboard, press Esc and then Tab; Shift+Tab moves back.</p>
     <p class="hint">Indent with spaces; a text with a tab requires change (W-LEX-1). There is one language (spec 2.7): a <code># rce-version:</code> line on the first line is a release label, tolerated and ignored, so a module means the same with or without it.</p>
   </section>
   <section class="out">
-    <div id="verdict" class="verdict">loading the checker...</div>
+    <div id="verdict" class="verdict" role="status" aria-live="polite" aria-atomic="true">loading the checker...</div>
     <div id="errors"></div>
     <div id="examples"></div>
     <details><summary>Form (JSON)</summary><pre id="form"></pre></details>
