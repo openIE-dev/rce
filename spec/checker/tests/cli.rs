@@ -85,22 +85,52 @@ fn run_main_and_errors() {
     assert!(out.contains("Nope"), "{out}");
 }
 
-/// A host that cannot start a task thread (WASI preview 1 has none): `rce
-/// run` on `fn main` and the trace of `fn main` in `rce trace` fail with one
-/// line naming the limit and status 4, never a panic; `rce trace` still
-/// prints the example traces and a main trace `{outcome: {absent: R}}`.
-/// The limit is set on this test's thread, so other tests are not affected.
+/// A host that cannot start a task thread (WASI preview 1 has none): the
+/// tasks it cannot start are state machines of the scheduler (10.3), so
+/// `rce run` and `rce trace` on `fn main` print what a host with threads
+/// prints, with the same status. What still needs task threads is a run in
+/// which an lvar passes from one task to another: there `rce run` and the
+/// trace of `fn main` fail with one line naming the limit and status 4,
+/// never a panic, and `rce trace` still prints the example traces and a
+/// main trace `{outcome: {absent: R}}`. The limit is set on this test's
+/// thread, so other tests are not affected.
 #[test]
-fn main_without_task_threads_is_a_host_limit() {
+fn main_without_task_threads_runs_as_state_machines() {
     use rce_spec_check::conc;
     let spawn = "../examples/13_spawn_chan.rce";
+    let actors = "../examples/37_actor_spawn.rce";
     // 0: the thread of main itself; 1: the task main spawns, during the run
-    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1)] {
+    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1), (actors, 0)] {
+        conc::refuse_task_threads_after(None);
+        let want_run = rce(&["run", file]);
+        let want_trace = rce(&["trace", file]);
+        assert_eq!(want_run.0, cli::OK, "{file}: {}", want_run.2);
+        conc::refuse_task_threads_after(Some(after));
+        assert_eq!(rce(&["run", file]), want_run, "{file} {after}");
+        conc::refuse_task_threads_after(Some(after));
+        assert_eq!(rce(&["trace", file]), want_trace, "{file} {after}");
+    }
+    let lv = std::env::temp_dir().join(format!("rce-lvar-tasks-{}.rce", std::process::id()));
+    std::fs::write(
+        &lv,
+        concat!(
+            "fn adder(c: lvar i64, back: chan lvar i64)\n    c.put(5)\n    back <- c\n\n",
+            "fn main()\n    let back = chan[lvar i64](1)\n    spawn adder(lvar_new(0), back)\n",
+            "    match <- back\n        some(c) -> emit c.freeze()\n        none -> emit 0\n",
+        ),
+    )
+    .unwrap();
+    let file = lv.to_str().unwrap();
+    conc::refuse_task_threads_after(None);
+    let (c, out, err) = rce(&["run", file]);
+    assert_eq!((c, out.as_str()), (cli::OK, "emit 5\n"), "{err}");
+    for after in [0, 1] {
         conc::refuse_task_threads_after(Some(after));
         let (c, out, err) = rce(&["run", file]);
-        assert_eq!((c, out.as_str()), (cli::HOST_LIMIT, ""), "{file} {after}: {err}");
+        assert_eq!((c, out.as_str()), (cli::HOST_LIMIT, ""), "{after}: {err}");
         assert_eq!(err.lines().count(), 1, "{err}");
         assert!(err.starts_with(&format!("{file}: {}", conc::NO_TASK_THREADS)), "{err}");
+        assert!(err.contains("an lvar passes from one task to another"), "{err}");
 
         conc::refuse_task_threads_after(Some(after));
         let (c, out, err) = rce(&["trace", file]);
@@ -108,21 +138,13 @@ fn main_without_task_threads_is_a_host_limit() {
         assert_eq!(err.lines().count(), 1, "{err}");
         assert!(err.starts_with(&format!("{file}: no trace of fn main: {}", conc::NO_TASK_THREADS)), "{err}");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        let ts = v["traces"].as_array().unwrap();
-        let main = ts.last().unwrap();
+        let main = v["traces"].as_array().unwrap().last().unwrap().clone();
         assert_eq!(main["source"], "main");
         assert_eq!(main["steps"], json!([]));
         assert!(main["outcome"]["absent"].as_str().unwrap().starts_with(conc::NO_TASK_THREADS));
-        // the example traces are those of a host with threads
-        conc::refuse_task_threads_after(None);
-        let (c, full, _) = rce(&["trace", file]);
-        assert_eq!(c, cli::OK);
-        let f: serde_json::Value = serde_json::from_str(&full).unwrap();
-        let fs = f["traces"].as_array().unwrap();
-        assert_eq!(ts[..ts.len() - 1], fs[..fs.len() - 1]);
-        assert_eq!(fs.last().unwrap()["source"], "main");
     }
     conc::refuse_task_threads_after(None);
+    let _ = std::fs::remove_file(&lv);
 }
 
 #[test]

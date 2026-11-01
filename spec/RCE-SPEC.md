@@ -3157,8 +3157,9 @@ and shows that the step of the third event keeps the state, with exit status 1.
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `fuel` before either equivalence or a
    distinguishing event sequence was established (10.11). 4 means a run
-   the host cannot perform: `fn main` needs task threads and the host
-   cannot start one (10.3).
+   the host cannot perform: a run of `fn main` in which an lvar passes
+   from one task to another needs task threads, and the host cannot start
+   one (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -3250,16 +3251,36 @@ runtime. The body runs on the tick runtime of 6.8 and Appendix C, whose log
 of the run is the trace of `fn main` in `rce trace` (10.9).
 
 The reference tick runtime runs each task, `fn main` included, on its own
-thread of the host. A host that cannot start a thread, such as WASI
-preview 1 (`rce` built for `wasm32-wasip1`), cannot perform the run: the
-command prints nothing on standard output and one line on standard error,
-`FILE: fn main needs task threads, which this host does not provide
-(HOST: REASON)`, HOST being the host's architecture and system and REASON
-the host's error, and the status is 4. Whatever output the run had
-produced before the failing start is not printed. A scheduler that runs
-tasks as state machines, without threads, is the next slice of the
-proposal `one-emitter.md` (section 13, 10.12); with it this run needs no
-thread.
+thread of the host, or as a state machine of its one scheduler
+(`conc::Tasks`). A task held as a state machine is the list of answers
+the scheduler has given it: at each move the scheduler runs the task's
+body from its start on a fresh evaluator, replays those answers in order,
+and takes the first step not yet answered as the task's next request. A
+body is a function of its arguments and its answers, so every earlier
+step repeats exactly, and the log of the run (10.9) is the same, entry
+for entry, as with threads (`spec/checker/tests/emit_run.rs`,
+`main_traces_without_threads_equal_the_reference`, on 66 runs). A `par`
+whose branches `wait` on lvars runs, in such a task, its branches in
+source order, each until it ends or reaches a `wait` not yet satisfied,
+and runs a stopped branch again from the fork after a pass in which a
+put changed an lvar; a pass with no change fails the waits, as the
+threaded `par` does when every waiting branch is idle (T29). Where the
+host cannot start a thread, such as WASI preview 1 (`rce` built for
+`wasm32-wasip1`), every task is a state machine and every `par` runs this
+way, so the run needs no thread and prints what it prints on any host.
+
+One run still needs task threads: one in which an lvar (C.11.8) passes
+from one task to another, as a `spawn` argument, in a message to a
+channel or an actor, or as a task's result. A state machine runs its
+earlier steps again at every move, so it would read a shared lvar at a
+later state than the step it belongs to. On a host without threads such
+a run stops at that step: the command prints nothing on standard output
+and one line on standard error, `FILE: fn main needs task threads, which
+this host does not provide (HOST: an lvar passes from one task to
+another)`, HOST being the host's target, and the status is 4. Whatever
+output the run had produced before that step is not printed. The tick
+runtime written in the core, which `rce run-core` would run, is still
+the next slice of the proposal `one-emitter.md` (section 13, 10.12).
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -3756,7 +3777,8 @@ events, then the actors (transactions, then one message per actor in id
 order), then each task's pending operation in task order (higher priority
 first, then id). Every choice in that order is a function of ids,
 payloads and per-`select` counters (6.8), so the trace is a function of
-the program, as the run is (T1), however the tasks are placed on threads.
+the program, as the run is (T1), however the tasks are placed on threads
+or held as state machines (10.3).
 The text of an entry is `K` or `K(A)`, A showing values as `emit` lines
 do (10.3):
 
@@ -3797,15 +3819,18 @@ hashes of a main trace, where an example's (T7) stay the same. With
 `fn main` as lines of D (10.5). The core evaluator (10.12) does not run
 `fn main` on the tick runtime, so it prints no trace of `fn main`.
 
-On a host that cannot start a task thread (10.3, WASI preview 1) the run
-does not happen, and the trace of `fn main` is absent: it is
-`{"source": "main", "outcome": {"absent": REASON}, "steps": []}`, REASON
-being the line of 10.3 after `FILE: `. The other traces are printed as on
-any host, standard error has one line `FILE: no trace of fn main:
-REASON`, and the status is 4. A projector conforms on such a module only
-on a host that runs `fn main`; the cross-architecture parity job
-(`.github/workflows/xarch-parity.yml`) lists the five examples with
-`fn main()` as not compared on `wasm32-wasip1`, for this reason.
+On a host that cannot start a task thread (10.3, WASI preview 1) the
+tasks are state machines of the scheduler and the trace of `fn main` is
+the same as on any host; the cross-architecture parity job
+(`.github/workflows/xarch-parity.yml`) compares the five examples with
+`fn main()` on `wasm32-wasip1` as on the other targets. Only a run in
+which an lvar passes from one task to another needs task threads (10.3):
+on such a host its trace of `fn main` is absent, `{"source": "main",
+"outcome": {"absent": REASON}, "steps": []}`, REASON being the line of
+10.3 after `FILE: `. The other traces are printed as on any host,
+standard error has one line `FILE: no trace of fn main: REASON`, and the
+status is 4. A projector conforms on such a module only on a host that
+runs it.
 
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
@@ -3998,11 +4023,14 @@ The core evaluator observes `fn main` as one call of its body, as the
 `main` block of the proposal's trace (ONE-5) does, not as a run on the
 tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
 supervisor (status 2), and the core has no scheduler, so `rce run-core`
-prints no trace of `fn main` (10.9). The next slice of the proposal is a
-scheduler in the core that runs tasks as state machines, without threads
-of the host; the reference's run of `fn main` needs a thread per task, so
-on a host without threads (WASI preview 1) it is absent (10.3, 10.9), and
-that slice is what makes the run possible there.
+prints no trace of `fn main` (10.9). The reference's tick runtime now
+holds tasks as state machines where the host has no threads (10.3), so
+the run of `fn main` happens on WASI preview 1 as on other hosts; that
+scheduler is written in Rust inside the reference (`conc.rs`), not in the
+core. The next slice of the proposal is the same scheduler in the core:
+the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
+nodes and supervisors, and the tick, its phases and the log written as
+core functions, so that `rce run-core` prints the trace of `fn main`.
 
 ### 10.13 `rce repair [json] [bound N] FILE [MODULE...]`: the exact-proposer ladder (informative)
 

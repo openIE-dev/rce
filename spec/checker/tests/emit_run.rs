@@ -1330,8 +1330,9 @@ fn got_main_trace(exe: &Exe, extra: &[String]) -> Vec<String> {
 /// `run trace`, the reference's steps (entry, state hash, chain hash),
 /// head and outcome, line for line. The programs give the reference steps
 /// of every kind the tick runtime writes; each kind is checked to occur.
-#[test]
-fn main_traces_agree_on_every_target() {
+/// The runs of `fn main` the trace tests compare: (name, program, inputs,
+/// the same inputs as arguments of an emitted program's `run trace`).
+fn main_trace_cases() -> Vec<(String, String, RunCfg, Vec<String>)> {
     let mut progs = corpus();
     progs.push(("kept".into(), KEPT_STEPS.into()));
     for f in ["../examples/37_actor_spawn.rce", "../conc06b/accept/07_session_tree.rce", "../conc06b/accept/08_session_priorities.rce"] {
@@ -1354,6 +1355,12 @@ fn main_traces_agree_on_every_target() {
         let args = ["5|Hit|k=3", "8|Show", "12|Nobody"].iter().flat_map(|e| ["event".to_string(), e.to_string()]).collect();
         cases.push(("events".into(), EVENTS.into(), cfg, args));
     }
+    cases
+}
+
+#[test]
+fn main_traces_agree_on_every_target() {
+    let cases = main_trace_cases();
     let want: Vec<Vec<String>> = cases.iter().map(|(_, s, cfg, _)| want_main_trace(s, cfg)).collect();
     let kinds = [
         "Emit", "Send", "Recv", "Backpressure", "Close", "Atomic", "Deliver", "Kept", "Restart", "Stopped", "Input", "Unhandled",
@@ -1379,4 +1386,35 @@ fn main_traces_agree_on_every_target() {
         assert!(bad.is_empty(), "{lang:?}:\n{}", bad.join("\n"));
         eprintln!("{lang:?}: the trace of fn main agrees with the reference on {} programs", cases.len());
     }
+}
+
+/// The tick runtime without task threads (10.3): on every run of
+/// `main_trace_cases`, a run whose tasks are state machines of the
+/// scheduler (`Tasks::Machines`, as on WASI preview 1) writes the log of
+/// the reference run, whose tasks are threads, entry for entry (tick,
+/// node, text, vector clock, cause and state), with the same outputs,
+/// choices, ticks and outcome, and so the same trace of `fn main`.
+#[test]
+fn main_traces_without_threads_equal_the_reference() {
+    use rce_spec_check::conc::{Tasks, run_main_traced};
+    let cases = main_trace_cases();
+    for (n, src, cfg, _) in &cases {
+        let m = parse(src).unwrap();
+        let threads = RunCfg { tasks: Tasks::Threads, ..cfg.clone() };
+        let machines = RunCfg { tasks: Tasks::Machines, ..cfg.clone() };
+        let a = run_main_traced(&m, &threads).unwrap();
+        let b = run_main_traced(&m, &machines).unwrap_or_else(|e| panic!("{n}: {e}"));
+        assert_eq!(format!("{:?}", a.outcome), format!("{:?}", b.outcome), "{n}");
+        assert_eq!(a.log.len(), b.log.len(), "{n}: log length");
+        for (k, (x, y)) in a.log.iter().zip(&b.log).enumerate() {
+            assert_eq!(format!("{x:?}"), format!("{y:?}"), "{n}: entry {k}");
+        }
+        assert_eq!(format!("{:?}", a.outputs), format!("{:?}", b.outputs), "{n}");
+        assert_eq!((a.choices, a.ticks), (b.choices, b.ticks), "{n}");
+        let ta = rce_spec_check::cli::main_trace(&m, &threads).unwrap();
+        let tb = rce_spec_check::cli::main_trace(&m, &machines).unwrap();
+        assert_eq!(ta, tb, "{n}");
+    }
+    assert_eq!(cases.len(), 66);
+    eprintln!("the run without task threads equals the reference on {} runs", cases.len());
 }

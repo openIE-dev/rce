@@ -22,8 +22,9 @@ pub const USAGE: i32 = 2;
 /// A question the command could not decide within its bound (10.1):
 /// `rce equiv` and `rce change` when exploration reached `fuel` first.
 pub const UNDECIDED: i32 = 3;
-/// A run the host cannot perform (10.1): `fn main` needs task threads and
-/// the host starts none (`conc::NO_TASK_THREADS`, `wasm32-wasip1`).
+/// A run the host cannot perform (10.1): a run of `fn main` in which an lvar
+/// passes between tasks needs task threads, and the host starts none
+/// (`conc::NO_TASK_THREADS`, `wasm32-wasip1`).
 pub const HOST_LIMIT: i32 = 4;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
@@ -604,7 +605,7 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
 }
 
 /// `trace_streams`, with the reason the trace of `fn main` is absent: when
-/// the host cannot start a task thread (`conc::NO_TASK_THREADS`), the trace
+/// the run needs task threads the host cannot start (`conc::NO_TASK_THREADS`), the trace
 /// of `fn main` is `{source: "main", outcome: {absent: REASON}, steps: []}`
 /// and the second value is REASON; the other traces are unchanged.
 pub fn trace_report(file: &str, src: &str, streams: &[&str]) -> Result<(String, Option<String>), String> {
