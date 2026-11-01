@@ -8,7 +8,9 @@ use rce_spec_check::conc::{Outcome, RunCfg, run_main};
 use rce_spec_check::emit::{Lang, emit};
 use rce_spec_check::parse::parse;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::sync::{Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 #[path = "common/targets.rs"]
 mod targets;
@@ -39,6 +41,151 @@ fn require(l: Lang) {
 }
 
 type Links = Vec<(u64, bool, String, String)>;
+
+/// How many subprocesses (compilers, interpreters, emitted programs) the
+/// tests of this binary run at once: one per CPU. The tests run in
+/// parallel and several build a whole corpus on threads, so without a bound
+/// one run started some hundred `rustc -O` at once, and a starved
+/// compiler or runtime was killed or ran past its time limit.
+fn slots() -> usize {
+    static N: OnceLock<usize> = OnceLock::new();
+    *N.get_or_init(|| std::thread::available_parallelism().map_or(2, |n| n.get()))
+}
+
+static RUNNING: Mutex<usize> = Mutex::new(0);
+static FREED: Condvar = Condvar::new();
+
+/// a held place among the `slots()` subprocesses that may run at once
+struct Slot;
+
+impl Slot {
+    fn take() -> Slot {
+        let mut n = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        while *n >= slots() {
+            n = FREED.wait(n).unwrap_or_else(|e| e.into_inner());
+        }
+        *n += 1;
+        Slot
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        *RUNNING.lock().unwrap_or_else(|e| e.into_inner()) -= 1;
+        FREED.notify_one();
+    }
+}
+
+/// the time one emitted program may run (a hung runtime is a deadlock in the
+/// runtime itself), and the time one compile may take
+const RUN_LIMIT: Duration = Duration::from_secs(120);
+const COMPILE_LIMIT: Duration = Duration::from_secs(300);
+
+/// Run `c` to completion and return its output. The command waits for a
+/// slot first, and its time limit counts from its own start, not from the
+/// test's: a command still running at `limit` is killed and the test fails
+/// naming `what`. A command killed by a signal is reported with the signal,
+/// since it writes nothing to stderr.
+fn output(what: &str, c: &mut Command, limit: Duration) -> Output {
+    use std::io::Read;
+    let _slot = Slot::take();
+    let start = Instant::now();
+    let mut ch = c
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("{what}: does not start: {e}"));
+    let drain = |r: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut v = vec![];
+            if let Some(mut r) = r {
+                let _ = r.read_to_end(&mut v);
+            }
+            v
+        })
+    };
+    let out = drain(ch.stdout.take().map(|r| Box::new(r) as Box<dyn Read + Send>));
+    let err = drain(ch.stderr.take().map(|r| Box::new(r) as Box<dyn Read + Send>));
+    let status = loop {
+        if let Some(st) = ch.try_wait().unwrap() {
+            break st;
+        }
+        if start.elapsed() >= limit {
+            let _ = ch.kill();
+            let _ = ch.wait();
+            panic!("{what}: still running after {} s, its own time limit; killed", limit.as_secs());
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    Output { status, stdout: out.join().unwrap(), stderr: err.join().unwrap() }
+}
+
+/// why a finished command failed, for an assertion message
+fn failure(what: &str, o: &Output) -> String {
+    #[cfg(unix)]
+    let signal = std::os::unix::process::ExitStatusExt::signal(&o.status);
+    #[cfg(not(unix))]
+    let signal: Option<i32> = None;
+    let how = match (o.status.code(), signal) {
+        (Some(c), _) => format!("exit status {c}"),
+        (None, Some(s)) => format!("killed by signal {s}"),
+        _ => "no status".into(),
+    };
+    format!("{what}: {how}: {}", String::from_utf8_lossy(&o.stderr))
+}
+
+/// the directory this run of the binary writes its emitted programs to: its
+/// own, so that two runs at once (two checkouts, or CI and a local run on
+/// one machine) never compile or run each other's files; the directories
+/// of runs that have ended are removed
+fn work_dir() -> PathBuf {
+    static D: OnceLock<PathBuf> = OnceLock::new();
+    D.get_or_init(|| {
+        let root = std::env::temp_dir().join("rce-emit-run");
+        if let Ok(rd) = std::fs::read_dir(&root) {
+            for e in rd.flatten() {
+                let gone = e.file_name().to_str().and_then(|p| p.parse::<u32>().ok()).is_some_and(|p| {
+                    p != std::process::id() && std::path::Path::new("/proc").is_dir() && !std::path::Path::new("/proc").join(p.to_string()).exists()
+                });
+                if gone {
+                    let _ = std::fs::remove_dir_all(e.path());
+                }
+            }
+        }
+        let d = root.join(std::process::id().to_string());
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    })
+    .clone()
+}
+
+/// an emitted program's command: its interpreter (or none for a binary),
+/// the program, then `args`
+fn exe_cmd(exe: &Exe, args: &[&str]) -> Command {
+    let mut c = if exe.0.is_empty() { Command::new(&exe.1) } else { Command::new(&exe.0) };
+    if !exe.0.is_empty() {
+        c.arg(&exe.1);
+    }
+    c.args(args);
+    c
+}
+
+/// a name for an emitted program in a failure message
+fn exe_name(exe: &Exe) -> String {
+    let f = exe.1.file_name().map_or(String::new(), |f| f.to_string_lossy().into_owned());
+    if exe.0.is_empty() { f } else { format!("{f} under {}", exe.0) }
+}
+
+/// run an emitted program with `args` to completion, within `limit`
+fn run_cmd(exe: &Exe, args: &[String], limit: Duration) -> Output {
+    let a: Vec<&str> = args.iter().map(String::as_str).collect();
+    output(&exe_name(exe), &mut exe_cmd(exe, &a), limit)
+}
+
+fn link_args(links: &Links) -> Vec<String> {
+    links.iter().flat_map(|(t, p, a, b)| ["link".to_string(), format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" })]).collect()
+}
 
 fn want(src: &str) -> Vec<String> {
     want_links(src, &vec![])
@@ -96,20 +243,22 @@ fn build_lang(lang: Lang, stem: &str, src: &str) -> Exe {
     }
     let m = parse(src).unwrap();
     let code = emit(&m, lang).unwrap_or_else(|e| panic!("{stem}: not emitted: {e}"));
-    let d = std::env::temp_dir().join("rce-emit-run");
-    std::fs::create_dir_all(&d).unwrap();
+    let d = work_dir();
     let f = d.join(format!("{stem}.{}", lang.ext()));
     std::fs::write(&f, code).unwrap();
     if lang == Lang::Scala {
         // one assembly per program, then a launcher that runs it with the arguments
         let jar = d.join(format!("{stem}.jar"));
-        let c = Command::new("scala-cli")
-            .args(["--power", "package", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn", "--assembly", "-f", "-o"])
-            .arg(&jar)
-            .arg(&f)
-            .output()
-            .unwrap();
-        assert!(c.status.success(), "{stem}: scala-cli: {}", String::from_utf8_lossy(&c.stderr));
+        let what = format!("scala-cli {stem}");
+        let c = output(
+            &what,
+            Command::new("scala-cli")
+                .args(["--power", "package", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn", "--assembly", "-f", "-o"])
+                .arg(&jar)
+                .arg(&f),
+            COMPILE_LIMIT,
+        );
+        assert!(c.status.success(), "{}", failure(&what, &c));
         let sh = d.join(format!("{stem}.sh"));
         let java = java_bin().expect("a JVM");
         std::fs::write(&sh, format!("#!/bin/sh\nexec '{}' -jar '{}' \"$@\"\n", java.display(), jar.display())).unwrap();
@@ -161,32 +310,21 @@ fn run_targets() -> Vec<Lang> {
 }
 
 fn run_exe(exe: &Exe, links: &Links) -> Vec<String> {
-    // `timeout` guards against a hung runtime (a deadlock in the runtime itself)
-    let mut c = Command::new("timeout");
-    c.arg("120");
-    if !exe.0.is_empty() {
-        c.arg(&exe.0);
-    }
-    c.arg(&exe.1);
-    c.arg("run");
-    for (t, p, a, b) in links {
-        c.arg("link").arg(format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" }));
-    }
-    let o = c.output().unwrap();
-    assert!(o.status.success(), "{:?}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
+    let o = run_cmd(exe, &[vec!["run".to_string()], link_args(links)].concat(), RUN_LIMIT);
+    assert!(o.status.success(), "{}", failure(&exe_name(exe), &o));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }
 
 fn build(stem: &str, src: &str) -> PathBuf {
     let m = parse(src).unwrap();
     let code = emit(&m, Lang::Rust).unwrap_or_else(|e| panic!("{stem}: not emitted: {e}"));
-    let d = std::env::temp_dir().join("rce-emit-run");
-    std::fs::create_dir_all(&d).unwrap();
+    let d = work_dir();
     let rs = d.join(format!("{stem}.rs"));
     std::fs::write(&rs, code).unwrap();
     let exe = d.join(stem);
-    let c = Command::new(rustc()).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&rs).output().unwrap();
-    assert!(c.status.success(), "{stem}: rustc: {}", String::from_utf8_lossy(&c.stderr));
+    let what = format!("rustc {stem}");
+    let c = output(&what, Command::new(rustc()).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&rs), COMPILE_LIMIT);
+    assert!(c.status.success(), "{}", failure(&what, &c));
     exe
 }
 
@@ -194,15 +332,8 @@ fn got(exe: &PathBuf) -> Vec<String> {
     got_links(exe, &vec![])
 }
 
-fn got_links(exe: &PathBuf, links: &Links) -> Vec<String> {
-    let mut c = Command::new(exe);
-    c.arg("run");
-    for (t, p, a, b) in links {
-        c.arg("link").arg(format!("{t},{},{a},{b}", if *p { "partition" } else { "heal" }));
-    }
-    let o = c.output().unwrap();
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-    String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
+fn got_links(exe: &std::path::Path, links: &Links) -> Vec<String> {
+    run_exe(&(String::new(), exe.to_path_buf()), links)
 }
 
 const NONDET: &str = "fn feed(c: chan i64, base: i64)
@@ -980,13 +1111,8 @@ fn want_log(src: &str) -> Vec<String> {
 }
 
 fn run_log(exe: &Exe) -> Vec<String> {
-    let mut c = Command::new("timeout");
-    c.arg("120");
-    if !exe.0.is_empty() {
-        c.arg(&exe.0);
-    }
-    let o = c.arg(&exe.1).args(["run", "actor-log"]).output().unwrap();
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let o = run_cmd(exe, &["run".into(), "actor-log".into()], RUN_LIMIT);
+    assert!(o.status.success(), "{}", failure(&exe_name(exe), &o));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }
 
@@ -1034,13 +1160,8 @@ fn want_log_cfg(src: &str, cfg: &RunCfg) -> Vec<String> {
 }
 
 fn run_args(exe: &Exe, extra: &[String]) -> Vec<String> {
-    let mut c = Command::new("timeout");
-    c.arg("120");
-    if !exe.0.is_empty() {
-        c.arg(&exe.0);
-    }
-    let o = c.arg(&exe.1).args(["run", "actor-log"]).args(extra).output().unwrap();
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let o = run_cmd(exe, &[vec!["run".to_string(), "actor-log".to_string()], extra.to_vec()].concat(), RUN_LIMIT);
+    assert!(o.status.success(), "{}", failure(&exe_name(exe), &o));
     String::from_utf8(o.stdout).unwrap().lines().map(String::from).collect()
 }
 
@@ -1098,12 +1219,7 @@ fn run_without_main_requires_change() {
         let want = run_main(&m, &RunCfg::default()).err().expect("no main");
         for lang in [Lang::Rust, Lang::Python, Lang::Js] {
             let exe = build_lang(lang, &format!("nomain_{n}"), &src);
-            let mut c = Command::new("timeout");
-            c.arg("60");
-            if !exe.0.is_empty() {
-                c.arg(&exe.0);
-            }
-            let o = c.arg(&exe.1).arg("run").output().unwrap();
+            let o = run_cmd(&exe, &["run".into()], Duration::from_secs(60));
             assert_eq!(o.status.code(), Some(1), "{n} {lang:?}: {}", String::from_utf8_lossy(&o.stderr));
             assert!(o.stdout.is_empty(), "{n} {lang:?}");
             assert_eq!(String::from_utf8_lossy(&o.stderr).trim(), want, "{n} {lang:?}");
@@ -1172,12 +1288,7 @@ fn program_events_agree_on_every_target() {
         let exe = build_lang(lang, &format!("ev_{lang:?}"), EVENTS);
         assert_eq!(run_args(&exe, &args), want, "{lang:?} takes program events as the reference does");
         // a malformed event is an input error (status 2), not a program trap
-        let mut c = Command::new("timeout");
-        c.arg("60");
-        if !exe.0.is_empty() {
-            c.arg(&exe.0);
-        }
-        let o = c.arg(&exe.1).args(["run", "event", "3|Hit|k=x"]).output().unwrap();
+        let o = run_cmd(&exe, &["run".into(), "event".into(), "3|Hit|k=x".into()], Duration::from_secs(60));
         assert_eq!(o.status.code(), Some(2), "{lang:?}");
     }
 }
@@ -1309,13 +1420,8 @@ fn want_main_trace(src: &str, cfg: &RunCfg) -> Vec<String> {
 
 /// the trace of `fn main` that an emitted program prints with `run trace`
 fn got_main_trace(exe: &Exe, extra: &[String]) -> Vec<String> {
-    let mut c = Command::new("timeout");
-    c.arg("120");
-    if !exe.0.is_empty() {
-        c.arg(&exe.0);
-    }
-    let o = c.arg(&exe.1).args(["run", "trace"]).args(extra).output().unwrap();
-    assert!(o.status.success(), "{:?}: {}", exe.1, String::from_utf8_lossy(&o.stderr));
+    let o = run_cmd(exe, &[vec!["run".to_string(), "trace".to_string()], extra.to_vec()].concat(), RUN_LIMIT);
+    assert!(o.status.success(), "{}", failure(&exe_name(exe), &o));
     String::from_utf8(o.stdout)
         .unwrap()
         .lines()
