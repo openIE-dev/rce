@@ -72,6 +72,7 @@ Classical.choice). Status per theorem:
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
 | T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 | T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
+| T63 | proved on the Form of `RCE/Form.lean` (`RCE/Law.lean`): with a complete alphabet, a closed exploration from s₀ on whose every state a property holds proves it after every event sequence of every length, for `always` and for `every step` claims; one sequence after which it is false refutes it; and, when every explored state is reached, the law holds exactly when it holds on the explored states. A model in the sense of this chapter: the link to the checker is `tests/law.rs` (6.11) | `reachBy`, `ClosedOn`, `reachBy_mem`, `law_always_holds`, `law_step_holds`, `law_always_fails`, `law_always_iff` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -190,6 +191,15 @@ two cuts, any two orders that agree with every chain's `seq` order and
 every `deps` edge fold δ₁ to the same state at the upper cut
 (spec/proposals/partial-order-log.md).
 
+**T63 Exploration decides a law.** Let the alphabet of 6.11 be complete and
+let C be a finite set of states with s₀ ∈ C that every instance of the
+alphabet takes into C. If a property holds at every state of C, it holds
+at foldl(δ₁, s₀, w) for every event sequence w, and an `every step`
+property that holds at every step from a state of C holds at every step
+from every reached state. A sequence w after which the property is false
+refutes the law. When every state of C is reached from s₀, the law holds
+for every sequence exactly when it holds on C (6.11, method D1).
+
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
 reproduces its state, whatever o is; no property of the foreign code is
@@ -259,4 +269,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 6d6be4c963419a95f1e9f8abc03f57ba39611012fa203e691e5d8f10dba7fe18 -->
+<!-- body-sha256: 204c290b5f6600d0db4c39088894fe0193aa3c73c262c12f1bd7d0d23c693cf8 -->

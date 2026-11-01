@@ -352,6 +352,8 @@ pub struct Parser {
     pub need_exhausted: bool,
     /// token indices consumed as 0.9 keywords (the rest require change as names)
     pub kw_used: Vec<usize>,
+    /// items an item's text carries after it (the laws of an `intent`)
+    after_item: Vec<Item>,
     /// errors found while expanding template renderers (W-TPL-1, W-TPL-2)
     pub tpl_errs: Vec<String>,
     /// names of the `ct fn` functions parsed so far (F.5.4)
@@ -371,7 +373,7 @@ pub fn reserved(s: &str) -> bool {
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0, need_exhausted: false, kw_used: vec![], tpl_errs: vec![], ct_names: vec![] }
+        Parser { t, p: 0, need_exhausted: false, kw_used: vec![], after_item: vec![], tpl_errs: vec![], ct_names: vec![] }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -498,6 +500,7 @@ impl Parser {
                 m.pubs.insert(n);
             }
             m.items.push(it);
+            m.items.append(&mut self.after_item);
         }
         m.x09.ct = self.ct_names.iter().cloned().collect();
         if self.need_exhausted
@@ -585,11 +588,16 @@ impl Parser {
                         } else if self.eat_kw("check") {
                             ck.push(self.expr()?);
                             self.nl()?;
+                        } else if self.is_kw("law") && matches!(self.peek2(), Tok::Id(_)) {
+                            // a law of the intent: an item after it (Item::Law)
+                            let mut l = self.law()?;
+                            l.in_intent = true;
+                            self.after_item.push(Item::Law(l));
                         } else if let Tok::Str(_) = self.peek() {
                             self.bump();
                             self.nl()?;
                         } else {
-                            return self.err("expected example, check or text in intent");
+                            return self.err("expected example, check, law or text in intent");
                         }
                     }
                     self.bump();
@@ -597,6 +605,7 @@ impl Parser {
                 Ok(Item::Intent(s, ex, ck))
             }
             "example" => Ok(Item::Example(self.example()?)),
+            "law" if matches!(self.peek2(), Tok::Id(_)) => Ok(Item::Law(self.law()?)),
             "check" => {
                 self.bump();
                 let e = self.expr()?;
@@ -775,6 +784,12 @@ impl Parser {
                         }
                         self.nl()?;
                         members.push(TraitMember::Type(n));
+                    } else if self.is_kw("law") {
+                        // trait laws (F.6.6) are not the laws of 6.11
+                        return Err(format!(
+                            "line {}: W-RES-1 `law` in a trait (trait laws, F.6.6) is reserved, not implemented",
+                            self.line()
+                        ));
                     } else {
                         let s = self.fn_sig()?;
                         self.nl()?;
@@ -1088,6 +1103,73 @@ impl Parser {
             value,
             line,
         })
+    }
+
+    /// `law NAME` and its block (3.2, 6.11). Text lines are prose; exactly
+    /// one `always` or `every step` line states the claim; `attest` lines
+    /// follow it. `always`, `every`, `attest`, `applied` and a bare `kept`
+    /// are contextual (3.11 R13): words only at their place in a law line.
+    fn law(&mut self) -> R<Law> {
+        let line = self.line();
+        self.kw_used.push(self.p);
+        self.want_kw("law")?;
+        let name = self.name()?;
+        self.nl()?;
+        if !matches!(self.peek(), Tok::Indent) {
+            return self.err("a law needs an indented `always` or `every step` line");
+        }
+        self.bump();
+        while let Tok::Str(_) = self.peek() {
+            self.bump();
+            self.nl()?;
+        }
+        let claim = if self.eat_kw("always") {
+            let e = self.expr()?;
+            self.nl()?;
+            LawClaim::Always(e)
+        } else if self.eat_kw("every") {
+            self.want_kw("step")?;
+            let pat = if self.eat_kw("on") { Some(self.pattern()?) } else { None };
+            let guard = if self.eat_kw("if") { Some(self.expr()?) } else { None };
+            self.want_p("->")?;
+            let end = |t: &Tok| matches!(t, Tok::Nl | Tok::Eof);
+            let outcome = if self.is_kw("kept") && (end(self.peek2()) || matches!(self.peek2(), Tok::P(":"))) {
+                self.bump();
+                if self.eat_p(":") { LawOutcome::Kept(Some(self.name()?)) } else { LawOutcome::Kept(None) }
+            } else if self.is_kw("applied") && end(self.peek2()) {
+                self.bump();
+                LawOutcome::Applied
+            } else {
+                let mut e = self.expr()?;
+                crate::law::hold_old(&mut e);
+                LawOutcome::Expr(e)
+            };
+            self.nl()?;
+            LawClaim::Every { pat, guard, outcome }
+        } else if self.is_kw("invariant") || self.is_kw("lean") {
+            return self.err("only `always` and `every step` claims are implemented; `invariant` and `lean` lines are proposed in spec/proposals/laws.md");
+        } else {
+            return self.err("expected `always` or `every step` in a law");
+        };
+        let mut attest = vec![];
+        while !self.is_dedent() {
+            if self.is_kw("attest") && matches!(self.peek2(), Tok::Str(_)) {
+                self.bump();
+                if let Tok::Str(a) = self.bump() {
+                    attest.push(a);
+                }
+                self.nl()?;
+            } else if let Tok::Str(_) = self.peek() {
+                self.bump();
+                self.nl()?;
+            } else if self.is_kw("always") || self.is_kw("every") {
+                return self.err("a law has exactly one `always` or `every step` line");
+            } else {
+                return self.err("expected `attest` or text after the claim of a law");
+            }
+        }
+        self.bump();
+        Ok(Law { name, claim, attest, line, in_intent: false })
     }
 
     fn field(&mut self) -> R<Field> {

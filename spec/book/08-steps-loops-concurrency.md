@@ -274,7 +274,9 @@ list, so it meets every example of M, and it keeps the state on every other
 list. A `check` is a proposition about comptime values and functions, and a
 contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
 admits it and reports the recommended change W-INT-2 (10.2): its
-obligations do not constrain behaviour beyond the listed examples. W-INT-2
+obligations do not constrain behaviour beyond the listed examples. A module
+with a law (6.11) has an obligation beyond them, and W-INT-2 is not reported
+for it. W-INT-2
 never makes a program require change; it says what the examples do not
 state.
 
@@ -351,6 +353,131 @@ exploration fuel of `rce dim` (10.11). The proposal `form-ir-2.md` names
 two further keys, a name-free term hash and an e-class key, that this text
 does not define.
 
+### 6.11 Laws
+
+A *law* states a property of every state a program reaches, or of every
+step taken from such a state, and the checker decides it before the
+program is admitted. Example: the flag game of `spec/proposals/laws.md`
+states `law you_cant_win` with the claim `always not won`; with walls on
+the far edges of its board the checker explores its 72 reachable states and
+the law holds; without them it fails, and the report prints the 9 events
+that reach the flag as an `example` line.
+
+In plain words: (1) an example states one sequence of events, and a law
+states something about every sequence, of every length; (2) the checker
+decides a law by visiting every state the program can reach, which is exact
+when it finishes and when it finds a violation; (3) a law it cannot decide
+within a fixed bound requires change, unless a named person attests it.
+
+**Meaning.** Let s₀, δ, δ₁ and E be as in 6.1 and 6.10, and reach(P) the
+states that some sequence of events leads to from s₀. A law has one claim
+(3.2):
+
+- `always p` holds when ⟦p⟧ = true at every s ∈ reach(P). p is a `bool`
+  expression over the state, with fields in scope by name, as in the `-> e`
+  of an example (6.9).
+- `every step [on PAT] [if g] -> o` holds when, for every s ∈ reach(P) and
+  every event instance e that matches PAT (every event, without `on`) and
+  for which g is true at s, the step δ(s, e) has the outcome o. PAT is a
+  step pattern (3.5) and binds its names for g and o; g is a `bool` over s.
+  The outcome `kept` says the event is kept, `kept: X` that it is kept with
+  the error X, and `applied` that it applies. An expression o is a `bool`
+  over δ₁(s, e), the state after the step (s itself when the event is kept,
+  T8), in which `old(f)` names the field f of s.
+
+p, g and o may call the module's functions; they are checked as comptime
+expressions (5.4), so they call no foreign function. A trap while
+evaluating one of them is a violation at that state or step. By T3 every
+state a fold of events reaches is in reach(P), so a law over reach(P) is a
+law over every event sequence.
+
+**The complete alphabet.** A payload field type is *listable* when the
+checker can list its values in full: `bool`, `()`, `u8`, `i8`, `T?` of a
+listable T, a `kind` without type parameters whose variants carry only
+listable fields, and a type declared `type N = T` or `type N = T where p`
+(5.1) of a listable T (a value outside p traps at construction and is no
+event). The *alphabet* of a program is every instance of every event whose
+fields are all listable, events in declaration order (the name-free key of
+6.6) and the values of each field in their order: `false` before `true`,
+integers ascending, `none` before `some`, variants in declaration order,
+the fields of a payload varying last field fastest. An event with more than
+4,096 instances, or with a field that is not listable, is left out, and
+the alphabet is then *incomplete*.
+
+**Method D1, exhaustive exploration.** The checker explores reach(P)
+breadth first from s₀, applying every instance of the alphabet in its
+order to each state, and keys a state by its canonical JSON (6.1.1). It
+evaluates every `always` law at each new state, s₀ first, and every
+`every step` law at each step. It stops when every law has a violation,
+when no new state appears (the exploration is *closed*), or when a new
+state would be the (LAW_FUEL + 1)th. **LAW_FUEL** is a constant of the
+language, 1,000,000 states, so admission depends only on the program text
+(10.1, item 1), as with LOOP_LIMIT (6.7).
+
+**Verdicts.** Each law gets one verdict:
+
+- `holds`: the exploration closed with no violation and the alphabet is
+  complete. By T63 the law then holds after every event sequence of every
+  length.
+- `fails`: a violation was found. The sequence that reaches it exists, so
+  the verdict is exact whether or not the bound was reached and whether or
+  not the alphabet is complete.
+- `undecided`: no violation, and the alphabet is incomplete or the bound was
+  reached. The report names each event left out (`Deposit.amount (u64)`) and
+  the bound.
+- `attested`: undecided, and attested (below).
+
+A program is admitted only when every law holds or is attested (W-INT-1
+for examples and checks, W-LAW-1 for laws). An attestation never changes a
+`fails`.
+
+**The counterexample.** The sequence a failing law reports is the
+shortest one after which the law fails, and among the shortest the first in
+the order of the alphabet, compared event by event from the start: a
+breadth-first exploration that takes events in a fixed order meets the
+states in that order. It is printed as an `example` line (3.2) that states
+what the program does now, so it holds and can be pasted into an `intent`
+as it is: for `always p`, the outcome is `not p` (`q` when p is `not q`;
+the field's value when the state has one field of type `bool`); for an
+`every step` law, `kept: X` when the last step is kept with X, else the
+fields of the state after the last step with their values
+(`x == 1 and won == true`). Changing the outcome to the law's turns the
+line into the example that the corrected program must meet. For the flag
+game without walls:
+
+```
+requires change flag_wrap.rce: line 4: W-LAW-1 law you_cant_win fails after 9 events (exhaustive, alphabet 4 complete, 86 states explored): the claim is false [requires change]
+    example Up, Up, Up, Up, Right, Right, Right, Right, Right -> won
+```
+
+**Attestation.** A line `attest "WHO;YYYY-MM-DD;COVER"` in a law says that
+the person WHO decided on that date that the law holds; it is the form of
+`ui.rules` (`attest-ID`) with the cover added. The *cover* of a law is a
+SHA-256 over the law's claim, with every named definition replaced by its
+definition hash (F.4.3), and over the sorted definition hashes of every
+`state`, `event` and `error`, of every `step` (by its text, with the
+definitions it names replaced by their hashes) and of every definition the
+claim names. An attestation applies only while its COVER equals the
+current cover: when a definition it covers changes, the attestation
+*lapses* and the law is `undecided` again. A definition that no step, no
+state, no event and no claim reaches can change without lapsing it. The
+report of an undecided law prints the current cover. An `attest` line that
+is not of this form requires change (W-LAW-1).
+
+**Reports.** `rce check` reports each law that fails or is undecided and
+not attested under W-LAW-1, with the counterexample line. `rce law FILE`
+(10.11) prints one line per law with its verdict, the method and the counts,
+for example
+`law you_cant_win  holds      exhaustive  72 states, 288 steps, alphabet 4 (complete), closed`;
+its status is 0 when every law holds or is attested, 3 when the only
+obstacle is the bound, and 1 otherwise. `rce change OLD NEW` decides every
+law of OLD on NEW (10.11).
+
+Laws are part of the canonical text, so they are in the program hash
+(10.8). The other methods of the proposal (an inductive invariant, a Lean
+proof) are not part of the language; a law that states liveness
+("eventually") or a property of `fn main` and its tasks is not expressible.
+
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 37a6b2eb111a41d9e711ee5c4d22e4afac865b2c68e2d3f8f9bc7624e95ce697 -->
+<!-- body-sha256: a8873dad6351fd96dba942fa8c55c0ac04c7a0e914e5666ebc5ad552ddbd6153 -->

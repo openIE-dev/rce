@@ -8728,6 +8728,10 @@
         {
           "type": "example_decl",
           "named": true
+        },
+        {
+          "type": "law_decl",
+          "named": true
         }
       ]
     }
@@ -9061,6 +9065,518 @@
         },
         {
           "type": "unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "law_always",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "law_applied",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "law_attest",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "STRING",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "law_decl",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "NAME",
+          "named": true
+        },
+        {
+          "type": "doc_line",
+          "named": true
+        },
+        {
+          "type": "law_always",
+          "named": true
+        },
+        {
+          "type": "law_attest",
+          "named": true
+        },
+        {
+          "type": "law_every",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "law_every",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "alt_pattern",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "ctor_pat",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "false_pat",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "law_applied",
+          "named": true
+        },
+        {
+          "type": "law_kept",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "literal_pat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "name_pat",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "neg_literal_pat",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "none_pat",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "outcome_value",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "range_pat",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "true_pat",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "tuple_pat",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        },
+        {
+          "type": "wildcard",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "law_kept",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "NAME",
           "named": true
         }
       ]
@@ -15788,6 +16304,10 @@
           "named": true
         },
         {
+          "type": "law_decl",
+          "named": true
+        },
+        {
           "type": "module_header",
           "named": true
         },
@@ -18653,7 +19173,15 @@
     "named": false
   },
   {
+    "type": "always",
+    "named": false
+  },
+  {
     "type": "and",
+    "named": false
+  },
+  {
+    "type": "applied",
     "named": false
   },
   {
@@ -18666,6 +19194,10 @@
   },
   {
     "type": "atomic",
+    "named": false
+  },
+  {
+    "type": "attest",
     "named": false
   },
   {
@@ -18778,6 +19310,10 @@
     "named": false
   },
   {
+    "type": "every",
+    "named": false
+  },
+  {
     "type": "example",
     "named": false
   },
@@ -18855,6 +19391,10 @@
   },
   {
     "type": "lanes",
+    "named": false
+  },
+  {
+    "type": "law",
     "named": false
   },
   {

@@ -16,7 +16,7 @@ see two parses, the grammar admits exactly one; the resolutions are listed in
 SourceFile   = { NEWLINE } [ ModuleHeader ] { Item } .
 ModuleHeader = "module" Path NEWLINE .
 Path         = NAME { "." NAME } .
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
@@ -28,12 +28,21 @@ UseDecl      = "use" Path [ "as" NAME ] NEWLINE .
 
 ```
 IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT ] .
-IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
+IntentLine  = ExampleDecl | CheckDecl | LawDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
 Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
+LawDecl     = "law" NAME NEWLINE INDENT { STRING NEWLINE } LawClaim { LawNote } DEDENT .
+LawClaim    = "always" Expr NEWLINE
+            | "every" "step" [ "on" Pattern ] [ "if" Expr ] "->" LawOutcome NEWLINE .
+LawOutcome  = Expr | "kept" [ ":" NAME ] | "applied" .
+LawNote     = STRING NEWLINE | "attest" STRING NEWLINE .
 ```
+
+A law (6.11) has exactly one claim: `always p` or `every step …`. Its
+text lines are prose and change nothing. Example: a law `you_cant_win`
+whose indented block is the one line `always not won`.
 
 ### 3.3 Data declarations
 
@@ -266,6 +275,12 @@ declaration and no conflict to resolve at parse time.
 - **R9 send.** `<-` after an expression at statement level is a send;
   in prefix position it is a receive. The two never meet: `a <- <- b` is
   "send the value received from b to a".
+- **R10 the words of a law.** `always`, `every` and `attest` are words of the
+  grammar only at the start of a line inside a `law` block, and `applied`
+  and a `kept` with no `:` only as the whole outcome of an `every step`
+  line; everywhere else each is a NAME, so no identifier is reserved for
+  them. A bool field named `applied` is read in that outcome as `(applied)`.
+  `law` itself is reserved (2.4).
 
 ### 3.12 Machine check
 
@@ -277,17 +292,18 @@ declaration and no conflict to resolve at parse time.
    left-recursive helper rule), builds the LALR(1) tables and fails on any
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
-   current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
+   current result (draft 0.9): 104 rules, 512 productions, 1028 states, 0
    conflicts (`scripts/claim-counts.py check` compares these numbers with
    the output of `rce-spec-check`);
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained
+3. parses the 13 programs in `examples/change/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
-   unterminated string); all must be reported as requiring change.
+   unterminated string, a law with two claims); all must be reported as
+   requiring change.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
@@ -301,4 +317,4 @@ the file exactly when the Rust parser does, on every CI run.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 17203e1adc917bd4a8f5bf953ff8ed993671c39176c5bd064772c6c73ac8703a -->
+<!-- body-sha256: 310b9dcdde1089d3f6c550f8bb7c5fe29e8e631d6897e12e614f3a7359b48450 -->

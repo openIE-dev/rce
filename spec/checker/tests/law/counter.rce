@@ -1,0 +1,13 @@
+intent "a counter that only counts up"
+    example Tick, Tick -> n == 2
+    law below_four_billion
+        "the counter never reaches four billion (true, but beyond the bound)"
+        always n < 4000000000
+
+state C
+    n: u32 = 0
+
+event Tick
+
+step C on Tick
+    n += 1

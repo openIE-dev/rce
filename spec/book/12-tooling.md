@@ -33,7 +33,8 @@ and shows that the step of the third event keeps the state, with exit status 1.
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `fuel` before either equivalence or a
-   distinguishing event sequence was established (10.11). 4 means a run
+   distinguishing event sequence was established, and `rce law` when the
+   bound LAW_FUEL left a law undecided (10.11). 4 means a run
    the host cannot perform: a run of `fn main` in which an lvar passes
    from one task to another needs task threads, and the host cannot start
    one (10.3).
@@ -880,6 +881,26 @@ when behaviour is kept but an export is broken (status 1: callers must
 change); *undecided* when `rce equiv` is undecided (status 3: raise
 `fuel`); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
+Laws (6.11) are part of a program's meaning. `rce change` prints one `law`
+row per law of OLD, decided on NEW with NEW's definitions (`=` the law is
+unchanged in NEW, `~` edited, `-` removed), and one `+` row per law NEW
+adds. *Meaning change* (status 1) is then also the verdict when NEW breaks
+a law of OLD (CC-L1 of `spec/proposals/laws.md`; the row is followed by the
+counterexample line) and when a law of OLD is edited or removed (CC-L2),
+whatever the behaviour check says. A law added to a program whose
+behaviour is unchanged is an erratum. On the flag game of 6.11, the change
+that removes the far-edge walls has the same behaviour (no step emits a
+value or keeps the state), so without its law it was an erratum; with the
+law it is a meaning change, with the 9-event sequence.
+
+`rce law FILE` checks FILE as `rce check` does up to the admission gate,
+then decides every law of FILE by method D1 (6.11) and prints one line per
+law: its name, its verdict (`holds`, `fails`, `undecided` or `attested`),
+the method and the counts (states, steps, alphabet size and whether it is
+complete, whether the exploration closed), and for a failing law the
+counterexample line. An undecided law's line names what left it undecided
+and the cover an attestation must carry. Exit status 0 when every law holds
+or is attested, 3 when the only obstacle is the bound LAW_FUEL, 1 otherwise.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
@@ -927,7 +948,7 @@ is judged once.
 
 Terms. A **definition** is a function, a method of an `impl`, a step, an
 actor, a constant or a state declaration. A **site** is one expression
-of a definition. Intent, example and check items, and `check`, `requires`
+of a definition. Intent, example, check and law items, and `check`, `requires`
 and `ensures` statements, are never edited: they are what a candidate is
 judged by. The **name-free signature** of a function is its number of
 generic parameters, its parameter types and its result type, without the
@@ -1009,4 +1030,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 156908d56989e3223283b6e472424dab1ea4d230ab65081735c5fcdb34c5deda -->
+<!-- body-sha256: 4b827e1518e2ea13a01f3594d536245fb32ab8a5c67bef50f7fb4a493ddc5b33 -->

@@ -9,13 +9,14 @@
 use crate::ast::*;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-/// The ten words a 0.9 module reserves (Appendix F, "Reserved words"). A word
-/// leaves this list only when the construct it introduces is implemented.
-pub const RESERVED_GATED: &[&str] = &["declassify", "law"];
+/// The words of Appendix F ("Reserved words") whose construct is not
+/// implemented. A word leaves this list when the construct it introduces is
+/// implemented (`law` left it for the laws of 6.11).
+pub const RESERVED_GATED: &[&str] = &["declassify"];
 
 /// Reserved words whose construct is implemented: a use that the parser did
 /// not consume as that construct requires change as a name (W-NAME-2).
-pub const RESERVED_LIVE: &[&str] = &["label", "release", "endorse", "ct", "requires", "ensures", "ghost", "decreases"];
+pub const RESERVED_LIVE: &[&str] = &["label", "release", "endorse", "ct", "requires", "ensures", "ghost", "decreases", "law"];
 
 /// W-NAME-2: a live reserved word used as a name.
 pub fn stray_words(toks: &[(crate::parse::Tok, usize)], used: &[usize]) -> Result<(), String> {
@@ -1893,7 +1894,7 @@ pub const UNIMPLEMENTED: &[(&str, &str)] = &[
     ("F.6.3 ghost (P3)", "`ghost` parameters, `mathint` and quantifiers are reserved, not implemented"),
     ("F.6.4 decreases (P4)", "measures on `for` and `loop`, structural and mathint measures are not implemented (a `decreases` there is reserved, not implemented); a `while` measure is decided over a straight-line body"),
     ("F.6.5 if let chains", "`and let P = e` is reserved, not implemented; the single `if let P = e [and c]... else` is implemented"),
-    ("F.6.6 trait laws (P9)", "`law` is reserved, not implemented"),
+    ("F.6.6 trait laws (P9)", "`law` inside a trait is reserved, not implemented; `law` items over reachable states (6.11) are implemented"),
     ("F.7 broker contract (S7)", "tooling contract only, nothing in the checker"),
     ("T42 to T56", "stated, unproved; nothing here proves any of them"),
 ];

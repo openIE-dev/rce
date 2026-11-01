@@ -397,7 +397,12 @@ pub enum Act {
 /// Contextual words: terminals of section 3 that are not reserved (2.4);
 /// `where` follows a type in a refined type declaration (5.1); `kept`
 /// begins the outcome of an `example` when a `:` follows (COMP-2).
-pub const CONTEXTUAL: &[&str] = &["where", "by", "kept"];
+/// `law` begins a law (6.11); the other words of a law are placed by the
+/// lexing of `Lalr` below (3.11 R10).
+pub const CONTEXTUAL: &[&str] = &["where", "by", "kept", "law"];
+
+/// The words of a law line that are terminals only at their place (3.11 R10).
+const LAW_LINE: &[&str] = &["always", "every", "attest"];
 
 pub struct Lalr {
     pub g: Grammar,
@@ -712,9 +717,19 @@ impl Lalr {
         let toks = lex(src).ok()?;
         let mut out = Vec::new();
         let mut after_dot = false;
+        // 3.11 R10: inside a `law` block (depth > 0), a line's first word
+        // `always`, `every` or `attest` is its terminal; after the `->` of an
+        // `every step` line, `kept` before `:` or the line end and `applied`
+        // before the line end are theirs
+        let (mut law_pending, mut law_depth, mut in_every) = (false, 0i32, false);
+        let mut line_start = true;
         for (i, (t, _)) in toks.iter().enumerate() {
             let colon_next = matches!(toks.get(i + 1), Some((Tok::P(":"), _)));
+            let nl_next = matches!(toks.get(i + 1), Some((Tok::Nl, _)) | Some((Tok::Eof, _)) | None);
+            let after_arrow = i > 0 && matches!(toks[i - 1].0, Tok::P("->"));
             let name: String = match t {
+                Tok::Id(s) if law_depth == 1 && line_start && LAW_LINE.contains(&s.as_str()) => s.clone(),
+                Tok::Id(s) if in_every && after_arrow && ((s == "kept" && (colon_next || nl_next)) || (s == "applied" && nl_next)) => s.clone(),
                 Tok::Id(s) if s == "_" => "_".into(),
                 Tok::Id(s) if kw(s.as_str()) && !after_dot => s.clone(),
                 Tok::Id(s) if s == "kept" && !colon_next => "NAME".into(),
@@ -731,6 +746,23 @@ impl Lalr {
                 Tok::Eof => break,
             };
             after_dot = matches!(t, Tok::P("."));
+            match t {
+                Tok::Indent if law_pending => {
+                    law_pending = false;
+                    law_depth = 1;
+                }
+                Tok::Indent if law_depth > 0 => law_depth += 1,
+                Tok::Dedent if law_depth > 0 => law_depth -= 1,
+                Tok::Nl => in_every = false,
+                _ => {}
+            }
+            if name == "law" {
+                law_pending = true;
+            }
+            if name == "every" {
+                in_every = true;
+            }
+            line_start = matches!(t, Tok::Nl | Tok::Indent | Tok::Dedent);
             out.push(self.term(&name)?);
         }
         Some(out)

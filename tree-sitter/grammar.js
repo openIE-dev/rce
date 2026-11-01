@@ -9,13 +9,13 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._trap, $._error_sentinel, $._kept],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._trap, $._error_sentinel, $._kept, $._applied],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
     start: $ => seq(repeat($._NL), optional($.module_header), repeat($._item)),
     module_header: $ => seq('module', $.path, $._NL),
-    _item: $ => choice($.use_decl, $.intent_decl, $.example_decl, $.check_decl, $.pub_item, $.state_decl,
+    _item: $ => choice($.use_decl, $.intent_decl, $.example_decl, $.check_decl, $.law_decl, $.pub_item, $.state_decl,
       $.event_decl, $.error_decl, $.step_decl, $.impl_decl, $.extern_decl, $.node_decl, $.supervisor_decl, $.label_decl),
     pub_item: $ => seq(optional(alias('pub', $.PUB)), choice($.const_decl, $.type_decl, $.struct_decl, $.kind_decl,
       $.trait_decl, $.fn_decl, $.actor_decl, $.protocol_decl)),
@@ -25,7 +25,7 @@ module.exports = grammar({
     path: $ => sep1($.NAME, '.'),
 
     intent_decl: $ => seq('intent', $.STRING, $._NL, optional(seq($._INDENT, repeat1($._intent_line), $._DEDENT))),
-    _intent_line: $ => choice($.example_decl, $.check_decl, $.doc_line),
+    _intent_line: $ => choice($.example_decl, $.check_decl, $.law_decl, $.doc_line),
     doc_line: $ => seq($.STRING, $._NL),
     example_decl: $ => seq('example', optional($.event_list), '->', $._outcome, $._NL),
     event_list: $ => sep1(choice($.event_ref, $.event_call), ','),
@@ -37,6 +37,17 @@ module.exports = grammar({
     // `trap` before `(` is its own symbol there (src/scanner.c), elsewhere it is a NAME
     outcome_kept: $ => seq(alias($._kept, 'kept'), ':', choice($.NAME, seq(alias($._trap, 'trap'), '(', $.STRING, ')'))),
     check_decl: $ => seq('check', $._expr, $._NL),
+    // section 3.2 LawDecl (6.11): prose, exactly one claim, then prose and attestations.
+    // `always`, `every` and `attest` are words only where a NAME cannot stand (a law line's
+    // start); `applied` and a bare `kept` only as an `every step` outcome (src/scanner.c, 3.11 R10)
+    law_decl: $ => seq('law', $.NAME, $._NL, $._INDENT, repeat($.doc_line), $._law_claim, repeat(choice($.doc_line, $.law_attest)), $._DEDENT),
+    _law_claim: $ => choice($.law_always, $.law_every),
+    law_always: $ => seq('always', $._expr, $._NL),
+    law_every: $ => seq('every', 'step', optional(seq('on', $._pattern)), optional(seq('if', $._expr)), '->', $._law_outcome, $._NL),
+    _law_outcome: $ => choice($.outcome_value, $.law_kept, $.law_applied),
+    law_kept: $ => seq(alias($._kept, 'kept'), optional(seq(':', $.NAME))),
+    law_applied: $ => alias($._applied, 'applied'),
+    law_attest: $ => seq('attest', $.STRING, $._NL),
 
     const_decl: $ => seq('const', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),
     type_decl: $ => seq('type', $.NAME, optional($.generics), '=', $._type, optional(seq('where', $._expr)), $._NL),

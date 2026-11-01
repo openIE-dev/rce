@@ -71,6 +71,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "law_decl"
+        },
+        {
+          "type": "SYMBOL",
           "name": "pub_item"
         },
         {
@@ -329,6 +333,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "law_decl"
+        },
+        {
+          "type": "SYMBOL",
           "name": "doc_line"
         }
       ]
@@ -535,6 +543,233 @@
         {
           "type": "SYMBOL",
           "name": "_expr"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_NL"
+        }
+      ]
+    },
+    "law_decl": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "law"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "NAME"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_NL"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_INDENT"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "doc_line"
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_law_claim"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "doc_line"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "law_attest"
+              }
+            ]
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_DEDENT"
+        }
+      ]
+    },
+    "_law_claim": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "law_always"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "law_every"
+        }
+      ]
+    },
+    "law_always": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "always"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_expr"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_NL"
+        }
+      ]
+    },
+    "law_every": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "every"
+        },
+        {
+          "type": "STRING",
+          "value": "step"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "on"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_pattern"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "if"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_expr"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": "->"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_law_outcome"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_NL"
+        }
+      ]
+    },
+    "_law_outcome": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "outcome_value"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "law_kept"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "law_applied"
+        }
+      ]
+    },
+    "law_kept": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_kept"
+          },
+          "named": false,
+          "value": "kept"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": ":"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "NAME"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "law_applied": {
+      "type": "ALIAS",
+      "content": {
+        "type": "SYMBOL",
+        "name": "_applied"
+      },
+      "named": false,
+      "value": "applied"
+    },
+    "law_attest": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "attest"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "STRING"
         },
         {
           "type": "SYMBOL",
@@ -6645,6 +6880,10 @@
     {
       "type": "SYMBOL",
       "name": "_kept"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_applied"
     }
   ],
   "inline": [],

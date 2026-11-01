@@ -42,7 +42,7 @@ pub fn module(path: &str) -> Option<&'static Module> {
     }
     let src = source(path)?;
     let mut m = crate::parse::parse(src).ok()?;
-    m.items.retain(|it| !matches!(it, Item::Check(_) | Item::Example(_) | Item::Intent(..)));
+    m.items.retain(|it| !matches!(it, Item::Check(_) | Item::Example(_) | Item::Intent(..) | Item::Law(_)));
     let leaked: &'static Module = Box::leak(Box::new(m));
     cache.lock().unwrap().insert(path.to_string(), leaked);
     Some(leaked)

@@ -73,6 +73,11 @@ The Form
 - W-INT-2 (recommended; never requires change) A module with a step and
   `example` lines, whose obligations its lookup-table control meets (6.9):
   `rce check` admits it and prints the recommendation (10.2).
+- W-LAW-1 A law (6.11) that fails, or that is undecided and not attested
+  (its alphabet is incomplete or the bound LAW_FUEL is reached), or an
+  `attest` line that is not `WHO;YYYY-MM-DD;COVER`. The report of a failing
+  law ends with its counterexample as an `example` line. The trait laws of
+  F.6.6 fall under the same rule once they are implemented.
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -186,6 +191,7 @@ section 8) is the ground of a rewrite that renames.
 | W-CT-1 | requires change | The comptime expression is the author's to change. |
 | W-INT-1 | requires change | An example or check that does not hold states another behaviour than the program has; which of the two is meant is the author's statement. |
 | W-INT-2 | recommended | The module is admitted; the report recommends obligations beyond the listed examples (6.9). |
+| W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
@@ -255,7 +261,6 @@ section 8) is the ground of a rewrite that renames.
 | W-GHOST-1 | requires change | Where a ghost value flows is the author's statement. |
 | W-DEC-1 | requires change | A measure is the author's statement. |
 | W-IFLET-1 | requires change | The comparison is the author's statement. |
-| W-LAW-1 | requires change | The impl's laws are the author's to meet. |
 | W-LEN-1 | requires change | `len_bytes` or `len_chars` is a choice of unit. |
 | W-TRI-1 | requires change | A release path is the author's statement. |
 
@@ -263,4 +268,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: f3a0cdbb5432c7fe84f9406ca809f796ab258130766e69d844563b0ce6a1c60a -->
+<!-- body-sha256: bcd9aa8480eedf926c955c50278a1ea6fcbdaf5610859356a24afa973ca726e1 -->

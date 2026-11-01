@@ -13,7 +13,17 @@ pub fn unparse(m: &Module) -> String {
     if let Some(p) = &m.path {
         o.push_str(&format!("module {}\n", p.join(".")));
     }
+    // a law written inside an intent follows it in `items` (6.11)
+    let mut in_intent = false;
     for it in &m.items {
+        if let Item::Law(l) = it
+            && l.in_intent
+            && in_intent
+        {
+            law(&mut o, 1, l);
+            continue;
+        }
+        in_intent = matches!(it, Item::Intent(..));
         let pubd = crate::link::item_name(it).is_some_and(|n| m.pubs.contains(&n))
             && matches!(it, Item::Const { .. } | Item::TypeAlias { .. } | Item::Struct { .. } | Item::Kind { .. } | Item::Trait { .. } | Item::Fn(_) | Item::Actor { .. } | Item::Protocol { .. });
         o.push('\n');
@@ -529,7 +539,39 @@ fn field(o: &mut String, d: usize, f: &Field) {
     line(o, d, &format!("{}: {}{}", f.name, ty(&f.ty), f.init.as_ref().map(|e| format!(" = {}", expr(e))).unwrap_or_default()));
 }
 
-fn example(x: &Example) -> String {
+/// The claim line of a law (3.2): `always p` or `every step …`.
+pub fn law_claim(c: &LawClaim) -> String {
+    match c {
+        LawClaim::Always(e) => format!("always {}", expr(e)),
+        LawClaim::Every { pat: p, guard, outcome } => {
+            let mut s = "every step".to_string();
+            if let Some(p) = p {
+                s.push_str(&format!(" on {}", pat(p)));
+            }
+            if let Some(g) = guard {
+                s.push_str(&format!(" if {}", expr(g)));
+            }
+            s.push_str(" -> ");
+            s.push_str(&match outcome {
+                LawOutcome::Expr(e) => expr(e),
+                LawOutcome::Kept(None) => "kept".into(),
+                LawOutcome::Kept(Some(x)) => format!("kept: {x}"),
+                LawOutcome::Applied => "applied".into(),
+            });
+            s
+        }
+    }
+}
+
+fn law(o: &mut String, d: usize, l: &Law) {
+    line(o, d, &format!("law {}", l.name));
+    line(o, d + 1, &law_claim(&l.claim));
+    for a in &l.attest {
+        line(o, d + 1, &format!("attest {}", text(a)));
+    }
+}
+
+pub fn example(x: &Example) -> String {
     let evs: Vec<String> = x.events.iter().map(|(n, a)| if a.is_empty() { n.clone() } else { format!("{n}({})", args(a)) }).collect();
     let rhs = match (&x.kept, &x.value) {
         (Some(r), _) => match r.strip_prefix("trap(").and_then(|k| k.strip_suffix(')')) {
@@ -575,6 +617,8 @@ fn item(o: &mut String, it: &Item) {
                 line(o, 1, &format!("check {}", expr(c)));
             }
         }
+        // a law of an intent is printed inside it by `unparse`
+        Item::Law(l) => law(o, 0, l),
         Item::Example(x) => line(o, 0, &example(x)),
         Item::Check(e) => line(o, 0, &format!("check {}", expr(e))),
         Item::Const { name, ty: t, e, .. } => line(o, 0, &format!("const {name}{} = {}", t.as_ref().map(|t| format!(": {}", ty(t))).unwrap_or_default(), expr(e))),

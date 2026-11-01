@@ -2704,7 +2704,7 @@ pub fn why(f: Flow) -> String {
     }
 }
 
-/// Admission gate (W-CT-1, W-INT-1). Called only on modules that type-check.
+/// Admission gate (W-CT-1, W-INT-1, W-LAW-1). Called only on modules that type-check.
 pub fn admit(m: &Module) -> Vec<String> {
     let mut errs = vec![];
     let mut it = Interp::new(m);
@@ -2860,6 +2860,10 @@ pub fn admit(m: &Module) -> Vec<String> {
         }
     }
     errs.extend(crate::conc::crdt_gate(m));
+    // laws (6.11, W-LAW-1): decided once the examples and checks hold
+    if errs.is_empty() {
+        errs.extend(crate::law::gate(m));
+    }
     errs
 }
 

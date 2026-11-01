@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, TRAP, SENTINEL, KEPT };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, TRAP, SENTINEL, KEPT, APPLIED };
 
 #define MAXD 120
 typedef struct {
@@ -33,7 +33,7 @@ static const char *KW[] = {"actor","after","and","arena","as","bound","break","c
  "protocol","offer","choose","node","supervisor","strategy","child","restart", 0};
 
 // Words that can only begin a declaration or a statement, never continue a line.
-static const char *LINE_START[] = {"event","step","state","kind","type","struct","impl","use","intent","example","check",
+static const char *LINE_START[] = {"event","step","state","kind","type","struct","impl","use","intent","example","check","law",
  "extern","error","module","pub","return","emit","fail","break","continue","pass","yield","let","var","while","par","actor","trait","const","iter","protocol","supervisor","node","comptime","fn",0};
 
 void *tree_sitter_rce_external_scanner_create(void) { S *s = calloc(1, sizeof(S)); s->n = 1; s->stack[0] = 0; return s; }
@@ -190,6 +190,19 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
     if (n < 64) {
       w[n] = 0;
       if (strcmp(w, "_") == 0) return false;
+      // contextual words of a law (3.11 R10): as the whole outcome of an `every step`
+      // line (APPLIED is valid only there), `applied` before the line end and `kept`
+      // before `:` or the line end are the outcome words; elsewhere they are NAMEs
+      if (valid[APPLIED] && !valid[SENTINEL] && (strcmp(w, "applied") == 0 || strcmp(w, "kept") == 0)) {
+        int kept = w[0] == 'k';
+        lx->mark_end(lx);
+        while (lx->lookahead == ' ') lx->advance(lx, false);
+        int32_t c2 = lx->lookahead;
+        int end = c2 == '\n' || c2 == '\r' || c2 == '#' || lx->eof(lx);
+        s->started = 1; s->seen = 1;
+        if (end || (kept && c2 == ':')) { lx->result_symbol = kept ? KEPT : APPLIED; return true; }
+        lx->result_symbol = NAME; return true;
+      }
       // contextual word (COMP-2): `kept` is the outcome keyword only where the
       // grammar allows an outcome and a `:` follows; elsewhere it is a NAME
       if (valid[KEPT] && strcmp(w, "kept") == 0) {
@@ -213,6 +226,9 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
+      // contextual words of a law (3.11 R10): `always`, `every` and `attest` begin a law
+      // line, where a NAME cannot stand; elsewhere they are NAMEs
+      if (!valid[NAME] && !valid[SENTINEL] && (strcmp(w, "always") == 0 || strcmp(w, "every") == 0 || strcmp(w, "attest") == 0)) return false;
       // F.6.1: `t` directly before a quote is the template prefix, not a name
       if (n == 1 && w[0] == 't' && lx->lookahead == '"') return false;
       // A declaration or statement starts a line (spec 2.6): where a line end is
@@ -228,14 +244,14 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
         int kw = 0;
         for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) kw = 1;
         if (!kw && strcmp(w, "where") && strcmp(w, "by") && strcmp(w, "label") && strcmp(w, "release") && strcmp(w, "endorse") &&
-            strcmp(w, "ct") && strcmp(w, "requires") && strcmp(w, "ensures") && strcmp(w, "ghost") && strcmp(w, "decreases")) {
+            strcmp(w, "ct") && strcmp(w, "requires") && strcmp(w, "ensures") && strcmp(w, "ghost") && strcmp(w, "decreases") && strcmp(w, "law")) {
           lx->result_symbol = BAD; return true;
         }
       }
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
       // contextual word (F.13): `by` is the keyword only where a NAME cannot stand
       if (strcmp(w, "by") == 0 && !valid[NAME]) return false;
-      if ((strcmp(w, "label") == 0 || strcmp(w, "release") == 0 || strcmp(w, "endorse") == 0 || strcmp(w, "ct") == 0 || strcmp(w, "requires") == 0 || strcmp(w, "ensures") == 0 || strcmp(w, "ghost") == 0 || strcmp(w, "decreases") == 0)) return false;
+      if ((strcmp(w, "label") == 0 || strcmp(w, "release") == 0 || strcmp(w, "endorse") == 0 || strcmp(w, "ct") == 0 || strcmp(w, "requires") == 0 || strcmp(w, "ensures") == 0 || strcmp(w, "ghost") == 0 || strcmp(w, "decreases") == 0 || strcmp(w, "law") == 0)) return false;
     }
     lx->mark_end(lx);
     s->started = 1; s->seen = 1;

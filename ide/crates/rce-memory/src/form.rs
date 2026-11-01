@@ -374,7 +374,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
             let line = ex.first().map(|e| e.line.saturating_sub(1)).unwrap_or(0);
             d(format!("intent \"{text}\""), "intent", line)
         }
-        Item::Example(_) | Item::Check(_) => return,
+        Item::Example(_) | Item::Check(_) | Item::Law(_) => return,
         Item::Const { name, ty, e, line } => {
             if let Some(t) = ty {
                 n.ty(t)

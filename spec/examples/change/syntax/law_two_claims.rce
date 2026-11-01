@@ -1,0 +1,12 @@
+# W-SYN-1: a law has exactly one claim (3.2)
+state S
+    n: u8 = 0
+
+event Tick
+
+step S on Tick
+    n = 1
+
+law small
+    always n < 2
+    always n < 3

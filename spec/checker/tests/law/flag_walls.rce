@@ -1,0 +1,70 @@
+intent "a flag in a sealed room on a board that wraps: winning is impossible"
+    example Left, Left, Up -> not won
+    example Up, Up, Up, Up -> y == 1
+    law you_cant_win
+        "no sequence of moves from the start reaches the flag"
+        always not won
+    law walls_hold
+        "a move never ends in a wall"
+        every step -> not wall(x, y)
+    law up_keeps_x
+        every step on Up -> x == old(x)
+
+const W: u8 = 12
+const H: u8 = 8
+const ROOM: u8 = 3
+const FLAG_X: u8 = 1
+const FLAG_Y: u8 = 1
+
+state Game
+    x: u8 = 8
+    y: u8 = 5
+    won: bool = false
+
+event Up
+event Down
+event Left
+event Right
+
+fn wall(x: u8, y: u8) -> bool
+    let east = x == ROOM and y <= ROOM
+    let south = x <= ROOM and y == ROOM
+    let north = x <= ROOM and y == H - 1
+    let west = x == W - 1 and y <= ROOM
+    return east or south or north or west
+
+fn up(y: u8) -> u8
+    if y == 0
+        return H - 1
+    return y - 1
+
+fn down(y: u8) -> u8
+    if y + 1 == H
+        return 0
+    return y + 1
+
+fn left(x: u8) -> u8
+    if x == 0
+        return W - 1
+    return x - 1
+
+fn right(x: u8) -> u8
+    if x + 1 == W
+        return 0
+    return x + 1
+
+fn on_flag(x: u8, y: u8) -> bool
+    return x == FLAG_X and y == FLAG_Y
+
+step Game on Up if not wall(x, up(y))
+    y = up(y)
+    won = won or on_flag(x, y)
+step Game on Down if not wall(x, down(y))
+    y = down(y)
+    won = won or on_flag(x, y)
+step Game on Left if not wall(left(x), y)
+    x = left(x)
+    won = won or on_flag(x, y)
+step Game on Right if not wall(right(x), y)
+    x = right(x)
+    won = won or on_flag(x, y)

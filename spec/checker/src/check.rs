@@ -519,6 +519,7 @@ impl Checker {
                     }
                 }
                 Item::Example(x) => self.check_example(x, m),
+                Item::Law(l) => self.check_law(l, m),
                 _ => {}
             }
         }
@@ -1580,6 +1581,69 @@ impl Checker {
         }
         self.end();
         Some(ev)
+    }
+
+    /// A law (6.11): `always p` is a bool over the state, fields in scope
+    /// by name as in an example's `-> e`; `every step on PAT if g -> o`
+    /// matches a declared event as a step does, g is a bool over the state
+    /// before the step and the pattern's names, and o a bool over the state
+    /// after it, with `old(f)` naming field f before it.
+    fn check_law(&mut self, l: &Law, m: &Module) {
+        let line = l.line;
+        let n = crate::law::laws(m).iter().filter(|x| x.name == l.name).count();
+        if n > 1 && crate::law::laws(m).iter().find(|x| x.name == l.name).is_some_and(|x| x.line != line) {
+            self.e(d(line, "W-NAME-2", format!("duplicate law `{}`", l.name)));
+        }
+        let fields: Vec<Field> = m
+            .items
+            .iter()
+            .filter_map(|i| if let Item::State { fields, .. } = i { Some(fields.clone()) } else { None })
+            .flatten()
+            .collect();
+        self.begin(Cx::Comptime, T::Unit, None, "law");
+        let mut put = |c: &mut Self, name: String, ty: &Ty, at: usize| {
+            let t = c.lower(ty, at);
+            c.scopes[0].insert(name, Local { ty: t, mutable: false, moved: false, depth: 1, param: false, field: true });
+        };
+        for f in &fields {
+            put(self, f.name.clone(), &f.ty, f.line);
+        }
+        match &l.claim {
+            LawClaim::Always(p) => {
+                let t = self.infer(p, false);
+                self.expect(&t, &T::Bool, line);
+            }
+            LawClaim::Every { pat, guard, outcome } => {
+                self.scopes.push(HashMap::new());
+                if let Some(p) = pat {
+                    match p {
+                        Pat::Path(q) | Pat::Ctor(q, _) if q.len() == 1 && matches!(self.types.get(&q[0]), Some(TyDef::Event { .. })) => {
+                            let ev = q[0].clone();
+                            self.bind_pat(p, &T::Named(ev, vec![]), line, false);
+                        }
+                        _ => self.e(d(line, "W-NAME-1", "the pattern of `every step on` must match a declared event")),
+                    }
+                }
+                if let Some(g) = guard {
+                    let t = self.infer(g, false);
+                    self.expect(&t, &T::Bool, line);
+                }
+                match outcome {
+                    LawOutcome::Expr(o) => {
+                        for f in &fields {
+                            put(self, format!("old({})", f.name), &f.ty, f.line);
+                        }
+                        let t = self.infer(o, false);
+                        self.expect(&t, &T::Bool, line);
+                    }
+                    LawOutcome::Kept(Some(x)) if !matches!(self.types.get(x), Some(TyDef::Error { .. })) => {
+                        self.e(d(line, "W-NAME-1", format!("`{x}` is not a declared error")));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.end();
     }
 
     fn check_example(&mut self, x: &Example, m: &Module) {

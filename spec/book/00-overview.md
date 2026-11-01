@@ -112,16 +112,16 @@ shift/reduce or reduce/reduce conflict, then parses every program in
 `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
 reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
-form one program and must be accepted; the 12 syntax rejects, the 49
-programs in `spec/examples/change/types/` and the 16 in
+form one program and must be accepted; the 13 syntax rejects, the 49
+programs in `spec/examples/change/types/` and the 17 in
 `spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py check`): the section-3 grammar has 0 conflicts
-(100 rules, 491 productions, 974 states); with the additions of C.2,
-0 conflicts (114 rules, 560 productions, 1152 states);
-with C.2 and F.13, 0 conflicts (119 rules, 590 productions,
-1219 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
-12/12 requiring change; checker 62/62 accepted, 12/12 and 65/65 requiring change (16 of them
+(104 rules, 512 productions, 1028 states); with the additions of C.2,
+0 conflicts (118 rules, 581 productions, 1206 states);
+with C.2 and F.13, 0 conflicts (123 rules, 611 productions,
+1273 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
+13/13 requiring change; checker 62/62 accepted, 13/13 and 66/66 requiring change (17 of them
 inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -141,4 +141,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: c2e9145f50a8a9ffa3f30fe5e2b9fed41067ec95c2630b66681bafe43ecf72ac -->
+<!-- body-sha256: ebccae41a8e68e329210c1334e50703923037434dd0352d5607fa704f099fbe4 -->

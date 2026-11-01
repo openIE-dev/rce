@@ -122,3 +122,96 @@ intent "a counter"
           (NAME)))
       (outcome_kept
         (STRING)))))
+
+========================================
+Laws: always, every step, attestations (3.2, 6.11)
+========================================
+
+intent "a pad"
+    law escape_quits
+        "Escape keeps the state"
+        every step on Key(code: 27) -> kept: Quit
+
+law counts
+    every step on Key(code: c) if c != 27 -> n == old(n) + 1
+
+law small
+    always n < 200
+    attest "A;2026-11-01;cover"
+
+law moves
+    every step -> applied
+
+law any_kept
+    every step -> kept
+
+---
+
+(start
+  (intent_decl
+    (STRING)
+    (law_decl
+      (NAME)
+      (doc_line
+        (STRING))
+      (law_every
+        (ctor_pat
+          (path
+            (NAME))
+          (pat_args
+            (pat_arg
+              (NAME)
+              (literal_pat
+                (INT)))))
+        (law_kept
+          (NAME)))))
+  (law_decl
+    (NAME)
+    (law_every
+      (ctor_pat
+        (path
+          (NAME))
+        (pat_args
+          (pat_arg
+            (NAME)
+            (name_pat
+              (path
+                (NAME))))))
+      (cmp_expr
+        (name
+          (NAME))
+        (cmp_op)
+        (INT))
+      (outcome_value
+        (cmp_expr
+          (name
+            (NAME))
+          (cmp_op)
+          (add_expr
+            (call
+              (name
+                (NAME))
+              (args
+                (arg
+                  (name
+                    (NAME)))))
+            (add_op)
+            (INT))))))
+  (law_decl
+    (NAME)
+    (law_always
+      (cmp_expr
+        (name
+          (NAME))
+        (cmp_op)
+        (INT)))
+    (law_attest
+      (STRING)))
+  (law_decl
+    (NAME)
+    (law_every
+      (law_applied)))
+  (law_decl
+    (NAME)
+    (law_every
+      (law_kept))))
