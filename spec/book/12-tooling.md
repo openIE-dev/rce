@@ -489,13 +489,19 @@ function of the module in no other way (5.15): a standard library method,
 or a function of another module, keeps its name even when the module
 declares a function, field or local of that name. After `.`, a name that is
 not called is renamed only as a field of the module's own types. A label
-`NAME:` in parentheses is renamed only when the callee is the module's own
-function, type, variant, event or error. A field name that a type of a
-standard library module the program uses (directly or through that
-module's own `use` lines) also declares keeps its text wherever it names a
-field, since a receiver's type is not known to the projection; it is still
-renamed where it names a local. Function calls by name are renamed at their
-call sites. The projection is deterministic and
+`NAME:` in parentheses, on the line of the parenthesis or on a line of its
+own, is renamed only when the callee is the module's own function, type,
+variant, event or error; `NAME:` inside braces is a map key (R7) and is
+renamed as the local it names. A field name that a type of a standard
+library module the program uses (directly or through that module's own
+`use` lines) also declares keeps its text wherever it names a field of a
+struct, event, error or variant (after `.`, as a label, and in a `struct`
+block), since a receiver's type is not known to the projection. It is
+still renamed where it names a local, a parameter, or a field of a `state`
+or `actor`, which steps and handlers name by its bare name; such a name
+takes its positional name at its first declaration that is renamed, so a
+struct field and a state field of one name are projected apart and
+consistently. Function calls by name are renamed at their call sites. The projection is deterministic and
 idempotent, and it has the same outcomes, outputs, ids and log hashes as
 the source: `rce trace` of the two is equal step for step except
 in the readable `event` field, since 6.1 hashes the positional forms
@@ -1030,4 +1036,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 4b827e1518e2ea13a01f3594d536245fb32ab8a5c67bef50f7fb4a493ddc5b33 -->
+<!-- body-sha256: 652439a8b2892a2e61dbd81d6495329e0557696063e24b99ee675ef889971754 -->
