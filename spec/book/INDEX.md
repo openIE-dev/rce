@@ -17,13 +17,13 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `10f9c2f732f6b8e7109738a22a8f6a50812d46f7f834244549ed10c26d5e9a81` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
 | `10-theorems.md` | `204c290b5f6600d0db4c39088894fe0193aa3c73c262c12f1bd7d0d23c693cf8` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `ebbf77ef787a4497ed66e4fca238dfc4accd3e99a178ee78c8831a08bb730045` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `652439a8b2892a2e61dbd81d6495329e0557696063e24b99ee675ef889971754` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `ece85238fb2f1d22383de9a33a2195e09e30dfcdba9aeb8611a8330c885c9880` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `6ddb2e411df319c73877a51e0572eccc44ae19cabf77df72b5d6159ea4e38a32` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
+| `14-draft06-concurrency.md` | `c047897b174656666713681488870268cbfe06b134331bc56900cb39ae6c2c95` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `fad7eeeb89f4f794212ec8699e52d99e0f345f5dff6edfb02af7c3dc3dbbec30` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `657e63da98492403c4e783b7e0067c2a56016c8d5f70609c43035cef877441d7` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 | `17-draft09.md` | `c27e706210376d17948c166a34a4756ca035a91227d5d415ceb87bc29a2073ce` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: f8fff2d6fd153ee507e56428770cba076648022d7b0bb3cd6b3132f952e25024 -->
+<!-- body-sha256: b77c9a5954d96ccd34aea8821c730f6fc9d62be03bba8dbbd6bebb821eaa2b32 -->

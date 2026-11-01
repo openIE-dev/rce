@@ -143,6 +143,10 @@ pub struct TaskCx {
     /// no OS thread may be started: a `par` with `wait` runs its branches
     /// one after another (`par_exec`), as on a host without threads
     pub no_threads: bool,
+    /// a task run as a state machine: what each of its lvar operations
+    /// gave, replayed at every move instead of touching the cells again.
+    /// Shared with the copies that run the branches of its `par`s
+    pub lv_tape: Option<Arc<Mutex<LvTape>>>,
 }
 
 /// The replay state of a task run as a state machine (`TaskCx::machine`).
@@ -151,11 +155,60 @@ pub struct TaskCx {
 /// start, `comm` returns the logged answers in order, and the first step
 /// with no answer yet is the task's next request, after which the run
 /// stops (`Flow::Suspend`). No thread of the host is needed.
+///
+/// Lvars. A cell is the one state a task can share with another task
+/// without the scheduler: once it has passed between tasks (`LCell::
+/// shared`), another task's puts change it between two moves of this one.
+/// A replay that read the cell again would read it at a later state than
+/// the step it repeats, and a replayed `lvar_new` would make a new cell,
+/// not the one other tasks hold. So every lvar operation of a state
+/// machine is logged with what it gave (`LvTape`), and a replay gives
+/// that back without touching any cell. The determinism argument:
+///
+/// 1. A task's body is a function of its arguments, its answers and the
+///    results of its lvar operations; a replay is given all three as the
+///    first run had them, so it takes the same path, step for step, to
+///    the first step not yet answered.
+/// 2. That step and everything after it run live, at the point of the run
+///    where a thread of the task would run them: in the task's move.
+/// 3. Moves see each other's lvar operations only once an lvar has passed
+///    between tasks; from then on (`Sched::lv_shared`) every task moves
+///    alone, in task order, on a thread as well as here, so the lvar
+///    operations of a tick happen in the same order on every host, and a
+///    `wait` the scheduler answers (`Op::Wait`) is answered at the same
+///    delivery.
+///
+/// So the live part of each move does what the thread does, and the log of
+/// the run is the same, entry for entry, with or without task threads.
 #[derive(Default)]
 pub struct Machine {
     replies: Vec<RepMsg>,
     pos: usize,
     out: Option<Req>,
+}
+
+/// What one lvar operation of a task held as a state machine gave
+/// (`TaskCx::lv_tape`). Replay must not touch a cell again: the cell may
+/// have passed to other tasks, which have changed it since, and a cell
+/// the task allocated must be the same cell, not a new one.
+#[derive(Clone)]
+pub enum LvStep {
+    /// `lvar_new`, `put`, `wait` or `freeze` done in the task: its result,
+    /// the fuel and cost units it took (a `put` runs the program's
+    /// `Merge`), and whether it changed the cell, which wakes the waits of
+    /// the enclosing `par`s
+    Did { r: Result<V, Flow>, fuel: u64, units: i128, bumped: bool },
+    /// a `wait` on a shared lvar that was not satisfied, so the scheduler
+    /// answers it (`Op::Wait`); replay asks again and gets the logged answer
+    Asked,
+}
+
+/// The lvar operations of a task held as a state machine, in the order
+/// the task did them; `pos` is how many of them this run has replayed.
+#[derive(Default)]
+pub struct LvTape {
+    steps: Vec<LvStep>,
+    pos: usize,
 }
 
 /// Whether the host can start OS threads. WASI preview 1 has none, so
@@ -217,6 +270,11 @@ pub struct LCell {
     v: Mutex<V>,
     top: Option<V>,
     frz: std::sync::atomic::AtomicBool,
+    /// set by the scheduler of `fn main` when the cell passes from one task
+    /// to another (a `spawn` argument, a message, a task's result): from
+    /// then on a task's `wait` on it that is not satisfied waits for
+    /// another task's put (`Op::Wait`) instead of failing
+    shared: std::sync::atomic::AtomicBool,
 }
 impl std::fmt::Debug for LCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -244,7 +302,12 @@ impl LCell {
             v: Mutex::new(b),
             top: it.next(),
             frz: std::sync::atomic::AtomicBool::new(false),
+            shared: std::sync::atomic::AtomicBool::new(false),
         }))
+    }
+    /// whether the cell has passed from one task to another
+    pub fn shared(&self) -> bool {
+        self.shared.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -504,6 +567,9 @@ pub enum Op {
     Join(String),
     AwaitScope(u64),
     Atomic(Vec<(V, V)>),
+    /// `wait(Q)` on a shared lvar (the cell, Q) that was not yet at a
+    /// threshold when the task reached it (`Interp::lvar_wait`)
+    Wait(V, Vec<V>),
     Done(Result<V, Flow>),
 }
 #[derive(Clone)]
@@ -514,6 +580,9 @@ pub enum Rep {
     Spawned(String),
     Cancel(u64),
     Failed(V),
+    /// the step ends in `Flow` in the task: an `Op::Wait` that no put can
+    /// satisfy any more traps there
+    Raise(Flow),
 }
 #[derive(Clone)]
 pub struct RepMsg {
@@ -648,6 +717,7 @@ impl<'a> Interp<'a> {
         c.cx.id = self.cx.id.clone();
         c.cx.now = self.cx.now;
         c.cx.no_threads = self.cx.no_threads;
+        c.cx.lv_tape = self.cx.lv_tape.clone();
         c
     }
 
@@ -1196,7 +1266,94 @@ impl<'a> Interp<'a> {
         merge_builtin(a, b)
     }
 
+    /// The next logged lvar operation of a task held as a state machine,
+    /// while this run replays its earlier steps; `None` once the run is
+    /// past them (or the task is not a state machine).
+    fn lv_replay(&mut self) -> Option<LvStep> {
+        let t = self.cx.lv_tape.as_ref()?;
+        let mut g = t.lock().unwrap();
+        let s = g.steps.get(g.pos).cloned()?;
+        g.pos += 1;
+        Some(s)
+    }
+
+    /// One lvar operation (`lvar_new`, `put`, `freeze`, `wait`). `live`
+    /// does it on the cell and gives its result, `Ok(None)` for a `wait`
+    /// the scheduler is to answer, and whether it changed the cell. In a
+    /// task held as a state machine the operation is logged, and a
+    /// replayed one gives what it gave when the task did it, and charges
+    /// what it charged then, without reading or changing any cell. The
+    /// body is a function of its arguments, its answers and these
+    /// results, so the replay takes the path of the run it repeats.
+    fn lv_op(&mut self, live: impl FnOnce(&mut Self) -> (R<Option<V>>, bool)) -> R<Option<V>> {
+        match self.lv_replay() {
+            Some(LvStep::Did { r, fuel, units, bumped }) => {
+                self.fuel = self.fuel.saturating_sub(fuel);
+                for b in self.cx.budgets.iter_mut() {
+                    b.0 = b.0.saturating_add(units);
+                }
+                self.cx.spent = self.cx.spent.saturating_add(units);
+                if bumped && let Some(ctx) = &self.cx.par_ctx {
+                    ctx.bump();
+                }
+                return r.map(Some);
+            }
+            Some(LvStep::Asked) => return Ok(None),
+            None => {}
+        }
+        let (f0, s0) = (self.fuel, self.cx.spent);
+        let (r, bumped) = live(self);
+        if let Some(t) = &self.cx.lv_tape {
+            let step = match &r {
+                Ok(None) => LvStep::Asked,
+                Ok(Some(v)) => LvStep::Did {
+                    r: Ok(v.clone()),
+                    fuel: f0.saturating_sub(self.fuel),
+                    units: self.cx.spent - s0,
+                    bumped,
+                },
+                Err(f) => LvStep::Did {
+                    r: Err(f.clone()),
+                    fuel: f0.saturating_sub(self.fuel),
+                    units: self.cx.spent - s0,
+                    bumped,
+                },
+            };
+            let mut g = t.lock().unwrap();
+            g.steps.push(step);
+            g.pos = g.steps.len();
+        }
+        r
+    }
+
+    /// `lvar_new(bottom)` or `lvar_new(bottom, top)`: a replayed allocation
+    /// gives the cell allocated when the task did it.
+    pub(crate) fn lvar_new(&mut self, vals: Vec<V>) -> V {
+        match self.lv_op(|_| (Ok(Some(LCell::new_value(vals))), false)) {
+            Ok(Some(v)) => v,
+            _ => V::Unit,
+        }
+    }
+
     fn lvar_put(&mut self, c: &Arc<LCell>, v: V) -> R<()> {
+        self.lv_op(|it| match it.lvar_put_live(c, v) {
+            Ok(changed) => {
+                if changed && let Some(ctx) = &it.cx.par_ctx {
+                    ctx.bump();
+                }
+                (Ok(Some(V::Unit)), changed)
+            }
+            Err(f) => (Err(f), false),
+        })
+        .map(|_| ())
+    }
+
+    fn lvar_freeze(&mut self, c: &Arc<LCell>) -> R<V> {
+        self.lv_op(|_| (Ok(Some(c.freeze())), false)).map(|v| v.unwrap_or(V::Unit))
+    }
+
+    /// `put` on the cell itself: whether the value changed.
+    fn lvar_put_live(&mut self, c: &Arc<LCell>, v: V) -> R<bool> {
         let changed = loop {
             let cur = c.peek();
             let nv = self.merge_values(&cur, &v)?;
@@ -1218,10 +1375,7 @@ impl<'a> Interp<'a> {
             *g = nv;
             break changed;
         };
-        if changed && let Some(ctx) = &self.cx.par_ctx {
-            ctx.bump();
-        }
-        Ok(())
+        Ok(changed)
     }
 
     /// `merge` for a threshold test: the program's own `Merge` (the order
@@ -1269,16 +1423,34 @@ impl<'a> Interp<'a> {
         Ok(())
     }
 
+    /// `wait(Q)`. In a task, outside the branches of a `par`, a wait on an
+    /// lvar that has passed between tasks and is not yet at a threshold is
+    /// a communication step (`Op::Wait`): the scheduler answers it once a
+    /// put of another task reaches a threshold.
     fn lvar_wait(&mut self, c: &Arc<LCell>, q: &V) -> R<V> {
         let V::List(ths) = q else {
             return trap("wait needs a list of thresholds");
         };
-        let ths = ths.clone();
+        let ths: Vec<V> = ths.iter().cloned().collect();
+        if let Some(t) = self.lv_op(|it| (it.lvar_wait_live(c, &ths), false))? {
+            return Ok(t);
+        }
+        match self.comm(Op::Wait(V::LVar(c.clone()), ths))? {
+            Rep::Val(t) => Ok(t),
+            _ => trap("bad wait"),
+        }
+    }
+
+    /// The part of `wait` a task does itself: the threshold reached, or
+    /// `None` when the scheduler is to answer it (`Op::Wait`).
+    fn lvar_wait_live(&mut self, c: &Arc<LCell>, ths: &[V]) -> R<Option<V>> {
+        let ths = ths.to_vec();
         self.lvar_incomp(c, &ths)?;
         let Some(ctx) = self.cx.par_ctx.clone() else {
             let cur = c.peek();
             return match self.lvar_above(&ths, &cur)? {
-                Some(t) => Ok(t),
+                Some(t) => Ok(Some(t)),
+                None if c.shared() && self.in_task() => Ok(None),
                 None => trap("lvar wait cannot be satisfied"),
             };
         };
@@ -1288,7 +1460,7 @@ impl<'a> Interp<'a> {
             // is not stops the branch, or fails once no put can come
             let cur = c.peek();
             return match self.lvar_above(&ths, &cur)? {
-                Some(t) => Ok(t),
+                Some(t) => Ok(Some(t)),
                 None if ctx.m.lock().unwrap().stuck => trap("lvar wait cannot be satisfied"),
                 None => Err(Flow::Suspend),
             };
@@ -1304,7 +1476,7 @@ impl<'a> Interp<'a> {
                 // this `ver` sees every put it counts
                 let cur = c.peek();
                 if let Some(t) = self.lvar_above(&ths, &cur)? {
-                    return Ok(t);
+                    return Ok(Some(t));
                 }
                 seen = Some(g.ver);
                 g.idle += 1;
@@ -1362,7 +1534,7 @@ impl<'a> Interp<'a> {
                 V::Unit
             }
             (V::LVar(c), "wait") => self.lvar_wait(c, a.first().unwrap_or(&V::Unit))?,
-            (V::LVar(c), "freeze") => c.freeze(),
+            (V::LVar(c), "freeze") => self.lvar_freeze(c)?,
             (V::List(xs), "pscan" | "pscan_incl") if a.len() == 2 => {
                 self.pscan(xs, &a[0], &a[1], m == "pscan_incl")?
             }
@@ -1396,6 +1568,7 @@ impl<'a> Interp<'a> {
             return match rep {
                 Rep::Cancel(f) => Err(Flow::Cancel(f)),
                 Rep::Failed(v) => Err(Flow::Fail(v)),
+                Rep::Raise(f) => Err(f),
                 r => Ok(r),
             };
         }
@@ -1416,6 +1589,7 @@ impl<'a> Interp<'a> {
         match rep {
             Rep::Cancel(f) => Err(Flow::Cancel(f)),
             Rep::Failed(v) => Err(Flow::Fail(v)),
+            Rep::Raise(f) => Err(f),
             r => Ok(r),
         }
     }
@@ -1779,6 +1953,8 @@ enum Host<'a> {
         fd: &'a FnDecl,
         args: Vec<V>,
         replies: Vec<RepMsg>,
+        /// its lvar operations so far (`LvTape`)
+        lv: Vec<LvStep>,
     },
 }
 
@@ -1828,58 +2004,27 @@ struct Sched<'a> {
     stop: Option<Outcome>,
     /// record the state of the run with every entry (`Entry::state`)
     trace: bool,
-    /// set when a run whose tasks are state machines needs task threads
-    /// (`NO_TASK_THREADS`)
-    no_threads: Option<String>,
+    /// set once an lvar has passed from one task to another
+    /// (`share_lvars`): from then on the tasks move one after another, in
+    /// task order, also when they are threads
+    lv_shared: bool,
 }
 
-/// The start of the failure of a run of `fn main` that needs task threads
-/// on a run whose tasks are state machines (10.3): when an lvar passes from
-/// one task to another (a `spawn` argument, a message, a task's result).
-/// Every other run of `fn main` needs no thread: where the host cannot
-/// start one (WASI preview 1, `wasm32-wasip1`) its tasks are state
-/// machines of the scheduler and the log is the same.
-pub const NO_TASK_THREADS: &str = "fn main needs task threads, which this host does not provide";
-
-/// The host's target name: on WASI `std::env::consts::OS` is empty.
-fn host_name() -> String {
-    if cfg!(all(target_os = "wasi", target_env = "p1")) {
-        "wasm32-wasip1".to_string()
-    } else if cfg!(target_os = "wasi") {
-        "wasm32-wasi".to_string()
-    } else {
-        format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)
-    }
-}
-
-/// Whether a value holds an lvar cell, at any depth.
-fn carries_lvar(v: &V) -> bool {
+/// Mark every lvar cell in `v`, at any depth, as passed between tasks
+/// (`LCell::shared`); whether there was one.
+fn share_lvars(v: &V) -> bool {
     match v {
-        V::LVar(_) => true,
-        V::Tuple(xs) | V::List(xs) | V::Set(xs) => xs.0.iter().any(carries_lvar),
-        V::Map(kv) => kv.0.iter().any(|(k, v)| carries_lvar(k) || carries_lvar(v)),
-        V::Opt(Some(x)) | V::Err(x) => carries_lvar(&x.0),
-        V::Rec(_, fs) => fs.0.iter().any(|(_, v)| carries_lvar(v)),
-        V::Closure(_, _, env) => env.iter().any(|fr| fr.values().any(carries_lvar)),
+        V::LVar(c) => {
+            c.shared.store(true, std::sync::atomic::Ordering::SeqCst);
+            true
+        }
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => xs.0.iter().fold(false, |a, x| share_lvars(x) | a),
+        V::Map(kv) => kv.0.iter().fold(false, |a, (k, v)| share_lvars(k) | share_lvars(v) | a),
+        V::Opt(Some(x)) | V::Err(x) => share_lvars(&x.0),
+        V::Rec(_, fs) => fs.0.iter().fold(false, |a, (_, v)| share_lvars(v) | a),
+        V::Closure(_, _, env) => env.iter().fold(false, |a, fr| fr.values().fold(a, |a, v| share_lvars(v) | a)),
         _ => false,
     }
-}
-
-/// Whether a request passes an lvar to another task or actor.
-fn carries_lvar_req(op: &Op) -> bool {
-    match op {
-        Op::Send(_, v) => carries_lvar(v),
-        Op::Select { arms, .. } => arms.iter().any(|a| matches!(a, SArm::Send(_, v) if carries_lvar(v))),
-        Op::Spawn { args, .. } => args.iter().any(carries_lvar),
-        Op::Atomic(sends) => sends.iter().any(|(_, v)| carries_lvar(v)),
-        Op::Done(Ok(v)) => carries_lvar(v),
-        _ => false,
-    }
-}
-
-/// Whether an error of `run_main` is the failure to start a task thread.
-pub fn is_no_task_threads(e: &str) -> bool {
-    e.starts_with(NO_TASK_THREADS)
 }
 
 thread_local! {
@@ -1946,7 +2091,7 @@ impl<'a> Sched<'a> {
                 _ => None,
             },
             trace: false,
-            no_threads: None,
+            lv_shared: false,
         }
     }
 
@@ -1992,6 +2137,7 @@ impl<'a> Sched<'a> {
         self.log.len() - 1
     }
     fn msg(&mut self, node: usize, what: String, v: V) -> Msg {
+        self.lv_shared |= share_lvars(&v);
         let e = self.local(node, what);
         Msg {
             v,
@@ -2024,6 +2170,7 @@ impl<'a> Sched<'a> {
             fd,
             args,
             replies: vec![],
+            lv: vec![],
         });
         self.slots.push(Slot {
             id,
@@ -2109,15 +2256,20 @@ impl<'a> Sched<'a> {
         let m = self.m;
         let pm = self.cfg.par_mode;
         let id = self.slots[i].id.clone();
-        let Host::Machine { fd, args, replies } = &mut self.slots[i].host else {
+        let Host::Machine { fd, args, replies, lv } = &mut self.slots[i].host else {
             unreachable!("move_machine on a task thread")
         };
         replies.push(rm);
         let (fd, args) = (*fd, args.clone());
+        let tape = Arc::new(Mutex::new(LvTape {
+            steps: std::mem::take(lv),
+            pos: 0,
+        }));
         let mut it = Interp::new(m);
         it.cx.id = id;
         it.cx.par_mode = pm;
         it.cx.no_threads = true;
+        it.cx.lv_tape = Some(tape.clone());
         let first = replies[0].clone();
         it.cx.machine = Some(Machine {
             replies: std::mem::take(replies),
@@ -2136,18 +2288,15 @@ impl<'a> Sched<'a> {
             _ => Err(Flow::Cancel(CANCEL_TASK)),
         };
         let mc = it.cx.machine.take().expect("machine state");
-        if let Host::Machine { replies, .. } = &mut self.slots[i].host {
+        drop(it);
+        if let Host::Machine { replies, lv, .. } = &mut self.slots[i].host {
             *replies = mc.replies;
+            *lv = std::mem::take(&mut tape.lock().unwrap().steps);
         }
         mc.out.unwrap_or(Req {
             op: Op::Done(r),
             dl: vec![],
         })
-    }
-
-    /// Whether some task of the run is held as a state machine.
-    fn has_machines(&self) -> bool {
-        self.cfg.tasks == Tasks::Machines || self.slots.iter().any(|s| matches!(s.host, Host::Machine { .. }))
     }
 
     fn order(&self) -> Vec<usize> {
@@ -2470,6 +2619,20 @@ impl<'a> Sched<'a> {
                 }
                 self.local(0, "Atomic".into());
                 Some(Rep::Val(V::Unit))
+            }
+            Op::Wait(cell, ths) => {
+                // answered at the first delivery at which some put has
+                // brought the cell to a threshold; every put of the tick's
+                // moves is done by then
+                let V::LVar(c) = cell else {
+                    return Some(Rep::Raise(Flow::Trap("wait needs an lvar".into())));
+                };
+                let cur = c.peek();
+                match self.it.lvar_above(ths, &cur) {
+                    Ok(Some(t)) => Some(Rep::Val(t)),
+                    Ok(None) => None,
+                    Err(f) => Some(Rep::Raise(f)),
+                }
             }
             Op::Done(_) => None,
         }
@@ -2841,6 +3004,17 @@ impl<'a> Sched<'a> {
         any
     }
 
+    /// Take the request a task thread sent at the end of its move.
+    fn take_request(&mut self, i: usize, r: Result<Req, mpsc::RecvError>) {
+        match r {
+            Ok(req) => self.slots[i].st = St::Pending(req),
+            Err(_) => {
+                self.slots[i].st = St::Done;
+                self.slots[i].result = Some(Err("task stopped".into()));
+            }
+        }
+    }
+
     fn finish_task(&mut self, i: usize, r: &Result<V, Flow>) -> Option<Outcome> {
         let res = match r {
             Ok(v) => Ok(v.clone()),
@@ -2889,8 +3063,13 @@ impl<'a> Sched<'a> {
             let order = self.order();
             // move phase: each task that may move runs to its next
             // communication step: a task thread at the same time as the
-            // others, a state machine here, in task order. Tasks share no
-            // state but through the scheduler, so the steps are the same
+            // others, a state machine here, in task order. Until an lvar
+            // has passed between tasks, tasks share no state but through
+            // the scheduler, so the steps are the same in any order. Once
+            // one has (`lv_shared`), a task's lvar operations can see
+            // another's, so every task moves alone, in task order, also on
+            // a thread: the order of all lvar operations of a tick is then
+            // fixed by the program, whatever host runs the tasks
             let mut moved = vec![];
             for &i in &order {
                 if let St::Ready(_) = &self.slots[i].st {
@@ -2899,8 +3078,12 @@ impl<'a> Sched<'a> {
                     };
                     let rm = RepMsg { tick: self.tick, rep };
                     match &self.slots[i].host {
-                        Host::Thread { tx, .. } => {
+                        Host::Thread { tx, rx } => {
                             let _ = tx.send(rm);
+                            if self.lv_shared {
+                                let r = rx.recv();
+                                self.take_request(i, r);
+                            }
                         }
                         Host::Machine { .. } => {
                             let req = self.move_machine(i, rm);
@@ -2915,12 +3098,9 @@ impl<'a> Sched<'a> {
                 let Host::Thread { rx, .. } = &self.slots[i].host else {
                     continue;
                 };
-                match rx.recv() {
-                    Ok(req) => self.slots[i].st = St::Pending(req),
-                    Err(_) => {
-                        self.slots[i].st = St::Done;
-                        self.slots[i].result = Some(Err("task stopped".into()));
-                    }
+                if self.slots[i].result.is_none() && matches!(self.slots[i].st, St::Done) {
+                    let r = rx.recv();
+                    self.take_request(i, r);
                 }
             }
             // actors handle one message each, admitted at an earlier tick
@@ -2933,17 +3113,12 @@ impl<'a> Sched<'a> {
                 let St::Pending(req) = std::mem::replace(&mut self.slots[i].st, St::Done) else {
                     continue;
                 };
-                if self.has_machines() && carries_lvar_req(&req.op) {
-                    // a state machine's earlier steps run again at every
-                    // move, so an lvar shared with another task would be
-                    // read at a later state than the step it belongs to
-                    let e = format!("{NO_TASK_THREADS} ({}: an lvar passes from one task to another)", host_name());
-                    self.slots[i].st = St::Pending(req);
-                    self.no_threads = Some(e.clone());
-                    return Outcome::Stopped(e);
-                }
                 if let Op::Done(r) = &req.op {
                     progress = true;
+                    if let Ok(v) = r {
+                        // a task's result passes to the task that joins it
+                        self.lv_shared |= share_lvars(v);
+                    }
                     if let Some(o) = self.finish_task(i, r) {
                         return o;
                     }
@@ -2967,13 +3142,10 @@ impl<'a> Sched<'a> {
                         return Outcome::Stopped(format!("trap: no task function {f}"));
                     };
                     self.local(0, format!("Spawn(task {id}, priority {prio})"));
-                    self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope);
-                    if args.iter().any(carries_lvar) && self.has_machines() {
-                        let e = format!("{NO_TASK_THREADS} ({}: an lvar passes from one task to another)", host_name());
-                        self.slots[i].st = St::Ready(rep);
-                        self.no_threads = Some(e.clone());
-                        return Outcome::Stopped(e);
+                    for a in args {
+                        self.lv_shared |= share_lvars(a);
                     }
+                    self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope);
                 }
                 self.slots[i].st = St::Ready(rep);
             }
@@ -2998,7 +3170,19 @@ impl<'a> Sched<'a> {
                     _ => false,
                 });
                 if !timers && !future_links {
-                    return Outcome::Deadlock;
+                    // no put can come any more: the waits on lvars fail
+                    // together, as the waits of a `par` do (T29), and the
+                    // run goes on; with none, the run is deadlocked
+                    let mut failed = false;
+                    for sl in self.slots.iter_mut() {
+                        if let St::Pending(Req { op: Op::Wait(..), .. }) = sl.st {
+                            sl.st = St::Ready(Rep::Raise(Flow::Trap("lvar wait cannot be satisfied".into())));
+                            failed = true;
+                        }
+                    }
+                    if !failed {
+                        return Outcome::Deadlock;
+                    }
                 }
             }
         }
@@ -3057,9 +3241,6 @@ fn run_main_with(m: &Module, cfg: &RunCfg, trace: bool) -> Result<RunResult, Str
         }
         (o, sch)
     });
-    if let Some(e) = sch.no_threads {
-        return Err(e);
-    }
     Ok(RunResult {
         outputs: sch.outputs,
         outcome,

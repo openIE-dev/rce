@@ -1,0 +1,69 @@
+intent "a register file of four bytes, with sums, shifts, divisions and a mode"
+    example Put(i: 1, v: 7), Put(i: 2, v: 9), Sum -> acc == 16
+    example Put(i: 4, v: 1), Sum -> acc == 0
+    example Put(i: 0, v: 12), Sum, Div(d: 0), Toggle -> acc == 12
+    example Put(i: 0, v: 12), Sum, Div(d: 5), Shift(s: 3) -> acc == 16
+    example Shift(s: 16), Toggle -> acc == 0
+    example Count(n: 3), Count(n: 9) -> acc == 6
+    example Neg(x: -128), Toggle -> acc == 0
+    example Neg(x: -5), Toggle, Toggle, Toggle -> mode == Busy
+
+kind Mode
+    Idle
+    Busy
+
+state File
+    regs: [u8; 4] = [0, 0, 0, 0]
+    acc: u16 = 0
+    mode: Mode = Idle
+
+event Put(i: usize, v: u8)
+event Sum
+event Div(d: u16)
+event Shift(s: u16)
+event Count(n: u8)
+event Neg(x: i8)
+event Toggle
+
+fn total(xs: [u8; 4]) -> u16
+    var s: u16 = 0
+    for x in xs
+        s = s + (x as u16)
+    return s
+
+fn flip(m: Mode) -> Mode
+    match m
+        Idle -> return Busy
+        Busy -> return Idle
+
+step File on Put(i: i, v: v)
+    regs[i] = v
+
+step File on Sum
+    acc = total(regs)
+    emit acc
+    emit acc > 10
+
+step File on Div(d: d)
+    acc = acc / d
+
+step File on Shift(s: s)
+    acc = acc << s
+
+step File on Count(n: n)
+    var i: u8 = 0
+    while i < n bound 5
+        acc += 1
+        i += 1
+        if i == 3
+            break
+    emit i
+
+step File on Neg(x: x)
+    let y = -x
+    emit y
+    emit mode
+
+step File on Toggle
+    mode = flip(mode)
+    emit mode

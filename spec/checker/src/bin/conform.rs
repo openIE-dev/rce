@@ -114,7 +114,6 @@ fn run(src: &str, events: Option<&str>, fuel: Option<u64>, seed: Option<u64>) ->
                 };
                 json!({"verdict": "accept", "outputs": outputs, "outcome": outcome})
             }
-            Err(e) if conc::is_no_task_threads(&e) => json!({"verdict": "accept", "error": e}),
             Err(e) => json!({"verdict": "accept", "error": format!("{e}: give events, or declare `fn main()`")}),
         };
     }

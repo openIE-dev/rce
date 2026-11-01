@@ -19,10 +19,15 @@ case "${1:-}" in
   --check) echo "--check was removed; write: scripts/regen-spec.sh check" >&2; exit 2 ;;
   *) echo "usage: scripts/regen-spec.sh [check]" >&2; exit 2 ;;
 esac
+# Name the spec directory: both binaries otherwise use the checkout they
+# were built from (env!("CARGO_MANIFEST_DIR")), and cargo reuses a binary
+# that another checkout built into a shared CARGO_TARGET_DIR when the
+# sources are no newer, so it would write or check that checkout's spec.
+spec="$here/spec"
 if [ "${1:-}" = "check" ]; then
-  "$book" build check
-  "$data" check
+  "$book" build check "$spec"
+  "$data" check "$spec"
 else
-  "$book" build
-  "$data"
+  "$book" build "$spec"
+  "$data" "$spec"
 fi

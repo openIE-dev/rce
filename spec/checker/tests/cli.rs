@@ -88,28 +88,16 @@ fn run_main_and_errors() {
 /// A host that cannot start a task thread (WASI preview 1 has none): the
 /// tasks it cannot start are state machines of the scheduler (10.3), so
 /// `rce run` and `rce trace` on `fn main` print what a host with threads
-/// prints, with the same status. What still needs task threads is a run in
-/// which an lvar passes from one task to another: there `rce run` and the
-/// trace of `fn main` fail with one line naming the limit and status 4,
-/// never a panic, and `rce trace` still prints the example traces and a
-/// main trace `{outcome: {absent: R}}`. The limit is set on this test's
-/// thread, so other tests are not affected.
+/// prints, with the same status. That holds also when an lvar passes from
+/// one task to another: here a spawned task fills the lvar it is given and
+/// sends it back, and the run prints the same output, trace and status
+/// with every task on a thread, with only `fn main` on one, and with none.
+/// The limit is set on this test's thread, so other tests are not affected.
 #[test]
 fn main_without_task_threads_runs_as_state_machines() {
     use rce_spec_check::conc;
     let spawn = "../examples/13_spawn_chan.rce";
     let actors = "../examples/37_actor_spawn.rce";
-    // 0: the thread of main itself; 1: the task main spawns, during the run
-    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1), (actors, 0)] {
-        conc::refuse_task_threads_after(None);
-        let want_run = rce(&["run", file]);
-        let want_trace = rce(&["trace", file]);
-        assert_eq!(want_run.0, cli::OK, "{file}: {}", want_run.2);
-        conc::refuse_task_threads_after(Some(after));
-        assert_eq!(rce(&["run", file]), want_run, "{file} {after}");
-        conc::refuse_task_threads_after(Some(after));
-        assert_eq!(rce(&["trace", file]), want_trace, "{file} {after}");
-    }
     let lv = std::env::temp_dir().join(format!("rce-lvar-tasks-{}.rce", std::process::id()));
     std::fs::write(
         &lv,
@@ -120,30 +108,21 @@ fn main_without_task_threads_runs_as_state_machines() {
         ),
     )
     .unwrap();
-    let file = lv.to_str().unwrap();
-    conc::refuse_task_threads_after(None);
-    let (c, out, err) = rce(&["run", file]);
-    assert_eq!((c, out.as_str()), (cli::OK, "emit 5\n"), "{err}");
-    for after in [0, 1] {
+    let lvars = lv.to_str().unwrap();
+    // 0: the thread of main itself; 1: the task main spawns, during the run
+    for (file, after) in [(HELLO, 0), (spawn, 0), (spawn, 1), (actors, 0), (lvars, 0), (lvars, 1)] {
+        conc::refuse_task_threads_after(None);
+        let want_run = rce(&["run", file]);
+        let want_trace = rce(&["trace", file]);
+        assert_eq!(want_run.0, cli::OK, "{file}: {}", want_run.2);
         conc::refuse_task_threads_after(Some(after));
-        let (c, out, err) = rce(&["run", file]);
-        assert_eq!((c, out.as_str()), (cli::HOST_LIMIT, ""), "{after}: {err}");
-        assert_eq!(err.lines().count(), 1, "{err}");
-        assert!(err.starts_with(&format!("{file}: {}", conc::NO_TASK_THREADS)), "{err}");
-        assert!(err.contains("an lvar passes from one task to another"), "{err}");
-
+        assert_eq!(rce(&["run", file]), want_run, "{file} {after}");
         conc::refuse_task_threads_after(Some(after));
-        let (c, out, err) = rce(&["trace", file]);
-        assert_eq!(c, cli::HOST_LIMIT, "{err}");
-        assert_eq!(err.lines().count(), 1, "{err}");
-        assert!(err.starts_with(&format!("{file}: no trace of fn main: {}", conc::NO_TASK_THREADS)), "{err}");
-        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        let main = v["traces"].as_array().unwrap().last().unwrap().clone();
-        assert_eq!(main["source"], "main");
-        assert_eq!(main["steps"], json!([]));
-        assert!(main["outcome"]["absent"].as_str().unwrap().starts_with(conc::NO_TASK_THREADS));
+        assert_eq!(rce(&["trace", file]), want_trace, "{file} {after}");
     }
     conc::refuse_task_threads_after(None);
+    let (c, out, err) = rce(&["run", lvars]);
+    assert_eq!((c, out.as_str(), err.as_str()), (cli::OK, "emit 5\n", ""));
     let _ = std::fs::remove_file(&lv);
 }
 

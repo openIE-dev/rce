@@ -1,4 +1,5 @@
-//! Emitters for `rce emit rust|python|js|scala` (spec 10.5).
+//! Emitters for `rce emit rust|python|js|scala` (spec 10.5); `verilog`, the
+//! step function as a hardware module, is in `verilog.rs`.
 //!
 //! Each emitter turns a checked module into one self-contained source file.
 //! The file starts with a runtime that follows the reference evaluator
@@ -27,6 +28,7 @@ mod probe;
 mod prog;
 mod stmt;
 mod tasks;
+pub mod verilog;
 pub use probe::with_probes;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

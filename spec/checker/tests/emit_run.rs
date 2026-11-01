@@ -1500,6 +1500,243 @@ fn main_traces_agree_on_every_target() {
 /// the reference run, whose tasks are threads, entry for entry (tick,
 /// node, text, vector clock, cause and state), with the same outputs,
 /// choices, ticks and outcome, and so the same trace of `fn main`.
+/// Runs of `fn main` in which an lvar passes from one task to another
+/// (10.3): (name, program, the outputs of the reference run, its outcome).
+/// The handle passes by move (a `spawn` argument, a message to a channel
+/// or an actor, a task's result) or is shared by a closure that captures
+/// it, so two tasks hold it at once; `late_fill` and `owner` fill it after
+/// the task that waits on it has started.
+const LVAR_PASSING: &[(&str, &str, &[&str], &str)] = &[
+    (
+        "spawn_arg",
+        "fn reader(l: lvar i64, out: chan i64)
+    l.put(2)
+    out <- l.freeze()
+
+fn main()
+    let out = chan[i64](1)
+    let l = lvar_new(0)
+    l.put(1)
+    spawn reader(l, out)
+    match <- out
+        some(v) -> emit v
+        none -> emit 0
+",
+        &["2"],
+        "Done",
+    ),
+    (
+        "message",
+        "fn adder(c: chan lvar i64, done: chan i64)
+    match <- c
+        some(l) -> done <- adder_put(l)
+        none -> done <- 0
+
+fn adder_put(l: lvar i64) -> i64
+    l.put(3)
+    l.put(9)
+    l.freeze()
+
+fn main()
+    let c = chan[lvar i64](1)
+    let done = chan[i64](1)
+    let l = lvar_new(0)
+    spawn adder(c, done)
+    l.put(1)
+    c <- l
+    match <- done
+        some(v) -> emit v
+        none -> emit 0
+",
+        &["9"],
+        "Done",
+    ),
+    (
+        "result",
+        "fn maker(c: chan i64, n: i64) -> lvar i64
+    let l = lvar_new(0)
+    l.put(n)
+    c <- n
+    l
+
+fn main()
+    let c = chan[i64](1)
+    scope
+        spawn maker(c, 4) -> h
+        let l = h.join() catch lvar_new(100)
+        l.put(6)
+        emit l.freeze()
+",
+        &["6"],
+        "Done",
+    ),
+    (
+        "actor",
+        "event Fill(l: lvar i64, n: i64, back: chan lvar i64)
+
+actor Filler
+    seen: i64 = 0
+    on Fill(l: l, n: n, back: b)
+        seen += 1
+        l.put(n)
+        b <- l
+
+fn main()
+    let a = Filler()
+    let back = chan[lvar i64](1)
+    let l = lvar_new(0)
+    l.put(1)
+    a <- Fill(l: l, n: 4, back: back)
+    match <- back
+        some(m) -> emit m.wait([4])
+        none -> emit 0
+",
+        &["4"],
+        "Done",
+    ),
+    (
+        "late_fill",
+        "fn reader(f: fn(i64) -> i64, out: chan i64)
+    emit 1
+    out <- f(5) * 2
+
+fn main()
+    let l = lvar_new(0)
+    let out = chan[i64](1)
+    let gap = chan[i64](4)
+    let f = fn(x: i64) => l.wait([x])
+    spawn reader(f, out)
+    gap <- 1
+    gap <- 2
+    match <- gap
+        some(v) -> emit v
+        none -> emit 0
+    match <- gap
+        some(v) -> emit v
+        none -> emit 0
+    l.put(5)
+    match <- out
+        some(v) -> emit v
+        none -> emit 0
+    emit l.freeze()
+",
+        &["1", "1", "2", "10", "5"],
+        "Done",
+    ),
+    (
+        "owner",
+        "fn owner(back: chan fn(i64) -> (), out: chan i64)
+    let l = lvar_new(0)
+    let g = fn(x: i64) => l.put(x)
+    back <- g
+    let t = l.wait([7])
+    out <- t + 1
+    emit l.freeze()
+
+fn main()
+    let back = chan[fn(i64) -> ()](1)
+    let out = chan[i64](1)
+    spawn owner(back, out)
+    match <- back
+        some(g) -> g(7)
+        none -> emit 0
+    match <- out
+        some(v) -> emit v
+        none -> emit 0
+",
+        &["7", "8"],
+        "Done",
+    ),
+    (
+        "par_in_task",
+        "fn worker(l: lvar i64, out: chan i64)
+    let m = lvar_new(0)
+    var x: i64 = 0
+    par
+        branch one
+            x = m.wait([2]) + l.wait([4])
+        branch two
+            m.put(2)
+    out <- x
+    emit m.freeze()
+
+fn main()
+    let out = chan[i64](1)
+    let l = lvar_new(0)
+    l.put(4)
+    spawn worker(l, out)
+    match <- out
+        some(v) -> emit v
+        none -> emit 0
+",
+        &["2", "6"],
+        "Done",
+    ),
+    (
+        "never_filled",
+        "fn reader(f: fn(i64) -> i64, out: chan i64)
+    out <- f(5)
+
+fn main()
+    let l = lvar_new(0)
+    let out = chan[i64](1)
+    let f = fn(x: i64) => l.wait([x])
+    spawn reader(f, out)
+    l.put(2)
+    emit l.freeze()
+    match <- out
+        some(v) -> emit v
+        none -> emit 0
+",
+        &["2"],
+        "Deadlock",
+    ),
+];
+
+/// An lvar passed from one task to another (10.3): with every task a state
+/// machine, with every task a thread, and with only `fn main` on a thread,
+/// each run of `LVAR_PASSING` writes the same log, entry for entry, and
+/// the outputs and outcome the reference gives. Twenty threaded runs of
+/// each give that log too: once an lvar has passed, the tasks move one
+/// after another, so the threaded run does not depend on the host's
+/// interleaving.
+#[test]
+fn lvar_passing_traces_without_threads_equal_the_reference() {
+    use rce_spec_check::conc::{Tasks, refuse_task_threads_after, run_main_traced};
+    for (n, src, outs, outcome) in LVAR_PASSING {
+        let m = parse(src).unwrap();
+        let threads = RunCfg { tasks: Tasks::Threads, ..RunCfg::default() };
+        let machines = RunCfg { tasks: Tasks::Machines, ..RunCfg::default() };
+        let a = run_main_traced(&m, &threads).unwrap_or_else(|e| panic!("{n}: {e}"));
+        let shown: Vec<String> = a.outputs.iter().map(|o| o.show()).collect();
+        assert_eq!(shown, *outs, "{n}: outputs");
+        assert_eq!(format!("{:?}", a.outcome), *outcome, "{n}: outcome");
+        let log = |r: &rce_spec_check::conc::RunResult| r.log.iter().map(|e| format!("{e:?}")).collect::<Vec<_>>();
+        let want = log(&a);
+        let mut runs = vec![("machines", run_main_traced(&m, &machines))];
+        refuse_task_threads_after(Some(1));
+        runs.push(("main on a thread", run_main_traced(&m, &threads)));
+        refuse_task_threads_after(None);
+        for _ in 0..20 {
+            runs.push(("threads", run_main_traced(&m, &threads)));
+        }
+        for (how, b) in runs {
+            let b = b.unwrap_or_else(|e| panic!("{n} {how}: {e}"));
+            assert_eq!(format!("{:?}", a.outcome), format!("{:?}", b.outcome), "{n} {how}");
+            let got = log(&b);
+            assert_eq!(want.len(), got.len(), "{n} {how}: log length");
+            for (k, (x, y)) in want.iter().zip(&got).enumerate() {
+                assert_eq!(x, y, "{n} {how}: entry {k}");
+            }
+            assert_eq!(format!("{:?}", a.outputs), format!("{:?}", b.outputs), "{n} {how}");
+            assert_eq!((&a.choices, a.ticks), (&b.choices, b.ticks), "{n} {how}");
+        }
+        let ta = rce_spec_check::cli::main_trace(&m, &threads).unwrap();
+        let tb = rce_spec_check::cli::main_trace(&m, &machines).unwrap();
+        assert_eq!(ta, tb, "{n}");
+    }
+}
+
 #[test]
 fn main_traces_without_threads_equal_the_reference() {
     use rce_spec_check::conc::{Tasks, run_main_traced};

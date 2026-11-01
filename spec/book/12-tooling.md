@@ -34,10 +34,8 @@ and shows that the step of the third event keeps the state, with exit status 1.
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `fuel` before either equivalence or a
    distinguishing event sequence was established, and `rce law` when the
-   bound LAW_FUEL left a law undecided (10.11). 4 means a run
-   the host cannot perform: a run of `fn main` in which an lvar passes
-   from one task to another needs task threads, and the host cannot start
-   one (10.3).
+   bound LAW_FUEL left a law undecided (10.11). Status 4 is not used:
+   every run of `fn main` runs on a host without task threads too (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -147,18 +145,42 @@ host cannot start a thread, such as WASI preview 1 (`rce` built for
 `wasm32-wasip1`), every task is a state machine and every `par` runs this
 way, so the run needs no thread and prints what it prints on any host.
 
-One run still needs task threads: one in which an lvar (C.11.8) passes
-from one task to another, as a `spawn` argument, in a message to a
-channel or an actor, or as a task's result. A state machine runs its
-earlier steps again at every move, so it would read a shared lvar at a
-later state than the step it belongs to. On a host without threads such
-a run stops at that step: the command prints nothing on standard output
-and one line on standard error, `FILE: fn main needs task threads, which
-this host does not provide (HOST: an lvar passes from one task to
-another)`, HOST being the host's target, and the status is 4. Whatever
-output the run had produced before that step is not printed. The tick
-runtime written in the core, which `rce run-core` would run, is still
-the next slice of the proposal `one-emitter.md` (section 13, 10.12).
+An lvar (C.11.8) can pass from one task to another, as a `spawn`
+argument, in a message to a channel or an actor, as a task's result, or
+inside a closure that captures it, and is then shared: from that point on
+a task's lvar operations can see another task's. The reference keeps
+such a run a function of the program on every host by three rules.
+
+1. **Logged lvar operations.** A state machine logs what each of its lvar
+   operations gave (`lvar_new`, `put`, `wait`, `freeze`) with the fuel and
+   cost units it took and whether it changed the cell (`conc::LvTape`).
+   A replay gives each logged result back and charges its cost without
+   reading or changing any cell, so a replayed `lvar_new` is the cell
+   other tasks hold, not a new one, and a replayed read is not made at a
+   later state.
+2. **Moves in task order.** Once an lvar has passed between tasks, every
+   task moves alone, in task order (6.8), on a thread as well as when it
+   is a state machine, so the lvar operations of a tick happen in one
+   order on every host.
+3. **Waits the scheduler answers.** In a task, outside the branches of a
+   `par`, a `wait` on a shared lvar that is at no threshold is a
+   communication step: the scheduler answers it at the first delivery
+   at which a put has brought the lvar to a threshold, and when no task
+   can move any more such waits trap with `lvar wait cannot be
+   satisfied`, as the waits of a `par` do (T29).
+
+A body is a function of its arguments, its answers and the results of its
+lvar operations, and a replay is given all three, so it takes the path of
+the run it repeats up to the first step not yet answered; that step and
+the steps after it run at the point of the run where a thread of the task
+runs them, in its move, and the moves happen in the same order on every
+host. The log is therefore the same entry for entry with or without
+threads (`emit_run.rs`, `lvar_passing_traces_without_threads_equal_the_reference`,
+on eight programs that pass an lvar by each route, two of them filling it
+after the waiting task has started, each also on twenty threaded runs).
+No run of `fn main` needs task threads. The tick runtime written in the
+core, which `rce run-core` would run, is still the next slice of the
+proposal `one-emitter.md` (section 13, 10.12).
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -192,11 +214,12 @@ the proposal `spec/proposals/one-emitter.md`, ONE-3).
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
 | `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
+| `verilog` | the step function δ as one synthesizable Verilog-2005 module (IEEE 1364-2005), for the subset of the proposal `spec/proposals/emit-verilog.md` (informative) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
-The four program targets are the ones this checker emits. The language
+The four program targets and `verilog` are the ones this checker emits. The language
 places no bound on targets, and it is designed so that every language is
 both an output of the Form (a target, printed through a per-language
 table) and an input (a lift, the reverse map, from the language's grammar
@@ -380,6 +403,39 @@ fuel limit where the reference's result changes and at the limit before
 it (258 runs over the three targets), and requires the same outputs and
 outcome.
 
+**The Verilog target.** `verilog` prints δ, not the observations: one
+module that holds the state in registers, loaded with the initial state
+s0 at reset, and takes one step per clock on the event at its inputs (a
+tag, a payload and a valid strobe). Its outputs are the outcome of the
+step (applied, or kept with the declared error or the trap and the value
+the trap names), the values the step emitted, and the state registers.
+Loops are unrolled to their constant bounds and calls are inlined; every
+integer operation is computed at a width that holds its exact result and
+then checked against its type (6.3 N2), so an overflow or another trap
+keeps the state where the reference evaluator keeps it, with the same
+reason. The subset is the proposal's EV-1: integer, `bool`, field-less
+`kind` and fixed-array state and event fields, steps whose loops have
+constant bounds, non-recursive functions, and no text, list, map, task or
+`fn main`. A program outside it is answered `requires change for target
+verilog: REASON, line N`, status 1, and nothing is printed. The module's
+comment line `// rce-hdl/1 JSON` gives its layout and the program's
+example events. `spec/checker/hdl/rce_tb.v` is a test bench that reads
+those events as a byte stream and dumps the registers after each step,
+and `spec/checker/hdl/bench.py` computes the state hashes from the dumps,
+outside the hardware, and prints each example's whole trace (the lines
+of `emit::trace_example` except `fuel N`, which counts the evaluator's
+steps and has no counterpart in a circuit).
+`spec/checker/tests/emit_verilog.rs` checks, with no simulator, that two
+emits give the same bytes, that six modules equal their golden texts,
+that the admitted examples are 01, 17, 30, 59, 60 and 61, that ten
+programs outside the subset are refused with their reasons, and that the
+harness prints the reference's trace from a dump of the reference's
+states; `.github/workflows/verilog.yml` installs Icarus Verilog,
+Verilator and Yosys and requires every program's simulated trace to equal
+the reference's line for line on both simulators, then synthesizes each
+module with Yosys and prints its cell counts. A passing run is a
+simulation and synthesis result; no module has run on a board.
+
 **Limits of the emitters.**
 
 - In the observations, channels, `spawn`, `select`, actors and `extern`
@@ -431,7 +487,8 @@ outcome.
 
 For an unknown target, or a program that one of these emitters does not
 translate, `rce emit` prints nothing on standard output, prints the reason
-on standard error, and exits with status 2. It never prints a partial file.
+on standard error, and exits with status 2; a program outside the subset
+of `verilog` requires change (status 1). It never prints a partial file.
 
 ### 10.6 `rce fmt [check] FILE...`
 
@@ -707,14 +764,8 @@ On a host that cannot start a task thread (10.3, WASI preview 1) the
 tasks are state machines of the scheduler and the trace of `fn main` is
 the same as on any host; the cross-architecture parity job
 (`.github/workflows/xarch-parity.yml`) compares the five examples with
-`fn main()` on `wasm32-wasip1` as on the other targets. Only a run in
-which an lvar passes from one task to another needs task threads (10.3):
-on such a host its trace of `fn main` is absent, `{"source": "main",
-"outcome": {"absent": REASON}, "steps": []}`, REASON being the line of
-10.3 after `FILE: `. The other traces are printed as on any host,
-standard error has one line `FILE: no trace of fn main: REASON`, and the
-status is 4. A projector conforms on such a module only on a host that
-runs it.
+`fn main()` on `wasm32-wasip1` as on the other targets. That holds
+also for a run in which an lvar passes from one task to another (10.3).
 
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
@@ -929,7 +980,8 @@ tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
 supervisor (status 2), and the core has no scheduler, so `rce run-core`
 prints no trace of `fn main` (10.9). The reference's tick runtime now
 holds tasks as state machines where the host has no threads (10.3), so
-the run of `fn main` happens on WASI preview 1 as on other hosts; that
+the run of `fn main` happens on WASI preview 1 as on other hosts, also
+when an lvar passes from one task to another; that
 scheduler is written in Rust inside the reference (`conc.rs`), not in the
 core. The next slice of the proposal is the same scheduler in the core:
 the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
@@ -1036,4 +1088,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 652439a8b2892a2e61dbd81d6495329e0557696063e24b99ee675ef889971754 -->
+<!-- body-sha256: ece85238fb2f1d22383de9a33a2195e09e30dfcdba9aeb8611a8330c885c9880 -->
