@@ -23,6 +23,14 @@
 //! label in parentheses only when the callee is the module's own name, so a
 //! standard library method or another module's field keeps its name even
 //! when the module declares the same name for something else.
+//!
+//! A field name that a standard library type also declares keeps its text
+//! where it names a field of a struct, event, error or variant (after `.`,
+//! as a label, in a `struct` block), and is renamed where it names a local,
+//! a parameter or a field of a `state` or `actor`, which the steps name by
+//! its bare name. Such a name is placed by its first declaration that is
+//! renamed, so the two are projected apart and the projection stays
+//! idempotent.
 
 use crate::parse::{lex, Tok, DRAFT06_KEYWORDS, KEYWORDS};
 use std::collections::{BTreeMap, HashSet};
@@ -63,7 +71,7 @@ fn prefix(k: Kind) -> &'static str {
     }
 }
 
-/// What the scan learns about the module's own names.
+/// What the scan finds about the module's own names.
 struct Names {
     /// declared name → positional name
     map: BTreeMap<String, String>,
@@ -77,17 +85,38 @@ struct Names {
     own: HashSet<String>,
     /// the module's own functions (their labels are parameters)
     fns: HashSet<String>,
+    /// the lines that declare a field of one of the module's `struct`s: such
+    /// a field is reached only after `.` or as a label, where a field name of
+    /// an imported type keeps its name, so its declaration keeps it too. A
+    /// field of a `state` or `actor` is used by its bare name in the steps
+    /// and handlers, so it is renamed with its uses.
+    struct_field_lines: HashSet<usize>,
+    /// field names declared by the standard library modules the text uses
+    /// (and `root`, read by name, beside DirRead or DirWrite)
+    foreign: HashSet<String>,
+}
+
+/// What may keep a field declaration's name as written
+enum Hint {
+    None,
+    /// `NAME:` at a line start in a `struct` block
+    StructField,
+    /// `NAME:` inside the parentheses after the name given
+    Label(String),
 }
 
 /// The rename map and the facts that place each use.
 fn renames(src: &str) -> Result<Names, String> {
-    let toks: Vec<Tok> = lex(src)?.into_iter().map(|(t, _)| t).collect();
+    let lexed = lex(src)?;
+    let lines: Vec<usize> = lexed.iter().map(|(_, l)| *l).collect();
+    let toks: Vec<Tok> = lexed.into_iter().map(|(t, _)| t).collect();
     let reserved: HashSet<&str> = KEYWORDS.iter().chain(DRAFT06_KEYWORDS.iter()).chain(BUILTIN_TYPES.iter()).copied().collect();
-    let mut declared: Vec<(String, Kind)> = vec![];
-    let mut seen: HashSet<String> = HashSet::new();
+    // every declaration in order, with what may keep it as written: a
+    // field of a `struct` declared at a line start, or a label after a name
+    let mut raw: Vec<(String, Kind, Hint)> = vec![];
     // every name the module declares, reserved ones too (`event Input(…)`)
     let mut own: HashSet<String> = HashSet::new();
-    let mut declare = |n: &str, k: Kind| {
+    let mut declare = |n: &str, k: Kind, h: Hint| {
         if k != Kind::Value {
             own.insert(n.to_string());
         }
@@ -96,9 +125,8 @@ fn renames(src: &str) -> Result<Names, String> {
         if n == "_" {
             return;
         }
-        if !reserved.contains(n) && !seen.contains(n) {
-            seen.insert(n.to_string());
-            declared.push((n.to_string(), k));
+        if !reserved.contains(n) {
+            raw.push((n.to_string(), k, h));
         }
     };
     let mut in_kind_block = false;
@@ -113,8 +141,26 @@ fn renames(src: &str) -> Result<Names, String> {
     let mut line_fields: HashSet<String> = HashSet::new();
     let mut labels: Vec<(String, String)> = vec![];
     let mut parens: Vec<Option<String>> = vec![];
+    // the declaring word of each open indented block (`struct`, `state`, …)
+    let mut blocks: Vec<Option<String>> = vec![];
+    let mut header: Option<String> = None;
+    let mut struct_field_lines: HashSet<usize> = HashSet::new();
     for i in 0..toks.len() {
         match &toks[i] {
+            Tok::Nl | Tok::Indent | Tok::Dedent => {}
+            _ if i == 0 || matches!(toks[i - 1], Tok::Nl | Tok::Indent | Tok::Dedent) => {
+                header = if let Tok::Id(w) = &toks[i] { Some(w.clone()) } else { None };
+            }
+            _ => {}
+        }
+        match &toks[i] {
+            Tok::P("{") => {
+                // a map or set literal: `NAME:` in it is a key, not a label
+                parens.push(None);
+            }
+            Tok::P("}") => {
+                parens.pop();
+            }
             Tok::P("(") => {
                 let callee = match (i.checked_sub(2).map(|k| &toks[k]), i.checked_sub(1).map(|k| &toks[k])) {
                     (Some(Tok::P(".")), _) => None,
@@ -128,9 +174,11 @@ fn renames(src: &str) -> Result<Names, String> {
             }
             Tok::Indent => {
                 depth += 1;
+                blocks.push(header.take());
             }
             Tok::Dedent => {
                 depth = depth.saturating_sub(1);
+                blocks.pop();
                 if in_kind_block && depth < kind_depth {
                     in_kind_block = false;
                 }
@@ -143,11 +191,11 @@ fn renames(src: &str) -> Result<Names, String> {
                 let next = toks.get(i + 1);
                 let prev_kw = |k: &str| matches!(prev, Some(Tok::Id(p)) if p == k);
                 if prev_kw("state") || prev_kw("actor") {
-                    declare(n, Kind::Region);
+                    declare(n, Kind::Region, Hint::None);
                 } else if prev_kw("event") {
-                    declare(n, Kind::Event);
+                    declare(n, Kind::Event, Hint::None);
                 } else if prev_kw("error") {
-                    declare(n, Kind::Error);
+                    declare(n, Kind::Error, Hint::None);
                 } else if prev_kw("impl") {
                     in_impl = true;
                     impl_depth = depth + 1;
@@ -155,36 +203,71 @@ fn renames(src: &str) -> Result<Names, String> {
                     if in_impl && depth == impl_depth {
                         methods.insert(n.clone());
                     }
-                    declare(n, Kind::Fn);
+                    declare(n, Kind::Fn, Hint::None);
                 } else if prev_kw("struct") || prev_kw("trait") || prev_kw("type") || prev_kw("protocol") {
-                    declare(n, Kind::Type);
+                    declare(n, Kind::Type, Hint::None);
                 } else if prev_kw("kind") {
-                    declare(n, Kind::Type);
+                    declare(n, Kind::Type, Hint::None);
                     in_kind_block = true;
                     kind_depth = depth + 1;
                 } else if prev_kw("const") || prev_kw("let") || prev_kw("var") || prev_kw("for") {
-                    declare(n, Kind::Value);
+                    declare(n, Kind::Value, Hint::None);
                 } else if in_kind_block && depth == kind_depth && matches!(prev, Some(Tok::Nl) | Some(Tok::Indent)) {
-                    declare(n, Kind::Variant);
+                    declare(n, Kind::Variant, Hint::None);
                 } else if matches!(next, Some(Tok::P(":")))
                     && matches!(prev, Some(Tok::Nl) | Some(Tok::Indent) | Some(Tok::P("(")) | Some(Tok::P(",")) | Some(Tok::P("|")))
                 {
                     // a field, a parameter, a payload field or a struct-literal key
+                    let mut hint = Hint::None;
                     if matches!(prev, Some(Tok::Nl) | Some(Tok::Indent)) {
                         line_fields.insert(n.clone());
+                        if blocks.last().is_some_and(|b| b.as_deref() == Some("struct")) {
+                            struct_field_lines.insert(lines[i]);
+                            hint = Hint::StructField;
+                        }
                     } else if let Some(Some(c)) = parens.last() {
                         labels.push((c.clone(), n.clone()));
+                        hint = Hint::Label(c.clone());
                     }
-                    declare(n, Kind::Value);
+                    declare(n, Kind::Value, hint);
                 } else if matches!(prev, Some(Tok::P(":"))) && matches!(next, Some(Tok::P(")")) | Some(Tok::P(","))) && !reserved.contains(n.as_str()) {
                     // the binding side of a payload pattern: `Deposit(amount: a)`
                     // (a type in this position would be a declared type or built-in)
                     if n.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
-                        declare(n, Kind::Value); // idempotent: `declare` skips names already seen
+                        declare(n, Kind::Value, Hint::None); // idempotent: only a name's first declaration places it
                     }
                 }
             }
             _ => {}
+        }
+    }
+    // the field names that reach the module from the standard library
+    let mut foreign = foreign_fields(src);
+    // F.5.1: the checker reads the field `root` of DirRead and DirWrite by name
+    if own.contains("DirRead") || own.contains("DirWrite") {
+        foreign.insert("root".to_string());
+    }
+    // A field declaration that keeps its name (a struct field or a label of
+    // one of the module's own types, events, errors or variants, named like
+    // a field of an imported type) does not place the name: the name is
+    // placed by its first declaration that is renamed, or, when every one is
+    // kept, is not renamed at all. Two declarations of one name, one kept
+    // and one renamed, are then two names, as they are in the source; and
+    // the projection of a projection places every name where it did.
+    let first_kind: BTreeMap<&str, Kind> = raw.iter().rev().map(|(n, k, _)| (n.as_str(), *k)).collect();
+    let kept = |n: &str, h: &Hint| {
+        foreign.contains(n)
+            && match h {
+                Hint::None => false,
+                Hint::StructField => true,
+                Hint::Label(c) => own.contains(c) && first_kind.get(c.as_str()) != Some(&Kind::Fn),
+            }
+    };
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut declared: Vec<(String, Kind)> = vec![];
+    for (n, k, h) in &raw {
+        if !kept(n, h) && seen.insert(n.as_str()) {
+            declared.push((n.clone(), *k));
         }
     }
     let mut counters: BTreeMap<Kind, usize> = BTreeMap::new();
@@ -220,7 +303,7 @@ fn renames(src: &str) -> Result<Names, String> {
         }
     }
     let fns = declared.iter().filter(|(_, k)| *k == Kind::Fn).map(|(n, _)| n.clone()).collect();
-    Ok(Names { map, fields, methods, own, fns })
+    Ok(Names { map, fields, methods, own, fns, struct_field_lines, foreign })
 }
 
 /// The module paths of a text's `use` lines.
@@ -310,12 +393,9 @@ fn project_expr(
 
 /// Rewrite identifiers outside strings and comments by the map.
 pub fn nameless(src: &str) -> Result<String, String> {
-    let Names { map, fields, methods, own, fns } = renames(src)?;
-    let mut foreign = foreign_fields(src);
-    // F.5.1: the checker reads the field `root` of DirRead and DirWrite by name
-    if own.contains("DirRead") || own.contains("DirWrite") {
-        foreign.insert("root".to_string());
-    }
+    let Names { map, fields, methods, own, fns, struct_field_lines, foreign } = renames(src)?;
+    // the byte offset at which each line starts (line 1 at index 0)
+    let line_starts: Vec<usize> = std::iter::once(0).chain(src.match_indices('\n').map(|(k, _)| k + 1)).collect();
     let b = src.as_bytes();
     let mut out = String::with_capacity(src.len());
     let mut i = 0;
@@ -327,6 +407,8 @@ pub fn nameless(src: &str) -> Result<String, String> {
         OwnFn,
         OwnType,
         Other,
+        /// a map or set literal `{…}`: `NAME:` in it is a key expression
+        Brace,
     }
     let mut parens: Vec<Callee> = vec![];
     let mut last_word: Option<(usize, Callee)> = None; // end, and what it names
@@ -355,6 +437,14 @@ pub fn nameless(src: &str) -> Result<String, String> {
             out.push(c);
             i += 1;
         } else if c == ')' {
+            parens.pop();
+            out.push(c);
+            i += 1;
+        } else if c == '{' {
+            parens.push(Callee::Brace);
+            out.push(c);
+            i += 1;
+        } else if c == '}' {
             parens.pop();
             out.push(c);
             i += 1;
@@ -444,9 +534,13 @@ pub fn nameless(src: &str) -> Result<String, String> {
             let after_dot = start > 0 && b[start - 1] == b'.' && !(start > 1 && b[start - 2] == b'.');
             let called = b.get(i) == Some(&b'(');
             let rest = src[i..].trim_start_matches([' ', '\t']);
+            let before = src[..start].trim_end_matches([' ', '\t']);
+            let line_head = before.is_empty() || before.ends_with('\n');
+            // inside brackets a line break is not a token, so a label may
+            // start a line of its own as well as follow `(` or `,`
             let label = rest.starts_with(':')
                 && !rest.starts_with("::")
-                && matches!(src[..start].trim_end_matches([' ', '\t']).chars().last(), Some('(') | Some(','));
+                && (matches!(before.chars().last(), Some('(') | Some(',')) || (line_head && !parens.is_empty()));
             let keep = if after_dot && called {
                 // `x.m(…)` reaches the module's own function only as a method
                 // of an `impl` block (5.15); otherwise it is a standard
@@ -463,13 +557,17 @@ pub fn nameless(src: &str) -> Result<String, String> {
                 // `NAME:` inside parentheses labels a parameter or field of
                 // the callee: renamed only when the callee is the module's own
                 match parens.last().copied().unwrap_or(Callee::Other) {
-                    Callee::OwnFn => false,
+                    Callee::OwnFn | Callee::Brace => false,
                     Callee::OwnType => foreign.contains(word),
                     Callee::Other => true,
                 }
             } else if rest.starts_with(':') && !rest.starts_with("::") && src[line_start..start].trim().is_empty() {
-                // a field declared at the start of a line in a type block
-                foreign.contains(word)
+                // a field declared at the start of a line in a type block: a
+                // struct field keeps a name an imported type's field also
+                // has, as its uses after `.` and as a label do; a field of a
+                // state or actor is renamed, as its bare uses are
+                let line = line_starts.partition_point(|&k| k <= start);
+                foreign.contains(word) && struct_field_lines.contains(&line)
             } else {
                 false
             };

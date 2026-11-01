@@ -276,3 +276,76 @@ fn the_authority_structs_keep_their_names() {
     let (st, out) = rce(&["check", &g]);
     assert_eq!(st, 0, "{p}\n{out}");
 }
+
+/// T7 on one program (scripts/t7-equiv.sh): the projection is admitted, is
+/// its own projection, and `rce equiv` finds it equivalent to the source.
+fn t7_equivalent(name: &str, src: &str) -> String {
+    let f = tmp(&format!("{name}.rce"), src);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (st, projected) = rce(&["fmt", "nameless", &f]);
+    assert_eq!(st, 0, "{projected}");
+    let g = tmp(&format!("{name}_nameless.rce"), &projected);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{projected}\n{out}");
+    let (_, again) = rce(&["fmt", "nameless", &g]);
+    assert_eq!(again, projected, "the projection of the projection differs");
+    let (st, out) = rce(&["equiv", "fuel", "200", &f, &g]);
+    assert_eq!(st, 0, "{projected}\n{out}");
+    projected
+}
+
+#[test]
+fn a_state_field_and_a_struct_field_of_one_name_are_renamed_apart() {
+    // T7 sweep finding (programs/systems/ls.rce, 1 November 2026): the state
+    // field `at` beside a struct field `at`, in a program that uses `time`,
+    // whose error BadTime has a field `at`. The struct field keeps the name,
+    // as a field of an imported type would; the state field, used by its bare
+    // name in the step, was also left as written while its uses were renamed.
+    let src = "intent \"a state field and a struct field share a name\"\n    example Mark(n: 2) -> count == 1 and at[0] == 2\n\nuse time\n\nstruct LocalOffset\n    req: u64\n    at: i64\n\nevent Mark(n: i64)\n\nstate Book\n    at: Map[u64, i64] = {}\n    count: u64 = 0\n\nstep Book on Mark(n: k)\n    at[count] = k\n    count += 1\n    emit LocalOffset(req: count, at: time.fmod(k, 7))\n";
+    let p = t7_equivalent("state_struct_at", src);
+    assert!(p.contains("struct t0\n    v1: u64\n    at: i64"), "{p}");
+    assert!(p.contains("state r0\n    v2: Map") && p.contains("    v2[v3] = v4") && p.contains("at: time.fmod"), "{p}");
+    // without `time` no field is imported: both are renamed, to one name
+    let p = t7_equivalent("state_struct_at_local", &src.replace("use time\n", "").replace("time.fmod(k, 7)", "k"));
+    assert!(p.contains("struct t0\n    v1: u64\n    v2: i64") && p.contains("state r0\n    v2: Map") && p.contains("t0(v1: v3, v2: v4)"), "{p}");
+}
+
+#[test]
+fn an_event_field_and_a_state_field_of_one_name_are_renamed_apart() {
+    // the event's field keeps the imported field name in its declaration,
+    // its pattern and its example; the state field is renamed with its uses
+    let p = t7_equivalent(
+        "event_state_at",
+        "intent \"an event field and a state field share a name\"\n    example Mark(at: 2) -> at == 2\n\nuse time\n\nevent Mark(at: i64)\n\nstate Book\n    at: i64 = 0\n\nstep Book on Mark(at: a)\n    at = time.fmod(a, 7)\n",
+    );
+    assert!(p.contains("example e0(at: 2) -> v0 == 2") && p.contains("event e0(at: i64)") && p.contains("    v0: i64 = 0"), "{p}");
+    assert!(p.contains("on e0(at: v1)\n    v0 = time.fmod(v1, 7)"), "{p}");
+}
+
+#[test]
+fn parameters_and_locals_named_like_a_field_are_renamed_on_every_line() {
+    // a parameter and a local `at` beside a struct field `at` named like an
+    // imported field, with labels on lines of their own inside parentheses:
+    // the parameter is renamed where it is declared, used and passed, and
+    // the struct field keeps its name in its literal and its access
+    let p = projects_and_runs_alike(
+        "param_at",
+        "use time\n\nstruct P\n    at: i64\n\nfn shift(\n    at: i64,\n    by: i64,\n) -> i64\n    let p = P(\n        at: at + by,\n    )\n    return time.fmod(p.at, 100)\n\nfn main()\n    let at = 3\n    emit shift(\n        at: at,\n        by: 4,\n    )\n",
+    );
+    assert!(p.contains("fn f0(\n    v0: i64,\n    v1: i64,\n)") && p.contains("        at: v0 + v1,") && p.contains("v2.at"), "{p}");
+    assert!(p.contains("    let v0 = 3\n    emit f0(\n        v0: v0,\n        v1: 4,"), "{p}");
+    let g = tmp("param_at_nameless.rce", &p);
+    assert_eq!(rce(&["fmt", "nameless", &g]).1, p, "the projection of the projection differs");
+}
+
+#[test]
+fn a_map_key_inside_a_call_is_a_name_not_a_label() {
+    // R7: `{a: 1}` is a map whose key is the variable `a`, also after `,`
+    // inside a call's parentheses, so the key is renamed with the local
+    let p = projects_and_runs_alike(
+        "map_key",
+        "fn main()\n    let a = 1\n    let b = 2\n    var xs: List[Map[i64, i64]] = []\n    xs.push({a: 10, b: 20})\n    emit xs[0][b]\n",
+    );
+    assert!(p.contains("v2.push({v0: 10, v1: 20})"), "{p}");
+}
