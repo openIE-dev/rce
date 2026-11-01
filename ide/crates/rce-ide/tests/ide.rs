@@ -516,3 +516,109 @@ fn calibrate_command_with_a_fake_meter_writes_the_file() {
     assert_eq!(v["meter"], "fake");
     assert!(v["fits"]["checker/-"]["coef"].is_array());
 }
+
+#[test]
+fn every_button_is_reachable_from_the_keyboard() {
+    use rce_ide::vm::Focus;
+    let (_t, mut ide) = ws(false);
+    let id = ide.propose("counter.rce", "mei g1", "add Reset", good());
+    let labels: Vec<String> = view::controls(&ide.panels())
+        .into_iter()
+        .map(|c| c.0)
+        .collect();
+    assert_eq!(
+        labels,
+        vec![
+            format!("accept {id}"),
+            format!("reject {id}"),
+            "recall".into()
+        ]
+    );
+    // Forward: the editor, the memory query, each button, the editor again.
+    let mut seen = vec![ide.focus];
+    for _ in 0..5 {
+        let f = view::focus_step(&ide.panels(), false);
+        ide.apply(Action::Focus(f)).unwrap();
+        seen.push(f);
+    }
+    use Focus::*;
+    assert_eq!(
+        seen,
+        vec![Editor, Memory, Control(0), Control(1), Control(2), Editor]
+    );
+    // Back from the editor reaches the last button.
+    assert_eq!(view::focus_step(&ide.panels(), true), Control(2));
+    // The focused button is outlined, and only that one.
+    ide.apply(Action::Focus(Control(0))).unwrap();
+    let q = Queue::default();
+    let ctx = view::paint(&view::root(&ide.panels(), &q, 1400.0, 900.0), 1400.0, 900.0);
+    let rings = ctx
+        .commands
+        .iter()
+        .filter(|c| {
+            matches!(c, photon::DrawCommand::StrokeRect { color, width, .. }
+                if *color == view::FOCUS_RING && *width == 2.0)
+        })
+        .count();
+    assert_eq!(rings, 1);
+    // Enter on it performs the same action as a tap.
+    let a = view::focused_action(&ide.panels()).unwrap();
+    assert_eq!(a, Action::Accept(id));
+    ide.apply(a).unwrap();
+    assert!(matches!(
+        ide.proposals[0].status,
+        ProposalStatus::Accepted { .. }
+    ));
+    // No button is focused in the editor.
+    ide.apply(Action::Focus(Editor)).unwrap();
+    assert_eq!(view::focused_action(&ide.panels()), None);
+}
+
+#[test]
+fn palette_pairs_meet_wcag_contrast() {
+    use photon::Color;
+    // WCAG 2.2 relative luminance of the colour at 8 bits per channel, as
+    // ui.rules computes it (stdlib/lib/ui/rules.rce gives the exact
+    // ratios; this test keeps the palette above the thresholds).
+    fn lin(c: f32) -> f64 {
+        let v = (c * 255.0).round() as f64 / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    }
+    fn lum(c: Color) -> f64 {
+        let [r, g, b, _] = c.to_array();
+        0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    }
+    fn ratio(a: Color, b: Color) -> f64 {
+        let (x, y) = (lum(a) + 0.05, lum(b) + 0.05);
+        x.max(y) / x.min(y)
+    }
+    use view::{ACCENT, BG, DIM, ERR, FG, FOCUS_RING, OK, ON_FILL, PANEL};
+    // Text, WCAG 1.4.3: 4.5 : 1.
+    for (n, f, b) in [
+        ("panel title", ACCENT, PANEL),
+        ("label on ACCENT", ON_FILL, ACCENT),
+        ("label on OK", ON_FILL, OK),
+        ("label on ERR", ON_FILL, ERR),
+        ("FG on PANEL", FG, PANEL),
+        ("DIM on PANEL", DIM, PANEL),
+        ("ERR on PANEL", ERR, PANEL),
+        ("OK on PANEL", OK, PANEL),
+        ("FG on BG", FG, BG),
+        ("focused query", Color::WHITE, BG),
+    ] {
+        assert!(ratio(f, b) >= 4.5, "{n}: {:.3}", ratio(f, b));
+    }
+    // Component edges and the focus outline, WCAG 1.4.11: 3 : 1.
+    for (n, f, b) in [
+        ("focus outline", FOCUS_RING, PANEL),
+        ("focus outline on a field", FOCUS_RING, BG),
+        ("query field edge", DIM, PANEL),
+        ("caret", ACCENT, PANEL),
+    ] {
+        assert!(ratio(f, b) >= 3.0, "{n}: {:.3}", ratio(f, b));
+    }
+}
