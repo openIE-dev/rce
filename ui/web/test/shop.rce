@@ -1,0 +1,115 @@
+module shop
+use ui.view
+
+intent "a shopping list whose every step emits a frame (HC-29), for the DOM renderer's test: items are added, removed, moved up, renamed and marked, so ui.view.diff gives every kind of operation; Break shows the list with one defect that ui.rules finds (contrast, an unnamed button, a focusable control hidden from assistive technology, a widget that cannot be focused), and Fix removes it"
+    example Add(k: "a", t: "Apples") -> order.len() == 1
+    example Add(k: "a", t: "Apples"), Add(k: "b", t: "Bread"), Up(k: "b") -> order[0] == "b"
+    example Add(k: "a", t: "Apples"), Remove(k: "a") -> order.len() == 0
+    example Break(what: "contrast"), Fix -> defect == ""
+
+struct Frame
+    view: View
+    ev: text
+
+state Shop
+    order: List[text] = []
+    names: Map[text, text] = {}
+    marked: text = ""
+    defect: text = ""
+    focused: bool = false
+
+event Focus
+event Add(k: text, t: text)
+event Remove(k: text)
+event Up(k: text)
+event Rename(k: text, t: text)
+event Mark(k: text)
+event Break(what: text)
+event Fix
+
+step Shop on Focus
+    focused = true
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "focus clear")
+step Shop on Add(k: k, t: t)
+    order.push(copy(k))
+    names[copy(k)] = copy(t)
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate add")
+step Shop on Remove(k: k)
+    order = [copy(x) for x in order if x != k]
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate remove")
+step Shop on Up(k: k)
+    order = up(&order, &k)
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate up")
+step Shop on Rename(k: k, t: t)
+    names[copy(k)] = copy(t)
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "input " + k)
+step Shop on Mark(k: k)
+    marked = if marked == k then "" else copy(k)
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate " + k)
+step Shop on Break(what: w)
+    defect = copy(w)
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate " + w)
+step Shop on Fix
+    defect = ""
+    emit Frame(view: shop(&order, &names, &marked, &defect, focused), ev: "activate fix")
+
+# the list with key k one place earlier
+fn up(o: &List[text], k: &text) -> List[text]
+    var r: List[text] = []
+    for x in o
+        if x == k and r.len() > 0
+            let n = r.len() - 1
+            let last = copy(r[n])
+            r[n] = copy(x)
+            r.push(last)
+        else
+            r.push(copy(x))
+    return r
+
+# the parts no rule decides, attested by the person who reviewed them
+fn attest(v: &mut View, ids: text)
+    for i in ids.words()
+        view.set_attr(v, 0, "attest-" + i, "A. Reviewer;2026-11-01")
+
+fn attrs(v: &mut View, n: i64, kvs: List[List[text]])
+    for kv in kvs
+        view.set_attr(v, n, copy(kv[0]), copy(kv[1]))
+
+# a heading, the list (one item per key, the marked one current) and one
+# button, focused or not; a defect changes one part of it; no text change
+# is a status message
+fn shop(o: &List[text], names: &Map[text, text], marked: &text, defect: &text, focused: bool) -> View
+    var v = view.view_new("div", "")
+    attrs(&mut v, 0, [["lang", "en"], ["title", "Shopping"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"], ["status-msg", "false"]])
+    attest(&mut v, "1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
+    let m = view.add_el(&mut v, 0, "main", "")
+    view.set_attr(&mut v, m, "role", "main")
+    let h = view.add_el(&mut v, m, "h1", "")
+    attrs(&mut v, h, [["role", "heading"], ["aria-level", "1"]])
+    let _ = view.add_text(&mut v, h, "Shopping")
+    let l = view.add_el(&mut v, m, "ul", "items")
+    attrs(&mut v, l, [["role", "list"], ["aria-label", "Items"]])
+    for k in o
+        let li = view.add_el(&mut v, l, "li", copy(k))
+        view.set_attr(&mut v, li, "role", "listitem")
+        if k == marked
+            view.set_attr(&mut v, li, "aria-current", "true")
+        let _ = view.add_text(&mut v, li, names.get(copy(k)) catch "")
+    let tag = if defect == "focus" then "div" else "button"
+    let b = view.add_el(&mut v, m, tag, "clear")
+    attrs(&mut v, b, [["role", "button"], ["w", "44"], ["h", "44"], ["border", "#000000"], ["focus-outline", "#005fcc"], ["action", "Clear"]])
+    if defect != "focus"
+        view.set_attr(&mut v, b, "tabindex", "0")
+    if focused
+        view.set_attr(&mut v, b, "focused", "true")
+    if defect == "contrast"
+        view.set_attr(&mut v, b, "fg", "#777777")
+    if defect != "name"
+        let _ = view.add_text(&mut v, b, "Clear")
+    if defect == "hidden"
+        let g = view.add_el(&mut v, m, "div", "more")
+        view.set_attr(&mut v, g, "aria-hidden", "true")
+        let x = view.add_el(&mut v, g, "button", "extra")
+        attrs(&mut v, x, [["role", "button"], ["tabindex", "0"], ["w", "44"], ["h", "44"], ["border", "#000000"], ["focus-outline", "#005fcc"], ["action", "More"]])
+        let _ = view.add_text(&mut v, x, "More")
+    return v

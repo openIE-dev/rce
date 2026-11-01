@@ -1,0 +1,93 @@
+module frames
+use ui.view
+use ui.rules
+
+intent "a door panel that emits one frame per step (HC-29): a heading and one button that opens or closes the door; Dim greys its text below 4.5 : 1, and Presented counts the frames a renderer confirmed"
+    example Open -> opened
+    example Open, Close -> opened == false
+    example Focus, Presented(seq: 0, digest: "") -> presented == 1
+    check unmet_count(false) == 0
+    check unmet_count(true) > 0
+
+struct Frame
+    view: View
+    ev: text
+
+struct Display
+    data: text
+
+state Door
+    opened: bool = false
+    focused: bool = false
+    dim: bool = false
+    presented: u64 = 0
+
+event Open
+event Close
+event Focus
+event Dim
+event Tick
+event Presented(seq: u64, digest: text)
+
+step Door on Open
+    opened = true
+    let v = panel(true, focused, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "activate toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Close
+    opened = false
+    let v = panel(false, focused, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "activate toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Focus
+    focused = true
+    let v = panel(opened, true, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "focus toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Dim
+    dim = true
+    let v = panel(opened, focused, true)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "tick")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Tick
+    let _ = opened
+step Door on Presented(seq: _q, digest: _d)
+    presented += 1
+
+# the criteria the panel's views before and after the button receives
+# focus do not meet, with its text dimmed or not
+fn unmet_count(dim: bool) -> i64
+    let t = [rules.Step(ev: "start", ms: 0, v: panel(false, false, dim)), rules.Step(ev: "focus toggle", ms: 16, v: panel(false, true, dim))]
+    return rules.unmet(&t).len() as i64
+
+# the parts no rule decides, attested by the person who reviewed them
+fn attest(v: &mut View, ids: text)
+    for i in ids.words()
+        view.set_attr(v, 0, "attest-" + i, "A. Reviewer;2026-10-31")
+
+# the view of a state: a heading and one button that opens or closes the door
+fn panel(is_open: bool, focused: bool, dim: bool) -> View
+    var v = view.view_new("div", "")
+    for kv in [["lang", "en"], ["title", "Door"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"]]
+        view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
+    attest(&mut v, "1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
+    let m = view.add_el(&mut v, 0, "main", "")
+    view.set_attr(&mut v, m, "role", "main")
+    let h = view.add_el(&mut v, m, "h1", "")
+    view.set_attr(&mut v, h, "role", "heading")
+    view.set_attr(&mut v, h, "aria-level", "1")
+    let _ = view.add_text(&mut v, h, "Door")
+    let b = view.add_el(&mut v, m, "button", "toggle")
+    for kv in [["role", "button"], ["tabindex", "0"], ["w", "44"], ["h", "44"], ["border", "#000000"], ["focus-outline", "#005fcc"]]
+        view.set_attr(&mut v, b, copy(kv[0]), copy(kv[1]))
+    view.set_attr(&mut v, b, "action", if is_open then "Close" else "Open")
+    if dim
+        view.set_attr(&mut v, b, "fg", "#777777")
+    if focused
+        view.set_attr(&mut v, b, "focused", "true")
+    let _ = view.add_text(&mut v, b, if is_open then "Close" else "Open")
+    return v

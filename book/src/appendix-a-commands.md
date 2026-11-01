@@ -34,8 +34,8 @@ record what they read in the log:
 | Command | What it does |
 |---|---|
 | `rce host run [GRANT...] FILE D [EVENTS]` | admit events into the durable log D |
-| `rce host serve [GRANT...] [http HOST:PORT] FILE D` | run the host loop as a service |
-| `rce host replay [redact F,...] FILE D` | replay D with every adapter disconnected |
+| `rce host serve [GRANT...] [http HOST:PORT] [presented FILE] FILE D` | run the host loop as a service; `presented FILE` reads a renderer's confirmations |
+| `rce host replay [redact F,...] [frames] FILE D` | replay D with every adapter disconnected; `frames` re-derives every frame and checks `ui.rules` on them |
 | `rce db D CMD [ARGS]` | RCEdb, the database whose storage is the log D |
 
 A command line is the command, then its words, then its operands: every
@@ -43,7 +43,7 @@ word comes before the first file. A word such as `json` takes no value, a
 word such as `fuel N` takes the next argument, and no argument starts with
 `-`. A GRANT is one of `fs DIR`, `blob DIR`, `media DIR`, `wasm DIR`,
 `net HOST:PORT`, `chan HOST:PORT`, `tls`, `peer HOST:PORT` (after `tls`,
-`peer HOST:PORT KEY`) and `pty`. `rce help`, or `rce` with no arguments,
+`peer HOST:PORT KEY`), `pty` and `frames FILE` (the frame sink, HC-29). `rce help`, or `rce` with no arguments,
 prints every command with its words.
 
 Exit status: 0 success; 1 a program requires change, a test failed, a
