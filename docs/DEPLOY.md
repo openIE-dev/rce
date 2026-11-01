@@ -80,6 +80,22 @@ not in D and does not change replay or the state hash.
 - To back up, stop the service, copy the log directory, and check the copy
   with `rce host replay`.
 
+## Frames and a renderer
+
+A program that shows a view emits `Frame(view)`, a `ui.view` tree, after a
+step (HC-29). The grant `frames FILE` appends one JSON line per frame to
+FILE (its seq, digests, the view and the `ui.view.diff` operations from the
+previous frame); a renderer reads that file. Nothing is appended to D for a
+frame, since a frame is a function of D:
+`rce host replay frames FILE D` prints the same lines from D alone, with
+the `ui.rules` findings of each frame and the report of the session.
+
+Under `rce host serve presented ACKS ...`, the renderer appends
+`SEQ FRAME_DIGEST` to ACKS for each frame it showed; the host records each
+as `host.Presented` and delivers `Presented(seq, digest)` when the program
+declares it, so what a person was shown can be counted from D. A program
+that declares `Frame` is always replayed from the start of D (no snapshot).
+
 ## Changing the program
 
 A log is bound to the program that wrote it (HC-27): beside D the host

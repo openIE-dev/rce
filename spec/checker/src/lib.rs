@@ -26,6 +26,7 @@ pub mod dim;
 pub mod nameless;
 pub mod one;
 pub mod form;
+pub mod frame;
 pub mod emit;
 pub mod host;
 pub mod ifc;

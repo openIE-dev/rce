@@ -3,7 +3,10 @@
 Status: open. The owner decided its first two questions on 2026-10-31
 (4.6: Q1 full WCAG 2.2 AA, Q2 WAI-ARIA names). Its first slice (4.2,
 `ui.rules`) is implemented by the change on branch `claude/ui-rules`
-(ledger row of 2026-10-31); every later item (4.3) is a plan. Sections 1
+(ledger row of 2026-10-31). H1 (4.3), the frame sink and replay of
+frames, is implemented by the change on branch `claude/frame-replay`
+as HC-29, which also decides Q4 (ledger row of 2026-11-01); every other
+later item is a plan. Sections 1
 to 3 describe `main` at a5df5be7, before that change.
 
 The RCE owner wrote, after reading the Raven GUI library: "this is the
@@ -655,6 +658,20 @@ raised.
   replay` gains a mode word that prints, per seq, the input, the frame
   digest and the `ui.rules` findings. One new host rule after HC-28.
   Touches `host.rs`, `cli.rs` and Appendix E. *Small addition.*
+  *Implemented* (Appendix E, HC-29): a module declares `struct Frame` with
+  `view: View` (and, if it chooses, `ev: text` and `ms: i64`, the
+  `ui.rules` step word and time, which the host otherwise derives from
+  D); the grant `frames FILE` of `rce host run` and `serve` appends one
+  line per frame (seq, both digests, the tree and the `view.diff`
+  operations from the previous frame); `rce host replay frames FILE D`
+  prints the same lines from D, each with its `ui.rules` findings, and the
+  report of the session; `rce host serve presented FILE` reads a
+  renderer's confirmations into D (Q4). The digests are computed by the
+  host and checked against `ui.view` itself; the operations and the rules
+  are `ui.view` and `ui.rules`, run by the interpreter. `ui.rules` gained
+  `findings` (every rule over a trace), and its per-frame struct `Frame`
+  became `Facts`, so a module that declares the output `Frame` can still
+  use `ui.rules` (W-MOD-3).
 - **H2 Log rules and alarms.** The WCAG rules over frame traces are part
   of 4.2 (the ten L criteria). Left: rules over the event log D itself
   once H1 lets replay produce frames; 2.1.2 checked over a `ui.states`
@@ -731,8 +748,9 @@ Outside D, and never read by a program:
 
 If a renderer's confirmation that it presented frame digest X matters to
 a program (for example, an alarm counted as annunciated only when shown),
-that confirmation must enter as an input under HC-10; that is one of
-the open questions below.
+that confirmation must enter as an input under HC-10. Q4 below is decided
+that way: the confirmation enters D as `host.Presented` (HC-29); what the
+renderer drew, and when, stays outside.
 
 ### 4.5 Ordering
 
@@ -747,8 +765,8 @@ proposal.
    (`playground/style.css`, `app.js`; pull request #25 also edits the
    playground, so merge it first or coordinate) and the IDE colours in
    `ide/crates/rce-ide/src/view.rs`.
-4. **Then:** H1 (frame sink, replay mode word, new host rule). It edits
-   `host.rs`, `cli.rs` and Appendix E, and its new word follows PC-1 to
+4. **Done:** H1 (frame sink, replay mode word `frames`, HC-29). It
+   edits `host.rs`, `cli.rs` and Appendix E, and its words follow PC-1 to
    PC-8.
 5. **After H1:** H4 (DOM renderer and axe-core in CI), then H3.
 6. **Spike, outside the repository, any time:** the Raven host-platform
@@ -771,7 +789,13 @@ proposal.
    admission rule and moves the spec.
 4. **Q4. Renderer confirmations.** Does a renderer's "frame X presented"
    enter D as an input (so alarm annunciation can be counted from D), or
-   stay outside as HC-28's status does?
+   stay outside as HC-28's status does? *Decided 2026-11-01, under the
+   owner's instruction to proceed with the later items: it enters D, as
+   the host-named input `host.Presented` {digest, seq} followed by the
+   bound `Presented(seq, digest)` (HC-29).* Being shown a frame is a fact
+   from outside the program that a program may act on, and HC-10 gives
+   such a fact no other way in; a status report changes nothing a program
+   reads. Only which frame was presented enters, not how it looked.
 5. **Q5. `blocked`.** HC-28 never reports `blocked` because the host asks
    no person anything. The IDE does ask (network permission, accepting a
    proposal). Should the human checkpoint of agent-written RCE become a
@@ -788,7 +812,8 @@ proposal.
 ### 4.7 Ledger row
 
 The row of 2026-10-31 in `LEDGER.md` records this proposal: open, with
-Q1 and Q2 decided and the first slice (4.2) implemented.
+Q1 and Q2 decided and the first slice (4.2) implemented. The row of
+2026-11-01 records H1 (HC-29) and the decision on Q4.
 
 
 ## 5. Sources

@@ -231,6 +231,22 @@ so a reviewer can compare runs without seeing a secret. Private keys,
 ratchet state and frame digests are the fields to redact. D itself still
 holds the secrets and stays on the device that wrote it.
 
+## Views on screen: `frames FILE` and `rce host replay frames`
+
+A program with a user interface emits `Frame(view)` after a step, where
+`view` is a `ui.view` tree (a struct `Frame` with a field `view: View`, as
+`Display` has `data`). These are view frames, not the media frames above.
+The grant `frames FILE` makes `rce host run` and `rce host serve` append
+one JSON line per frame to FILE, for a renderer to read: the frame's seq
+and digests, the tree, and the `ui.view.diff` operations from the previous
+frame. D holds no frame: each is computed from the entry that emitted it,
+so `rce host replay frames FILE D` prints the same lines from D alone,
+with the `ui.rules` findings of each frame and the accessibility report of
+the whole session (Appendix E, HC-29). Under `rce host serve`,
+`presented ACKS` reads the lines `SEQ FRAME_DIGEST` that a renderer
+appends once it has shown a frame, and records each in D as
+`host.Presented`, so a program can count what a person was actually shown.
+
 ## The chat user interface
 
 `apps/chat.rce` is a complete chat program: workspaces, channels and

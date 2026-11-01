@@ -87,7 +87,7 @@ pub struct Step
 # A step with facts every rule reads, computed once per frame: role,
 # role index, hidden, inactive, interactive, focusable, and visible
 # element (an element not hidden).
-pub struct Frame
+pub struct Facts
     ev: text
     ms: i64
     v: View
@@ -445,7 +445,7 @@ fn visible_el(v: &View, n: i64) -> bool = el(v, n) and not hidden(v, n)
 
 # ---------------- rules over one view ----------------
 # 1.1.1: every image has a text alternative.
-fn r_text_alternative(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_text_alternative(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -461,7 +461,7 @@ fn media_kind(v: &View, n: i64) -> text
         return ""
     return "?"
 
-fn media_check(x: &Frame, fr: i64, out: &mut List[Finding], sc: text, rule: text, kd: text, live: bool, need1: text, need2: text, unknown: bool)
+fn media_check(x: &Facts, fr: i64, out: &mut List[Finding], sc: text, rule: text, kd: text, live: bool, need1: text, need2: text, unknown: bool)
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -474,17 +474,17 @@ fn media_check(x: &Frame, fr: i64, out: &mut List[Finding], sc: text, rule: text
                     fails(out, copy(sc), copy(rule), fr, n, nm(v, n) + " (" + kd + (if live then ", live" else "") + ") declares no " + need1 + (if need2 != "" then " or " + need2 else ""))
 
 # 1.2.1: prerecorded audio-only has a transcript; video-only a transcript or an audio track.
-fn r_media_alternative(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_media_alternative(x: &Facts, fr: i64, out: &mut List[Finding])
     media_check(x, fr, out, "1.2.1", "media_alternative", "audio", false, "transcript", "", true)
     media_check(x, fr, out, "1.2.1", "media_alternative", "video", false, "transcript", "audio-track", false)
 # 1.2.2: prerecorded synchronised media has captions.
-fn r_captions_prerecorded(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.2", "captions_prerecorded", "audio-video", false, "captions", "", true)
+fn r_captions_prerecorded(x: &Facts, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.2", "captions_prerecorded", "audio-video", false, "captions", "", true)
 # 1.2.3: prerecorded synchronised media has an audio description or a media alternative.
-fn r_description_or_alternative(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.3", "description_or_alternative", "audio-video", false, "audio-description", "transcript", true)
+fn r_description_or_alternative(x: &Facts, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.3", "description_or_alternative", "audio-video", false, "audio-description", "transcript", true)
 # 1.2.4: live synchronised media has captions.
-fn r_captions_live(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.4", "captions_live", "audio-video", true, "captions", "", true)
+fn r_captions_live(x: &Facts, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.4", "captions_live", "audio-video", true, "captions", "", true)
 # 1.2.5: prerecorded synchronised media has an audio description.
-fn r_audio_description(x: &Frame, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.5", "audio_description", "audio-video", false, "audio-description", "", true)
+fn r_audio_description(x: &Facts, fr: i64, out: &mut List[Finding]) = media_check(x, fr, out, "1.2.5", "audio_description", "audio-video", false, "audio-description", "", true)
 
 # the nearest ancestor with a role that is not none, presentation or generic
 fn role_parent(v: &View, n: i64) -> i64
@@ -497,7 +497,7 @@ fn role_parent(v: &View, n: i64) -> i64
     return -1
 
 # 1.3.1: roles that need a context role have one (WAI-ARIA required context).
-fn r_info_relationships(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_info_relationships(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -511,14 +511,14 @@ fn r_info_relationships(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "1.3.1", "info_relationships", fr, n, nm(v, n) + " has role " + r + " but no ancestor role of " + ROLE_CTX[ri as usize])
 
 # 1.3.4: orientation is "any", "portrait" or "landscape" (a lock needs attestation).
-fn r_orientation(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_orientation(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     let o = av(v, 0, "orientation").strip()
     if o != "" and o != "any" and o != "portrait" and o != "landscape"
         fails(out, "1.3.4", "orientation", fr, 0, "orientation \"" + o + "\" is not any, portrait or landscape")
 
 # 1.3.5: a declared input purpose is one of WCAG 2.2 section 7.
-fn r_input_purpose(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_input_purpose(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -529,7 +529,7 @@ fn r_input_purpose(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "1.3.5", "input_purpose", fr, n, nm(v, n) + " autocomplete \"" + last + "\" is not an input purpose of WCAG 2.2 section 7")
 
 # 1.4.2: audio that plays by itself for more than 3 s can be paused or its volume set.
-fn r_audio_control(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_audio_control(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -542,7 +542,7 @@ fn r_audio_control(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "1.4.2", "audio_control", fr, n, nm(v, n) + " plays audio for " + d.tostr() + " ms by itself with no pause-action or volume-action")
 
 # 1.4.3: text has contrast 4.5 : 1, or 3 : 1 when large (24 px, or 19 px at weight 700).
-fn r_contrast_minimum(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_contrast_minimum(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -577,7 +577,7 @@ fn parse_px(s: text) -> i64
     return if x < 0 then -1 else x
 
 # 1.4.4: the view does not forbid zoom (user-scale "no", max-scale under 200).
-fn r_resize_text(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_resize_text(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     if av(v, 0, "user-scale").strip() == "no"
         fails(out, "1.4.4", "resize_text", fr, 0, "user-scale is no")
@@ -597,7 +597,7 @@ fn two_d(v: &View, n: i64) -> bool
     return false
 
 # 1.4.10: no flow content declares a width over 320 CSS px.
-fn r_reflow(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_reflow(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -606,7 +606,7 @@ fn r_reflow(x: &Frame, fr: i64, out: &mut List[Finding])
             fails(out, "1.4.10", "reflow", fr, n, nm(v, n) + " declares w " + w.tostr() + " over 320 CSS px")
 
 # 1.4.11: a declared component boundary or graphic has contrast 3 : 1 with what is next to it.
-fn r_non_text_contrast(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_non_text_contrast(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -630,13 +630,13 @@ fn nt_pair(out: &mut List[Finding], fr: i64, n: i64, c: i64, b: i64, what: text)
             undecided(out, "1.4.11", "non_text_contrast", fr, n, what + " contrast within the table bound of 3 : 1")
 
 # 1.4.12: the view does not refuse the user's text spacing.
-fn r_text_spacing(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_text_spacing(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     if av(v, 0, "user-spacing").strip() == "no"
         fails(out, "1.4.12", "text_spacing", fr, 0, "user-spacing is no")
 
 # 2.1.1: every enabled interactive node is focusable or has a key shortcut.
-fn r_keyboard(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_keyboard(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -644,7 +644,7 @@ fn r_keyboard(x: &Frame, fr: i64, out: &mut List[Finding])
             fails(out, "2.1.1", "keyboard", fr, n, nm(v, n) + " is interactive but not focusable (tabindex) and has no aria-keyshortcuts")
 
 # 2.1.2: a modal or Tab-capturing node declares how focus leaves it.
-fn r_no_keyboard_trap(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_no_keyboard_trap(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -666,7 +666,7 @@ fn printable_shortcut(s: &text) -> bool
     return last.len_chars() == 1 and not last.isspace()
 
 # 2.1.4: a shortcut of one printable character can be turned off or remapped, or acts only on focus.
-fn r_character_key_shortcuts(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_character_key_shortcuts(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     let root_ok = has(v, 0, "shortcut-off-action") or has(v, 0, "shortcut-remap-action")
     for i in 0..nodes(v)
@@ -677,7 +677,7 @@ fn r_character_key_shortcuts(x: &Frame, fr: i64, out: &mut List[Finding])
                     fails(out, "2.1.4", "character_key_shortcuts", fr, n, nm(v, n) + " shortcut \"" + s + "\" is one printable character, with no shortcut-off-action or shortcut-remap-action on the root and not limited to focus")
 
 # 2.4.1: skip links name an existing node (the mechanism itself is in human_need).
-fn r_bypass_blocks(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_bypass_blocks(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -687,7 +687,7 @@ fn r_bypass_blocks(x: &Frame, fr: i64, out: &mut List[Finding])
             if find_key(v, &k) < 0
                 fails(out, "2.4.1", "bypass_blocks", fr, n, nm(v, n) + " links to #" + k + ", which no node has as key")
 
-fn bypass_mechanism(x: &Frame) -> bool
+fn bypass_mechanism(x: &Facts) -> bool
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -698,7 +698,7 @@ fn bypass_mechanism(x: &Frame) -> bool
     return false
 
 # 2.4.2: the view has a title.
-fn r_page_titled(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_page_titled(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     if not has(v, 0, "title")
         fails(out, "2.4.2", "page_titled", fr, 0, "the root declares no title")
@@ -731,7 +731,7 @@ pub fn focus_order(v: &View) -> List[i64]
     return out
 
 # 2.4.3: every tabindex is an integer.
-fn r_focus_order(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_focus_order(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -740,7 +740,7 @@ fn r_focus_order(x: &Frame, fr: i64, out: &mut List[Finding])
             fails(out, "2.4.3", "focus_order", fr, n, nm(v, n) + " tabindex \"" + s + "\" is not an integer")
 
 # 2.4.4: every link has a name.
-fn r_link_purpose(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_link_purpose(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -755,7 +755,7 @@ fn differs(v: &View, n: i64, fattr: text, base: text) -> bool
     return f >= 0 and f != b
 
 # 2.4.7: every focusable node declares a focus style that differs from its unfocused style.
-fn r_focus_visible(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_focus_visible(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -767,14 +767,14 @@ fn r_focus_visible(x: &Frame, fr: i64, out: &mut List[Finding])
 
 # 2.4.11: layer values are non-negative integers (whether a layer hides
 # the focused node needs layout; see human_need).
-fn r_focus_not_obscured(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_focus_not_obscured(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
         if has(v, n, "layer") and nat(v, n, "layer") < 0
             fails(out, "2.4.11", "focus_not_obscured", fr, n, nm(v, n) + " layer \"" + av(v, n, "layer") + "\" is not a non-negative integer")
 
-fn layered(x: &Frame) -> bool
+fn layered(x: &Facts) -> bool
     let v = &x.v
     var any_layer = false
     for i in 0..nodes(v)
@@ -797,7 +797,7 @@ fn layered(x: &Frame) -> bool
 fn single_pointer(v: &View, n: i64) -> bool = has(v, n, "action") or has(v, n, "alt-action")
 
 # 2.5.1: a multipoint or path gesture has a single-pointer alternative.
-fn r_pointer_gestures(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_pointer_gestures(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -809,7 +809,7 @@ fn r_pointer_gestures(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "2.5.1", "pointer_gestures", fr, n, nm(v, n) + " takes a " + g + " gesture and has no action or alt-action")
 
 # 2.5.2: activation on the down event can be undone.
-fn r_pointer_cancellation(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_pointer_cancellation(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -821,7 +821,7 @@ fn r_pointer_cancellation(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "2.5.2", "pointer_cancellation", fr, n, nm(v, n) + " activates on the down event and has no undo-action")
 
 # 2.5.3: the name contains the visible text.
-fn r_label_in_name(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_label_in_name(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -835,7 +835,7 @@ fn r_label_in_name(x: &Frame, fr: i64, out: &mut List[Finding])
                     fails(out, "2.5.3", "label_in_name", fr, n, nm(v, n) + " shows \"" + vis + "\" but its name is \"" + name + "\"")
 
 # 2.5.4: motion has a component alternative and can be turned off.
-fn r_motion_actuation(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_motion_actuation(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -846,7 +846,7 @@ fn r_motion_actuation(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "2.5.4", "motion_actuation", fr, n, nm(v, n) + " acts on motion and the root has no motion-off-action")
 
 # 2.5.7: dragging has a single-pointer alternative.
-fn r_dragging(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_dragging(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -854,7 +854,7 @@ fn r_dragging(x: &Frame, fr: i64, out: &mut List[Finding])
             fails(out, "2.5.7", "dragging", fr, n, nm(v, n) + " is dragged and has no action or alt-action")
 
 # 2.5.8: every target declares its size (24 by 24 or more, or inline).
-fn r_target_size(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_target_size(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -862,7 +862,7 @@ fn r_target_size(x: &Frame, fr: i64, out: &mut List[Finding])
             if nat(v, n, "w") < 0 or nat(v, n, "h") < 0
                 undecided(out, "2.5.8", "target_size", fr, n, nm(v, n) + " is a target with no declared w and h")
 
-fn undersized(x: &Frame) -> i64
+fn undersized(x: &Facts) -> i64
     let v = &x.v
     var c: i64 = 0
     for i in 0..nodes(v)
@@ -886,14 +886,14 @@ pub fn lang_ok(t: &text) -> bool
     return true
 
 # 3.1.1: the root declares a well-formed lang.
-fn r_language_of_page(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_language_of_page(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     let l = av(v, 0, "lang")
     if not lang_ok(&l)
         fails(out, "3.1.1", "language_of_page", fr, 0, "the root lang \"" + l + "\" is not a language tag")
 
 # 3.1.2: every lang below the root is well-formed.
-fn r_language_of_parts(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_language_of_parts(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 1..nodes(v)
         let n = i as i64
@@ -903,7 +903,7 @@ fn r_language_of_parts(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "3.1.2", "language_of_parts", fr, n, nm(v, n) + " lang \"" + l + "\" is not a language tag")
 
 # 3.3.1: an invalid field names an error message with text.
-fn r_error_identification(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_error_identification(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -913,7 +913,7 @@ fn r_error_identification(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "3.3.1", "error_identification", fr, n, nm(v, n) + " is invalid and its aria-errormessage or aria-describedby names no node with text")
 
 # 3.3.2: every input has a name.
-fn r_labels_or_instructions(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_labels_or_instructions(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -922,7 +922,7 @@ fn r_labels_or_instructions(x: &Frame, fr: i64, out: &mut List[Finding])
             fails(out, "3.3.2", "labels_or_instructions", fr, n, nm(v, n) + " (" + r + ") has no label")
 
 # 3.3.4: a legal, financial or data commitment can be undone, reviewed or confirmed.
-fn r_error_prevention(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_error_prevention(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -934,7 +934,7 @@ fn r_error_prevention(x: &Frame, fr: i64, out: &mut List[Finding])
                 fails(out, "3.3.4", "error_prevention", fr, n, nm(v, n) + " commits " + c + " data with no undo-action, review-action or confirm-action")
 
 # 3.3.8: password fields accept paste and autofill; a cognitive test has an alternative.
-fn r_accessible_authentication(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_accessible_authentication(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     for i in 0..nodes(v)
         let n = i as i64
@@ -955,7 +955,7 @@ fn one_of(t: &text, xs: &[text]) -> bool
 # 4.1.2: roles are known, interactive nodes have a role and a name,
 # required states are present and valid, references resolve, nothing
 # focusable is hidden, at most one node has focus.
-fn r_name_role_value(x: &Frame, fr: i64, out: &mut List[Finding])
+fn r_name_role_value(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     let sc = "4.1.2"
     let rn = "name_role_value"
@@ -1010,7 +1010,7 @@ fn r_name_role_value(x: &Frame, fr: i64, out: &mut List[Finding])
     if nfocus > 1
         fails(out, copy(sc), copy(rn), fr, 0, nfocus.tostr() + " nodes declare focused")
 
-fn range_check(x: &Frame, fr: i64, n: i64, out: &mut List[Finding])
+fn range_check(x: &Facts, fr: i64, n: i64, out: &mut List[Finding])
     let v = &x.v
     var vals: List[i64] = []
     for a in ["aria-valuemin", "aria-valuenow", "aria-valuemax"]
@@ -1023,7 +1023,7 @@ fn range_check(x: &Frame, fr: i64, n: i64, out: &mut List[Finding])
     if vals.len() == 3 and (vals[0] > vals[1] or vals[1] > vals[2])
         fails(out, "4.1.2", "name_role_value", fr, n, nm(v, n) + " aria-valuenow is outside aria-valuemin to aria-valuemax")
 
-fn view_rule(name: &text, v: &Frame, fr: i64, out: &mut List[Finding]) -> bool
+fn view_rule(name: &text, v: &Facts, fr: i64, out: &mut List[Finding]) -> bool
     if name == "text_alternative"
         r_text_alternative(v, fr, out)
     elif name == "media_alternative"
@@ -1103,11 +1103,11 @@ fn view_rule(name: &text, v: &Frame, fr: i64, out: &mut List[Finding]) -> bool
     return true
 
 # ---------------- rules over a trace ----------------
-fn ev_word(s: &Frame) -> text
+fn ev_word(s: &Facts) -> text
     let ws = s.ev.words()
     return if ws.len() > 0 then copy(ws[0]) else ""
 
-fn ev_arg(s: &Frame) -> text
+fn ev_arg(s: &Facts) -> text
     let ws = s.ev.words()
     return if ws.len() > 1 then copy(ws[1]) else ""
 
@@ -1162,7 +1162,7 @@ fn live_region(v: &View, n: i64) -> bool
 
 # 1.4.13: content shown on hover or focus can be dismissed with Escape
 # without moving focus, stays while hovered, and stays on ticks.
-fn r_hover_focus_content(t: &List[Frame], out: &mut List[Finding])
+fn r_hover_focus_content(t: &List[Facts], out: &mut List[Finding])
     var ks: List[text] = []
     var hovers: List[text] = []
     for f in 0..t.len()
@@ -1205,7 +1205,7 @@ fn r_hover_focus_content(t: &List[Frame], out: &mut List[Finding])
 # 2.2.1: a time limit can be turned off, adjusted ten-fold, or extended
 # after a warning given at least 20 s before it expires; a context change
 # on a tick needs a declared time limit.
-fn r_timing_adjustable(t: &List[Frame], out: &mut List[Finding])
+fn r_timing_adjustable(t: &List[Facts], out: &mut List[Finding])
     var extend_only = false
     var warned_left: i64 = -1
     var expired_unwarned = false
@@ -1253,7 +1253,7 @@ fn covered_by_pause(v: &View, n: i64) -> i64
 
 # 2.2.2: moving content over 5 s, and content that changes on a tick,
 # has a pause-action, and activating it stops the change.
-fn r_pause_stop_hide(t: &List[Frame], out: &mut List[Finding])
+fn r_pause_stop_hide(t: &List[Facts], out: &mut List[Finding])
     for f in 0..t.len()
         let v = &t[f].v
         for i in 0..nodes(v)
@@ -1326,7 +1326,7 @@ fn r_pause_stop_hide(t: &List[Frame], out: &mut List[Finding])
 # the two is undecided (layout geometry). A red flash is
 # not computed in this slice: frequent changes involving a saturated red
 # are undecided.
-fn r_three_flashes(t: &List[Frame], out: &mut List[Finding])
+fn r_three_flashes(t: &List[Facts], out: &mut List[Finding])
     var ks: List[text] = []
     for f in 0..t.len()
         for i in 0..nodes(&t[f].v)
@@ -1438,7 +1438,7 @@ fn sat_red(c: i64) -> bool
 
 # 3.2.1: focusing a node changes neither the context nor where focus is;
 # every focusable node is focused at some step.
-fn r_on_focus(t: &List[Frame], out: &mut List[Finding])
+fn r_on_focus(t: &List[Facts], out: &mut List[Finding])
     var ks: List[text] = []
     for f in 0..t.len()
         for i in 0..nodes(&t[f].v)
@@ -1463,7 +1463,7 @@ fn r_on_focus(t: &List[Frame], out: &mut List[Finding])
 
 # 3.2.2: changing an input's value changes neither the context nor focus;
 # every input is changed at some step.
-fn r_on_input(t: &List[Frame], out: &mut List[Finding])
+fn r_on_input(t: &List[Facts], out: &mut List[Finding])
     var ks: List[text] = []
     for f in 0..t.len()
         for i in 0..nodes(&t[f].v)
@@ -1491,7 +1491,7 @@ fn r_on_input(t: &List[Frame], out: &mut List[Finding])
         if not seen.contains(k)
             undecided(out, "3.2.2", "on_input", -1, -1, "no step changes " + k)
 
-fn contexts(t: &List[Frame]) -> List[text]
+fn contexts(t: &List[Facts]) -> List[text]
     var cs: List[text] = []
     for f in 0..t.len()
         let c = ctx(&t[f].v)
@@ -1499,7 +1499,7 @@ fn contexts(t: &List[Frame]) -> List[text]
             cs.push(c)
     return cs
 
-fn first_frame(t: &List[Frame], c: &text) -> usize
+fn first_frame(t: &List[Facts], c: &text) -> usize
     for f in 0..t.len()
         if ctx(&t[f].v) == c
             return f
@@ -1539,7 +1539,7 @@ fn help_kinds(v: &View) -> List[text]
     return out
 
 # 3.2.3: navigation repeated across contexts keeps its relative order.
-fn r_consistent_navigation(t: &List[Frame], out: &mut List[Finding])
+fn r_consistent_navigation(t: &List[Facts], out: &mut List[Finding])
     let cs = contexts(t)
     for i in 0..cs.len()
         for j in (i + 1)..cs.len()
@@ -1549,7 +1549,7 @@ fn r_consistent_navigation(t: &List[Frame], out: &mut List[Finding])
                 fails(out, "3.2.3", "consistent_navigation", first_frame(t, &cs[j]) as i64, -1, "navigation order differs between contexts " + cs[i] + " and " + cs[j])
 
 # 3.2.4: nodes with the same action have the same name in every context.
-fn r_consistent_identification(t: &List[Frame], out: &mut List[Finding])
+fn r_consistent_identification(t: &List[Facts], out: &mut List[Finding])
     var acts: List[text] = []
     var names: List[text] = []
     var cts: List[text] = []
@@ -1572,7 +1572,7 @@ fn r_consistent_identification(t: &List[Frame], out: &mut List[Finding])
                     cts.push(ctx(v))
 
 # 3.2.6: help mechanisms keep their relative order across contexts.
-fn r_consistent_help(t: &List[Frame], out: &mut List[Finding])
+fn r_consistent_help(t: &List[Facts], out: &mut List[Finding])
     let cs = contexts(t)
     for i in 0..cs.len()
         for j in (i + 1)..cs.len()
@@ -1584,7 +1584,7 @@ fn r_consistent_help(t: &List[Frame], out: &mut List[Finding])
 # 3.3.7: information entered earlier is filled in or offered when asked
 # again in another context; with more than one context, every input
 # declares entry (an id of the information, or "none").
-fn r_redundant_entry(t: &List[Frame], out: &mut List[Finding])
+fn r_redundant_entry(t: &List[Facts], out: &mut List[Finding])
     let multi = contexts(t).len() > 1
     var given: List[text] = []
     var given_ctx: List[text] = []
@@ -1612,7 +1612,7 @@ fn r_redundant_entry(t: &List[Frame], out: &mut List[Finding])
 # 4.1.3: a declared status message is in a live region; text that changes
 # between two frames of one context, outside the focused node and outside
 # a live region, declares status-msg ("true" or "false").
-fn r_status_messages(t: &List[Frame], out: &mut List[Finding])
+fn r_status_messages(t: &List[Facts], out: &mut List[Finding])
     for f in 0..t.len()
         let v = &t[f].v
         for i in 0..nodes(v)
@@ -1637,7 +1637,7 @@ fn r_status_messages(t: &List[Frame], out: &mut List[Finding])
 
 fn v_text(v: &View, n: i64) -> bool = v.tag[n as usize] == "" and v.text[n as usize].strip() != ""
 
-fn trace_rule(name: &text, t: &List[Frame], out: &mut List[Finding]) -> bool
+fn trace_rule(name: &text, t: &List[Facts], out: &mut List[Finding]) -> bool
     if name == "hover_focus_content"
         r_hover_focus_content(t, out)
     elif name == "timing_adjustable"
@@ -1669,14 +1669,24 @@ pub fn rule_findings(name: &text, t: &List[Step]) -> List[Finding]
     let fs = frames(t)
     return findings_of(name, &fs)
 
-fn findings_of(name: &text, t: &List[Frame]) -> List[Finding]
+# Findings of every rule over a trace, rule by rule in the order of
+# rule_names(); the facts of each frame are computed once.
+pub fn findings(t: &List[Step]) -> List[Finding]
+    let fs = frames(t)
+    var out: List[Finding] = []
+    for n in rule_names()
+        for x in findings_of(&n, &fs)
+            out.push(x)
+    return out
+
+fn findings_of(name: &text, t: &List[Facts]) -> List[Finding]
     var out: List[Finding] = []
     if not trace_rule(name, t, &mut out)
         for f in 0..t.len()
             let _ = view_rule(name, &t[f], f as i64, &mut out)
     return out
 
-pub fn frame_of(s: &Step) -> Frame
+pub fn frame_of(s: &Step) -> Facts
     let v = &s.v
     let n = nodes(v)
     var rl: List[text] = []
@@ -1714,10 +1724,10 @@ pub fn frame_of(s: &Step) -> Frame
         for c in v.kids[k]
             q.push(c)
         h += 1
-    return Frame(ev: copy(s.ev), ms: s.ms, v: copy(s.v), role: rl, ri: ri, hid: hid, off: off, inter: inter, foc: foc, vis: vis)
+    return Facts(ev: copy(s.ev), ms: s.ms, v: copy(s.v), role: rl, ri: ri, hid: hid, off: off, inter: inter, foc: foc, vis: vis)
 
-pub fn frames(t: &List[Step]) -> List[Frame]
-    var out: List[Frame] = []
+pub fn frames(t: &List[Step]) -> List[Facts]
+    var out: List[Facts] = []
     for s in t
         out.push(frame_of(&s))
     return out
@@ -1732,14 +1742,14 @@ pub fn view_findings(name: &text, v: &View) -> List[Finding]
     return rule_findings(name, &t)
 
 # ---------------- applicability and the human part ----------------
-fn any_node(t: &List[Frame], what: text) -> bool
+fn any_node(t: &List[Facts], what: text) -> bool
     for f in 0..t.len()
         for i in 0..nodes(&t[f].v)
             if not t[f].hid[i] and node_is(&t[f], i as i64, &what)
                 return true
     return false
 
-fn node_is(x: &Frame, n: i64, what: &text) -> bool
+fn node_is(x: &Facts, n: i64, what: &text) -> bool
     let v = &x.v
     let r = copy(x.role[n as usize])
     let k = if what.startswith("media") or what.startswith("av") or what == "autoplay" then media_kind(v, n) else ""
@@ -1787,26 +1797,26 @@ fn node_is(x: &Frame, n: i64, what: &text) -> bool
         return has(v, n, "auth") or (el(v, n) and text_input(&r))
     return has(v, n, copy(what))
 
-fn changes(t: &List[Frame], tick_only: bool) -> bool
+fn changes(t: &List[Facts], tick_only: bool) -> bool
     for f in 1..t.len()
         if (not tick_only or ev_word(&t[f]) == "tick") and sig(&t[f - 1].v, 0) != sig(&t[f].v, 0)
             return true
     return false
 
-fn text_changes(t: &List[Frame]) -> bool
+fn text_changes(t: &List[Facts]) -> bool
     for f in 1..t.len()
         if ctx(&t[f - 1].v) == ctx(&t[f].v) and text_of(&t[f - 1].v, 0) != text_of(&t[f].v, 0)
             return true
     return false
 
-fn ctx_change_on_tick(t: &List[Frame]) -> bool
+fn ctx_change_on_tick(t: &List[Facts]) -> bool
     for f in 1..t.len()
         if ev_word(&t[f]) == "tick" and ctx(&t[f - 1].v) != ctx(&t[f].v)
             return true
     return false
 
 # "" when sc applies to the trace, else the reason it does not
-pub fn not_applicable(sc: &text, t: &List[Frame]) -> text
+pub fn not_applicable(sc: &text, t: &List[Facts]) -> text
     let multi = contexts(t).len() > 1
     if sc == "1.1.1" and not any_node(t, "img")
         return "no node has role img"
@@ -1868,7 +1878,7 @@ pub fn not_applicable(sc: &text, t: &List[Frame]) -> text
         return "no status message declared and no text changes"
     return ""
 
-fn any_frame(t: &List[Frame], what: text) -> bool
+fn any_frame(t: &List[Facts], what: text) -> bool
     for f in 0..t.len()
         let v = &t[f].v
         if what == "lock"
@@ -1890,7 +1900,7 @@ fn any_frame(t: &List[Frame], what: text) -> bool
     return false
 
 # "" when no part of sc is left to a person for this trace, else what is
-pub fn human_need(c: &Criterion, t: &List[Frame]) -> text
+pub fn human_need(c: &Criterion, t: &List[Facts]) -> text
     if c.class == "H"
         return copy(c.human)
     let id = copy(c.id)
@@ -1910,7 +1920,7 @@ pub fn human_need(c: &Criterion, t: &List[Frame]) -> text
 
 # the attestation of sc on every frame: "WHO on DATE", "" when missing,
 # "?" when malformed
-pub fn attestation(sc: &text, t: &List[Frame]) -> text
+pub fn attestation(sc: &text, t: &List[Facts]) -> text
     var r = ""
     for f in 0..t.len()
         let a = av(&t[f].v, 0, "attest-" + sc)
@@ -1928,7 +1938,7 @@ fn date_ok(d: &text) -> bool
     return p.len() == 3 and p[0].len_chars() == 4 and p[1].len_chars() == 2 and p[2].len_chars() == 2 and p[0].isdigit() and p[1].isdigit() and p[2].isdigit()
 
 # ---------------- verdicts ----------------
-fn verdict(c: &Criterion, t: &List[Frame]) -> Verdict
+fn verdict(c: &Criterion, t: &List[Facts]) -> Verdict
     let na = not_applicable(&c.id, t)
     if na != ""
         return Verdict(sc: copy(c.id), outcome: "not applicable", reason: na)
