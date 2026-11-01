@@ -1,5 +1,5 @@
 # rce-version: 0.9
 # expect: W-RES-1
 fn main()
-    let law = 1
-    emit law.tostr()
+    let declassify = 1
+    emit declassify.tostr()

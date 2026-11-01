@@ -3,6 +3,7 @@
 
 [
   "module" "use" "as" "intent" "example" "kept" "check"
+  "law" "always" "every" "attest" "applied"
   "const" "type" "struct" "state" "event" "error" "kind"
   "trait" "impl" "forall" "extern" "step" "on" "actor"
   "let" "var" "with" "arena" "device" "bound" "pass" "where"

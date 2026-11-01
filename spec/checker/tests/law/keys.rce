@@ -1,0 +1,28 @@
+intent "a key handler: Escape quits, other keys are counted"
+    example Key(code: 65, down: true) -> presses == 1
+    example Key(code: 27, down: true) -> kept: Quit
+    law escape_quits
+        every step on Key(code: 27, down: true) -> kept: Quit
+    law others_apply
+        every step on Key(code: c, down: d) if c != 27 or not d -> applied
+    law counts_by_one
+        every step on Key(code: c, down: true) if c != 27 -> old(presses) == 255 or presses == old(presses) + 1
+    law releases_count_nothing
+        every step on Key(code: _, down: false) -> presses == old(presses)
+
+error Quit
+
+state Pad
+    presses: u8 = 0
+
+event Key(code: u8, down: bool)
+
+step Pad on Key(code: 27, down: true)
+    fail Quit
+
+step Pad on Key(code: _, down: true)
+    if presses < 255
+        presses += 1
+
+step Pad on Key(code: _, down: false)
+    pass

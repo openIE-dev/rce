@@ -57,8 +57,11 @@ fn version_line_is_a_label_not_a_gate() {
 
 #[test]
 fn reserved_words_are_names_after_a_dot_only() {
-    let src = "fn main()\n    let law = 1\n    emit law.tostr()\n";
+    let src = "fn main()\n    let declassify = 1\n    emit declassify.tostr()\n";
     assert!(rce_spec_check::check_one(src).unwrap_err().contains("W-RES-1"));
+    // `law` has its construct (6.11): as a name it requires change, W-NAME-2
+    let src = "fn main()\n    let law = 1\n    emit law.tostr()\n";
+    assert!(rce_spec_check::check_one(src).unwrap_err().contains("W-NAME-2"));
     let src = "struct S\n    a: i64\n\nfn main()\n    let s = S(a: 1)\n    emit s.a.tostr()\n";
     assert_eq!(rce_spec_check::check_one(src), Ok(()));
 }

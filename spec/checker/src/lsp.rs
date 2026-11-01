@@ -32,6 +32,7 @@ fn item_line(i: &Item) -> Option<usize> {
     Some(match i {
         Item::Use(..) | Item::Intent(..) => return None,
         Item::Example(x) => x.line,
+        Item::Law(l) => l.line,
         Item::Protocol { line, .. } | Item::Node { line, .. } | Item::Supervisor { line, .. } => *line,
         Item::Check(e) => e.line(),
         Item::Const { line, .. }
@@ -191,6 +192,7 @@ impl Index {
                 Item::Step { region, .. } => mk(&format!("step {region}"), 24, head, vec![]),
                 Item::Example(_) => mk("example", 24, head, vec![]),
                 Item::Check(_) => mk("check", 24, head, vec![]),
+                Item::Law(l) => mk(&format!("law {}", l.name), 24, block, vec![]),
                 Item::Use(..) | Item::Intent(..) => continue,
             };
             ix.items.push(s);

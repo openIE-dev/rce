@@ -37,6 +37,7 @@ pub mod manifest;
 pub mod index08;
 pub mod interp;
 pub mod lalr;
+pub mod law;
 pub mod link;
 pub mod lsp;
 pub mod parse;
@@ -126,6 +127,23 @@ pub fn program(src: &str) -> Result<ast::Module, String> {
         return Err(e.clone());
     }
     Ok(lk.module)
+}
+
+/// One source text parsed, linked and type-checked, without admission:
+/// the module `rce law` decides (6.11). The errors are those of `rce check`
+/// before its admission gate.
+pub fn checked_program(src: &str) -> Result<ast::Module, String> {
+    let m = parse::parse(src)?;
+    let lk = link::link(&m, &[&m]);
+    let known: HashSet<String> = m.path.iter().map(|q| q.join(".")).collect();
+    let mut c = check::Checker::new();
+    c.imported_fns = lk.imported_fns;
+    c.imported_types = lk.imported_types;
+    for e in lk.errs {
+        c.e(e);
+    }
+    c.check_module(&lk.module, &known);
+    if c.errs.is_empty() { Ok(lk.module) } else { Err(c.errs.join("; ")) }
 }
 
 /// Check one source text alone.

@@ -538,7 +538,7 @@ impl Rw<'_, '_> {
                     self.body(&mut f.body)
                 }
             }
-            Item::Intent(_, xs, cks) => {
+            Item::Intent(_, xs, cks, ..) => {
                 cks.iter_mut().for_each(|e| self.expr(e));
                 for x in xs {
                     x.events.iter_mut().for_each(|(_, a)| a.iter_mut().for_each(|a| self.expr(&mut a.e)));

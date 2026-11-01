@@ -115,16 +115,16 @@ shift/reduce or reduce/reduce conflict, then parses every program in
 `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
 reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
-form one program and must be accepted; the 12 syntax rejects, the 49
-programs in `spec/examples/change/types/` and the 16 in
+form one program and must be accepted; the 13 syntax rejects, the 49
+programs in `spec/examples/change/types/` and the 17 in
 `spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py check`): the section-3 grammar has 0 conflicts
-(100 rules, 491 productions, 974 states); with the additions of C.2,
-0 conflicts (114 rules, 560 productions, 1152 states);
-with C.2 and F.13, 0 conflicts (119 rules, 590 productions,
-1219 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
-12/12 requiring change; checker 62/62 accepted, 12/12 and 65/65 requiring change (16 of them
+(104 rules, 512 productions, 1028 states); with the additions of C.2,
+0 conflicts (118 rules, 581 productions, 1206 states);
+with C.2 and F.13, 0 conflicts (123 rules, 611 productions,
+1273 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
+13/13 requiring change; checker 62/62 accepted, 13/13 and 66/66 requiring change (17 of them
 inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -261,9 +261,11 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
 and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word
 used as a name requires change under the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
-(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) used as a name requires
+(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`, and `law`, which begins
+the laws of 6.11) used as a name requires
 change (W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
-implementation does not have (`declassify`, `law`, `Template`, `mathint`) requires change, with the rule W-RES-1 and
+implementation does not have (`declassify`, `Template`, `mathint`, and `law` inside a `trait`, the trait
+laws of F.6.6) requires change, with the rule W-RES-1 and
 the words *reserved, not implemented*; it is never read as an ordinary name and never silently ignored (F.12).
 Directly after `.` a reserved word is a member name, so
 `c.offer()` and `c.choose(L)` remain method calls.
@@ -362,7 +364,7 @@ see two parses, the grammar admits exactly one; the resolutions are listed in
 SourceFile   = { NEWLINE } [ ModuleHeader ] { Item } .
 ModuleHeader = "module" Path NEWLINE .
 Path         = NAME { "." NAME } .
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
@@ -374,12 +376,21 @@ UseDecl      = "use" Path [ "as" NAME ] NEWLINE .
 
 ```
 IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT ] .
-IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
+IntentLine  = ExampleDecl | CheckDecl | LawDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
 Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
+LawDecl     = "law" NAME NEWLINE INDENT { STRING NEWLINE } LawClaim { LawNote } DEDENT .
+LawClaim    = "always" Expr NEWLINE
+            | "every" "step" [ "on" Pattern ] [ "if" Expr ] "->" LawOutcome NEWLINE .
+LawOutcome  = Expr | "kept" [ ":" NAME ] | "applied" .
+LawNote     = STRING NEWLINE | "attest" STRING NEWLINE .
 ```
+
+A law (6.11) has exactly one claim: `always p` or `every step …`. Its
+text lines are prose and change nothing. Example: a law `you_cant_win`
+whose indented block is the one line `always not won`.
 
 ### 3.3 Data declarations
 
@@ -612,6 +623,12 @@ declaration and no conflict to resolve at parse time.
 - **R9 send.** `<-` after an expression at statement level is a send;
   in prefix position it is a receive. The two never meet: `a <- <- b` is
   "send the value received from b to a".
+- **R10 the words of a law.** `always`, `every` and `attest` are words of the
+  grammar only at the start of a line inside a `law` block, and `applied`
+  and a `kept` with no `:` only as the whole outcome of an `every step`
+  line; everywhere else each is a NAME, so no identifier is reserved for
+  them. A bool field named `applied` is read in that outcome as `(applied)`.
+  `law` itself is reserved (2.4).
 
 ### 3.12 Machine check
 
@@ -623,17 +640,18 @@ declaration and no conflict to resolve at parse time.
    left-recursive helper rule), builds the LALR(1) tables and fails on any
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
-   current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
+   current result (draft 0.9): 104 rules, 512 productions, 1028 states, 0
    conflicts (`scripts/claim-counts.py check` compares these numbers with
    the output of `rce-spec-check`);
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/change/syntax/` (tab indent, chained
+3. parses the 13 programs in `examples/change/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
-   unterminated string); all must be reported as requiring change.
+   unterminated string, a law with two claims); all must be reported as
+   requiring change.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
@@ -2111,7 +2129,9 @@ list, so it meets every example of M, and it keeps the state on every other
 list. A `check` is a proposition about comptime values and functions, and a
 contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
 admits it and reports the recommended change W-INT-2 (10.2): its
-obligations do not constrain behaviour beyond the listed examples. W-INT-2
+obligations do not constrain behaviour beyond the listed examples. A module
+with a law (6.11) has an obligation beyond them, and W-INT-2 is not reported
+for it. W-INT-2
 never makes a program require change; it says what the examples do not
 state.
 
@@ -2187,6 +2207,131 @@ by partition refinement on reach(P) and in practice bounded by the
 exploration fuel of `rce dim` (10.11). The proposal `form-ir-2.md` names
 two further keys, a name-free term hash and an e-class key, that this text
 does not define.
+
+### 6.11 Laws
+
+A *law* states a property of every state a program reaches, or of every
+step taken from such a state, and the checker decides it before the
+program is admitted. Example: the flag game of `spec/proposals/laws.md`
+states `law you_cant_win` with the claim `always not won`; with walls on
+the far edges of its board the checker explores its 72 reachable states and
+the law holds; without them it fails, and the report prints the 9 events
+that reach the flag as an `example` line.
+
+In plain words: (1) an example states one sequence of events, and a law
+states something about every sequence, of every length; (2) the checker
+decides a law by visiting every state the program can reach, which is exact
+when it finishes and when it finds a violation; (3) a law it cannot decide
+within a fixed bound requires change, unless a named person attests it.
+
+**Meaning.** Let s₀, δ, δ₁ and E be as in 6.1 and 6.10, and reach(P) the
+states that some sequence of events leads to from s₀. A law has one claim
+(3.2):
+
+- `always p` holds when ⟦p⟧ = true at every s ∈ reach(P). p is a `bool`
+  expression over the state, with fields in scope by name, as in the `-> e`
+  of an example (6.9).
+- `every step [on PAT] [if g] -> o` holds when, for every s ∈ reach(P) and
+  every event instance e that matches PAT (every event, without `on`) and
+  for which g is true at s, the step δ(s, e) has the outcome o. PAT is a
+  step pattern (3.5) and binds its names for g and o; g is a `bool` over s.
+  The outcome `kept` says the event is kept, `kept: X` that it is kept with
+  the error X, and `applied` that it applies. An expression o is a `bool`
+  over δ₁(s, e), the state after the step (s itself when the event is kept,
+  T8), in which `old(f)` names the field f of s.
+
+p, g and o may call the module's functions; they are checked as comptime
+expressions (5.4), so they call no foreign function. A trap while
+evaluating one of them is a violation at that state or step. By T3 every
+state a fold of events reaches is in reach(P), so a law over reach(P) is a
+law over every event sequence.
+
+**The complete alphabet.** A payload field type is *listable* when the
+checker can list its values in full: `bool`, `()`, `u8`, `i8`, `T?` of a
+listable T, a `kind` without type parameters whose variants carry only
+listable fields, and a type declared `type N = T` or `type N = T where p`
+(5.1) of a listable T (a value outside p traps at construction and is no
+event). The *alphabet* of a program is every instance of every event whose
+fields are all listable, events in declaration order (the name-free key of
+6.6) and the values of each field in their order: `false` before `true`,
+integers ascending, `none` before `some`, variants in declaration order,
+the fields of a payload varying last field fastest. An event with more than
+4,096 instances, or with a field that is not listable, is left out, and
+the alphabet is then *incomplete*.
+
+**Method D1, exhaustive exploration.** The checker explores reach(P)
+breadth first from s₀, applying every instance of the alphabet in its
+order to each state, and keys a state by its canonical JSON (6.1.1). It
+evaluates every `always` law at each new state, s₀ first, and every
+`every step` law at each step. It stops when every law has a violation,
+when no new state appears (the exploration is *closed*), or when a new
+state would be the (LAW_FUEL + 1)th. **LAW_FUEL** is a constant of the
+language, 1,000,000 states, so admission depends only on the program text
+(10.1, item 1), as with LOOP_LIMIT (6.7).
+
+**Verdicts.** Each law gets one verdict:
+
+- `holds`: the exploration closed with no violation and the alphabet is
+  complete. By T63 the law then holds after every event sequence of every
+  length.
+- `fails`: a violation was found. The sequence that reaches it exists, so
+  the verdict is exact whether or not the bound was reached and whether or
+  not the alphabet is complete.
+- `undecided`: no violation, and the alphabet is incomplete or the bound was
+  reached. The report names each event left out (`Deposit.amount (u64)`) and
+  the bound.
+- `attested`: undecided, and attested (below).
+
+A program is admitted only when every law holds or is attested (W-INT-1
+for examples and checks, W-LAW-1 for laws). An attestation never changes a
+`fails`.
+
+**The counterexample.** The sequence a failing law reports is the
+shortest one after which the law fails, and among the shortest the first in
+the order of the alphabet, compared event by event from the start: a
+breadth-first exploration that takes events in a fixed order meets the
+states in that order. It is printed as an `example` line (3.2) that states
+what the program does now, so it holds and can be pasted into an `intent`
+as it is: for `always p`, the outcome is `not p` (`q` when p is `not q`;
+the field's value when the state has one field of type `bool`); for an
+`every step` law, `kept: X` when the last step is kept with X, else the
+fields of the state after the last step with their values
+(`x == 1 and won == true`). Changing the outcome to the law's turns the
+line into the example that the corrected program must meet. For the flag
+game without walls:
+
+```
+requires change flag_wrap.rce: line 4: W-LAW-1 law you_cant_win fails after 9 events (exhaustive, alphabet 4 complete, 86 states explored): the claim is false [requires change]
+    example Up, Up, Up, Up, Right, Right, Right, Right, Right -> won
+```
+
+**Attestation.** A line `attest "WHO;YYYY-MM-DD;COVER"` in a law says that
+the person WHO decided on that date that the law holds; it is the form of
+`ui.rules` (`attest-ID`) with the cover added. The *cover* of a law is a
+SHA-256 over the law's claim, with every named definition replaced by its
+definition hash (F.4.3), and over the sorted definition hashes of every
+`state`, `event` and `error`, of every `step` (by its text, with the
+definitions it names replaced by their hashes) and of every definition the
+claim names. An attestation applies only while its COVER equals the
+current cover: when a definition it covers changes, the attestation
+*lapses* and the law is `undecided` again. A definition that no step, no
+state, no event and no claim reaches can change without lapsing it. The
+report of an undecided law prints the current cover. An `attest` line that
+is not of this form requires change (W-LAW-1).
+
+**Reports.** `rce check` reports each law that fails or is undecided and
+not attested under W-LAW-1, with the counterexample line. `rce law FILE`
+(10.11) prints one line per law with its verdict, the method and the counts,
+for example
+`law you_cant_win  holds      exhaustive  72 states, 288 steps, alphabet 4 (complete), closed`;
+its status is 0 when every law holds or is attested, 3 when the only
+obstacle is the bound, and 1 otherwise. `rce change OLD NEW` decides every
+law of OLD on NEW (10.11).
+
+Laws are part of the canonical text, so they are in the program hash
+(10.8). The other methods of the proposal (an inductive invariant, a Lean
+proof) are not part of the language; a law that states liveness
+("eventually") or a property of `fn main` and its tasks is not expressible.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
@@ -2267,6 +2412,11 @@ The Form
 - W-INT-2 (recommended; never requires change) A module with a step and
   `example` lines, whose obligations its lookup-table control meets (6.9):
   `rce check` admits it and prints the recommendation (10.2).
+- W-LAW-1 A law (6.11) that fails, or that is undecided and not attested
+  (its alphabet is incomplete or the bound LAW_FUEL is reached), or an
+  `attest` line that is not `WHO;YYYY-MM-DD;COVER`. The report of a failing
+  law ends with its counterexample as an `example` line. The trait laws of
+  F.6.6 fall under the same rule once they are implemented.
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -2380,6 +2530,7 @@ section 8) is the ground of a rewrite that renames.
 | W-CT-1 | requires change | The comptime expression is the author's to change. |
 | W-INT-1 | requires change | An example or check that does not hold states another behaviour than the program has; which of the two is meant is the author's statement. |
 | W-INT-2 | recommended | The module is admitted; the report recommends obligations beyond the listed examples (6.9). |
+| W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
@@ -2449,7 +2600,6 @@ section 8) is the ground of a rewrite that renames.
 | W-GHOST-1 | requires change | Where a ghost value flows is the author's statement. |
 | W-DEC-1 | requires change | A measure is the author's statement. |
 | W-IFLET-1 | requires change | The comparison is the author's statement. |
-| W-LAW-1 | requires change | The impl's laws are the author's to meet. |
 | W-LEN-1 | requires change | `len_bytes` or `len_chars` is a choice of unit. |
 | W-TRI-1 | requires change | A release path is the author's statement. |
 
@@ -2533,6 +2683,7 @@ Classical.choice). Status per theorem:
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
 | T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 | T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
+| T63 | proved on the Form of `RCE/Form.lean` (`RCE/Law.lean`): with a complete alphabet, a closed exploration from s₀ on whose every state a property holds proves it after every event sequence of every length, for `always` and for `every step` claims; one sequence after which it is false refutes it; and, when every explored state is reached, the law holds exactly when it holds on the explored states. A model in the sense of this chapter: the link to the checker is `tests/law.rs` (6.11) | `reachBy`, `ClosedOn`, `reachBy_mem`, `law_always_holds`, `law_step_holds`, `law_always_fails`, `law_always_iff` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -2650,6 +2801,15 @@ guard outcome.
 two cuts, any two orders that agree with every chain's `seq` order and
 every `deps` edge fold δ₁ to the same state at the upper cut
 (spec/proposals/partial-order-log.md).
+
+**T63 Exploration decides a law.** Let the alphabet of 6.11 be complete and
+let C be a finite set of states with s₀ ∈ C that every instance of the
+alphabet takes into C. If a property holds at every state of C, it holds
+at foldl(δ₁, s₀, w) for every event sequence w, and an `every step`
+property that holds at every step from a state of C holds at every step
+from every reached state. A sequence w after which the property is false
+refutes the law. When every state of C is reached from s₀, the law holds
+for every sequence exactly when it holds on C (6.11, method D1).
 
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
@@ -3156,7 +3316,8 @@ and shows that the step of the third event keeps the state, with exit status 1.
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `fuel` before either equivalence or a
-   distinguishing event sequence was established (10.11). 4 means a run
+   distinguishing event sequence was established, and `rce law` when the
+   bound LAW_FUEL left a law undecided (10.11). 4 means a run
    the host cannot perform: a run of `fn main` in which an lvar passes
    from one task to another needs task threads, and the host cannot start
    one (10.3).
@@ -4003,6 +4164,26 @@ when behaviour is kept but an export is broken (status 1: callers must
 change); *undecided* when `rce equiv` is undecided (status 3: raise
 `fuel`); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
+Laws (6.11) are part of a program's meaning. `rce change` prints one `law`
+row per law of OLD, decided on NEW with NEW's definitions (`=` the law is
+unchanged in NEW, `~` edited, `-` removed), and one `+` row per law NEW
+adds. *Meaning change* (status 1) is then also the verdict when NEW breaks
+a law of OLD (CC-L1 of `spec/proposals/laws.md`; the row is followed by the
+counterexample line) and when a law of OLD is edited or removed (CC-L2),
+whatever the behaviour check says. A law added to a program whose
+behaviour is unchanged is an erratum. On the flag game of 6.11, the change
+that removes the far-edge walls has the same behaviour (no step emits a
+value or keeps the state), so without its law it was an erratum; with the
+law it is a meaning change, with the 9-event sequence.
+
+`rce law FILE` checks FILE as `rce check` does up to the admission gate,
+then decides every law of FILE by method D1 (6.11) and prints one line per
+law: its name, its verdict (`holds`, `fails`, `undecided` or `attested`),
+the method and the counts (states, steps, alphabet size and whether it is
+complete, whether the exploration closed), and for a failing law the
+counterexample line. An undecided law's line names what left it undecided
+and the cover an attestation must carry. Exit status 0 when every law holds
+or is attested, 3 when the only obstacle is the bound LAW_FUEL, 1 otherwise.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
@@ -4050,7 +4231,7 @@ is judged once.
 
 Terms. A **definition** is a function, a method of an `impl`, a step, an
 actor, a constant or a state declaration. A **site** is one expression
-of a definition. Intent, example and check items, and `check`, `requires`
+of a definition. Intent, example, check and law items, and `check`, `requires`
 and `ensures` statements, are never edited: they are what a candidate is
 judged by. The **name-free signature** of a function is its number of
 generic parameters, its parameter types and its result type, without the
@@ -4224,7 +4405,7 @@ fails on any conflict; it runs that machine over the concurrency corpora
 the whole language.
 
 ```
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl | ProtocolDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
@@ -7778,9 +7959,10 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 Not implemented (each is reserved, not implemented, or the closed list in
 `crate::v09::UNIMPLEMENTED` says that it is not enforced):
 
-- trait laws (P9, F.6.6): `law` is a reserved word that is reserved, not implemented;
-  W-LAW-1 needs a sample of impl values and an evaluator of a law over them,
-  and neither exists, so no law is ever run or assumed;
+- trait laws (P9, F.6.6): `law` inside a `trait` is reserved, not implemented;
+  W-LAW-1 for trait laws needs a sample of impl values and an evaluator of a
+  law over them, and neither exists, so no trait law is ever run or assumed
+  (the laws of 6.11, over the reachable states of a program, are implemented);
 - `declassify` (F.4.2): always requires change; `release` with a held capability is the
   one way a labeled value leaves its label;
 - `ghost` parameters, `mathint` and quantifiers; `R.check` and opaque types
@@ -7818,7 +8000,7 @@ here; none of them is left requiring change for lack of attention.
   label; a second way would need its own authority rule, and T43 (robust declassification) is unproved.
 - `host.revoke` (F.5.1): the call writes to the host log, which the reference checker does not have; the
   pure caretaker fold is implemented and tested, and T51 is proved of the log model only.
-- `law` (P9, F.6.6): W-LAW-1 needs a sample of impl values and an evaluator of a law over them.
+- `law` in a `trait` (P9, F.6.6): W-LAW-1 for trait laws needs a sample of impl values and an evaluator of a law over them.
 
 **Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
@@ -7839,7 +8021,7 @@ The tree-sitter port
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl | ProtocolDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl

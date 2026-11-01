@@ -178,7 +178,7 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
         match i {
             Item::Example(_) => e += 1,
             Item::Check(_) => c += 1,
-            Item::Intent(_, xs, cs) => {
+            Item::Intent(_, xs, cs, ..) => {
                 e += xs.len();
                 c += cs.len();
             }
@@ -205,11 +205,22 @@ pub fn with_methods(reports: &str) -> String {
             _ => parts.push(r),
         }
     }
-    parts
-        .iter()
-        .map(|r| format!("{r} [{}]", method_text(r)))
-        .collect::<Vec<_>>()
-        .join("; ")
+    // a report may carry lines after its first (the counterexample of a
+    // law, W-LAW-1): the method ends the first line, and the next report
+    // starts on a line of its own
+    let mut o = String::new();
+    let mut tail = false;
+    for (k, r) in parts.iter().enumerate() {
+        if k > 0 {
+            o.push_str(if tail { "\n" } else { "; " });
+        }
+        match r.split_once('\n') {
+            Some((head, rest)) => o.push_str(&format!("{head} [{}]\n{rest}", method_text(r))),
+            None => o.push_str(&format!("{r} [{}]", method_text(r))),
+        }
+        tail = r.contains('\n');
+    }
+    o
 }
 
 /// The method of one report, as `rce check` prints it.
@@ -223,7 +234,7 @@ pub fn method_text(report: &str) -> &'static str {
 
 /// The recommended changes of an admitted module (10.2). W-INT-2 (6.9): the
 /// module has a step and its only obligations on its steps are `example`
-/// lines, so its lookup-table control (the module on the prefixes of the
+/// lines (no law, 6.11), so its lookup-table control (the module on the prefixes of the
 /// example event lists, every other event kept) meets them. A recommended
 /// change never changes the verdict or the exit status.
 pub fn recommendations(m: &Module) -> Vec<String> {
@@ -232,12 +243,13 @@ pub fn recommendations(m: &Module) -> Vec<String> {
     for i in &m.items {
         match i {
             Item::Example(x) => lines.push(x.line),
-            Item::Intent(_, xs, _) => lines.extend(xs.iter().map(|x| x.line)),
+            Item::Intent(_, xs, ..) => lines.extend(xs.iter().map(|x| x.line)),
             _ => {}
         }
     }
     let Some(first) = lines.iter().min() else { return vec![] };
-    if steps == 0 {
+    // a law (6.11) is an obligation beyond the listed examples
+    if steps == 0 || !crate::law::laws(m).is_empty() {
         return vec![];
     }
     let n = lines.len();
@@ -829,7 +841,8 @@ pub const COMMANDS: &[Command] = &[
         max: MANY,
         help: "behaviour fingerprint (BF-1): a hash of the name-free outputs of every event sequence of length 1 to N (default 8) over the alphabet rce equiv explores; programs rce equiv judges equal share it, a shared one is confirmed by rce equiv",
     },
-    Command { path: &["change"], words: &[Word::set("fuel", &["N"])], operands: "OLD NEW", min: 2, max: 2, help: "classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)" },
+    Command { path: &["change"], words: &[Word::set("fuel", &["N"])], operands: "OLD NEW", min: 2, max: 2, help: "classify a change: api-diff rows (F.4.3), the law rows (6.11) and the behaviour check; erratum when every behaviour is kept\nand no law of OLD is broken, removed or edited, meaning change otherwise (C.15, CC-2, CC-L1, CC-L2)" },
+    Command { path: &["law"], words: &[], operands: "FILE", min: 1, max: 1, help: "decide every law of FILE by exploring every reachable state (6.11): one line per law with its verdict\n(holds, fails, undecided or attested), method and counts; a law that fails prints its counterexample as an example line" },
     Command { path: &["lib"], words: &[], operands: "[MODULE]", min: 0, max: 1, help: "the built-in standard library: every module `use` can name (4.1) and the hash that pins it, or the source of one module" },
     Command { path: &["hash"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export" },
     Command { path: &["manifest"], words: &[], operands: "DIR", min: 1, max: 1, help: "write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON" },
@@ -1159,6 +1172,26 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     None
                 }
             };
+            // laws (6.11): a law of OLD that NEW breaks, or a law removed or
+            // edited, is a meaning change whatever the behaviour says (CC-L1, CC-L2)
+            let law_change = match (crate::program(&sa), crate::program(&sb)) {
+                (Ok(la), Ok(lb)) => {
+                    let (rows, why) = crate::law::change_rows(&la, &lb);
+                    for r in rows {
+                        if r.starts_with("    ") {
+                            writeln!(out, "                    {}", r.trim_start()).map_err(w)?;
+                        } else {
+                            writeln!(out, "law                 {r}").map_err(w)?;
+                        }
+                    }
+                    why
+                }
+                _ => None,
+            };
+            if let Some(why) = law_change {
+                writeln!(out, "verdict             meaning change  {why}").map_err(w)?;
+                return Ok(REQUIRES_CHANGE);
+            }
             let (verdict, status) = match (&beh, breaking) {
                 (Some(e), _) if e.undecided => ("undecided  behaviour not decided within the explored bound: raise fuel", UNDECIDED),
                 (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", REQUIRES_CHANGE),
@@ -1170,6 +1203,26 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             };
             writeln!(out, "verdict             {verdict}").map_err(w)?;
             status
+        }
+        ["law"] => {
+            // rce law FILE   (6.11): the verdict of every law
+            let file = &rest[0];
+            match crate::checked_program(&read_file(file)?) {
+                Ok(m) => {
+                    let ds = crate::law::decide(&m);
+                    if ds.is_empty() {
+                        writeln!(out, "no law in {file}").map_err(w)?;
+                        OK
+                    } else {
+                        write!(out, "{}", crate::law::report(&ds)).map_err(w)?;
+                        crate::law::status(&ds)
+                    }
+                }
+                Err(e) => {
+                    writeln!(out, "requires change {file}: {}", with_methods(&e)).map_err(w)?;
+                    REQUIRES_CHANGE
+                }
+            }
         }
         ["equiv"] => {
             // rce equiv [json] [fuel N] A B   (10.11)
@@ -1886,7 +1939,7 @@ pub fn concept_record(m: &Module) -> String {
     let mut rows: Vec<String> = vec![];
     let mut intents: Vec<String> = vec![];
     for (i, it) in m.items.iter().enumerate() {
-        if let Item::Intent(text, _, _) = it {
+        if let Item::Intent(text, ..) = it {
             intents.push(serde_json::to_string(text).unwrap_or_default());
         }
         if let Some(n) = crate::link::item_name(it) {

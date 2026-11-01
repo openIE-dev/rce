@@ -65,9 +65,11 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
 and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word
 used as a name requires change under the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
-(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) used as a name requires
+(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`, and `law`, which begins
+the laws of 6.11) used as a name requires
 change (W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
-implementation does not have (`declassify`, `law`, `Template`, `mathint`) requires change, with the rule W-RES-1 and
+implementation does not have (`declassify`, `Template`, `mathint`, and `law` inside a `trait`, the trait
+laws of F.6.6) requires change, with the rule W-RES-1 and
 the words *reserved, not implemented*; it is never read as an ordinary name and never silently ignored (F.12).
 Directly after `.` a reserved word is a member name, so
 `c.offer()` and `c.choose(L)` remain method calls.
@@ -146,4 +148,4 @@ wherever the call is executed from.
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: b48794be4b4fba7520cbc7764d17fc9bf7ce3a2979375ed708f18ef63dd502fe -->
+<!-- body-sha256: 95ca24c86bef9bf604a6d38f5c4fb6c263cac070bbd3c9d0a7bb88b47dc9c08b -->

@@ -46,7 +46,7 @@ fails on any conflict; it runs that machine over the concurrency corpora
 the whole language.
 
 ```
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl | ProtocolDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
@@ -824,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 62e6ddd483f6f4259708c203b44642455cde6fcfe34c3abc75cf28dc658bd730 -->
+<!-- body-sha256: 233ca44eac98e6de27f662deccfe20bff582d401c481b767d3eda1559ce9a557 -->

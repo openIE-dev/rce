@@ -1,0 +1,19 @@
+intent "a deposit box that only grows"
+    example Deposit(amount: 5), Deposit(amount: 7) -> total == 12
+    law never_shrinks
+        "no deposit makes the total smaller"
+        every step -> total >= old(total)
+
+state Box
+    total: u64 = 0
+
+event Deposit(amount: u64)
+
+fn add(a: u64, b: u64) -> u64
+    return a + b
+
+fn unused(a: u64) -> u64
+    return a
+
+step Box on Deposit(amount: a)
+    total = add(total, a)

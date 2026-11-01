@@ -124,7 +124,7 @@ fn main() {
             let stream = probe.items.pop().expect("stream");
             probe.items.retain(|i| !matches!(i, Item::Example(_)));
             for i in probe.items.iter_mut() {
-                if let Item::Intent(_, xs, _) = i {
+                if let Item::Intent(_, xs, ..) = i {
                     xs.clear();
                 }
             }

@@ -2704,7 +2704,7 @@ pub fn why(f: Flow) -> String {
     }
 }
 
-/// Admission gate (W-CT-1, W-INT-1). Called only on modules that type-check.
+/// Admission gate (W-CT-1, W-INT-1, W-LAW-1). Called only on modules that type-check.
 pub fn admit(m: &Module) -> Vec<String> {
     let mut errs = vec![];
     let mut it = Interp::new(m);
@@ -2733,7 +2733,7 @@ pub fn admit(m: &Module) -> Vec<String> {
     for i in &m.items {
         match i {
             Item::Check(e) => run_check(&mut it, e, "W-INT-1", &mut errs),
-            Item::Intent(_, _, cks) => {
+            Item::Intent(_, _, cks, ..) => {
                 for e in cks {
                     run_check(&mut it, e, "W-INT-1", &mut errs)
                 }
@@ -2772,7 +2772,7 @@ pub fn admit(m: &Module) -> Vec<String> {
     for i in &m.items {
         match i {
             Item::Example(x) => exs.push(x),
-            Item::Intent(_, xs, _) => exs.extend(xs.iter()),
+            Item::Intent(_, xs, ..) => exs.extend(xs.iter()),
             _ => {}
         }
     }
@@ -2860,6 +2860,10 @@ pub fn admit(m: &Module) -> Vec<String> {
         }
     }
     errs.extend(crate::conc::crdt_gate(m));
+    // laws (6.11, W-LAW-1): decided once the examples and checks hold
+    if errs.is_empty() {
+        errs.extend(crate::law::gate(m));
+    }
     errs
 }
 
@@ -2938,7 +2942,7 @@ pub fn trace_examples(m: &Module) -> Vec<(usize, Vec<TraceStep>)> {
     for i in &m.items {
         match i {
             Item::Example(x) => exs.push(x),
-            Item::Intent(_, xs, _) => exs.extend(xs.iter()),
+            Item::Intent(_, xs, ..) => exs.extend(xs.iter()),
             _ => {}
         }
     }
@@ -3424,7 +3428,7 @@ pub fn form_json(m: &Module) -> String {
         for i in &m.items {
             match i {
                 Item::Example(x) => exs.push(x),
-                Item::Intent(_, xs, _) => exs.extend(xs.iter()),
+                Item::Intent(_, xs, ..) => exs.extend(xs.iter()),
                 _ => {}
             }
         }

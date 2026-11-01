@@ -215,6 +215,41 @@ pub struct Example {
     pub line: usize,
 }
 
+/// `law NAME` (6.11): a property of every reachable state or of every step
+/// taken from one. Text lines are prose and are not kept in the tree, as in
+/// an `intent`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Law {
+    pub name: String,
+    pub claim: LawClaim,
+    /// the text of each `attest "WHO;YYYY-MM-DD;COVER"` line, in order
+    pub attest: Vec<String>,
+    pub line: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum LawClaim {
+    /// `always p`
+    Always(Expr),
+    /// `every step [on PAT] [if g] -> o`
+    Every {
+        pat: Option<Pat>,
+        guard: Option<Expr>,
+        outcome: LawOutcome,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum LawOutcome {
+    /// a bool over the state after the step; `old(f)` is held as the name
+    /// `old(f)` (field f before the step)
+    Expr(Expr),
+    /// `kept` (None) or `kept: X`
+    Kept(Option<String>),
+    /// `applied`
+    Applied,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Handler {
     pub pat: Pat,
@@ -234,8 +269,10 @@ pub enum TraitMember {
 pub enum Item {
     /// `use a.b [as c]` and its line
     Use(Vec<String>, Option<String>, usize),
-    Intent(String, Vec<Example>, Vec<Expr>),
+    Intent(String, Vec<Example>, Vec<Expr>, Vec<Law>),
     Example(Example),
+    /// a top-level `law` (6.11)
+    Law(Law),
     Check(Expr),
     Const {
         name: String,

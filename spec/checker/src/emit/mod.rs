@@ -159,7 +159,7 @@ fn observe_with(m: &Module, fuel: bool, trace: bool) -> Vec<String> {
                 if fuel { out.push(format!("fuel {}", it.steps_used())); }
             }
             Item::Check(e) => obs_check(m, e, &mut out, fuel),
-            Item::Intent(_, xs, cks) => {
+            Item::Intent(_, xs, cks, ..) => {
                 for e in cks {
                     obs_check(m, e, &mut out, fuel);
                 }

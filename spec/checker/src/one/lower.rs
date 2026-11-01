@@ -7386,7 +7386,7 @@ impl<'m> Lw<'m> {
     fn module(&mut self) -> R<usize> {
         self.functions()?;
         let m = self.m;
-        let has_examples = m.items.iter().any(|i| matches!(i, Item::Example(_)) || matches!(i, Item::Intent(_, xs, _) if !xs.is_empty()));
+        let has_examples = m.items.iter().any(|i| matches!(i, Item::Example(_)) || matches!(i, Item::Intent(_, xs, ..) if !xs.is_empty()));
         let (delta, init) = if has_examples { (Some(self.delta_fn()?), Some(self.init_state_fn()?)) } else { (None, None) };
         let mut bodies = vec![];
         let mut main = None;
@@ -7394,7 +7394,7 @@ impl<'m> Lw<'m> {
             match it {
                 Item::Const { name, .. } => bodies.push(self.obs_const(name)?),
                 Item::Check(e) => bodies.push(self.obs_check(e)?),
-                Item::Intent(_, xs, cks) => {
+                Item::Intent(_, xs, cks, ..) => {
                     for e in cks {
                         bodies.push(self.obs_check(e)?);
                     }

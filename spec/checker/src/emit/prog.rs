@@ -833,7 +833,7 @@ impl<'a> G<'a> {
                     let v = self.ex(e)?;
                     self.obs_line(&format!("check {}", e.line()), &v);
                 }
-                Item::Intent(_, xs, cks) => {
+                Item::Intent(_, xs, cks, ..) => {
                     for e in cks {
                         let v = self.ex(e)?;
                         self.obs_line(&format!("check {}", e.line()), &v);

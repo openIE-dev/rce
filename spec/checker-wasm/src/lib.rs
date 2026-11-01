@@ -42,6 +42,8 @@ pub mod unparse;
 pub mod nameless;
 #[path = "../../checker/src/stdlib.rs"]
 pub mod stdlib;
+#[path = "../../checker/src/law.rs"]
+pub mod law;
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 

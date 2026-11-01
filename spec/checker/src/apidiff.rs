@@ -209,6 +209,35 @@ pub fn program_hash(ms: &[Module]) -> String {
     sha(&format!("rce-program/1\n{json}"))
 }
 
+/// The cover of a law (6.11): the hash an attestation of the law is bound
+/// to. It is the SHA-256 of the law's claim, with every named definition
+/// replaced by its definition hash, and of the sorted definition hashes of
+/// what the law's verdict depends on: every `state`, `event` and `error`,
+/// every `step` (hashed by its text, masked as in `program_hash`, so a step
+/// changes it through the definitions it calls), and every definition the
+/// claim names. Prose and `attest` lines are not in it. A definition that
+/// none of these reaches can change without lapsing the attestation.
+pub fn law_cover(m: &Module, law: &Law) -> String {
+    let ds = defs(m);
+    let map: HashMap<String, String> = ds.iter().map(|d| (d.name.clone(), format!("#{}", d.hash))).collect();
+    let ver = module_version(m);
+    let claim = crate::unparse::law_claim(&law.claim);
+    let named: BTreeSet<String> = idents(&claim).into_iter().filter(|w| map.contains_key(w)).collect();
+    let mut hs: Vec<String> = ds
+        .iter()
+        .filter(|d| matches!(d.kind, "state" | "event" | "error") || named.contains(&d.name))
+        .map(|d| d.hash.clone())
+        .collect();
+    for it in &m.items {
+        if matches!(it, Item::Step { .. }) {
+            hs.push(sha(&format!("rce-def/0.9\n{ver}\nanon\n{}", mask(&one(m, it), &map))));
+        }
+    }
+    hs.sort();
+    hs.dedup();
+    sha(&format!("rce-law-cover/1\n{}\n{}", mask(&claim, &map), hs.join("\n")))
+}
+
 /// Every named definition of a module with its definition hash.
 pub fn defs(m: &Module) -> Vec<Def> {
     let named: Vec<(String, &Item)> = m

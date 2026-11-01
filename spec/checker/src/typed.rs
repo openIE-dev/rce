@@ -1923,7 +1923,7 @@ pub fn build(m: &Module) -> Typed {
             Item::Check(e) => fresh(&mut out, &mut consts, &mut insts, &mut |cx| {
                 cx.expr(e);
             }),
-            Item::Intent(_, xs, cks) => {
+            Item::Intent(_, xs, cks, ..) => {
                 for e in cks {
                     fresh(&mut out, &mut consts, &mut insts, &mut |cx| {
                         cx.expr(e);

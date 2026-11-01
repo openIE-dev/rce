@@ -1048,9 +1048,10 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 Not implemented (each is reserved, not implemented, or the closed list in
 `crate::v09::UNIMPLEMENTED` says that it is not enforced):
 
-- trait laws (P9, F.6.6): `law` is a reserved word that is reserved, not implemented;
-  W-LAW-1 needs a sample of impl values and an evaluator of a law over them,
-  and neither exists, so no law is ever run or assumed;
+- trait laws (P9, F.6.6): `law` inside a `trait` is reserved, not implemented;
+  W-LAW-1 for trait laws needs a sample of impl values and an evaluator of a
+  law over them, and neither exists, so no trait law is ever run or assumed
+  (the laws of 6.11, over the reachable states of a program, are implemented);
 - `declassify` (F.4.2): always requires change; `release` with a held capability is the
   one way a labeled value leaves its label;
 - `ghost` parameters, `mathint` and quantifiers; `R.check` and opaque types
@@ -1088,7 +1089,7 @@ here; none of them is left requiring change for lack of attention.
   label; a second way would need its own authority rule, and T43 (robust declassification) is unproved.
 - `host.revoke` (F.5.1): the call writes to the host log, which the reference checker does not have; the
   pure caretaker fold is implemented and tested, and T51 is proved of the log model only.
-- `law` (P9, F.6.6): W-LAW-1 needs a sample of impl values and an evaluator of a law over them.
+- `law` in a `trait` (P9, F.6.6): W-LAW-1 for trait laws needs a sample of impl values and an evaluator of a law over them.
 
 **Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
@@ -1109,7 +1110,7 @@ The tree-sitter port
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```
-Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
+Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl | LawDecl
              | [ "pub" ] ( ConstDecl | TypeDecl | StructDecl | KindDecl
                          | TraitDecl | FnDecl | ActorDecl | ProtocolDecl )
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
@@ -1138,4 +1139,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 4870b5eb4c4da34715387cdbf76f6d4729decc3890cb2735267a32ddbfd64dc1 -->
+<!-- body-sha256: c27e706210376d17948c166a34a4756ca035a91227d5d415ceb87bc29a2073ce -->
