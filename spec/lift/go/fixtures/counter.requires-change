@@ -1,0 +1,13 @@
+requires change counter.go: line 5: L-GO-IMPORT: import "fmt"
+requires change counter.go: line 12: L-GO-TYPE: field type `[4]byte` is outside the semantics table
+requires change counter.go: line 12: L-GO-COLLECTION: array type `[4]byte`
+requires change counter.go: line 17: L-GO-DECL: const declaration `const Step = 1`
+requires change counter.go: line 23: L-GO-INT: binary expression `c.n + Step`
+requires change counter.go: line 29: L-GO-ORDER: method Reset: guard `if full` after a write
+requires change counter.go: line 35: L-GO-FUNC: func Describe
+requires change counter.go: line 36: L-GO-IF: if statement `if c, ok := v.(*Counter); ok {`
+requires change counter.go: line 36: L-GO-ASSERT: type assertion expression `v.(*Counter)`
+requires change counter.go: line 37: L-GO-CALL: call expression `fmt.Sprintf("%d", c.n)`
+requires change counter.go: line 39: L-GO-FOR: for statement `for i := 0; i < 3; i++ {`
+requires change counter.go: line 40: L-GO-SWITCH: expression switch statement `switch i {`
+requires change counter.go: line 42: L-GO-CALL: call expression `fmt.Println("zero")`
