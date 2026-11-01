@@ -192,11 +192,12 @@ the proposal `spec/proposals/one-emitter.md`, ONE-3).
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
 | `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
+| `verilog` | the step function δ as one synthesizable Verilog-2005 module (IEEE 1364-2005), for the subset of the proposal `spec/proposals/emit-verilog.md` (informative) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
-The four program targets are the ones this checker emits. The language
+The four program targets and `verilog` are the ones this checker emits. The language
 places no bound on targets, and it is designed so that every language is
 both an output of the Form (a target, printed through a per-language
 table) and an input (a lift, the reverse map, from the language's grammar
@@ -380,6 +381,39 @@ fuel limit where the reference's result changes and at the limit before
 it (258 runs over the three targets), and requires the same outputs and
 outcome.
 
+**The Verilog target.** `verilog` prints δ, not the observations: one
+module that holds the state in registers, loaded with the initial state
+s0 at reset, and takes one step per clock on the event at its inputs (a
+tag, a payload and a valid strobe). Its outputs are the outcome of the
+step (applied, or kept with the declared error or the trap and the value
+the trap names), the values the step emitted, and the state registers.
+Loops are unrolled to their constant bounds and calls are inlined; every
+integer operation is computed at a width that holds its exact result and
+then checked against its type (6.3 N2), so an overflow or another trap
+keeps the state where the reference evaluator keeps it, with the same
+reason. The subset is the proposal's EV-1: integer, `bool`, field-less
+`kind` and fixed-array state and event fields, steps whose loops have
+constant bounds, non-recursive functions, and no text, list, map, task or
+`fn main`. A program outside it is answered `requires change for target
+verilog: REASON, line N`, status 1, and nothing is printed. The module's
+comment line `// rce-hdl/1 JSON` gives its layout and the program's
+example events. `spec/checker/hdl/rce_tb.v` is a test bench that reads
+those events as a byte stream and dumps the registers after each step,
+and `spec/checker/hdl/bench.py` computes the state hashes from the dumps,
+outside the hardware, and prints each example's whole trace (the lines
+of `emit::trace_example` except `fuel N`, which counts the evaluator's
+steps and has no counterpart in a circuit).
+`spec/checker/tests/emit_verilog.rs` checks, with no simulator, that two
+emits give the same bytes, that six modules equal their golden texts,
+that the admitted examples are 01, 17, 30, 59, 60 and 61, that ten
+programs outside the subset are refused with their reasons, and that the
+harness prints the reference's trace from a dump of the reference's
+states; `.github/workflows/verilog.yml` installs Icarus Verilog,
+Verilator and Yosys and requires every program's simulated trace to equal
+the reference's line for line on both simulators, then synthesizes each
+module with Yosys and prints its cell counts. A passing run is a
+simulation and synthesis result; no module has run on a board.
+
 **Limits of the emitters.**
 
 - In the observations, channels, `spawn`, `select`, actors and `extern`
@@ -431,7 +465,8 @@ outcome.
 
 For an unknown target, or a program that one of these emitters does not
 translate, `rce emit` prints nothing on standard output, prints the reason
-on standard error, and exits with status 2. It never prints a partial file.
+on standard error, and exits with status 2; a program outside the subset
+of `verilog` requires change (status 1). It never prints a partial file.
 
 ### 10.6 `rce fmt [check] FILE...`
 
@@ -1030,4 +1065,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 4b827e1518e2ea13a01f3594d536245fb32ab8a5c67bef50f7fb4a493ddc5b33 -->
+<!-- body-sha256: 356ef0aede27c9aace050d7ea087356462317b50a9a4bf0b7d6c6812db4992f7 -->

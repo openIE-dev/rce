@@ -222,6 +222,12 @@ struct Tail {
     ty: HT,
 }
 
+/// A region: its name, its fields and their types, and its line.
+type RegionT = (String, Vec<(String, HT)>, usize);
+
+/// The else-branch of [`Cx::branch`].
+type Else<'a, 'm> = Option<&'a mut dyn FnMut(&mut Cx<'m>) -> R<J>>;
+
 struct Cx<'m> {
     m: &'m Module,
     it: Interp<'m>,
@@ -256,7 +262,7 @@ fn build(m: &Module) -> R<String> {
     }
     let mut cx = Cx::new(m)?;
     cx.admit_items()?;
-    let regions: Vec<(String, Vec<(String, HT)>, usize)> = m
+    let regions: Vec<RegionT> = m
         .items
         .iter()
         .filter_map(|i| match i {
@@ -934,7 +940,7 @@ impl<'m> Cx<'m> {
     }
 
     /// `if (c) A else B`, merging the two paths.
-    fn branch(&mut self, c: &str, a: impl FnOnce(&mut Self) -> R<J>, b: Option<&mut dyn FnMut(&mut Self) -> R<J>>) -> R<J> {
+    fn branch(&mut self, c: &str, a: impl FnOnce(&mut Self) -> R<J>, b: Else<'_, 'm>) -> R<J> {
         let base = self.snap();
         let n = base.locals.len();
         self.out(format!("if ({c}) begin"));
@@ -1048,7 +1054,7 @@ impl<'m> Cx<'m> {
         // the fields, as the pre-state holds them
         let mut ids = vec![];
         for (f, t, r) in fields {
-            let v = self.from_bits(t, r, 0);
+            let v = self.held_in(t, r, 0);
             let id = self.new_local(f, &v)?;
             self.scopes[0].insert(f.clone(), id);
             ids.push(id);
@@ -1139,7 +1145,7 @@ impl<'m> Cx<'m> {
     }
 
     /// The value of type `t` held in `src` from bit `off`.
-    fn from_bits(&self, t: &HT, src: &str, off: u32) -> Val {
+    fn held_in(&self, t: &HT, src: &str, off: u32) -> Val {
         match t {
             HT::Int(n) => {
                 let b = int_bits(n);
@@ -1157,7 +1163,7 @@ impl<'m> Cx<'m> {
             }
             HT::Arr(e, n) => {
                 let b = self.ht_bits(e);
-                Val::Arr((0..*n as u32).map(|j| self.from_bits(e, src, off + j * b)).collect())
+                Val::Arr((0..*n as u32).map(|j| self.held_in(e, src, off + j * b)).collect())
             }
         }
     }
@@ -1189,7 +1195,7 @@ impl<'m> Cx<'m> {
                         None => (j < fs.len()).then_some(j),
                     };
                     let Some(k) = k else { return Ok(bool_k(false)) };
-                    let v = self.from_bits(&fs[k].1, "ev_payload", offs[k]);
+                    let v = self.held_in(&fs[k].1, "ev_payload", offs[k]);
                     match self.pat_cond(q, &v, line)? {
                         Val::Bool { k: Some(true), .. } => {}
                         Val::Bool { k: Some(false), .. } => return Ok(bool_k(false)),

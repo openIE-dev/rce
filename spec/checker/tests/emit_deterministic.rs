@@ -3,11 +3,11 @@
 //! `rce` process, so state that differs between processes (hash-map
 //! iteration order, addresses, time) would show here. Every example of
 //! spec/examples that `rce emit` accepts is emitted twice to every target:
-//! the Form, the core, and the four program emitters.
+//! the Form, the core, the four program emitters and the Verilog module.
 use std::path::Path;
 use std::process::Command;
 
-const TARGETS: [&str; 6] = ["form", "core", "rust", "python", "js", "scala"];
+const TARGETS: [&str; 7] = ["form", "core", "rust", "python", "js", "scala", "verilog"];
 
 fn emit(target: &str, file: &Path) -> Option<Vec<u8>> {
     let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["emit", target]).arg(file).output().unwrap();

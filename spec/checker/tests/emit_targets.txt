@@ -5,6 +5,9 @@
 # target not named here is reported as not covered, never as a pass.
 # CI runs on ubuntu-latest, which has rustc, python3 and node and no
 # scala-cli, so scala is not named; add the word to cover it.
+# `rce emit verilog` prints a module, not a program that prints its
+# observations: tests/emit_verilog.rs covers it, and its simulators run
+# in .github/workflows/verilog.yml.
 rust
 python
 js
