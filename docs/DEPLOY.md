@@ -56,9 +56,11 @@ its new spelling, so a unit or container command written for an earlier
 A systemd unit needs only that `ExecStart=`, `Restart=on-failure`, a user
 that owns the log directory, and `KillSignal=SIGTERM` (the default).
 
-On start the host prints its sandbox: on Linux, Landlock (writes only under
-the log directory, no TCP bind or connect after the listener is open, no
-exec) and a seccomp filter. It works under Docker's default seccomp profile;
+On start the host prints its sandbox: on Linux, Landlock (writes and reads
+only under the log directory and the granted roots, no TCP bind or connect
+after the listener is open, no exec) and a seccomp filter. The grant word
+`names` lets a program turn user and group ids into names; only with it
+does the host read `/etc/passwd` and `/etc/group` (Appendix E, HC-33). It works under Docker's default seccomp profile;
 no extra capability is needed.
 
 When stderr is a terminal, the host also reports its status there as OSC
@@ -71,7 +73,9 @@ not in D and does not change replay or the state hash.
 ## Stop, restart, back up
 
 - `docker stop` (SIGTERM) is the host loop's stop input: the loop ends after
-  the entry in progress, and D is complete.
+  the entry in progress, and D is complete. The host then writes its closing status
+  line, `durable N entries=M state_hash H`, to stderr (HC-28), which
+  `docker logs` shows; stdout carries only the program's Display bytes.
 - A new process on the same log continues where the last one stopped. A
   restart is itself recorded, and ids are never reused.
 - `rce host replay FILE D` re-derives every state hash of D with every

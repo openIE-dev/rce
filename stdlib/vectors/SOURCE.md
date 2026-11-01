@@ -221,9 +221,10 @@ Needs spec or data: whether `chain_ids` belongs in the signed jcp/2 core
 (taken as yes, when the chain has more than one link; no conformance
 vector has a chain); and the shape of `host.Energy`
 results (E.5), so receipts can be built from them directly (here
-cost_uj and its provenance are parameters). Module imports do not rename
-names yet (W-MOD-3), so `enc` and `hash.blake3` private helpers were
-renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.
+cost_uj and its provenance are parameters). `enc` and `hash.blake3` private
+helpers were named `enc_cat` and `b3_g` when imports could not hold two
+modules' items of one name; an item is now reached only through its
+module's import (W-MOD-3), so the names no longer have to differ.
 
 ## io (`lib/io/io.rce`)
 

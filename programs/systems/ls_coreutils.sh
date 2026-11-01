@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# Differential test of ls.rce against GNU coreutils ls, on Linux.
+# Differential test of ls.rce on the RCE host against GNU coreutils ls, on Linux.
 #
 #   RCE=/path/to/rce programs/systems/ls_coreutils.sh WORKDIR
 #
-# Makes WORKDIR/d (removed first) with regular files, a dotfile, a hard
-# link, a set-user-ID file, a named pipe, a subdirectory, a sticky directory, a
-# symbolic link and a dangling one, modes set with chmod and times pinned
-# with touch, all in UTC. Then:
-#  1. the short listing, with and without `all`, through the host's FileList
-#     under `fs WORKDIR/d`, against `ls -1` and `ls -1a`;
-#  2. the long listing: GNU stat and readlink give each entry's record, the
-#     program's pure core makes the rows, and its Display text is compared
-#     byte for byte with `ls -la` and with `ls -l`.
-# The expected bytes come from coreutils, never from the program.
+# Makes WORKDIR/t/d (WORKDIR/t removed first) with regular files, a
+# dotfile, a hard link, a set-user-ID file, a named pipe, a subdirectory, a
+# sticky directory, a symbolic link, a dangling one and one whose target
+# leaves the granted root, two names that differ only in bytes that are not
+# UTF-8, and (when run as root) a file whose owner and group have no name;
+# modes set with chmod and times pinned with touch in a zone with summer
+# time. Then the program runs on the host,
+#   rce host run fs WORKDIR/t names ls.rce D
+# once for each listing of `d` (short and long, with and without all): every
+# name, record, link text, owner and group name, clock reading and UTC
+# offset comes from a host request (Appendix E, HC-30 to HC-33). The bytes
+# of its Display output are compared with those of coreutils `ls` in the C
+# locale, byte for byte. The expected bytes come from coreutils, never from
+# the program.
 set -u
 RCE="${RCE:-rce}"
 case $# in
@@ -20,12 +24,14 @@ case $# in
   *) echo "usage: programs/systems/ls_coreutils.sh WORKDIR" >&2; exit 2 ;;
 esac
 P="$(cd "$(dirname "$0")" && pwd)/ls.rce"
-export LC_ALL=C TZ=UTC
+# the C locale, and a zone whose offset differs between the files' times
+export LC_ALL=C TZ='EST5EDT,M3.2.0,M11.1.0'
 mkdir -p "$W"
 W="$(cd "$W" && pwd)"
-D="$W/d"
-rm -rf "$D" "$W"/log-*
-mkdir "$D"
+T="$W/t"
+D="$T/d"
+rm -rf "$T" "$W"/log-*
+mkdir -p "$D"
 (
   set -e
   cd "$D"
@@ -39,49 +45,49 @@ mkdir "$D"
   ln a.txt hard
   ln -s a.txt link
   ln -s sub/missing dangling
-  touch -d '2026-10-15 12:34:00' a.txt pipe .dot
+  ln -s /etc/hostname outside
+  : > "$(printf 'x\376')"; : > "$(printf 'x\377')"; : > "$(printf 'caf\351')"
+  if [ "$(id -u)" = 0 ]; then : > anon; chown 4242:4243 anon; fi
+  touch -d '2026-10-15 12:34:00' a.txt pipe .dot "$(printf 'x\376')" "$(printf 'x\377')" "$(printf 'caf\351')"
+  [ -e anon ] && touch -d '2026-10-15 12:34:00' anon
   touch -d '2026-10-20 08:05:00' big.bin
   touch -d '2020-01-02 03:04:05' run.sh
-  touch --no-dereference -d '2026-10-16 09:00:00' link dangling
+  touch --no-dereference -d '2026-10-16 09:00:00' link dangling outside
   touch -d '2026-10-17 23:59:00' sub/x sub/y sub tmpd
   touch -d '2026-10-18 00:00:00' .
+  touch -d '2026-10-01 00:00:00' "$T"
 ) || { echo "could not make $D" >&2; exit 2; }
 
-# the text of every `emit Display(data: "...")` line of an rce run
+# the bytes of every `emit Display(data: ...)` line of a host run: a list
+# of bytes (HC-30) or a text
 display() { python3 -I -c '
 import sys, re, json
+out = sys.stdout.buffer
 for l in sys.stdin:
-    m = re.match(r"\s*emit Display\(data: (\".*\")\)$", l)
+    m = re.match(r"\s*emit Display\(data: (.*)\)$", l)
     if m:
-        sys.stdout.write(json.loads(m.group(1)))'; }
-
-# a Stats event for the directory: one Entry per name, from stat and readlink
-stats() {
-  local all=$1 now=$2 es=() n mode nl u g sz mt bl t
-  for n in . .. $(cd "$D" && ls -A); do
-    IFS='|' read -r mode nl u g sz mt bl < <(cd "$D" && stat -c '%f|%h|%U|%G|%s|%Y|%b' -- "$n")
-    t=""; [ -L "$D/$n" ] && t=$(readlink -- "$D/$n")
-    es+=("Entry(name: \"$n\", mode: $((16#$mode)), nlink: $nl, owner: \"$u\", group_name: \"$g\", size: $sz, mtime: $mt, target: \"$t\", blocks: $bl)")
-  done
-  local j; j=$(IFS='|'; echo "${es[*]}"); j=${j//|/, }
-  echo "Stats(all: $all, now: $now, offset_min: 0, entries: [$j])"
-}
+        v = json.loads(m.group(1))
+        out.write(bytes(v) if isinstance(v, list) else v.encode())'; }
 
 fail=0
 same() {
-  if [ "$2" = "$3" ]; then echo "MATCH $1 ($(printf '%s\n' "$2" | wc -l) lines)"
-  else echo "DIFFER $1"; diff <(printf '%s\n' "$2") <(printf '%s\n' "$3"); fail=1; fi
+  if cmp -s "$2" "$3"; then echo "MATCH $1 ($(wc -l < "$2") lines)"
+  else echo "DIFFER $1"; diff "$2" "$3"; fail=1; fi
 }
 
-for all in false true; do
-  got=$(echo "Ls(path: \"\", all: $all)" | "$RCE" host run fs "$D" "$P" "$W/log-$all" 2>/dev/null | display)
-  if [ $all = true ]; then want=$(ls -1a "$D"); else want=$(ls -1 "$D"); fi
-  same "short listing, all=$all" "$want" "$got"
+for long in false true; do
+  for all in false true; do
+    k="$long-$all"
+    echo "Ls(path: \"d\", all: $all, long: $long)" | "$RCE" host run fs "$T" names "$P" "$W/log-$k" 2>"$W/err-$k" | display > "$W/got-$k"
+    grep -q validated "$W/err-$k" || { echo "the host run did not validate:"; cat "$W/err-$k"; fail=1; }
+    case $k in
+      false-false) ls "$D" ;; false-true) ls -a "$D" ;;
+      true-false) ls -l "$D" ;; true-true) ls -la "$D" ;;
+    esac > "$W/want-$k"
+    flags=$(case $k in false-false) echo "" ;; false-true) echo " -a" ;; true-false) echo " -l" ;; true-true) echo " -la" ;; esac)
+    same "ls$flags" "$W/want-$k" "$W/got-$k"
+  done
 done
-now=$(date +%s)
-for all in true false; do
-  got=$("$RCE" run "$P" "$(stats $all "$now")" | display)
-  if [ $all = true ]; then want=$(ls -la "$D"); else want=$(ls -l "$D"); fi
-  same "long listing, all=$all" "$want" "$got"
-done
+# the log replays with every adapter disconnected (HC-8)
+"$RCE" host replay "$P" "$W/log-true-true" | sed -n 1p
 [ $fail -eq 0 ]

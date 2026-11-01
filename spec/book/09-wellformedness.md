@@ -23,9 +23,11 @@ Names and modules
 - W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference
   checker reports a private name reached through `use` as W-VIS-1, which
   is the same rule.
-- W-MOD-3 An imported name that clashes with a declaration of the
-  importing module or with a name imported from another module (imported
-  names are not renamed).
+- W-MOD-3 An import's name (`q` of `use p.q`, `r` of `use p.q as r`) that
+  clashes with a declaration of the importing module or names two different
+  modules. The items of an imported module are reached only through that
+  name (4.1), so an item never clashes with the importer's items or with
+  another module's, `pub` or not; `use p.q as r` resolves a clash.
 - W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`,
   `static`: requires change, with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
@@ -268,4 +270,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: bcd9aa8480eedf926c955c50278a1ea6fcbdaf5610859356a24afa973ca726e1 -->
+<!-- body-sha256: 10f9c2f732f6b8e7109738a22a8f6a50812d46f7f834244549ed10c26d5e9a81 -->

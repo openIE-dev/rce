@@ -1,6 +1,6 @@
 module app
 use lib.c
-fn helper() -> i64 = 2
+fn c() -> i64 = 2
 #--- rce-test
 # id: types-checking/targeted/w-mod-3-clash
 # area: types-checking

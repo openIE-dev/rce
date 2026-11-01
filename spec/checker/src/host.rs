@@ -287,8 +287,9 @@ pub struct Admitted {
     pub event: String,
     /// `Ok(outputs)` (each output's display text) or `Err(reason)` (T8: the step keeps the state).
     pub outcome: Result<Vec<String>, String>,
-    /// Display sink (λ output only): the `data` of each emitted `Display(data: text)`.
-    pub display: Vec<String>,
+    /// Display sink (λ output only): the bytes of the `data` of each
+    /// emitted `Display(data)`, text or a byte list `List[i64]` (HC-30).
+    pub display: Vec<Vec<u8>>,
     /// The step emitted `Exit`: the host loop ends after this input.
     pub exit: bool,
     /// HC-29: the frames the step emitted (`Frame(view)`), in emit order,
@@ -655,11 +656,31 @@ fn event_payload<'m>(m: &'m Module, name: &str) -> Option<&'m [(String, Ty)]> {
 /// The fields of host values that hold bytes received from outside
 /// (HC-10a): delivered exactly as `List[i64]`, or as `text` only when they
 /// are UTF-8 (HD-3). A line of the input stream held as `Input(data)`
-/// (HC-24) is such bytes too.
-const BYTES_FIELDS: [(&str, &str); 3] = [("HttpRequest", "body"), ("NetRecvDone", "data"), ("Input", "data")];
+/// (HC-24) is such bytes too, and so are a link's target and an account
+/// name (HC-31, HC-33).
+const BYTES_FIELDS: [(&str, &str); 6] = [("HttpRequest", "body"), ("NetRecvDone", "data"), ("Input", "data"), ("FileReadlinkDone", "data"), ("UserNameDone", "data"), ("GroupNameDone", "data")];
 
-fn bytes_field(event: &str, field: &str) -> bool {
-    BYTES_FIELDS.contains(&(event, field))
+/// The fields that hold a list whose every element is such bytes: the
+/// names of a directory (HC-30).
+const BYTES_LIST_FIELDS: [(&str, &str); 1] = [("FileListDone", "data")];
+
+/// Whether a host value holds received bytes (HC-10a): itself, or each
+/// element of a list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Bytes {
+    No,
+    Here,
+    Each,
+}
+
+fn bytes_field(event: &str, field: &str) -> Bytes {
+    if BYTES_FIELDS.contains(&(event, field)) {
+        Bytes::Here
+    } else if BYTES_LIST_FIELDS.contains(&(event, field)) {
+        Bytes::Each
+    } else {
+        Bytes::No
+    }
 }
 
 /// A declared type with every `type` alias it names followed.
@@ -725,7 +746,7 @@ pub(crate) fn utf8_text(b: &[u8]) -> Result<String, String> {
 /// `ty`, when it converts exactly (E.4c); otherwise why not. `bytes`: the
 /// value is bytes received from outside, which become `text` only when
 /// they are UTF-8 (HD-3).
-fn convert(v: &Value, ty: &Ty, bytes: bool, m: &Module) -> Result<Expr, String> {
+fn convert(v: &Value, ty: &Ty, bytes: Bytes, m: &Module) -> Result<Expr, String> {
     let ty = unalias(ty, m);
     let mismatch = || format!("{} where {} is declared", json_kind(v), ty_text(ty));
     match ty {
@@ -748,17 +769,24 @@ fn convert(v: &Value, ty: &Ty, bytes: bool, m: &Module) -> Result<Expr, String> 
         Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "bool" => Ok(Expr::Bool(v.as_bool().ok_or_else(mismatch)?, 0)),
         Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "text" => match v {
             Value::String(s) => Ok(Expr::Str(s.clone(), 0)),
-            Value::Array(xs) if bytes => {
+            Value::Array(xs) if bytes == Bytes::Here => {
                 let b: Vec<u8> = xs.iter().map(|x| x.as_u64().filter(|b| *b <= 255).map(|b| b as u8)).collect::<Option<_>>().ok_or("a byte outside 0..255")?;
                 utf8_text(&b).map(|s| Expr::Str(s, 0))
             }
             _ => Err(mismatch()),
         },
         Ty::Path(p, g) if p.len() == 1 && p[0] == "List" && g.len() == 1 => match v {
-            Value::Array(xs) => Ok(Expr::List(xs.iter().map(|x| convert(x, &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
+            Value::Array(xs) => {
+                let each = if bytes == Bytes::Each { Bytes::Here } else { Bytes::No };
+                let mut out = Vec::with_capacity(xs.len());
+                for (i, x) in xs.iter().enumerate() {
+                    out.push(convert(x, &g[0], each, m).map_err(|w| if each == Bytes::Here { format!("element {i}: {w}") } else { w })?);
+                }
+                Ok(Expr::List(out, 0))
+            }
             // received bytes the host holds as text (a UTF-8 line, HC-24)
             // are exactly the bytes of that text
-            Value::String(t) if bytes => Ok(Expr::List(t.bytes().map(|b| convert(&Value::from(b), &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
+            Value::String(t) if bytes == Bytes::Here => Ok(Expr::List(t.bytes().map(|b| convert(&Value::from(b), &g[0], Bytes::No, m)).collect::<Result<_, _>>()?, 0)),
             _ => Err(mismatch()),
         },
         _ => json_expr(v, Some(ty), m),
@@ -857,7 +885,7 @@ fn delivery_note(m: &Module, event: &str, held: bool) -> Option<String> {
                     if !opt {
                         says.push(format!("{k} is not optional, so a result without data (failed, timed out, unreachable) is not delivered"));
                     }
-                } else if inner == "text" && hinner == "List[i64]" && bytes_field(event, k) {
+                } else if inner == "text" && hinner == "List[i64]" && bytes_field(event, k) == Bytes::Here {
                     let otherwise = if event == "HttpRequest" { "the request is delivered as HttpMalformed with status 415, with the offset" } else { "the result is delivered as failed, with the offset" };
                     says.push(format!("{k} is text: received bytes are delivered as text when they are UTF-8, and otherwise {otherwise}"));
                 } else if inner != hinner {
@@ -1418,7 +1446,7 @@ impl<'a> Host<'a> {
                 // HD-3: received bytes taken as text carry a character that
                 // a read ends inside to the next read
                 let ev = format!("{}Done", a.kind());
-                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && takes_text(t, m));
+                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") == Bytes::Here && takes_text(t, m));
                 if text {
                     a.text();
                 }
@@ -2130,8 +2158,18 @@ impl<'a> Host<'a> {
             for o in outs {
                 match o {
                     V::Rec(n, fs) if n == "Display" => {
-                        if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
-                            display.push(t.to_string());
+                        match fs.iter().find(|(f, _)| f == "data") {
+                            Some((_, V::Text(t))) => display.push(t.as_bytes().to_vec()),
+                            // HC-30: bytes, written exactly; a list with an
+                            // element outside 0..255 is not bytes
+                            Some((_, V::List(xs))) => {
+                                let b: Option<Vec<u8>> = xs.iter().map(|x| match x {
+                                    V::Int(n, _) if (0..=255).contains(n) => Some(*n as u8),
+                                    _ => None,
+                                }).collect();
+                                display.extend(b);
+                            }
+                            _ => {}
                         }
                     }
                     V::Rec(n, _) if n == "Exit" => exit = true,
@@ -3051,6 +3089,20 @@ impl<'a> Host<'a> {
     pub fn tls_identity(&mut self, public_hex: &str) -> Result<(), String> {
         self.append(host_event("TlsIdentity", &format!("{{\"ed25519\":\"{public_hex}\"}}")))?;
         self.confirm()
+    }
+
+    /// HC-32: `host.Zone` {file, sha256, tz}: the time zone rules the
+    /// LocalOffset adapter answers from, appended at start when the module
+    /// binds that request. Changes no state; replay needs it for nothing.
+    pub fn zone(&mut self, payload_json: &str) -> Result<(), String> {
+        self.append(host_event("Zone", payload_json))?;
+        self.confirm()
+    }
+
+    /// Whether the module binds this request kind (a struct of that name,
+    /// with an adapter that performs it, E.4c).
+    pub fn binds_kind(&self, kind: &str) -> bool {
+        self.bound.contains(&kind)
     }
 
     /// HC-13: the operations a fabric may compute for state, with the probe
