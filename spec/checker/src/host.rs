@@ -291,6 +291,9 @@ pub struct Admitted {
     pub display: Vec<String>,
     /// The step emitted `Exit`: the host loop ends after this input.
     pub exit: bool,
+    /// HC-29: the frames the step emitted (`Frame(view)`), in emit order,
+    /// or why one is not a frame; a function of D, as replay re-derives it.
+    pub frames: Vec<Result<crate::frame::Frame, String>>,
     /// HC-21: why the step kept the state (`fuel`, `size`, `value`, `depth`,
     /// `fail` or `trap`), `None` when the input was applied.
     pub cause: Option<&'static str>,
@@ -391,7 +394,7 @@ fn one_field(k: &str, n: u64) -> serde_json::Map<String, Value> {
 /// events the module declares are bound.
 fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = vec![];
-    for n in ["Synced", "WallTime", "StepKept", "Restarted"] {
+    for n in ["Synced", "WallTime", "StepKept", "Restarted", "Presented"] {
         v.push((n.to_string(), format!("host.{n}")));
     }
     if http {
@@ -413,7 +416,7 @@ fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)
 /// HTTP inputs `HttpRequest` and `HttpMalformed`, and the result `KDone`
 /// of every struct K the module declares, each when the module declares it.
 fn host_named(m: &Module) -> Vec<String> {
-    let mut v: Vec<String> = ["Synced", "WallTime", "StepKept", "Restarted", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
+    let mut v: Vec<String> = ["Synced", "WallTime", "StepKept", "Restarted", "Presented", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
     for i in &m.items {
         if let Item::Struct { name, .. } = i {
             v.push(format!("{name}Done"));
@@ -470,7 +473,7 @@ fn host_event(kind: &str, payload: &str) -> String {
 /// type, so replay uses no parser of program text. Records become
 /// constructor calls of their struct (or of the kind variant named by `$v`),
 /// maps come back from their canonical list of [key, value] pairs.
-fn json_expr(v: &Value, ty: Option<&Ty>, m: &Module) -> Result<Expr, String> {
+pub(crate) fn json_expr(v: &Value, ty: Option<&Ty>, m: &Module) -> Result<Expr, String> {
     let ty = match ty {
         Some(Ty::Opt(t)) => {
             if v.is_null() {
@@ -815,6 +818,7 @@ fn host_fields(event: &str) -> Vec<(&'static str, &'static str)> {
         "Restarted" => vec![("below", "u64")],
         "Synced" => vec![("upto", "u64")],
         "WallTime" => vec![("ns", "u64")],
+        "Presented" => vec![("seq", "u64"), ("digest", "text")],
         "HttpRequest" => vec![("id", "u64"), ("method", "text"), ("target", "text"), ("version", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")],
         "HttpMalformed" => vec![("id", "u64"), ("status", "u64"), ("why", "text")],
         "NetRecvDone" => vec![("req", "u64"), ("status", "text"), ("data", "List[i64]?"), ("err", "text")],
@@ -885,7 +889,7 @@ fn delivery_note(m: &Module, event: &str, held: bool) -> Option<String> {
 }
 
 fn is_result_name(event: &str) -> bool {
-    !matches!(event, "StepKept" | "Restarted" | "Synced" | "WallTime" | "HttpRequest" | "HttpMalformed") && event.ends_with("Done")
+    !matches!(event, "StepKept" | "Restarted" | "Synced" | "WallTime" | "Presented" | "HttpRequest" | "HttpMalformed") && event.ends_with("Done")
 }
 
 /// The admitter and the program state it folds (one per program instance, HC-1).
@@ -956,6 +960,15 @@ pub struct Host<'a> {
     last_tick: u64,
     /// When set, replay records each program entry's outputs (Form JSON).
     outputs: Option<Vec<(u64, Vec<Value>)>>,
+    /// HC-29: what frames derive from the entries folded so far.
+    clock: crate::frame::Clock,
+    /// HC-29: (seq, frame digest) of every frame derived from D, in order;
+    /// a confirmation names one of them.
+    shown: Vec<(u64, String)>,
+    /// HC-29: the view of the last frame derived from D.
+    last_view: Option<crate::frame::ViewTree>,
+    /// When set, replay records every frame it re-derives (HC-29).
+    frames: Option<Vec<Result<crate::frame::Frame, String>>>,
 }
 
 /// A request emitted and not yet answered.
@@ -1414,7 +1427,7 @@ impl<'a> Host<'a> {
         let http = adapters.iter().any(|a| a.kind() == "HttpRespond");
         let delivered = host_named(m);
         let mut notes = vec![];
-        for (e, held) in [("Synced", true), ("WallTime", true), ("StepKept", true), ("Restarted", true)] {
+        for (e, held) in [("Synced", true), ("WallTime", true), ("StepKept", true), ("Restarted", true), ("Presented", true)] {
             notes.extend(delivery_note(m, e, held));
         }
         if http {
@@ -1448,7 +1461,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -1572,6 +1585,12 @@ impl<'a> Host<'a> {
         if !self.queue.is_empty() || !self.descends.is_empty() || self.seq == 0 || self.task.is_some() || !self.owe.is_empty() {
             return None;
         }
+        // HC-29: frames derive from every entry (the first is `start`, the
+        // time counts ticks, a confirmation names any earlier frame), so a
+        // program that emits them is always folded from the start of D
+        if declares_struct(self.m, crate::frame::FRAME) {
+            return None;
+        }
         Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_pos_json(&self.state, self.m) })
     }
 
@@ -1580,6 +1599,9 @@ impl<'a> Host<'a> {
     /// the declared field types) to a state that re-encodes to the same
     /// bytes. Anything else: discarded, nothing changes (HS-5).
     fn load_snapshot(&mut self, sn: &Snapshot, entries: &[Entry]) -> bool {
+        if declares_struct(self.m, crate::frame::FRAME) {
+            return false; // HC-29: folded from the start of D
+        }
         let Some(e) = entries.get(sn.seq as usize) else { return false };
         if d_sha(&sn.bytes) != sn.state_hash || e.state_hash != sn.state_hash {
             return false;
@@ -1637,6 +1659,13 @@ impl<'a> Host<'a> {
                     // E.4c: a host.Kept no entry before it owed records a
                     // delivery replay plans again from the value it holds
                     "host.Kept" if how != Some(How::Owed) => self.fold_kept(e)?,
+                    "host.Presented" => {
+                        // HC-29: a confirmation names a frame D derived before it
+                        let d = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["digest"].as_str().map(String::from));
+                        if !matches!((at("seq"), &d), (Some(q), Some(d)) if self.shown.iter().any(|(s, x)| *s == q && x == d)) {
+                            return Err(format!("host fault: seq {}: host.Presented names no frame derived from the entries before it", e.seq));
+                        }
+                    }
                     "host.Typed" => {
                         // HC-10b: seq is the typed input's, the entry after this one
                         if at("seq") != Some(e.seq + 1) {
@@ -1682,6 +1711,10 @@ impl<'a> Host<'a> {
                 self.note_tick(&name, &ev);
                 match self.it.delta_r(&self.state, &ev) {
                     Ok((s2, outs)) => {
+                        let fs = self.note_frames(e.seq, &name, Some(&outs));
+                        if let Some(f) = &mut self.frames {
+                            f.extend(fs);
+                        }
                         self.state = s2;
                         self.rehash();
                         self.enqueue(&outs, e.seq);
@@ -1691,6 +1724,7 @@ impl<'a> Host<'a> {
                         }
                     }
                     Err(r) => {
+                        self.note_frames(e.seq, &name, None);
                         // HC-21: replay re-derives the kept step and its cause
                         let bind = under.is_none() && declares_event(self.m, "StepKept");
                         self.owe.push_back(Next::HostKept { seq: e.seq, cause: r.cause, bind });
@@ -2089,6 +2123,7 @@ impl<'a> Host<'a> {
         let ans = answered(&how, name, &ev);
         let under = self.descent(&how, e.seq, ans);
         let (mut display, mut exit) = (vec![], false);
+        let frames = self.note_frames(e.seq, name, outcome.as_ref().ok().map(Vec::as_slice));
         if let Ok(outs) = &outcome {
             self.enqueue(outs, e.seq);
             self.note_descent(outs, under);
@@ -2106,7 +2141,7 @@ impl<'a> Host<'a> {
         }
         let kept = outcome.as_ref().err().map(|r| r.cause);
         let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
-        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: kept.map(Cause::as_str) }];
+        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, frames, cause: kept.map(Cause::as_str) }];
         if let Some(cause) = kept {
             let bind = under.is_none() && declares_event(self.m, "StepKept");
             out.extend(self.kept(e.seq, cause, bind)?);
@@ -3036,6 +3071,51 @@ impl<'a> Host<'a> {
         self.confirm()
     }
 
+    /// HC-29: the frames of one program entry, from its step's outputs
+    /// (`None`: the step was kept, and emitted nothing).
+    fn note_frames(&mut self, seq: u64, name: &str, outs: Option<&[V]>) -> Vec<Result<crate::frame::Frame, String>> {
+        self.clock.entry(name);
+        let fs = outs.map(|o| self.clock.frames(seq, name, o)).unwrap_or_default();
+        for f in fs.iter().flatten() {
+            self.shown.push((f.seq, f.frame_digest.clone()));
+            self.last_view = Some(f.view.clone());
+        }
+        fs
+    }
+
+    /// HC-29: a renderer's confirmation that it presented the frame of the
+    /// entry at `seq` whose frame digest is `digest`. The admitter appends
+    /// `host.Presented` {digest, seq}, then delivers the bound
+    /// `Presented(seq, digest)` when declared. A confirmation that names no
+    /// frame derived from D is refused: nothing is appended.
+    pub fn presented(&mut self, seq: u64, digest: &str) -> Result<Vec<Admitted>, String> {
+        if !self.shown.iter().any(|(s, d)| *s == seq && d == digest) {
+            return Err(format!("presented {seq} {digest}: no frame of D has this seq and frame digest"));
+        }
+        let mut p = serde_json::Map::new();
+        p.insert("digest".into(), Value::from(digest));
+        p.insert("seq".into(), Value::from(seq));
+        self.append(host_event("Presented", &Value::Object(p.clone()).to_string()))?;
+        let mut out = vec![];
+        if declares_event(self.m, "Presented") {
+            let plan = self.plan("Presented", &p, true);
+            out = self.deliver_plan("Presented", &p, plan, How::Delivery)?;
+            out.extend(self.drain()?);
+        }
+        self.confirm()?;
+        Ok(out)
+    }
+
+    /// HC-29: the view of the last frame derived from D.
+    pub fn last_frame(&self) -> Option<&crate::frame::ViewTree> {
+        self.last_view.as_ref()
+    }
+
+    /// HC-29: (seq, frame digest) of every frame derived from D so far.
+    pub fn shown(&self) -> &[(u64, String)] {
+        &self.shown
+    }
+
     pub fn state(&self) -> &[Region] {
         &self.state
     }
@@ -3087,6 +3167,22 @@ pub fn replay_outputs(m: &Module, text: &str) -> Result<Vec<(u64, Vec<Value>)>, 
     h.outputs = Some(vec![]);
     h.refold(&entries)?;
     Ok(h.outputs.take().unwrap_or_default())
+}
+
+/// HC-29: replay D with every adapter disconnected and re-derive every
+/// frame, in D order, with the report of [`replay_report`].
+pub fn replay_frames(m: &Module, text: &str) -> Result<(Replayed, Vec<Result<crate::frame::Frame, String>>), String> {
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let keep = verify_prefix(&lines, m);
+    if keep < lines.len() {
+        return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
+    }
+    let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    h.frames = Some(vec![]);
+    h.refold(&entries)?;
+    let fs = h.frames.take().unwrap_or_default();
+    Ok((Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), kept_outcomes: std::mem::take(&mut h.kept_outcomes) }, fs))
 }
 
 /// The host as of entry k (HS-9): the fold of the first k entries of a

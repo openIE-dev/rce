@@ -957,9 +957,16 @@ The rungs, in order:
   same type as the callee of a call, which then replaces that callee. Only
   functions FILE can name are proposed: its own, and those of a module it
   uses, through the module's alias.
-- **c. Altered rules.** Skipped. The rewrites of the altered rules
-  (7.1), which `rce fmt` writes (10.6, `alter.rs`), are not yet wired into
-  the ladder; the report says so on a `skipped` line.
+- **c. Altered rules.** The text `rce fmt` writes (10.6) for the rules
+  whose method is altered in 7.1 (W-UNUSED-1 and W-DROP-1, `alter.rs`):
+  every rewrite of FILE, in the order `rce fmt` writes them, and only
+  when the canonical layout accepts the result, as in `rce fmt`. The
+  candidate is the canonical text of that program, one per run; there is
+  none when `rce fmt` would alter nothing. A rewrite only names a binding
+  or drops a value that was already dropped, so the candidate has the
+  behaviour of FILE; it is admitted when the reports it answers were the
+  only reason FILE requires change. The edit lists each rewrite as
+  `rce fmt` reports it (`line L: RULE what`).
 - **d. Bounded enumeration.** One small edit at one site: a binary
   operator replaced by each other operator of its class (`+ - * / %`,
   `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
@@ -973,15 +980,16 @@ The rungs, in order:
   are judged in this rung; the bound counts checker calls, not edits
   skipped as duplicates.
 
-Rungs a, b and d are not bounded by `bound`: a and b judge at most one
-candidate per donor or catalog hit.
+Rungs a, b and c are not bounded by `bound`: a and b judge at most one
+candidate per donor or catalog hit, and c at most one candidate.
 
 Output: the rung that closed the program (`a reuse`, `b lookup by type`,
-`d bounded enumeration`, or `none` when FILE already complies with the
-Form), the edit (it names the line of FILE), the diff of the canonical
+`c altered rules`, `d bounded enumeration`, or `none` when FILE already
+complies with the Form), the edit (it names the line of FILE), the diff of the canonical
 texts (`-` the old lines and `+` the new, with line numbers of the
 canonical text), the number of candidates each rung judged with
-`0 model calls`, the `skipped` rungs, and the checker's verdict on the
+`0 model calls`, the `skipped` rungs (every rung, when FILE does not
+parse), and the checker's verdict on the
 result: `ok FILE: admitted; E examples and C checks hold`, or, when no
 candidate is admitted, the report on FILE and `not closed FILE`. With
 `json` the same is one JSON object (format `rce-repair/1`) that also holds
@@ -1001,4 +1009,4 @@ split for the task sets that `scripts/ladder-tasks.py` writes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 8640eb8a5ac78e33b86d01234743ddf8a505e9b5ceadd66855d2c02cd923bb55 -->
+<!-- body-sha256: 156908d56989e3223283b6e472424dab1ea4d230ab65081735c5fcdb34c5deda -->

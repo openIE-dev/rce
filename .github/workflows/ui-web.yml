@@ -1,0 +1,33 @@
+name: ui-web
+
+# The DOM renderer for ui.view frames (ui/web): its test renders the frames
+# of ui/web/test/shop.rce in headless Chromium and runs axe-core on the DOM
+# after each one. This job installs Node, the two npm packages pinned in
+# ui/web/package-lock.json and Chromium, nothing else; that the fixture is
+# the reference checker's output is checked in ci.yml
+# (spec/checker/tests/host_frames.rs, ui_web_fixture_is_current).
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  render:
+    name: DOM renderer and axe-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the pinned packages
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Render the frames and run axe-core
+        run: npm test

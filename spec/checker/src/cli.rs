@@ -745,7 +745,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 9] = [
+const GRANTS: [Word; 10] = [
     Word::set("fs", &["DIR"]),
     Word::set("blob", &["DIR"]),
     Word::set("media", &["DIR"]),
@@ -755,18 +755,23 @@ const GRANTS: [Word; 9] = [
     Word::mode("tls"),
     Word::many("peer", &["HOST:PORT"]).then("tls", &["HOST:PORT", "KEY"]),
     Word::mode("pty"),
+    // HC-29: the frame sink, one line per frame the program emits
+    Word::set("frames", &["FILE"]),
 ];
 
-const fn grants_and_http() -> [Word; 10] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 10];
+/// The grants, then `http` and `presented`, which only the host loop takes.
+const fn serve_words() -> [Word; 12] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 12];
     let mut i = 0;
-    while i < 9 {
+    while i < 10 {
         w[i] = GRANTS[i];
         i += 1;
     }
+    // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
+    w[11] = Word::set("presented", &["FILE"]);
     w
 }
-const SERVE_WORDS: [Word; 10] = grants_and_http();
+const SERVE_WORDS: [Word; 12] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -848,7 +853,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE [MODULE...]",
         min: 1,
         max: MANY,
-        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
     },
     Command {
         path: &["host", "run"],
@@ -856,7 +861,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29)",
     },
     Command {
         path: &["host", "serve"],
@@ -864,16 +869,16 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D",
         min: 2,
         max: 2,
-        help: "the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared,\neach HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (http, Appendix E HC-24),\nDisplay(data) is written to stdout, Exit or SIGTERM ends the loop",
+        help: "the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared,\neach HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (http, Appendix E HC-24),\nDisplay(data) is written to stdout, Exit or SIGTERM ends the loop;\npresented FILE reads a renderer's confirmations, SEQ FRAME_DIGEST per line, as host.Presented inputs (HC-29)",
     },
     Command { path: &["host", "tls-id"], words: &[], operands: "FILE D", min: 2, max: 2, help: "the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with peer HOST:PORT KEY after tls)" },
     Command {
         path: &["host", "replay"],
-        words: &[Word::set("redact", &["F,..."])],
+        words: &[Word::set("redact", &["F,..."]), Word::mode("frames")],
         operands: "FILE D",
         min: 2,
         max: 2,
-        help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27)",
+        help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27);\nframes also prints every frame's sink line, its ui.rules findings and the ui.rules report of the session (HC-29)",
     },
     Command {
         path: &["db"],
@@ -1575,6 +1580,11 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                     for (q, c, t) in &r.kept_outcomes {
                         writeln!(out, "  seq {q} kept ({c}): {t}").map_err(w)?;
                     }
+                    // HC-29: `frames` re-derives every frame of D and checks
+                    // ui.rules on exactly those frames
+                    if p.has("frames") {
+                        replay_frames(&m, &text, out)?;
+                    }
                     // `redact f,g`: print those fields as digests (secrets stay in D)
                     let red: Vec<&str> = p.value("redact").map(|x| x.split(',').collect()).unwrap_or_default();
                     writeln!(out, "{}", show_state_redacted(&s, &red)).map_err(w)?;
@@ -1612,6 +1622,19 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
             let http_addr = p.value("http").map(String::from);
+            // HC-29: the frame sink and the renderer's confirmations, opened
+            // before the sandbox is entered
+            let mut sink = match p.value("frames") {
+                Some(f) => Some(std::fs::OpenOptions::new().create(true).append(true).open(f).map_err(|e| format!("frames {f}: {e}"))?),
+                None => None,
+            };
+            let acks = match p.value("presented") {
+                Some(f) => {
+                    let _ = std::fs::OpenOptions::new().create(true).append(true).open(f).map_err(|e| format!("presented {f}: {e}"))?;
+                    Some(std::fs::File::open(f).map_err(|e| format!("presented {f}: {e}"))?)
+                }
+                None => None,
+            };
             // random bytes are an input, not authority: always available (HC-10)
             adapters.push(Box::new(crate::adapters::RandomAdapter));
             for (word, v) in &p.words {
@@ -1749,10 +1772,12 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(start) = chan_start.take() {
                 start();
             }
+            // HC-29: the sink continues from the last frame of D
+            let mut frames = Frames { file: sink.take(), lines: crate::frame::Lines::after(h.last_frame()) };
             // HC-28: open, and waiting for input
             st.idle(h.len(), h.state_hash());
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out, http.as_mut(), st)?;
+                let code = serve_loop(&mut h, &src, out, http.as_mut(), st, &mut frames, acks)?;
                 let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
                 let code = validate_run(&m, log, &live, code, err)?;
@@ -1787,6 +1812,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                     }
                     Err(e) => return Err(e),
                 };
+                frames.write(&admitted)?;
                 for x in admitted {
                     match x.outcome {
                         Ok(outs) => {
@@ -1918,7 +1944,8 @@ pub const FRAME_MS: u64 = 16;
 /// Each drain performs at most DRAIN_MAX requests and the next round
 /// starts at once while requests are queued, so a stop is read between
 /// drains even when results keep requesting effects.
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status) -> Result<i32, String> {
+#[allow(clippy::too_many_arguments)]
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status, frames: &mut Frames, acks: Option<std::fs::File>) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::host::Host;
     use std::sync::mpsc;
@@ -1948,6 +1975,9 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
     });
     #[cfg(unix)]
     spawn_stop_thread(tx.clone());
+    if let Some(f) = acks {
+        spawn_presented_thread(f, tx.clone());
+    }
     let open = http.as_ref().map(|s| s.open());
     if let Some(s) = http.as_deref_mut() {
         let htx = std::sync::Mutex::new(tx.clone());
@@ -2001,7 +2031,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         }
         // HC-28: a round with an input from outside is work; a frame tick
         // is the host's own clock and leaves the reported state as it is
-        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. })));
+        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Presented(..) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. })));
         if work {
             st.working();
         }
@@ -2051,6 +2081,12 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                         end = true;
                     }
                 }
+                // HC-29: a renderer's confirmation, recorded as host.Presented
+                Inbound::Presented(q, d) => match h.presented(q, &d) {
+                    Ok(a) => adm.extend(a),
+                    Err(e) if Host::is_storage_fault(&e) => return Err(e),
+                    Err(e) => eprintln!("rce host: {e}; not admitted"),
+                },
                 Inbound::Stop => {
                     if http.is_none() {
                         end = true;
@@ -2119,6 +2155,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             }
         }
         let mut exit = false;
+        frames.write(&adm)?;
         for a in adm {
             if let Some(c) = a.cause {
                 eprintln!("rce host: seq {} kept ({c})", a.seq);
@@ -2158,6 +2195,105 @@ enum Inbound {
     Eof,
     Http(crate::adapters::http::HttpIn),
     Stop,
+    /// HC-29: a renderer presented the frame of seq with this frame digest
+    Presented(u64, String),
+}
+
+/// HC-29: the frame sink of `rce host run` and `serve`, when granted.
+struct Frames {
+    file: Option<std::fs::File>,
+    lines: crate::frame::Lines,
+}
+
+impl Frames {
+    /// Write the frames of these admitted inputs to the sink, in D order;
+    /// say on stderr why an emitted `Frame` is not a frame.
+    fn write(&mut self, adm: &[crate::host::Admitted]) -> Result<(), String> {
+        for a in adm {
+            for f in &a.frames {
+                match (f, &mut self.file) {
+                    (Ok(f), Some(file)) => {
+                        let l = self.lines.line(f)?;
+                        file.write_all(l.as_bytes()).map_err(|e| format!("frames: {e}"))?;
+                    }
+                    (Ok(_), None) => {}
+                    (Err(e), _) => eprintln!("rce host: {e}"),
+                }
+            }
+        }
+        if let Some(file) = &mut self.file {
+            file.flush().map_err(|e| format!("frames: {e}"))?;
+        }
+        Ok(())
+    }
+}
+
+/// HC-29: read a renderer's confirmations, one `SEQ FRAME_DIGEST` line each,
+/// as the renderer appends them; a line of another form is said on stderr.
+fn spawn_presented_thread(f: std::fs::File, tx: std::sync::mpsc::Sender<Inbound>) {
+    std::thread::spawn(move || {
+        let mut r = std::io::BufReader::new(f);
+        let mut l = String::new();
+        loop {
+            match r.read_line(&mut l) {
+                Ok(0) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                Ok(_) if !l.ends_with('\n') => {}
+                Ok(_) => {
+                    let mut ws = l.split_whitespace();
+                    match (ws.next().and_then(|q| q.parse::<u64>().ok()), ws.next(), ws.next()) {
+                        (Some(q), Some(d), None) => {
+                            if tx.send(Inbound::Presented(q, d.to_string())).is_err() {
+                                return;
+                            }
+                        }
+                        _ => eprintln!("rce host: presented: `{}` is not SEQ FRAME_DIGEST; not admitted", l.trim_end()),
+                    }
+                    l.clear();
+                }
+                Err(_) => return,
+            }
+        }
+    });
+}
+
+/// `rce host replay frames FILE D` (HC-29): every frame re-derived from D,
+/// each as its sink line, with its ui.rules findings under it, then the
+/// ui.rules report of all of them as one trace.
+fn replay_frames(m: &Module, text: &str, out: &mut dyn Write) -> Result<(), String> {
+    let w = |e: std::io::Error| e.to_string();
+    let (_, fs) = crate::host::replay_frames(m, text)?;
+    let mut lines = crate::frame::Lines::default();
+    let ok: Vec<crate::frame::Frame> = fs.iter().filter_map(|f| f.as_ref().ok().cloned()).collect();
+    let report = crate::frame::rules_report(&ok);
+    let mut i = 0;
+    for f in &fs {
+        match f {
+            Ok(f) => {
+                write!(out, "frame {}", lines.line(f)?).map_err(w)?;
+                if let Ok(r) = &report {
+                    for (_, t) in r.findings.iter().filter(|(k, _)| *k == i) {
+                        writeln!(out, "  finding {t}").map_err(w)?;
+                    }
+                }
+                i += 1;
+            }
+            Err(e) => writeln!(out, "  {e}").map_err(w)?,
+        }
+    }
+    match report {
+        Ok(r) => {
+            writeln!(out, "ui.rules: {} frames, {} findings", ok.len(), r.findings.len()).map_err(w)?;
+            // a finding of the trace as a whole names no frame
+            for (_, t) in r.findings.iter().filter(|(k, _)| *k >= ok.len()) {
+                writeln!(out, "  finding {t}").map_err(w)?;
+            }
+            for v in &r.verdicts {
+                writeln!(out, "  {v}").map_err(w)?;
+            }
+        }
+        Err(e) => writeln!(out, "ui.rules not decided: {e}").map_err(w)?,
+    }
+    Ok(())
 }
 
 #[cfg(unix)]

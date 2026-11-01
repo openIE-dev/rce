@@ -4080,9 +4080,16 @@ The rungs, in order:
   same type as the callee of a call, which then replaces that callee. Only
   functions FILE can name are proposed: its own, and those of a module it
   uses, through the module's alias.
-- **c. Altered rules.** Skipped. The rewrites of the altered rules
-  (7.1), which `rce fmt` writes (10.6, `alter.rs`), are not yet wired into
-  the ladder; the report says so on a `skipped` line.
+- **c. Altered rules.** The text `rce fmt` writes (10.6) for the rules
+  whose method is altered in 7.1 (W-UNUSED-1 and W-DROP-1, `alter.rs`):
+  every rewrite of FILE, in the order `rce fmt` writes them, and only
+  when the canonical layout accepts the result, as in `rce fmt`. The
+  candidate is the canonical text of that program, one per run; there is
+  none when `rce fmt` would alter nothing. A rewrite only names a binding
+  or drops a value that was already dropped, so the candidate has the
+  behaviour of FILE; it is admitted when the reports it answers were the
+  only reason FILE requires change. The edit lists each rewrite as
+  `rce fmt` reports it (`line L: RULE what`).
 - **d. Bounded enumeration.** One small edit at one site: a binary
   operator replaced by each other operator of its class (`+ - * / %`,
   `< <= > >=`, `== !=`, `and or`, `& | ^`, `<< >>`), the operands of an
@@ -4096,15 +4103,16 @@ The rungs, in order:
   are judged in this rung; the bound counts checker calls, not edits
   skipped as duplicates.
 
-Rungs a, b and d are not bounded by `bound`: a and b judge at most one
-candidate per donor or catalog hit.
+Rungs a, b and c are not bounded by `bound`: a and b judge at most one
+candidate per donor or catalog hit, and c at most one candidate.
 
 Output: the rung that closed the program (`a reuse`, `b lookup by type`,
-`d bounded enumeration`, or `none` when FILE already complies with the
-Form), the edit (it names the line of FILE), the diff of the canonical
+`c altered rules`, `d bounded enumeration`, or `none` when FILE already
+complies with the Form), the edit (it names the line of FILE), the diff of the canonical
 texts (`-` the old lines and `+` the new, with line numbers of the
 canonical text), the number of candidates each rung judged with
-`0 model calls`, the `skipped` rungs, and the checker's verdict on the
+`0 model calls`, the `skipped` rungs (every rung, when FILE does not
+parse), and the checker's verdict on the
 result: `ok FILE: admitted; E examples and C checks hold`, or, when no
 candidate is admitted, the report on FILE and `not closed FILE`. With
 `json` the same is one JSON object (format `rce-repair/1`) that also holds
@@ -6248,8 +6256,8 @@ did not, not by restricting what a module may declare.
   byte that is not, or as `HttpMalformed` 415 (HD-2), and `host.Kept`
   records the bytes in D, so nothing received is lost.
 - **HD-4 Host inputs.** `StepKept` (HC-21), `Restarted` (HC-22), `Synced`,
-  `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
-  like any delivery. Declared as
+  `WallTime`, `Presented` (HC-29) and the frame tick `Tick` (HC-2) are
+  matched by field name like any delivery. Declared as
   `StepKept(seq: u64)`, a kept step is delivered with its seq, and the
   `host.StepKept` before it holds the cause. Declared with a field the host
   has no value for, `StepKept` is never delivered, and each `host.StepKept`
@@ -6305,6 +6313,77 @@ delivers depends on the adapters it is granted.
   the state hash do not depend on it, so D is the same byte for byte with
   reports and without them.
 
+### E.4f Frames and their confirmations (HC-29)
+
+- **HC-29 Frames are derived from D, and a confirmation is an input.** A
+  *view tree* is a value of `ui.view.View` (`stdlib/lib/ui/view.rce`): a
+  flat arena of nodes with tags, keys, attributes, texts and child lists,
+  node 0 its root. A *frame* is a view tree that a step emits as
+  `Frame(view)`, an output struct `Frame` the module declares with a field
+  `view` of type `View`, as it emits `Display(data)`; the frame's seq is
+  the seq of the entry whose step emitted it. Its `view_digest` and
+  `frame_digest` are those `ui.view` defines: BLAKE3 of the deterministic
+  CBOR (RFC 8949, 4.2.1) of the tree, and BLAKE3 of the frame record
+  `["rce.ui.frame/1", seq, view_digest]`. An emitted `Frame` whose `view`
+  is not a tree (each node reached from node 0 once, with parent links
+  that agree) is not a frame: the host says so on stderr, and replay
+  derives the same. A *renderer* is code outside the program that shows
+  frames to a person.
+
+  *What is in D.* The inputs, as for every program (HC-10), and nothing
+  for a frame: a frame is an output of δ for its entry, so the frames of a
+  session, their digests and their order are a function of D, and
+  `rce host replay frames FILE D` re-derives every one with every adapter
+  disconnected (HC-8). *What is not in D.* The frames, their digests, the
+  diff operations between them and their `ui.rules` findings, all derived;
+  and what a renderer draws, when it draws it, and what a platform
+  accessibility interface reports, none of which a program reads.
+
+  For `ui.rules`, the step word of a frame is its field `ev: text` when
+  `Frame` declares one, else `start` for the first frame of D, `tick` when
+  its entry is a `Tick`, and the event type of its entry otherwise; its
+  time is its field `ms: i64` when declared, else 0 for the first frame and
+  16 ms (the frame period of HC-14) for each `Tick` entry since the
+  previous frame. Both are a function of D.
+
+  Under `frames FILE`, `rce host run` and `rce host serve` append one line
+  per frame to FILE, after the entries of its batch are appended (HC-1),
+  so a renderer is never shown a frame that D does not hold. A line is
+  canonical JSON with keys sorted: `ev`, `frame_digest`, `input` (the
+  entry's event type), `ms`, `ops` (the operations `view.diff` gives from
+  the previous frame's view, in the order it gives them; `null` for the
+  first frame of D), `seq`, `view` (the seven lists of the view tree) and
+  `view_digest`. `rce host replay frames FILE D` prints the same lines,
+  byte for byte, each followed by its `ui.rules` findings, then the report
+  of every frame as one trace (`rules.findings`, `rules.report`), so the
+  rules are checked on exactly the frames a session showed.
+
+  A renderer's confirmation that it presented a frame is an input. Under
+  `presented FILE`, `rce host serve` reads lines `SEQ FRAME_DIGEST` that a
+  renderer appends to FILE. For one that names a frame derived from D (that
+  seq and that frame digest), the admitter appends `host.Presented`
+  {digest, seq}, then delivers `Presented(seq, digest)` as the module
+  declares it (E.4c, HD-4). A confirmation that names no such frame is
+  refused: the host says so on stderr and appends nothing. Replay treats a
+  `host.Presented` that names no frame derived from the entries before it
+  as a host fault. So a program counts a frame as shown, not only emitted,
+  by its step on `Presented`, and that count is a function of D.
+
+  A host takes and uses no snapshot (HS-5) of a module that declares
+  `Frame`: its frames derive from every entry of D (the first frame's
+  word, the ticks since the previous frame, the frames a confirmation can
+  name), so it is always folded from the start of D.
+
+  *Decision on open question Q4 of `spec/proposals/human-interface.md`
+  (2026-11-01).* A confirmation enters D as a host-named input, and does
+  not stay outside D as HC-28's status does. That a person was shown a
+  frame is a fact from outside the program on which a program may act (an
+  alarm counted as annunciated only once shown, ISA-18.2), and HC-10 gives
+  such a fact no other way in; a status report changes nothing that a
+  program reads. The confirmation names which frame was presented, not how
+  it looked: pixels and the timing of presentation stay outside D.
+  Reference: `spec/checker/src/frame.rs`, `Host::presented`.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -6335,6 +6414,7 @@ JSON. The host entries are:
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
 | `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `http`, and when a retried bind succeeds (HC-24) |
+| `host.Presented` | digest (the frame digest), seq | when a renderer confirms that it presented the frame of seq (HC-29) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -6562,6 +6642,7 @@ is cited by a test.
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
 | HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports` |
+| HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
 | HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
