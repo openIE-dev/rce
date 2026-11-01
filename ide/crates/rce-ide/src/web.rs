@@ -34,6 +34,17 @@ struct State {
 }
 
 impl State {
+    fn panels(&self) -> Panels<'_> {
+        Panels {
+            editor: &self.editor,
+            proposals: &self.proposals,
+            receipts: &self.receipts,
+            memory: &self.memory,
+            net: &self.net,
+            focus: self.focus,
+        }
+    }
+
     fn edit(&mut self, op: EditOp) {
         if self.buffer.apply(op) {
             let uri = format!("file:///{}", self.editor.path);
@@ -215,6 +226,31 @@ impl WebIde {
     /// page should then `preventDefault`).
     pub fn key(&mut self, key: String, shift: bool, ctrl: bool) -> bool {
         let mut s = self.st.borrow_mut();
+        // Keyboard reach, as on the desktop: F6 from anywhere, Tab outside
+        // the editor (where Tab indents), Escape from the editor; the order
+        // is `view::focus_step`.
+        let step = match key.as_str() {
+            "F6" => true,
+            "Tab" => s.focus != Focus::Editor,
+            "Escape" => s.focus == Focus::Editor,
+            _ => false,
+        };
+        if step {
+            s.focus = view::focus_step(&s.panels(), shift);
+            return true;
+        }
+        if let Focus::Control(_) = s.focus {
+            match key.as_str() {
+                "Enter" | " " => {
+                    if let Some(a) = view::focused_action(&s.panels()) {
+                        s.q.borrow_mut().push(a);
+                    }
+                }
+                "Escape" => s.focus = Focus::Editor,
+                _ => return false,
+            }
+            return true;
+        }
         if s.focus == Focus::Memory {
             match key.as_str() {
                 "Enter" => {
@@ -277,10 +313,10 @@ impl WebIde {
     /// The browser's `paste` event, with the system clipboard's text.
     pub fn paste(&mut self, text: String) {
         let mut s = self.st.borrow_mut();
-        if s.focus == Focus::Editor {
-            s.edit(EditOp::Paste(Some(text)));
-        } else {
-            s.memory.query.push_str(&text);
+        match s.focus {
+            Focus::Editor => s.edit(EditOp::Paste(Some(text))),
+            Focus::Memory => s.memory.query.push_str(&text),
+            Focus::Control(_) => {}
         }
     }
 
@@ -290,6 +326,7 @@ impl WebIde {
         match s.focus {
             Focus::Editor => s.edit(EditOp::Insert(t)),
             Focus::Memory => s.memory.query.push_str(&t),
+            Focus::Control(_) => {}
         }
     }
 
@@ -406,14 +443,7 @@ impl WebIde {
         }
         {
             let s = self.st.borrow();
-            let p = Panels {
-                editor: &s.editor,
-                proposals: &s.proposals,
-                receipts: &s.receipts,
-                memory: &s.memory,
-                net: &s.net,
-                focus: s.focus,
-            };
+            let p = s.panels();
             let ctx = view::paint(
                 &view::root_with(&p, &s.q, &m, w as f32, h as f32),
                 w as f32,

@@ -7,8 +7,9 @@ nav a { margin-right: 16px; }
 main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px; }
 @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
 .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-#ver { color: #666; font-size: 13px; }
-textarea { width: 100%; height: 60vh; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 10px; border: 1px solid #ccc; border-radius: 6px; tab-size: 4; resize: vertical; }
+#ver, #shared { color: #666; font-size: 13px; }
+textarea { width: 100%; height: 60vh; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 10px; border: 1px solid #8a8a8a; border-radius: 6px; tab-size: 4; resize: vertical; }
+:focus-visible { outline: 2px solid #1a5fb4; outline-offset: 2px; }
 .hint { color: #555; font-size: 13px; }
 .verdict { font-weight: 600; padding: 8px 12px; border-radius: 6px; background: #eee; }
 .verdict.ok { background: #e3f5e1; color: #17531a; }
