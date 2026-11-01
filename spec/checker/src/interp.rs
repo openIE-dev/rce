@@ -1712,7 +1712,7 @@ impl<'a> Interp<'a> {
                     }
                     "lvar_new" => {
                         let vals: Vec<V> = args.iter().map(|a| self.eval(&a.e)).collect::<R<_>>()?;
-                        return Ok(crate::conc::LCell::new_value(vals));
+                        return Ok(self.lvar_new(vals));
                     }
                     _ => {}
                 }

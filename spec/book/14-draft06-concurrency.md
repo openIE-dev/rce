@@ -524,7 +524,17 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   differs from `v` (a put that changes nothing is allowed). `freeze()`
   sets the bit and returns the exact value. `wait(Q)` returns the `t` in
   `Q` with `t ⊔ v = v`, in the same `Merge` order as `put`, and blocks
-  until there is one. The threshold tests charge no fuel and no budget,
+  until there is one. In a task of `fn main`, outside the branches of a
+  `par`, a `wait` on an LVar that has passed from one task to another (a
+  `spawn` argument, a message, a task's result, a closure that captures
+  it) and is at no threshold is a communication step (6.8): the task is
+  blocked until a put of another task or actor brings the LVar to a
+  threshold, and when no task can move any more the blocked waits trap
+  with `trap("lvar wait cannot be satisfied")`. A wait on an LVar that
+  has not passed between tasks traps at once, since no other put can
+  come. Once an LVar has passed between tasks, the tasks of each tick
+  move one after another in task order, so the puts, waits and freezes
+  of a tick happen in one order (10.3). The threshold tests charge no fuel and no budget,
   so the cost of a `wait` does not depend on how often a schedule
   rechecks it. A `Q` with more than one element must be pairwise
   incompatible: distinct elements join to the top. Every `wait` checks
@@ -823,4 +833,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 6ddb2e411df319c73877a51e0572eccc44ae19cabf77df72b5d6159ea4e38a32 -->
+<!-- body-sha256: c047897b174656666713681488870268cbfe06b134331bc56900cb39ae6c2c95 -->
