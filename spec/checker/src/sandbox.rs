@@ -24,7 +24,9 @@
 //!   the exact address), denies writes outside the log's directory, the
 //!   granted roots and `/dev`, and denies process exec unless `pty` was
 //!   granted.
-//! - Linux target: Landlock (see `landlock`): TCP bind and connect by port,
+//! - Linux target: Landlock (see `landlock`): writes and, unless a terminal
+//!   or the name resolver needs the whole system, reads only where the
+//!   grants say ([`Reads`]), TCP bind and connect by port,
 //!   then a seccomp-BPF filter on every thread (see [`seccomp`]), which
 //!   fails every new IP socket when the only network grant is a listener
 //!   opened before entering.
@@ -183,9 +185,47 @@ pub fn needs_ip_sockets(grants: &[NetGrant]) -> bool {
     grants.iter().any(|g| g.kind != GrantKind::Prebound)
 }
 
+/// What the host reads after entering the target (HC-5a): the read-only
+/// roots (`wasm`), and the single files it may read (the account databases
+/// of the `names` grant, HC-33). The log directory, `/dev` and the
+/// writable roots are readable too.
+#[derive(Clone, Debug, Default)]
+pub struct Reads<'a> {
+    pub roots: Vec<&'a Path>,
+    pub files: Vec<&'a Path>,
+}
+
+/// Why reads cannot be restricted, if they cannot: a terminal's programs
+/// (`pty`) read the whole system, and so does the name resolver a grant
+/// that names a host by name uses after entering (its configuration and
+/// its libraries).
+pub fn reads_open(pty: bool, grants: &[NetGrant]) -> Option<&'static str> {
+    if pty {
+        Some("the terminal's programs read the system")
+    } else if grants.iter().any(|g| !g.numeric && g.kind != GrantKind::Prebound) {
+        Some("the name resolver reads the system's configuration")
+    } else {
+        None
+    }
+}
+
+/// The paths the line names as readable (HC-5a), in the order given.
+fn reads_text(writable: bool, reads: &Reads) -> String {
+    let mut s = "reads only under the log directory, /dev".to_string();
+    if writable || !reads.roots.is_empty() {
+        s.push_str(" and the granted roots");
+    }
+    if !reads.files.is_empty() {
+        let fs: Vec<String> = reads.files.iter().map(|f| f.display().to_string()).collect();
+        s.push_str(&format!(", and the files {}", fs.join(" and ")));
+    }
+    s.push_str(" (lstat and readlink of a path are not reads: Landlock has no right for them)");
+    s
+}
+
 /// Enter this OS's enforcement target of the sandbox. `Ok(description)`
 /// when entered, `Err(reason)` when there is none here yet.
-pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant]) -> Result<String, String> {
+pub fn enter(log_dir: &Path, writable: &[&Path], reads: &Reads, pty: bool, grants: &[NetGrant]) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         use std::ffi::{CStr, CString, c_char, c_int};
@@ -193,6 +233,7 @@ pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant])
             fn sandbox_init(profile: *const c_char, flags: u64, errorbuf: *mut *mut c_char) -> c_int;
             fn sandbox_free_error(errorbuf: *mut c_char);
         }
+        let _ = reads;
         let prof = CString::new(profile(log_dir, writable, pty, grants)).map_err(|e| e.to_string())?;
         let mut err: *mut c_char = std::ptr::null_mut();
         // SAFETY: prof is a valid NUL-terminated string; err is freed below.
@@ -209,7 +250,7 @@ pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant])
     #[cfg(target_os = "linux")]
     {
         let net = needs_ip_sockets(grants);
-        let ll = landlock::enter(log_dir, writable, pty, grants);
+        let ll = landlock::enter(log_dir, writable, reads, pty, grants);
         // no_new_privs is set by landlock::enter; set it again in case
         // Landlock was unavailable, so the filter can still be installed.
         // SAFETY: plain prctl on our own process.
@@ -224,7 +265,7 @@ pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant])
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        let _ = (log_dir, writable, pty, grants);
+        let _ = (log_dir, writable, reads, pty, grants);
         Err("no OS target for this platform yet (to do: Windows AppContainer, FreeBSD, OpenBSD, iOS, Android); the capability contract is still enforced by the checker and host".into())
     }
 }
@@ -233,7 +274,8 @@ pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant])
 /// Landlock ABI; `rules` the (port, bind, connect) rules added; `ip` says
 /// whether seccomp leaves new IP sockets allowed (then UDP is not
 /// restricted by any layer).
-pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[NetGrant], ip: bool, writable: bool, pty: bool) -> String {
+/// `reads`: what reads are restricted to, or why they are not.
+pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[NetGrant], ip: bool, writable: bool, reads: Result<&Reads, &str>, pty: bool) -> String {
     let udp = if ip { ", UDP not restricted" } else { "" };
     let net = if abi < 4 {
         format!("network not restricted by Landlock (ABI {abi}){udp}")
@@ -255,7 +297,11 @@ pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[Net
         let pre = if pre.is_empty() { String::new() } else { format!(" (the listener {} was opened before entering)", pre.join(", ")) };
         format!("{what}{by_port}{pre}{udp}")
     };
-    format!("Landlock ABI {abi}: {net}, writes only under the log directory{}{}", if writable { " and the granted roots" } else { "" }, if pty { "" } else { ", no exec" })
+    let r = match reads {
+        Ok(rs) => reads_text(writable, rs),
+        Err(why) => format!("reads not restricted ({why})"),
+    };
+    format!("Landlock ABI {abi}: {net}, writes only under the log directory{}, {r}{}", if writable { " and the granted roots" } else { "" }, if pty { "" } else { ", no exec" })
 }
 
 /// Linux target, part 1: Landlock (kernel 5.13+), entered with raw syscalls. Writes are
@@ -263,11 +309,15 @@ pub fn landlock_description(abi: i64, rules: &[(u16, bool, bool)], grants: &[Net
 /// `/dev`; exec is handled (denied) unless `pty`; on ABI 4+ TCP bind and
 /// connect are handled: bind is allowed only on the ports of Listen grants
 /// and connect only on the ports of Connect grants (a Prebound listener was
-/// bound before, and accepting is not restricted). Reads are not
-/// restricted. `no_new_privs` is set first.
+/// bound before, and accepting is not restricted). Reading a file and
+/// listing a directory are handled (denied) everywhere but the log
+/// directory, `/dev`, the granted roots and the files of [`Reads`], unless
+/// [`reads_open`] says why they cannot be. Landlock has no right for lstat
+/// or readlink, which therefore stay possible on any path. `no_new_privs`
+/// is set first.
 #[cfg(target_os = "linux")]
 mod landlock {
-    use super::{GrantKind, NetGrant};
+    use super::{GrantKind, NetGrant, Reads};
     use std::os::fd::AsRawFd;
     use std::path::Path;
 
@@ -286,6 +336,8 @@ mod landlock {
     const RULE_PATH_BENEATH: u32 = 1;
     const RULE_NET_PORT: u32 = 2;
     const EXECUTE: u64 = 1 << 0;
+    const READ_FILE: u64 = 1 << 2;
+    const READ_DIR: u64 = 1 << 3;
     // WRITE_FILE, REMOVE_DIR, REMOVE_FILE, MAKE_CHAR..MAKE_SYM
     const WRITES_V1: u64 = (1 << 1) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
     const REFER: u64 = 1 << 13;
@@ -318,16 +370,36 @@ mod landlock {
         abi: i64,
         rules: Vec<(u16, bool, bool)>,
         writable: bool,
+        /// the read-only roots and files, or why reads are not handled
+        reads: Result<(Vec<std::path::PathBuf>, Vec<std::path::PathBuf>), &'static str>,
         pty: bool,
     }
 
     impl Installed {
         pub fn describe(&self, grants: &[NetGrant], ip: bool) -> String {
-            super::landlock_description(self.abi, &self.rules, grants, ip, self.writable, self.pty)
+            let owned;
+            let reads = match &self.reads {
+                Ok((roots, files)) => {
+                    owned = Reads { roots: roots.iter().map(|p| p.as_path()).collect(), files: files.iter().map(|p| p.as_path()).collect() };
+                    Ok(&owned)
+                }
+                Err(w) => Err(*w),
+            };
+            super::landlock_description(self.abi, &self.rules, grants, ip, self.writable, reads, self.pty)
         }
     }
 
-    pub fn enter(log_dir: &Path, writable: &[&Path], pty: bool, grants: &[NetGrant]) -> Result<Installed, String> {
+    fn add_path(rs: i32, d: &Path, allowed: u64) -> Result<(), String> {
+        let f = std::fs::File::open(d).map_err(|e| format!("{}: {e}", d.display()))?;
+        let rule = PathBeneath { allowed, parent_fd: f.as_raw_fd() };
+        // SAFETY: rule is a valid path-beneath attribute.
+        if unsafe { libc::syscall(ADD_RULE, rs, RULE_PATH_BENEATH, &rule as *const PathBeneath, 0u32) } < 0 {
+            return Err(err("landlock_add_rule"));
+        }
+        Ok(())
+    }
+
+    pub fn enter(log_dir: &Path, writable: &[&Path], reads: &Reads, pty: bool, grants: &[NetGrant]) -> Result<Installed, String> {
         // SAFETY: the version query takes no attribute.
         let abi = unsafe { libc::syscall(CREATE_RULESET, std::ptr::null::<RulesetAttr>(), 0usize, FLAG_VERSION) };
         if abi < 1 {
@@ -340,7 +412,9 @@ mod landlock {
         if abi >= 3 {
             writes |= TRUNCATE;
         }
-        let fs = writes | if pty { 0 } else { EXECUTE };
+        let open = super::reads_open(pty, grants);
+        let read = if open.is_none() { READ_FILE | READ_DIR } else { 0 };
+        let fs = writes | read | if pty { 0 } else { EXECUTE };
         let net_handled = if abi >= 4 { BIND_TCP | CONNECT_TCP } else { 0 };
         let attr = RulesetAttr { fs, net: net_handled };
         let size = if abi >= 4 { std::mem::size_of::<RulesetAttr>() } else { 8 };
@@ -353,11 +427,16 @@ mod landlock {
         let mut dirs: Vec<&Path> = vec![log_dir, Path::new("/dev")];
         dirs.extend_from_slice(writable);
         for d in dirs {
-            let f = std::fs::File::open(d).map_err(|e| format!("{}: {e}", d.display()))?;
-            let rule = PathBeneath { allowed: writes, parent_fd: f.as_raw_fd() };
-            // SAFETY: rule is a valid path-beneath attribute.
-            if unsafe { libc::syscall(ADD_RULE, rs, RULE_PATH_BENEATH, &rule as *const PathBeneath, 0u32) } < 0 {
-                return Err(err("landlock_add_rule"));
+            add_path(rs, d, writes | read)?;
+        }
+        // HC-5a: read-only roots, and single files (READ_FILE is the only
+        // read right a file takes)
+        if read != 0 {
+            for d in &reads.roots {
+                add_path(rs, d, READ_FILE | READ_DIR)?;
+            }
+            for f in &reads.files {
+                add_path(rs, f, READ_FILE)?;
             }
         }
         // one rule per port: bind for Listen grants, connect for Connect grants
@@ -395,7 +474,11 @@ mod landlock {
             }
             libc::close(rs);
         }
-        Ok(Installed { abi, rules, writable: !writable.is_empty(), pty })
+        let reads = match open {
+            None => Ok((reads.roots.iter().map(|p| p.to_path_buf()).collect(), reads.files.iter().map(|p| p.to_path_buf()).collect())),
+            Some(w) => Err(w),
+        };
+        Ok(Installed { abi, rules, writable: !writable.is_empty(), reads, pty })
     }
 }
 /// Linux: a seccomp-BPF filter, installed on every thread of the process

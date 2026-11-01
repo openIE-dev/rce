@@ -1,4 +1,4 @@
-# ls: list a directory, as `ls`, `ls -a` and `ls -l` do.
+# ls: list a directory, as `ls`, `ls -a`, `ls -l` and `ls -la` do.
 #
 # The reference behaviour is github.com/tonybanters/go-lsbtw (ls.go); this
 # program is written for RCE and takes no code from it. The listing is a
@@ -6,52 +6,126 @@
 #  - the core: the mode string of a mode, the visible names, the long row
 #    of the reference, and the two exercises its README leaves open
 #    (right-aligned columns, and `name -> target` for a symbolic link);
-#  - the edge: one FileList request under the host's `fs DIR` grant gives
-#    the names (HC-3, HC-5). The host has no lstat, readlink, user or group
-#    name or time zone adapter, so a long listing takes its stat records
-#    from the `Stats` input (HC-10b) instead; README.md lists these gaps.
+#  - the edge: host requests under the `fs DIR` and `names` grants
+#    (Appendix E, HC-3, HC-5): FileList gives the names as bytes (HC-30);
+#    for a long listing, FileLstat and FileReadlink give each entry's record
+#    and link text (HC-31), WallClock the time now and LocalOffset the UTC
+#    offset at each mtime (HC-32), UserName and GroupName the owner and
+#    group (HC-33). Every answer is a result event in D (HC-10).
 module ls
 
-intent "list a directory as ls does: names in byte order, a dot name only when all is asked, and each long row computed from the entry's stat record"
-    example Ls(path: "", all: false), FileListDone(req: 1, status: "delivered", data: some(["b", ".hid", "a"]), err: "") -> shown == ["a", "b"] and failed == 0
-    example Ls(path: "", all: true), FileListDone(req: 1, status: "delivered", data: some(["b", ".hid", "a"]), err: "") -> shown == [".", "..", ".hid", "a", "b"]
-    example Ls(path: "nope", all: false), FileListDone(req: 1, status: "failed", data: none, err: "not found") -> shown == [] and failed == 1
-    example Stats(all: false, now: 1783000000, offset_min: 0, entries: [Entry(name: "a.txt", mode: 33188, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "", blocks: 8)]) -> rows == ["-rw-r--r-- 1 root root 5 Jul  2 00:00 a.txt"]
+intent "list a directory as ls does: names in byte order, a dot name only when all is asked, and each long row computed from the entry's lstat record, link text, owner and group names and local time"
+    example Ls(path: "", all: false, long: false), FileListDone(req: 1, status: "delivered", data: some([b("b"), b(".h"), b("a")]), err: "") -> shown == [b("a"), b("b")] and failed == 0
+    example Ls(path: "", all: true, long: false), FileListDone(req: 1, status: "delivered", data: some([b("b"), b(".h"), b("a")]), err: "") -> shown == [b("."), b(".."), b(".h"), b("a"), b("b")]
+    example Ls(path: "nope", all: false, long: false), FileListDone(req: 1, status: "failed", data: none, err: "not found") -> shown == [] and failed == 1
+    example Ls(path: "", all: false, long: true), WallClockDone(req: 2, status: "delivered", data: some(1783000000000000000), err: ""), FileListDone(req: 1, status: "delivered", data: some([b("a")]), err: ""), FileLstatDone(req: 3, status: "delivered", data: some(Stat(mode: 33188, nlink: 1, uid: 0, gid: 0, size: 5, mtime: 1782950400, mtime_ns: 0, blocks: 8)), err: ""), UserNameDone(req: 4, status: "delivered", data: some("root"), err: ""), GroupNameDone(req: 5, status: "failed", data: none, err: "no group"), LocalOffsetDone(req: 6, status: "delivered", data: some(-3600), err: "") -> owed == 0 and rows == [b("-rw-r--r-- 1 root 0 5 Jul  1 23:00 a")]
 
 use time
 
-# One entry's stat record: what lstat, readlink and the user and group
-# databases give for it. `mode` is st_mode, `mtime` is seconds since the
-# Unix epoch, `blocks` is st_blocks (512-byte units) and `target` is the
-# text of a symbolic link ("" for any other entry).
+# One entry of a long listing: its name, its lstat record, the names of
+# its owner and group (the numbers when a name is not found), the UTC
+# offset at its mtime and the text of a symbolic link (empty otherwise).
+# `mode` is st_mode, `mtime` seconds since the Unix epoch and `mtime_ns`
+# the nanoseconds past them, `blocks` st_blocks (512-byte units).
 struct Entry
-    name: text
+    name: List[i64]
     mode: i64
     nlink: i64
     owner: text
     group_name: text
     size: i64
     mtime: i64
-    target: text
+    mtime_ns: i64
+    offset: i64
+    target: List[i64]
     blocks: i64
+
+# The record a FileLstat request answers (HC-31).
+struct Stat
+    mode: i64
+    nlink: i64
+    uid: i64
+    gid: i64
+    size: i64
+    mtime: i64
+    mtime_ns: i64
+    blocks: i64
+
+const NO_STAT: Stat = Stat(mode: 0, nlink: 0, uid: 0, gid: 0, size: 0, mtime: 0, mtime_ns: 0, blocks: 0)
 
 struct FileList
     req: u64
     path: text
 
-struct Display
-    data: text
+struct FileLstat
+    req: u64
+    path: List[i64]
 
-event Ls(path: text, all: bool)
-event FileListDone(req: u64, status: text, data: List[text]?, err: text)
-event Stats(all: bool, now: i64, offset_min: i64, entries: List[Entry])
+struct FileReadlink
+    req: u64
+    path: List[i64]
+
+struct WallClock
+    req: u64
+
+struct LocalOffset
+    req: u64
+    at: i64
+
+struct UserName
+    req: u64
+    id: i64
+
+struct GroupName
+    req: u64
+    id: i64
+
+# The bytes written to stdout (HC-30): a name need not be UTF-8.
+struct Display
+    data: List[i64]
+
+event Ls(path: text, all: bool, long: bool)
+event FileListDone(req: u64, status: text, data: List[List[i64]]?, err: text)
+event FileLstatDone(req: u64, status: text, data: Stat?, err: text)
+event FileReadlinkDone(req: u64, status: text, data: List[i64]?, err: text)
+event WallClockDone(req: u64, status: text, data: u64?, err: text)
+event LocalOffsetDone(req: u64, status: text, data: i64?, err: text)
+event UserNameDone(req: u64, status: text, data: text?, err: text)
+event GroupNameDone(req: u64, status: text, data: text?, err: text)
 
 state Listing
     next: u64 = 0
     all: bool = false
-    shown: List[text] = []
-    rows: List[text] = []
+    long: bool = false
+    dir: List[i64] = []
+    now_ns: i64 = 0
+    shown: List[List[i64]] = []
+    entries: List[Entry] = []
+    # which entry each outstanding request is for (-1: the clock)
+    at: Map[u64, i64] = {}
+    # the results the long listing still waits for
+    owed: i64 = 0
+    # entries whose lstat failed, left out of the listing
+    gone: List[i64] = []
+    rows: List[List[i64]] = []
     failed: u64 = 0
+
+# ---------------- bytes ----------------
+
+# The UTF-8 bytes of a text.
+fn b(s: text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 16777216
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+fn cat(x: List[i64], y: List[i64]) -> List[i64]
+    var o = x
+    for v in y
+        o.push(v)
+    return o
 
 # ---------------- the mode string ----------------
 
@@ -100,31 +174,31 @@ fn ref_mode_string(m: i64) -> text
     return head + triple(m, 6, false, "", "") + triple(m, 3, false, "", "") + triple(m, 0, false, "", "")
 
 # ---------------- names ----------------
+fn is_dot(n: &[i64]) -> bool = n.len() > 0 and n[0] == 46
 
-# The names a listing shows, in byte order. Without `all`, a name that
-# starts with a dot is left out; with it, `.` and `..` come first, as in
-# the reference, which puts them before the sorted entries. A directory
-# read never gives `.` or `..` (the reference's os.ReadDir drops them, and
-# so does the host's FileList), so a `.` or `..` among the names is the
-# directory's own record and is shown only in that first place.
-fn visible(names: List[text], all: bool) -> List[text]
-    var xs: List[text] = []
+fn dot_or_dotdot(n: &[i64]) -> bool = (n.len() == 1 and n[0] == 46) or (n.len() == 2 and n[0] == 46 and n[1] == 46)
+
+# The names a listing shows, in byte order (strcmp, the C locale's
+# collation). Without `all`, a name that starts with a dot is left out;
+# with it, `.` and `..` are added and sorted with the rest, as GNU ls
+# does. A directory read never gives `.` or `..` (the host's FileList
+# drops them), so one among the names is not shown twice.
+fn visible(names: List[List[i64]], all: bool) -> List[List[i64]]
+    var xs: List[List[i64]] = []
+    if all
+        xs.push([46])
+        xs.push([46, 46])
     for n in names
-        if n != "." and n != ".." and (all or not n.startswith("."))
+        if not dot_or_dotdot(&n) and (all or not is_dot(&n))
             xs.push(copy(n))
     xs.sort()
-    if not all
-        return xs
-    var out: List[text] = [".", ".."]
-    for x in xs
-        out.push(copy(x))
-    return out
+    return xs
 
 # ---------------- the time column ----------------
 const MONTHS: List[text] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 # GNU ls: a time more than half a Gregorian year (31556952 / 2 s) before
 # now, or after now, is shown with its year instead of its time of day.
-const HALF_YEAR: i64 = 15778476
+const HALF_YEAR_NS: i64 = 15778476000000000
 
 fn pad_left(s: text, w: i64) -> text
     var o = copy(s)
@@ -144,36 +218,39 @@ fn pad_right(s: text, w: i64) -> text
 
 fn two(v: i64) -> text = if v < 10 then "0" + v.tostr() else v.tostr()
 
-fn local(t: i64, offset_min: i64) -> i64 = t + offset_min * 60
+# `offset`: seconds east of UTC at t (LocalOffset, HC-32).
+fn local(t: i64, offset: i64) -> i64 = t + offset
 
-fn month_day(t: i64, offset_min: i64) -> text
-    let c = time.civil_from_days(time.fdiv(local(t, offset_min), 86400))
+fn month_day(t: i64, offset: i64) -> text
+    let c = time.civil_from_days(time.fdiv(local(t, offset), 86400))
     return MONTHS[(c.m - 1) as usize] + " " + pad_left(c.d.tostr(), 2)
 
-fn year(t: i64, offset_min: i64) -> i64 = time.civil_from_days(time.fdiv(local(t, offset_min), 86400)).y
+fn year(t: i64, offset: i64) -> i64 = time.civil_from_days(time.fdiv(local(t, offset), 86400)).y
 
-fn clock(t: i64, offset_min: i64) -> text
-    let s = time.fmod(local(t, offset_min), 86400)
+fn clock(t: i64, offset: i64) -> text
+    let s = time.fmod(local(t, offset), 86400)
     return two(s / 3600) + ":" + two((s / 60) % 60)
 
 # The reference's time column, Go's layout "Jan _2 15:04": always the time of day.
-fn date_hm(t: i64, offset_min: i64) -> text = month_day(t, offset_min) + " " + clock(t, offset_min)
+fn date_hm(t: i64, offset: i64) -> text = month_day(t, offset) + " " + clock(t, offset)
 
-# GNU ls in the C locale: "%b %e %H:%M" when recent, "%b %e  %Y" otherwise.
-fn date_ls(t: i64, now: i64, offset_min: i64) -> text
-    if now - HALF_YEAR < t and t <= now
-        return date_hm(t, offset_min)
-    return month_day(t, offset_min) + " " + pad_left(year(t, offset_min).tostr(), 5)
+# GNU ls in the C locale: "%b %e %H:%M" when recent, "%b %e  %Y" otherwise;
+# recent is after half a year before now and not after now, to the nanosecond.
+fn date_ls(t: i64, t_ns: i64, now_ns: i64, offset: i64) -> text
+    let when = t * 1000000000 + t_ns
+    if now_ns - HALF_YEAR_NS < when and when <= now_ns
+        return date_hm(t, offset)
+    return month_day(t, offset) + " " + pad_left(year(t, offset).tostr(), 5)
 
 # ---------------- rows ----------------
 fn is_link(e: &Entry) -> bool = e.mode & S_IFMT == S_IFLNK
 
 # Exercise 2: a symbolic link is shown as `name -> target`.
-fn name_field(e: &Entry) -> text = if is_link(e) and not e.target.isempty() then e.name + " -> " + e.target else copy(e.name)
+fn name_field(e: &Entry) -> List[i64] = if is_link(e) and e.target.len() > 0 then cat(cat(copy(e.name), b(" -> ")), copy(e.target)) else copy(e.name)
 
 # The reference's long row: every field single spaced, the name alone.
-fn row(e: &Entry, offset_min: i64) -> text
-    return ref_mode_string(e.mode) + " " + e.nlink.tostr() + " " + e.owner + " " + e.group_name + " " + e.size.tostr() + " " + date_hm(e.mtime, offset_min) + " " + e.name
+fn row(e: &Entry) -> List[i64]
+    return cat(b(ref_mode_string(e.mode) + " " + e.nlink.tostr() + " " + e.owner + " " + e.group_name + " " + e.size.tostr() + " " + date_hm(e.mtime, e.offset) + " "), copy(e.name))
 
 struct Widths
     nlink: i64
@@ -192,44 +269,44 @@ fn widths(es: &[Entry]) -> Widths
 
 # Exercise 1: the row in GNU ls's columns: the link count and the size
 # right-aligned, owner and group left-aligned, each to its widest entry.
-fn aligned_row(e: &Entry, w: &Widths, now: i64, offset_min: i64) -> text
-    return mode_string(e.mode) + " " + pad_left(e.nlink.tostr(), w.nlink) + " " + pad_right(copy(e.owner), w.owner) + " " + pad_right(copy(e.group_name), w.group_name) + " " + pad_left(e.size.tostr(), w.size) + " " + date_ls(e.mtime, now, offset_min) + " " + name_field(e)
+fn aligned_row(e: &Entry, w: &Widths, now_ns: i64) -> List[i64]
+    let head = mode_string(e.mode) + " " + pad_left(e.nlink.tostr(), w.nlink) + " " + pad_right(copy(e.owner), w.owner) + " " + pad_right(copy(e.group_name), w.group_name) + " " + pad_left(e.size.tostr(), w.size) + " " + date_ls(e.mtime, e.mtime_ns, now_ns, e.offset) + " "
+    return cat(b(head), name_field(e))
 
 # GNU ls's first line: the entries' 512-byte blocks in 1024-byte units, rounded up.
 fn total_line(es: &[Entry]) -> text
-    var b: i64 = 0
+    var n: i64 = 0
     for e in es
-        b += e.blocks
-    return "total " + ((b + 1) / 2).tostr()
+        n += e.blocks
+    return "total " + ((n + 1) / 2).tostr()
 
-# The entries a listing shows, in the order of `visible`.
-fn shown_entries(es: &[Entry], all: bool) -> List[Entry]
-    var names: List[text] = []
+# The aligned rows of `ls -l` (with `-a` when the entries hold dot names),
+# one per entry.
+fn long_rows(es: List[Entry], now_ns: i64) -> List[List[i64]]
+    let w = widths(&es)
+    var out: List[List[i64]] = []
     for e in es
-        names.push(copy(e.name))
-    var out: List[Entry] = []
-    for n in visible(names, all)
-        for e in es
-            if e.name == n
-                out.push(copy(e))
+        out.push(aligned_row(&e, &w, now_ns))
     return out
 
-# The aligned rows of `ls -l` (with `-a` when all), one per entry.
-fn long_rows(es: &[Entry], all: bool, now: i64, offset_min: i64) -> List[text]
-    let xs = shown_entries(es, all)
-    let w = widths(&xs)
-    var out: List[text] = []
-    for e in xs
-        out.push(aligned_row(&e, &w, now, offset_min))
-    return out
-
-fn lines(xs: &[text]) -> text
-    var o = ""
+fn lines(xs: &[List[i64]]) -> List[i64]
+    var o: List[i64] = []
     for x in xs
-        o = o + x + "\n"
+        for v in x
+            o.push(v)
+        o.push(10)
     return o
 
+# The listing: the `total` line, then the rows.
+fn long_listing(es: List[Entry], now_ns: i64) -> List[i64]
+    let head = b(total_line(&es) + "\n")
+    let rows = long_rows(es, now_ns)
+    return cat(head, lines(&rows))
+
+fn blank(n: &[i64]) -> Entry = Entry(name: copy(n), mode: 0, nlink: 0, owner: "", group_name: "", size: 0, mtime: 0, mtime_ns: 0, offset: 0, target: [], blocks: 0)
+
 # ---------------- checks of the core ----------------
+check b("a/") == [97, 47] and cat([1], [2, 3]) == [1, 2, 3]
 check type_char(33188) == "-" and type_char(8592) == "c" and type_char(25008) == "b" and type_char(49645) == "s" and type_char(0) == "?"
 check mode_string(33188) == "-rw-r--r--"
 check mode_string(16877) == "drwxr-xr-x"
@@ -243,52 +320,188 @@ check mode_string(4512) == "prw-r-----"
 check ref_mode_string(35309) == "-rwxr-xr-x"
 check ref_mode_string(17407) == "drwxrwxrwx"
 check ref_mode_string(420) == "-rw-r--r--"
-check visible(["b", "B", "-x", ".y", "a"], false) == ["-x", "B", "a", "b"]
-check visible(["b", ".y", "a"], true) == [".", "..", ".y", "a", "b"]
-check visible([], true) == [".", ".."]
-check visible(["..", "a", "."], true) == [".", "..", "a"] and visible(["..", "a", "."], false) == ["a"]
+check visible([b("b"), b("B"), b("-x"), b(".y"), b("a")], false) == [b("-x"), b("B"), b("a"), b("b")]
+check visible([b("b"), b(".y"), b("a"), b("-x")], true) == [b("-x"), b("."), b(".."), b(".y"), b("a"), b("b")]
+check visible([], true) == [b("."), b("..")]
+check visible([b(".."), b("a"), b(".")], true) == [b("."), b(".."), b("a")] and visible([b(".."), b("a"), b(".")], false) == [b("a")]
+# two names that differ only in bytes that are not UTF-8 stay two names
+check visible([[97, 255, 98], [97, 254, 98]], false) == [[97, 254, 98], [97, 255, 98]]
 check date_hm(1782950400, 0) == "Jul  2 00:00"
-check date_hm(1782950400, -90) == "Jul  1 22:30"
+check date_hm(1782950400, -5400) == "Jul  1 22:30"
 check date_hm(1767225599, 0) == "Dec 31 23:59"
-check date_ls(1782950400, 1783000000, 0) == "Jul  2 00:00"
-check date_ls(1700000000, 1783000000, 0) == "Nov 14  2023"
-check date_ls(1783000001, 1783000000, 0) == "Jul  2  2026"
+check date_ls(1782950400, 0, 1783000000000000000, 0) == "Jul  2 00:00"
+check date_ls(1700000000, 0, 1783000000000000000, 0) == "Nov 14  2023"
+check date_ls(1783000000, 1, 1783000000000000000, 0) == "Jul  2  2026"
+check date_ls(1783000000, 0, 1783000000000000000, 0) == "Jul  2 13:46"
 
 const FIXED: List[Entry] = [
-    Entry(name: "a.txt", mode: 33188, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "", blocks: 8),
-    Entry(name: "big.bin", mode: 33152, nlink: 1, owner: "root", group_name: "wheel", size: 123456, mtime: 1782950460, target: "", blocks: 248),
-    Entry(name: "sub", mode: 16877, nlink: 12, owner: "daemon", group_name: "root", size: 4096, mtime: 1782954000, target: "", blocks: 8),
-    Entry(name: "link", mode: 41471, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "a.txt", blocks: 0),
-    Entry(name: ".dot", mode: 33204, nlink: 1, owner: "root", group_name: "root", size: 0, mtime: 1700000000, target: "", blocks: 0)]
+    Entry(name: [97, 46, 116, 120, 116], mode: 33188, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, mtime_ns: 0, offset: 0, target: [], blocks: 8),
+    Entry(name: [98, 105, 103, 46, 98, 105, 110], mode: 33152, nlink: 1, owner: "root", group_name: "wheel", size: 123456, mtime: 1782950460, mtime_ns: 0, offset: 0, target: [], blocks: 248),
+    Entry(name: [108, 105, 110, 107], mode: 41471, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, mtime_ns: 0, offset: 0, target: [97, 46, 116, 120, 116], blocks: 0),
+    Entry(name: [115, 117, 98], mode: 16877, nlink: 12, owner: "daemon", group_name: "root", size: 4096, mtime: 1782954000, mtime_ns: 0, offset: 0, target: [], blocks: 8),
+    Entry(name: [46, 100, 111, 116], mode: 33204, nlink: 1, owner: "root", group_name: "root", size: 0, mtime: 1700000000, mtime_ns: 0, offset: 0, target: [], blocks: 0)]
 
-check row(&FIXED[0], 0) == "-rw-r--r-- 1 root root 5 Jul  2 00:00 a.txt"
-check row(&FIXED[2], 0) == "drwxr-xr-x 12 daemon root 4096 Jul  2 01:00 sub"
-check row(&FIXED[3], 0) == "lrwxrwxrwx 1 root root 5 Jul  2 00:00 link"
-check name_field(&FIXED[3]) == "link -> a.txt"
-check name_field(&FIXED[0]) == "a.txt"
+check row(&FIXED[0]) == b("-rw-r--r-- 1 root root 5 Jul  2 00:00 a.txt")
+check row(&FIXED[3]) == b("drwxr-xr-x 12 daemon root 4096 Jul  2 01:00 sub")
+check row(&FIXED[2]) == b("lrwxrwxrwx 1 root root 5 Jul  2 00:00 link")
+check name_field(&FIXED[2]) == b("link -> a.txt")
+check name_field(&FIXED[0]) == b("a.txt")
 check total_line(&FIXED) == "total 132"
-check long_rows(&FIXED, false, 1783000000, 0) == [
-    "-rw-r--r--  1 root   root       5 Jul  2 00:00 a.txt",
-    "-rw-------  1 root   wheel 123456 Jul  2 00:01 big.bin",
-    "lrwxrwxrwx  1 root   root       5 Jul  2 00:00 link -> a.txt",
-    "drwxr-xr-x 12 daemon root    4096 Jul  2 01:00 sub"]
-check long_rows(&FIXED, true, 1783000000, 0)[0] == "-rw-rw-r--  1 root   root       0 Nov 14  2023 .dot"
+check long_rows([copy(FIXED[0]), copy(FIXED[1]), copy(FIXED[2]), copy(FIXED[3])], 1783000000000000000) == [
+    b("-rw-r--r--  1 root   root       5 Jul  2 00:00 a.txt"),
+    b("-rw-------  1 root   wheel 123456 Jul  2 00:01 big.bin"),
+    b("lrwxrwxrwx  1 root   root       5 Jul  2 00:00 link -> a.txt"),
+    b("drwxr-xr-x 12 daemon root    4096 Jul  2 01:00 sub")]
+check long_rows(copy(FIXED), 1783000000000000000)[4] == b("-rw-rw-r--  1 root   root       0 Nov 14  2023 .dot")
 
 # ---------------- the effects ----------------
-step Listing on Ls(path: p, all: a)
-    next += 1
+
+# The entry index a result is for, or -2 when it is for none.
+fn index_of(at: &Map[u64, i64], r: u64) -> i64 = at.get(r) catch -2
+
+# The entries whose lstat answered.
+fn listed(es: &[Entry], gone: &[i64]) -> List[Entry]
+    var out: List[Entry] = []
+    var i: i64 = 0
+    for e in es
+        if not gone.contains(i)
+            out.push(copy(e))
+        i += 1
+    return out
+
+# The path of a name in the listed directory.
+fn path_of(dir: &[i64], name: &[i64]) -> List[i64]
+    if dir.len() == 0
+        return copy(name)
+    return cat(cat(copy(dir), [47]), copy(name))
+
+step Listing on Ls(path: p, all: a, long: l)
     all = a
+    long = l
+    dir = b(copy(p))
+    shown = []
+    entries = []
+    gone = []
+    rows = []
+    at = {}
+    owed = 0
+    next += 1
     emit FileList(req: next, path: p)
+    if l
+        next += 1
+        at[next] = -1
+        owed += 1
+        emit WallClock(req: next)
 
 step Listing on FileListDone(req: _r, status: s, data: d, err: e)
-    if s == "delivered"
-        shown = visible(d.or([]), all)
-        emit Display(data: lines(&shown))
-    else
+    if s != "delivered"
         failed += 1
-        emit Display(data: "ls: " + e + "\n")
+        owed = 0
+        emit Display(data: b("ls: " + e + "\n"))
+    else
+        shown = visible(d.or([]), all)
+        if not long
+            emit Display(data: lines(&shown))
+        else
+            for n in shown
+                entries.push(blank(&n))
+                next += 1
+                at[next] = (entries.len() - 1) as i64
+                owed += 1
+                emit FileLstat(req: next, path: path_of(&dir, &n))
+            if owed == 0
+                let xs = listed(&entries, &gone)
+                rows = long_rows(copy(xs), now_ns)
+                emit Display(data: long_listing(xs, now_ns))
 
-step Listing on Stats(all: a, now: n, offset_min: o, entries: es)
-    rows = long_rows(&es, a, n, o)
-    let xs = shown_entries(&es, a)
-    emit Display(data: total_line(&xs) + "\n" + lines(&rows))
+step Listing on WallClockDone(req: r, status: s, data: d, err: _e)
+    if index_of(&at, r) == -1
+        if s == "delivered"
+            now_ns = d.or(0) as i64
+        owed -= 1
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
+
+step Listing on FileLstatDone(req: r, status: s, data: d, err: e)
+    let i = index_of(&at, r)
+    if i >= 0
+        owed -= 1
+        let k = i as usize
+        if s == "delivered"
+            let st = d.or(NO_STAT)
+            entries[k].mode = st.mode
+            entries[k].nlink = st.nlink
+            entries[k].owner = st.uid.tostr()
+            entries[k].group_name = st.gid.tostr()
+            entries[k].size = st.size
+            entries[k].mtime = st.mtime
+            entries[k].mtime_ns = st.mtime_ns
+            entries[k].blocks = st.blocks
+            next += 1
+            at[next] = i
+            emit UserName(req: next, id: st.uid)
+            next += 1
+            at[next] = i
+            emit GroupName(req: next, id: st.gid)
+            next += 1
+            at[next] = i
+            emit LocalOffset(req: next, at: st.mtime)
+            owed += 3
+            if st.mode & S_IFMT == S_IFLNK
+                next += 1
+                at[next] = i
+                owed += 1
+                emit FileReadlink(req: next, path: path_of(&dir, &entries[k].name))
+        else
+            gone.push(i)
+            emit Display(data: cat(cat(b("ls: cannot access '"), copy(entries[k].name)), b("': " + e + "\n")))
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
+
+step Listing on UserNameDone(req: r, status: s, data: d, err: _e)
+    let i = index_of(&at, r)
+    if i >= 0
+        if s == "delivered"
+            entries[i as usize].owner = d.or("")
+        owed -= 1
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
+
+step Listing on GroupNameDone(req: r, status: s, data: d, err: _e)
+    let i = index_of(&at, r)
+    if i >= 0
+        if s == "delivered"
+            entries[i as usize].group_name = d.or("")
+        owed -= 1
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
+
+step Listing on LocalOffsetDone(req: r, status: s, data: d, err: _e)
+    let i = index_of(&at, r)
+    if i >= 0
+        if s == "delivered"
+            entries[i as usize].offset = d.or(0)
+        owed -= 1
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
+
+step Listing on FileReadlinkDone(req: r, status: s, data: d, err: _e)
+    let i = index_of(&at, r)
+    if i >= 0
+        if s == "delivered"
+            entries[i as usize].target = d.or([])
+        owed -= 1
+        if owed == 0
+            let xs = listed(&entries, &gone)
+            rows = long_rows(copy(xs), now_ns)
+            emit Display(data: long_listing(xs, now_ns))
