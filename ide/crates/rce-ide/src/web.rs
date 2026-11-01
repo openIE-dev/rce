@@ -382,6 +382,12 @@ impl WebIde {
         self.st.borrow_mut().dragging = false;
     }
 
+    /// The keyboard focus as JSON (`"Editor"`, `"Memory"` or
+    /// `{"Control":n}`), for the page and for automation.
+    pub fn focus_json(&self) -> String {
+        serde_json::to_string(&self.st.borrow().focus).unwrap_or_default()
+    }
+
     /// Editor state for the page (cursor, selection, dirty), as JSON.
     pub fn editor_json(&self) -> String {
         serde_json::to_string(&self.st.borrow().editor).unwrap_or_default()
