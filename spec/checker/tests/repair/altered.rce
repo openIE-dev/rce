@@ -1,0 +1,22 @@
+# Rung c of `rce repair` closes this program and no other rung does:
+# `side` is never read (W-UNUSED-1) and the value of `doubled(&r)` is
+# dropped (W-DROP-1). Rungs a and b can give `area` only the body of
+# `perimeter`, the one other definition of its type, which the check on
+# `area` refutes; rung d never names a binding or drops a value.
+struct Rect
+    w: i64
+    h: i64
+
+fn doubled(r: &Rect) -> Rect
+    return Rect(w: r.w * 2, h: r.h * 2)
+
+fn perimeter(r: Rect) -> i64
+    return 2 * (r.w + r.h)
+
+fn area(r: Rect) -> i64
+    let side = r.w
+    doubled(&r)
+    return r.w * r.h
+
+check area(Rect(w: 3, h: 4)) == 12
+check perimeter(Rect(w: 3, h: 4)) == 14

@@ -44,10 +44,43 @@ fn lookup_by_type_swaps_a_callee_of_the_same_type() {
 }
 
 #[test]
+fn altered_rules_close_with_the_rewrites_of_rce_fmt() {
+    let (code, r) = repair(&["tests/repair/altered.rce"]);
+    assert_eq!(code, 0, "{r}");
+    assert_eq!(r["rung"], "c");
+    assert_eq!(r["model_calls"], 0);
+    // rungs a and b ran first and closed nothing; rung d was not reached
+    assert!(r["tried"]["a"].as_u64().unwrap() + r["tried"]["b"].as_u64().unwrap() > 0, "{r}");
+    assert_eq!(r["tried"]["c"], 1, "{r}");
+    assert_eq!(r["tried"]["d"], 0, "{r}");
+    let edit = r["edit"].as_str().unwrap();
+    assert!(edit.contains("W-UNUSED-1 `side` is named `_side`"), "{r}");
+    assert!(edit.contains("W-DROP-1"), "{r}");
+    let fixed = r["repaired"].as_str().unwrap();
+    assert!(fixed.contains("let _side = r.w") && fixed.contains("let _ = doubled(&r)"), "{fixed}");
+    admitted(fixed);
+    // the candidate is the canonical text of what `rce fmt` writes
+    let src = std::fs::read_to_string("tests/repair/altered.rce").unwrap();
+    let (altered, _) = rce_spec_check::alter::alter(&src);
+    let canon = rce_spec_check::unparse::unparse(&rce_spec_check::parse::parse(&altered).unwrap());
+    assert_eq!(fixed, canon);
+    // only rung c closes it: no attempt of rung a or b was admitted
+    let attempts = r["attempts"].as_array().unwrap();
+    assert!(attempts.iter().filter(|a| a["rung"] != "c").all(|a| a["verdict"].as_str().unwrap().starts_with("requires change")), "{r}");
+    // deterministic
+    let (_, r2) = repair(&["tests/repair/altered.rce"]);
+    assert_eq!(r, r2);
+    let (code, out) = rce(&["repair", "tests/repair/altered.rce"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.starts_with("rung      c altered rules\n"), "{out}");
+}
+
+#[test]
 fn enumeration_flips_one_comparison() {
     let (code, r) = repair(&["tests/repair/enumerate.rce"]);
     assert_eq!(code, 0, "{r}");
     assert_eq!(r["rung"], "d");
+    // nothing of an altered rule is reported, so rung c has no candidate
     assert_eq!(r["tried"]["c"], 0);
     let edit = r["edit"].as_str().unwrap();
     assert!(edit.contains("in `larger`"), "{r}");
@@ -90,7 +123,7 @@ fn text_report_and_words() {
     assert_eq!(code, 0, "{out}");
     assert!(out.starts_with("rung      d bounded enumeration\n"), "{out}");
     assert!(out.contains("0 model calls"), "{out}");
-    assert!(out.contains("skipped   c:"), "{out}");
+    assert!(!out.contains("skipped"), "every rung runs: {out}");
     assert!(out.ends_with("closed tests/repair/enumerate.rce\n"), "{out}");
     let (code, out) = rce(&["repair", "bound", "x", "tests/repair/enumerate.rce"]);
     assert_eq!(code, 2, "{out}");
