@@ -42,7 +42,7 @@ mkdir "$D"
   touch -d '2026-10-15 12:34:00' a.txt pipe .dot
   touch -d '2026-10-20 08:05:00' big.bin
   touch -d '2020-01-02 03:04:05' run.sh
-  touch -h -d '2026-10-16 09:00:00' link dangling
+  touch --no-dereference -d '2026-10-16 09:00:00' link dangling
   touch -d '2026-10-17 23:59:00' sub/x sub/y sub tmpd
   touch -d '2026-10-18 00:00:00' .
 ) || { echo "could not make $D" >&2; exit 2; }
