@@ -1,0 +1,1630 @@
+{
+ "absent": [
+  {
+   "config": "zig build-exe",
+   "reason": "zig not on PATH"
+  },
+  {
+   "config": "zig build-exe -O ReleaseSmall",
+   "reason": "zig not on PATH"
+  },
+  {
+   "config": "ghc -O1",
+   "reason": "ghc not on PATH"
+  },
+  {
+   "config": "gnatmake -O2 -g",
+   "reason": "gnatmake not on PATH"
+  },
+  {
+   "config": "cobc -x",
+   "reason": "cobc not on PATH"
+  },
+  {
+   "config": "ocamlopt -g",
+   "reason": "ocamlopt not on PATH"
+  },
+  {
+   "config": "erlc",
+   "reason": "erlc not on PATH"
+  },
+  {
+   "config": "julia code_llvm and code_native",
+   "reason": "julia not on PATH"
+  }
+ ],
+ "date_utc": "2026-11-01T23:24:31Z",
+ "environment": {
+  "LC_ALL": "C",
+  "SOURCE_DATE_EPOCH": "1735689600",
+  "TZ": "UTC"
+ },
+ "harness": {
+  "e1.py": "6a2e55edcbc0e916b4f183eb55477c076c15efa880d8531728bb9af1688a6d84",
+  "matrix.json": "ffe5761140a335cdea4eaeb9115dbe37d1fa1848a0da0c8bfdc78554c92d7a8f"
+ },
+ "machine": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpus": 4,
+  "machine": "x86_64",
+  "os": "Ubuntu 24.04.5 LTS",
+  "python": "3.13.16",
+  "release": "6.18.44-fc-v185",
+  "system": "Linux"
+ },
+ "rows": [
+  {
+   "config": "gcc -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 1812,
+      "file": "hello",
+      "size_a": 17808,
+      "size_b": 17824
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 17728,
+      "size_b": 17728
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 17808,
+      "size_b": 17808
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 17808,
+      "size_b": 17808
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "e6c1b010500ed5e08b6842f524847c2db512cce11a55d9d5759af813b7c8e65f"
+   },
+   "sha256_remapped": {
+    "hello": "cc1e2fb1701460b54016df81c67c61f489cb2ba6d40cf13aa13fab9283992348"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2131,
+      "file": "sort",
+      "size_a": 19056,
+      "size_b": 19072
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 18968,
+      "size_b": 18968
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 19056,
+      "size_b": 19056
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 19056,
+      "size_b": 19056
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "sort": "fe269d448892f8b12cc5d6a4acbf9b427b662ca11543ce428aef815129fbd337"
+   },
+   "sha256_remapped": {
+    "sort": "80eed8ea743b118563d5917f8ae3a3988899f600519490a5ef3d950382f8ef68"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 15960,
+      "size_b": 15960
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "C",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 15960,
+      "size_b": 15960
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 15960,
+      "size_b": 15960
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 15960,
+      "size_b": 15960
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "54792616d3f2c22d3a5fadc9b2919941a2a04abd5a661f41a9988579839dea33"
+   },
+   "sha256_remapped": {
+    "hello": "54792616d3f2c22d3a5fadc9b2919941a2a04abd5a661f41a9988579839dea33"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 16088,
+      "size_b": 16088
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "C",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 16088,
+      "size_b": 16088
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 16088,
+      "size_b": 16088
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 16088,
+      "size_b": 16088
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "sort": "9e7238ab65114a78ff38009deaa2e989ac93a88d7f1260bd44f022eb9c8b14ec"
+   },
+   "sha256_remapped": {
+    "sort": "9e7238ab65114a78ff38009deaa2e989ac93a88d7f1260bd44f022eb9c8b14ec"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "clang -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 1895,
+      "file": "hello",
+      "size_a": 17144,
+      "size_b": 17176
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 2,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 16968,
+      "size_b": 16968
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 17144,
+      "size_b": 17144
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 17144,
+      "size_b": 17144
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "eb3098ddf5f792202cd5f25dab64426c97a7d0d823dff1f034e1c645e5497da8"
+   },
+   "sha256_remapped": {
+    "hello": "19d4bc3d1574a3278974bc3243de51fd1a971ff2a324c1e28b4b6820f3469059"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2191,
+      "file": "sort",
+      "size_a": 18368,
+      "size_b": 18400
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 2,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 18200,
+      "size_b": 18200
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 18368,
+      "size_b": 18368
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 18368,
+      "size_b": 18368
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "sort": "768592ce0946a51fca9b8c658cc5c0bbcdcf65318a512c7c88141845109710f5"
+   },
+   "sha256_remapped": {
+    "sort": "b8eab13e99b5488560f5cb827eb5b64fab8d958727ba90732b2ab15a6b8959f3"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "g++ -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2615,
+      "file": "hello",
+      "size_a": 32752,
+      "size_b": 32768
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C++",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "cpp/hello.cpp",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 32664,
+      "size_b": 32664
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 32752,
+      "size_b": 32752
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 32752,
+      "size_b": 32752
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "e146081d8d13bfaa390c8478f3ad0ccce99fba689417dcd20bd6f429a8115c09"
+   },
+   "sha256_remapped": {
+    "hello": "d2d6345bcf077bc1ca86f273c31b5ca7367b84f8eee042adcaec6c5184602cbc"
+   },
+   "tool": "g++"
+  },
+  {
+   "config": "g++ -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 20602,
+      "file": "templates",
+      "size_a": 245824,
+      "size_b": 245840
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C++",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "cpp/templates.cpp",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 245736,
+      "size_b": 245736
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 245824,
+      "size_b": 245824
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 245824,
+      "size_b": 245824
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "templates": "aa63354acd86210ec0a1b6188a9442ed64b4a0bfc3c29556b8f8d3ac0855b92c"
+   },
+   "sha256_remapped": {
+    "templates": "3d1787514698c41a10c980b844403aefe815323d4ac8445f2dcba9b9ff00a585"
+   },
+   "tool": "g++"
+  },
+  {
+   "config": "clang++ -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 6400,
+      "file": "hello",
+      "size_a": 30424,
+      "size_b": 30456
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C++",
+   "path_copies_cross": 2,
+   "path_copies_remapped": 0,
+   "program": "cpp/hello.cpp",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 30248,
+      "size_b": 30248
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 30424,
+      "size_b": 30424
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 30424,
+      "size_b": 30424
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "69a65e69ef29235be66a0639ae42037e518fd050604063e5b6c53ecd2ce073fb"
+   },
+   "sha256_remapped": {
+    "hello": "f11a4d778507b562e387fee3ce649f2522ddf0542929f7c0a4cf5becf2ab30c8"
+   },
+   "tool": "clang++"
+  },
+  {
+   "config": "clang++ -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 91041,
+      "file": "templates",
+      "size_a": 170760,
+      "size_b": 170792
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C++",
+   "path_copies_cross": 2,
+   "path_copies_remapped": 0,
+   "program": "cpp/templates.cpp",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 170592,
+      "size_b": 170592
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 170760,
+      "size_b": 170760
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "templates",
+      "size_a": 170760,
+      "size_b": 170760
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "templates": "ffc977efa01dd5a196fd3b5622cbe70f89353ce24cf760607f33c9b5a4d7ef56"
+   },
+   "sha256_remapped": {
+    "templates": "313fd4cc89874940ae525d1c0c01ed3cac8d19555df34bc79d9d8369d1b79336"
+   },
+   "tool": "clang++"
+  },
+  {
+   "config": "rustc -O -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2354077,
+      "file": "hello",
+      "size_a": 4362096,
+      "size_b": 4362112
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "rust/hello.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4362008,
+      "size_b": 4362008
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4362096,
+      "size_b": 4362096
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4362096,
+      "size_b": 4362096
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "63e984b9a228ed59079e8862c693b473d43b5521ed24407a4b192250139b6a5c"
+   },
+   "sha256_remapped": {
+    "hello": "3a24ba6799cb951c913d73619e6df8e7cad4e79d42c2513e4a9496e0604cda0c"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc -O -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2441330,
+      "file": "generic",
+      "size_a": 4582408,
+      "size_b": 4582424
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "rust/generic.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4582320,
+      "size_b": 4582320
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4582408,
+      "size_b": 4582408
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4582408,
+      "size_b": 4582408
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "generic": "ff5fcb835455bea14f59ee4526054a79abb4a8a6eef831b124d748811877b1e7"
+   },
+   "sha256_remapped": {
+    "generic": "8b67f78b2b340423524bd52e08d493abafb3182ca6718e2a8e51470744951564"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc -O",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4358744,
+      "size_b": 4358744
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "Rust",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "rust/hello.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4358744,
+      "size_b": 4358744
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4358744,
+      "size_b": 4358744
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 4358744,
+      "size_b": 4358744
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "4db6bb9e94b0d1d215b16389f1b1533403e439213561e9d9639af8c03f6a0034"
+   },
+   "sha256_remapped": {
+    "hello": "4db6bb9e94b0d1d215b16389f1b1533403e439213561e9d9639af8c03f6a0034"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc -O",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4390840,
+      "size_b": 4390840
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "Rust",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "rust/generic.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4390840,
+      "size_b": 4390840
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4390840,
+      "size_b": 4390840
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 4390840,
+      "size_b": 4390840
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "generic": "cd69fb2d5029c68f23127bcd529cfcf9f7c79437a0f7add611086341fa708e14"
+   },
+   "sha256_remapped": {
+    "generic": "cd69fb2d5029c68f23127bcd529cfcf9f7c79437a0f7add611086341fa708e14"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc wasm32-wasip1 -O -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 1133038,
+      "file": "hello.wasm",
+      "size_a": 2105755,
+      "size_b": 2105771
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust to WebAssembly",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "rust/hello.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.wasm",
+      "size_a": 2105668,
+      "size_b": 2105668
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.wasm",
+      "size_a": 2105755,
+      "size_b": 2105755
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.wasm",
+      "size_a": 2105755,
+      "size_b": 2105755
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello.wasm": "d57f7bc32408fb9c2d0415d0058327bc5c9f85e552ba0a4c3950d104a3a00df4"
+   },
+   "sha256_remapped": {
+    "hello.wasm": "1adea0fef24ed3df84c9143c9a1dfc72955ffcbce1baafb576005a73c9ad2f03"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc wasm32-wasip1 -O -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 1213811,
+      "file": "generic.wasm",
+      "size_a": 2280882,
+      "size_b": 2280898
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust to WebAssembly",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "rust/generic.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic.wasm",
+      "size_a": 2280795,
+      "size_b": 2280795
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic.wasm",
+      "size_a": 2280882,
+      "size_b": 2280882
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic.wasm",
+      "size_a": 2280882,
+      "size_b": 2280882
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "generic.wasm": "c0ca94a153b5a9dae8e2c5713d00bbc6678181d3fbbef0bdcb069f5894326248"
+   },
+   "sha256_remapped": {
+    "generic.wasm": "ac837f8f253c207240eb01f62c00828425d824b8a26c94096156961c0c3ef140"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "go build",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 741728,
+      "file": "hello",
+      "size_a": 2209295,
+      "size_b": 2209303
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/hello.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2204591,
+      "size_b": 2204591
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2209295,
+      "size_b": 2209295
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2209295,
+      "size_b": 2209295
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "caaa66e176f48a9a4712c2cbd7ace60547a1ab59128eb74af054349ab6019e09"
+   },
+   "sha256_remapped": {
+    "hello": "cae59b302704fea56e6e6fbd19c0fcf737b933c9a9efd67a17cab21539a0491f"
+   },
+   "tool": "go"
+  },
+  {
+   "config": "go build",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 724739,
+      "file": "maps",
+      "size_a": 2244899,
+      "size_b": 2244923
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/maps.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2236171,
+      "size_b": 2236171
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244899,
+      "size_b": 2244899
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244899,
+      "size_b": 2244899
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "maps": "ef23fd3358c3f528750555765762add3505a77ec05e02ea1ea6c7d24100d82c1"
+   },
+   "sha256_remapped": {
+    "maps": "57821504e2256ab26b2f774f05a42b60c16a450adb6cb5623493377b199ce1a7"
+   },
+   "tool": "go"
+  },
+  {
+   "config": "go build, GOPATH mode",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 741660,
+      "file": "hello",
+      "size_a": 2213466,
+      "size_b": 2213474
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/hello.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 58,
+      "file": "hello",
+      "size_a": 2208730,
+      "size_b": 2208730
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2213466,
+      "size_b": 2213466
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2213466,
+      "size_b": 2213466
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "5f58d56a5140304bab273054b704d9d9e2ecfdbee2c634cd2cb7e243483de757"
+   },
+   "sha256_remapped": {
+    "hello": "1a8282232d48183a0059d5d2d550068fcc0c563466e462b8e2b944409f300d29"
+   },
+   "tool": "go"
+  },
+  {
+   "config": "go build, GOPATH mode",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 743688,
+      "file": "maps",
+      "size_a": 2244966,
+      "size_b": 2244982
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/maps.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 59,
+      "file": "maps",
+      "size_a": 2240334,
+      "size_b": 2240334
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244966,
+      "size_b": 2244966
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244966,
+      "size_b": 2244966
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "maps": "e3f9d44f87b3345f0a9b88978d1b48edd8e9ba57ce72d632c8eca5886378e222"
+   },
+   "sha256_remapped": {
+    "maps": "d9dd262c3a5f3dd63206caa2cc3ba5fae17d61eea3fdd37244b249073236aebc"
+   },
+   "tool": "go"
+  },
+  {
+   "config": "gfortran -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2059,
+      "file": "hello",
+      "size_a": 18168,
+      "size_b": 18184
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Fortran",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "fortran/hello.f90",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 18080,
+      "size_b": 18080
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 18168,
+      "size_b": 18168
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 18168,
+      "size_b": 18168
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "21c4a98300d9e2af0921dfaab1e26e87edab7678e10bd12e8eecbd360495088b"
+   },
+   "sha256_remapped": {
+    "hello": "0b39ca7aa3c08292668d93ad27e9a458d1a2c1b17bde93c272fc80b347daeb0c"
+   },
+   "tool": "gfortran"
+  },
+  {
+   "config": "gfortran -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 2368,
+      "file": "kernels",
+      "size_a": 19944,
+      "size_b": 19960
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Fortran",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "fortran/kernels.f90",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 19856,
+      "size_b": 19856
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 19944,
+      "size_b": 19944
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 19944,
+      "size_b": 19944
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "kernels": "1dedede1ed949945e2332c204daf4bc27a68c2febd58cd341f82c621e250dfa7",
+    "kernels.mod": "0d0404431b6689f1f056a5fb90485088aceb830f944f0d580f9f2ca291206bee"
+   },
+   "sha256_remapped": {
+    "kernels": "ccc9685cab5c3d08009e6cb01225be87d94a44ac9d7b89ca8ebfb0aa79b1749c",
+    "kernels.mod": "0d0404431b6689f1f056a5fb90485088aceb830f944f0d580f9f2ca291206bee"
+   },
+   "tool": "gfortran"
+  },
+  {
+   "config": "gfortran -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 16208,
+      "size_b": 16208
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "Fortran",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "fortran/hello.f90",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 16208,
+      "size_b": 16208
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 16208,
+      "size_b": 16208
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 16208,
+      "size_b": 16208
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "adeb1958f0e1e04d88244f1da7c93250f9195a4d8af040dda2a0db668a258b01"
+   },
+   "sha256_remapped": {
+    "hello": "adeb1958f0e1e04d88244f1da7c93250f9195a4d8af040dda2a0db668a258b01"
+   },
+   "tool": "gfortran"
+  },
+  {
+   "config": "gfortran -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 16336,
+      "size_b": 16336
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "Fortran",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "fortran/kernels.f90",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 16336,
+      "size_b": 16336
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 16336,
+      "size_b": 16336
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "kernels",
+      "size_a": 16336,
+      "size_b": 16336
+     },
+     {
+      "differing_bytes": 0,
+      "file": "kernels.mod",
+      "size_a": 525,
+      "size_b": 525
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "kernels": "04d06ee3f2f44838b8fdbc6294154e35ad60628699389ea7db34e171bf3fdc1c",
+    "kernels.mod": "0d0404431b6689f1f056a5fb90485088aceb830f944f0d580f9f2ca291206bee"
+   },
+   "sha256_remapped": {
+    "kernels": "04d06ee3f2f44838b8fdbc6294154e35ad60628699389ea7db34e171bf3fdc1c",
+    "kernels.mod": "0d0404431b6689f1f056a5fb90485088aceb830f944f0d580f9f2ca291206bee"
+   },
+   "tool": "gfortran"
+  },
+  {
+   "config": "lean -c",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.c",
+      "size_a": 5625,
+      "size_b": 5625
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.olean",
+      "size_a": 35008,
+      "size_b": 35008
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "Lean 4",
+   "path_copies_cross": 0,
+   "path_copies_remapped": null,
+   "program": "lean/hello.lean",
+   "remapped": {
+    "error": "no path remapping option found for lean",
+    "status": "not tested"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.c",
+      "size_a": 5625,
+      "size_b": 5625
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.olean",
+      "size_a": 35008,
+      "size_b": 35008
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello.c",
+      "size_a": 5625,
+      "size_b": 5625
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.olean",
+      "size_a": 35008,
+      "size_b": 35008
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello.c": "70706a1c101e07d37d80a7f95365d299908574ecfa304b63ef3865069704e569",
+    "hello.olean": "ce0810e6f7bc0e81c98bb9c71328a0aa2a53ff394882cbd1142a34bcb12325d4"
+   },
+   "sha256_remapped": null,
+   "tool": "lean"
+  },
+  {
+   "config": "wasmtime compile",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "add.cwasm",
+      "size_a": 13760,
+      "size_b": 13760
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "WebAssembly text to native (Cranelift)",
+   "path_copies_cross": 0,
+   "path_copies_remapped": null,
+   "program": "wat/add.wat",
+   "remapped": {
+    "error": "no path remapping option found for wasmtime compile",
+    "status": "not tested"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "add.cwasm",
+      "size_a": 13760,
+      "size_b": 13760
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "add.cwasm",
+      "size_a": 13760,
+      "size_b": 13760
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "add.cwasm": "4d64a27858f5961773d7bacb45def968839895d7f732615b6d32a178889f2955"
+   },
+   "sha256_remapped": null,
+   "tool": "wasmtime"
+  }
+ ],
+ "schema": "rce-compile-e1-results/1",
+ "toolchains": {
+  "clang": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+  "clang++": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+  "g++": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "gfortran": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "go": "go version go1.24.7 linux/amd64",
+  "lean": "Lean (version 4.12.0, x86_64-unknown-linux-gnu, commit dc2533473114, Release)",
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "wasmtime": "wasmtime 26.0.1 (c138e08bf 2024-11-05)"
+ }
+}

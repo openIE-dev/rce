@@ -215,9 +215,10 @@ spelling, for example `--json was removed; write: rce dim json door.rce`.
 | `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports |
 | `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; the Python lift `spec/lift/python` carries 6 of the 92 Python cases (`lang/README.md`) |
 | `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` |
+| `compile/` | RCE Compile: a research project, independent of RCE's checker and Form, that tests whether one Law of Compilation holds for every compiler; its charter, registered hypotheses and experiments, starting with E1, the determinism of lowering (`compile/README.md`) |
 | `docs/figures/` | figures with captions, scripts and data |
 | `scripts/` | repository scripts: proofs and Lean audit, cross-architecture hashes and determinism streams, the Form corpus generator, claim counts, demos |
-| `.github/workflows/` | one workflow per directory; each builds the checker from the current commit and runs that directory's checks against it |
+| `.github/workflows/` | one workflow per directory; each builds the checker from the current commit and runs that directory's checks against it, except `compile-e1.yml`, which runs RCE Compile's experiment E1 and does not use the checker |
 
 ## Checking the specification
 

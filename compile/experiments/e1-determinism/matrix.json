@@ -1,0 +1,236 @@
+{
+  "schema": "rce-compile-e1-matrix/1",
+  "note": "Each build runs in its own directory with the source copied in. {src} is the source file name, {stem} the name without its extension, {dir} the absolute build directory. remap is the same build with the toolchain's documented path remapping; null means no remapping is tested for that toolchain. env adds variables to the declared environment; fresh names variables that get a new empty directory, outside the build directory, for every build.",
+  "configs": [
+    {
+      "id": "gcc -O2 -g",
+      "language": "C",
+      "tool": "gcc",
+      "version": ["gcc", "--version"],
+      "programs": ["c/hello.c", "c/sort.c"],
+      "build": ["gcc", "-O2", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["gcc", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "GCC manual, -ffile-prefix-map"
+    },
+    {
+      "id": "gcc -O2",
+      "language": "C",
+      "tool": "gcc",
+      "version": ["gcc", "--version"],
+      "programs": ["c/hello.c", "c/sort.c"],
+      "build": ["gcc", "-O2", "{src}", "-o", "{stem}"],
+      "remap": ["gcc", "-O2", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "GCC manual, -ffile-prefix-map"
+    },
+    {
+      "id": "clang -O2 -g",
+      "language": "C",
+      "tool": "clang",
+      "version": ["clang", "--version"],
+      "programs": ["c/hello.c", "c/sort.c"],
+      "build": ["clang", "-O2", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["clang", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "Clang command-line reference, -ffile-prefix-map"
+    },
+    {
+      "id": "g++ -O2 -g",
+      "language": "C++",
+      "tool": "g++",
+      "version": ["g++", "--version"],
+      "programs": ["cpp/hello.cpp", "cpp/templates.cpp"],
+      "build": ["g++", "-std=c++17", "-O2", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["g++", "-std=c++17", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "GCC manual, -ffile-prefix-map"
+    },
+    {
+      "id": "clang++ -O2 -g",
+      "language": "C++",
+      "tool": "clang++",
+      "version": ["clang++", "--version"],
+      "programs": ["cpp/hello.cpp", "cpp/templates.cpp"],
+      "build": ["clang++", "-std=c++17", "-O2", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["clang++", "-std=c++17", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "Clang command-line reference, -ffile-prefix-map"
+    },
+    {
+      "id": "rustc -O -g",
+      "language": "Rust",
+      "tool": "rustc",
+      "version": ["rustc", "--version"],
+      "programs": ["rust/hello.rs", "rust/generic.rs"],
+      "build": ["rustc", "-O", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["rustc", "-O", "-g", "--remap-path-prefix={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "The rustc book, --remap-path-prefix"
+    },
+    {
+      "id": "rustc -O",
+      "language": "Rust",
+      "tool": "rustc",
+      "version": ["rustc", "--version"],
+      "programs": ["rust/hello.rs", "rust/generic.rs"],
+      "build": ["rustc", "-O", "{src}", "-o", "{stem}"],
+      "remap": ["rustc", "-O", "--remap-path-prefix={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "The rustc book, --remap-path-prefix"
+    },
+    {
+      "id": "rustc wasm32-wasip1 -O -g",
+      "language": "Rust to WebAssembly",
+      "tool": "rustc",
+      "version": ["rustc", "--version"],
+      "probe": ["sh", "-c", "test -d \"$(rustc --target wasm32-wasip1 --print target-libdir)\""],
+      "programs": ["rust/hello.rs", "rust/generic.rs"],
+      "build": ["rustc", "--target", "wasm32-wasip1", "-O", "-g", "{src}", "-o", "{stem}.wasm"],
+      "remap": ["rustc", "--target", "wasm32-wasip1", "-O", "-g", "--remap-path-prefix={dir}=.", "{src}", "-o", "{stem}.wasm"],
+      "remap_source": "The rustc book, --remap-path-prefix"
+    },
+    {
+      "id": "go build",
+      "language": "Go",
+      "tool": "go",
+      "version": ["go", "version"],
+      "programs": ["go/hello.go", "go/maps.go"],
+      "env": {"GOTOOLCHAIN": "local", "GOFLAGS": "", "CGO_ENABLED": "0"},
+      "fresh": ["GOCACHE"],
+      "build": ["go", "build", "-o", "{stem}", "{src}"],
+      "remap": ["go", "build", "-trimpath", "-o", "{stem}", "{src}"],
+      "remap_source": "go help build, -trimpath"
+    },
+    {
+      "id": "go build, GOPATH mode",
+      "language": "Go",
+      "tool": "go",
+      "version": ["go", "version"],
+      "programs": ["go/hello.go", "go/maps.go"],
+      "env": {"GOTOOLCHAIN": "local", "GOFLAGS": "", "GO111MODULE": "off", "CGO_ENABLED": "0"},
+      "fresh": ["GOCACHE"],
+      "build": ["go", "build", "-o", "{stem}", "{src}"],
+      "remap": ["go", "build", "-trimpath", "-o", "{stem}", "{src}"],
+      "remap_source": "go help build, -trimpath"
+    },
+    {
+      "id": "gfortran -O2 -g",
+      "language": "Fortran",
+      "tool": "gfortran",
+      "version": ["gfortran", "--version"],
+      "programs": ["fortran/hello.f90", "fortran/kernels.f90"],
+      "build": ["gfortran", "-O2", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["gfortran", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "GCC manual, -ffile-prefix-map"
+    },
+    {
+      "id": "gfortran -O2",
+      "language": "Fortran",
+      "tool": "gfortran",
+      "version": ["gfortran", "--version"],
+      "programs": ["fortran/hello.f90", "fortran/kernels.f90"],
+      "build": ["gfortran", "-O2", "{src}", "-o", "{stem}"],
+      "remap": ["gfortran", "-O2", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
+      "remap_source": "GCC manual, -ffile-prefix-map"
+    },
+    {
+      "id": "lean -c",
+      "language": "Lean 4",
+      "tool": "lean",
+      "version": ["lean", "--version"],
+      "programs": ["lean/hello.lean"],
+      "build": ["lean", "-c", "{stem}.c", "-o", "{stem}.olean", "{src}"],
+      "remap": null,
+      "remap_source": "no path remapping option found for lean"
+    },
+    {
+      "id": "wasmtime compile",
+      "language": "WebAssembly text to native (Cranelift)",
+      "tool": "wasmtime",
+      "version": ["wasmtime", "--version"],
+      "programs": ["wat/add.wat"],
+      "build": ["wasmtime", "compile", "{src}", "-o", "{stem}.cwasm"],
+      "remap": null,
+      "remap_source": "no path remapping option found for wasmtime compile"
+    },
+    {
+      "id": "zig build-exe",
+      "language": "Zig",
+      "tool": "zig",
+      "version": ["zig", "version"],
+      "programs": ["zig/hello.zig"],
+      "fresh": ["ZIG_GLOBAL_CACHE_DIR", "ZIG_LOCAL_CACHE_DIR"],
+      "build": ["zig", "build-exe", "{src}"],
+      "remap": null,
+      "remap_source": "no path remapping option found for zig build-exe"
+    },
+    {
+      "id": "zig build-exe -O ReleaseSmall",
+      "language": "Zig",
+      "tool": "zig",
+      "version": ["zig", "version"],
+      "programs": ["zig/hello.zig"],
+      "fresh": ["ZIG_GLOBAL_CACHE_DIR", "ZIG_LOCAL_CACHE_DIR"],
+      "build": ["zig", "build-exe", "-O", "ReleaseSmall", "{src}"],
+      "remap": null,
+      "remap_source": "no path remapping option found for zig build-exe"
+    },
+    {
+      "id": "ghc -O1",
+      "language": "Haskell",
+      "tool": "ghc",
+      "version": ["ghc", "--version"],
+      "programs": ["haskell/Main.hs"],
+      "build": ["ghc", "-O1", "-outputdir", "obj", "{src}", "-o", "{stem}"],
+      "remap": null,
+      "remap_source": "no path remapping option found for ghc"
+    },
+    {
+      "id": "gnatmake -O2 -g",
+      "language": "Ada",
+      "tool": "gnatmake",
+      "version": ["gnatmake", "--version"],
+      "programs": ["ada/hello.adb"],
+      "build": ["gnatmake", "-q", "-O2", "-g", "{src}"],
+      "remap": ["gnatmake", "-q", "-O2", "-g", "{src}", "-cargs", "-ffile-prefix-map={dir}=."],
+      "remap_source": "GCC manual, -ffile-prefix-map, passed to the compiler by gnatmake -cargs"
+    },
+    {
+      "id": "cobc -x",
+      "language": "COBOL",
+      "tool": "cobc",
+      "version": ["cobc", "--version"],
+      "programs": ["cobol/hello.cob"],
+      "build": ["cobc", "-x", "{src}", "-o", "{stem}"],
+      "remap": null,
+      "remap_source": "no path remapping option found for cobc"
+    },
+    {
+      "id": "ocamlopt -g",
+      "language": "OCaml",
+      "tool": "ocamlopt",
+      "version": ["ocamlopt", "-version"],
+      "programs": ["ocaml/hello.ml"],
+      "build": ["ocamlopt", "-g", "-o", "{stem}", "{src}"],
+      "remap": ["ocamlopt", "-g", "-o", "{stem}", "{src}"],
+      "remap_env": {"BUILD_PATH_PREFIX_MAP": ".={dir}"},
+      "remap_source": "BUILD_PATH_PREFIX_MAP (reproducible-builds.org specification); OCaml support not verified"
+    },
+    {
+      "id": "erlc",
+      "language": "Erlang",
+      "tool": "erlc",
+      "version": ["erl", "-noshell", "-eval", "io:format(\"OTP ~s~n\", [erlang:system_info(otp_release)]), halt()."],
+      "programs": ["erlang/hello.erl"],
+      "build": ["erlc", "{src}"],
+      "remap": ["erlc", "+deterministic", "{src}"],
+      "remap_source": "erlc and compile module documentation, +deterministic"
+    },
+    {
+      "id": "julia code_llvm and code_native",
+      "language": "Julia",
+      "tool": "julia",
+      "version": ["julia", "--version"],
+      "programs": ["julia/hello.jl"],
+      "env": {"E1_DEBUGINFO": "default"},
+      "build": ["julia", "--startup-file=no", "{src}"],
+      "remap": ["julia", "--startup-file=no", "{src}"],
+      "remap_env": {"E1_DEBUGINFO": "none"},
+      "remap_source": "no path remapping option found; the remapped run writes the code without source lines (debuginfo = :none)"
+    }
+  ]
+}
