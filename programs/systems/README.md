@@ -69,7 +69,7 @@ target` for a symbolic link.
 [`spec/lift/go/lift_go.py`](../../spec/lift/go/lift_go.py), which reads Go
 source as a tree-sitter syntax tree (it runs nothing) and lifts one
 pattern: a struct with one pointer-receiver method per event, `if field {
-return Err }` guards and field assignments. On `ls.go` it printed an empty
+return Err }` guards and field assignments. Until 2026-11-01, on `ls.go` it printed an empty
 Form (four blank lines, lift hash `6a3cf5192354f716`) and exited 0. It
 carried none of the program: `ls.go` has no type declaration, no method
 and no `errors.New` variable, and the probe looks at nothing else. It also
@@ -77,9 +77,15 @@ reported nothing as requiring change: the 3 function declarations, 4
 `for ... range` loops, 2 `switch` statements, 8 `if` statements, 32 calls
 into `os`, `os/user`, `syscall`, `fmt`, `strings`, `strconv` and
 `path/filepath`, the type assertion to `*syscall.Stat_t` and the `[10]byte`
-array were dropped without a word. The Python lifter names a rule and a
-line for every construct outside its subset; the Go probe does not yet, so
-an empty result from it does not mean a program is empty. The probe still
+array were dropped without a word. The probe
+now does what the Python lifter does: it names a rule and a line for every
+construct it does not carry (`L-GO-FUNC` for a function, `L-GO-FOR`,
+`L-GO-SWITCH`, `L-GO-IF`, `L-GO-CALL`, `L-GO-ASSERT`, `L-GO-COLLECTION` for
+an array, `L-GO-IMPORT` for a package other than `errors`), prints no Form
+and exits 1, so a program like `ls.go` requires change instead of lifting
+to an empty Form. `ls.go` is not in this repository; the probe's report on
+its own fixture with these constructs is
+`spec/lift/go/fixtures/counter.requires-change`. The probe still
 reproduces `door.lifted.rce` from `door.go` exactly.
 
 **The program.** `ls.rce` is written by hand:
