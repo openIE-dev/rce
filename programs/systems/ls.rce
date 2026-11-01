@@ -21,6 +21,7 @@ intent "list a directory as ls does: names in byte order, a dot name only when a
     example Ls(path: "", all: false, long: true), WallClockDone(req: 2, status: "delivered", data: some(1783000000000000000), err: ""), FileListDone(req: 1, status: "delivered", data: some([b("a")]), err: ""), FileLstatDone(req: 3, status: "delivered", data: some(Stat(mode: 33188, nlink: 1, uid: 0, gid: 0, size: 5, mtime: 1782950400, mtime_ns: 0, blocks: 8)), err: ""), UserNameDone(req: 4, status: "delivered", data: some("root"), err: ""), GroupNameDone(req: 5, status: "failed", data: none, err: "no group"), LocalOffsetDone(req: 6, status: "delivered", data: some(-3600), err: "") -> owed == 0 and rows == [b("-rw-r--r-- 1 root 0 5 Jul  1 23:00 a")]
 
 use time
+use os.perm
 
 # One entry of a long listing: its name, its lstat record, the names of
 # its owner and group (the numbers when a name is not found), the UTC
@@ -129,49 +130,15 @@ fn cat(x: List[i64], y: List[i64]) -> List[i64]
 
 # ---------------- the mode string ----------------
 
-# POSIX st_mode: the file type is the bits under S_IFMT; then set-user-ID,
-# set-group-ID, sticky, and three rwx triples.
-const S_IFMT: i64 = 61440
-const S_IFLNK: i64 = 40960
-
-fn type_char(m: i64) -> text
-    let t = m & S_IFMT
-    if t == 32768
-        return "-"
-    if t == 16384
-        return "d"
-    if t == S_IFLNK
-        return "l"
-    if t == 8192
-        return "c"
-    if t == 24576
-        return "b"
-    if t == 4096
-        return "p"
-    if t == 49152
-        return "s"
-    return "?"
-
-fn bit(m: i64, k: i64) -> bool = (m >> k) & 1 == 1
-
-# One rwx triple at bit `k`; `special` is the set-ID or sticky bit that
-# shares the x place, shown as `set_x` over x and `set_no_x` without it.
-fn triple(m: i64, k: i64, special: bool, set_x: text, set_no_x: text) -> text
-    let r = if bit(m, k + 2) then "r" else "-"
-    let w = if bit(m, k + 1) then "w" else "-"
-    let x = if special then (if bit(m, k) then set_x else set_no_x) else (if bit(m, k) then "x" else "-")
-    return r + w + x
-
-# The mode string GNU ls prints: type, then s/S, s/S and t/T over the x places.
-fn mode_string(m: i64) -> text
-    return type_char(m) + triple(m, 6, bit(m, 11), "s", "S") + triple(m, 3, bit(m, 10), "s", "S") + triple(m, 0, bit(m, 9), "t", "T")
+# The mode string GNU ls prints is the standard library's `perm.filemode`:
+# the file type, then three rwx triples with s/S, s/S and t/T over the x
+# places for set-user-ID, set-group-ID and sticky (CPython stat.filemode).
 
 # The reference's mode string: an unknown type is `-`, and the set-ID and
 # sticky bits are not shown (it prints only the 0777 permission bits).
 fn ref_mode_string(m: i64) -> text
-    let t = type_char(m)
-    let head = if t == "?" then "-" else t
-    return head + triple(m, 6, false, "", "") + triple(m, 3, false, "", "") + triple(m, 0, false, "", "")
+    let t = if perm.filemode(m).startswith("?") then perm.S_IFREG else m & perm.S_IFMT
+    return perm.filemode(t | (m & 511))
 
 # ---------------- names ----------------
 fn is_dot(n: &[i64]) -> bool = n.len() > 0 and n[0] == 46
@@ -243,7 +210,7 @@ fn date_ls(t: i64, t_ns: i64, now_ns: i64, offset: i64) -> text
     return month_day(t, offset) + " " + pad_left(year(t, offset).tostr(), 5)
 
 # ---------------- rows ----------------
-fn is_link(e: &Entry) -> bool = e.mode & S_IFMT == S_IFLNK
+fn is_link(e: &Entry) -> bool = e.mode & perm.S_IFMT == perm.S_IFLNK
 
 # Exercise 2: a symbolic link is shown as `name -> target`.
 fn name_field(e: &Entry) -> List[i64] = if is_link(e) and e.target.len() > 0 then cat(cat(copy(e.name), b(" -> ")), copy(e.target)) else copy(e.name)
@@ -270,7 +237,7 @@ fn widths(es: &[Entry]) -> Widths
 # Exercise 1: the row in GNU ls's columns: the link count and the size
 # right-aligned, owner and group left-aligned, each to its widest entry.
 fn aligned_row(e: &Entry, w: &Widths, now_ns: i64) -> List[i64]
-    let head = mode_string(e.mode) + " " + pad_left(e.nlink.tostr(), w.nlink) + " " + pad_right(copy(e.owner), w.owner) + " " + pad_right(copy(e.group_name), w.group_name) + " " + pad_left(e.size.tostr(), w.size) + " " + date_ls(e.mtime, e.mtime_ns, now_ns, e.offset) + " "
+    let head = perm.filemode(e.mode) + " " + pad_left(e.nlink.tostr(), w.nlink) + " " + pad_right(copy(e.owner), w.owner) + " " + pad_right(copy(e.group_name), w.group_name) + " " + pad_left(e.size.tostr(), w.size) + " " + date_ls(e.mtime, e.mtime_ns, now_ns, e.offset) + " "
     return cat(b(head), name_field(e))
 
 # GNU ls's first line: the entries' 512-byte blocks in 1024-byte units, rounded up.
@@ -307,16 +274,17 @@ fn blank(n: &[i64]) -> Entry = Entry(name: copy(n), mode: 0, nlink: 0, owner: ""
 
 # ---------------- checks of the core ----------------
 check b("a/") == [97, 47] and cat([1], [2, 3]) == [1, 2, 3]
-check type_char(33188) == "-" and type_char(8592) == "c" and type_char(25008) == "b" and type_char(49645) == "s" and type_char(0) == "?"
-check mode_string(33188) == "-rw-r--r--"
-check mode_string(16877) == "drwxr-xr-x"
-check mode_string(41471) == "lrwxrwxrwx"
-check mode_string(35309) == "-rwsr-xr-x"
-check mode_string(35236) == "-rwSr--r--" and mode_string(34212) == "-rw-r-Sr--"
-check mode_string(34285) == "-rwxr-sr-x"
-check mode_string(17407) == "drwxrwxrwt"
-check mode_string(17406) == "drwxrwxrwT"
-check mode_string(4512) == "prw-r-----"
+check perm.filemode(8592).startswith("c") and perm.filemode(25008).startswith("b") and perm.filemode(49645).startswith("s") and perm.filemode(0).startswith("?")
+check ref_mode_string(0) == "----------"
+check perm.filemode(33188) == "-rw-r--r--"
+check perm.filemode(16877) == "drwxr-xr-x"
+check perm.filemode(41471) == "lrwxrwxrwx"
+check perm.filemode(35309) == "-rwsr-xr-x"
+check perm.filemode(35236) == "-rwSr--r--" and perm.filemode(34212) == "-rw-r-Sr--"
+check perm.filemode(34285) == "-rwxr-sr-x"
+check perm.filemode(17407) == "drwxrwxrwt"
+check perm.filemode(17406) == "drwxrwxrwT"
+check perm.filemode(4512) == "prw-r-----"
 check ref_mode_string(35309) == "-rwxr-xr-x"
 check ref_mode_string(17407) == "drwxrwxrwx"
 check ref_mode_string(420) == "-rw-r--r--"
@@ -449,7 +417,7 @@ step Listing on FileLstatDone(req: r, status: s, data: d, err: e)
             entry_of[next] = i
             emit LocalOffset(req: next, at: st.mtime)
             owed += 3
-            if st.mode & S_IFMT == S_IFLNK
+            if st.mode & perm.S_IFMT == perm.S_IFLNK
                 next += 1
                 entry_of[next] = i
                 owed += 1

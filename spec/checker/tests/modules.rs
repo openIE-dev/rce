@@ -70,13 +70,80 @@ fn private_unqualified_unknown_and_clashing_names_require_change() {
         ("module a\nuse shop.pricing\n\nfn f() -> i64 = pricing.clamp(3)\n", "W-VIS-1"),
         ("module a\nuse shop.pricing\n\nfn f() -> i64 = discount(10, 1)\n", "W-NAME-1"),
         ("module a\nuse shop.pricing\n\nfn f() -> i64 = pricing.nothing(1)\n", "W-NAME-1"),
-        ("module a\nuse shop.pricing\n\nfn discount(x: i64) -> i64 = x\n", "W-MOD-3"),
+        ("module a\nuse shop.pricing\n\nfn pricing(x: i64) -> i64 = x\n", "W-MOD-3"),
+        ("module a\nuse shop.pricing\nuse other.pricing\n\nfn f() -> i64 = 1\n", "W-MOD-3"),
     ];
     for (src, rule) in cases {
-        let r = go(&[("pricing.rce", PRICING), ("a.rce", src)]);
+        let r = go(&[("pricing.rce", PRICING), ("a.rce", src), ("other.rce", OTHER)]);
         assert!(r[0].is_ok(), "{r:?}");
         assert!(r[1].as_ref().is_err_and(|e| e.contains(rule)), "{rule}: {:?}\n{src}", r[1]);
     }
+}
+
+const OTHER: &str = "module other.pricing\n\npub fn discount(x: i64) -> i64 = x + 1000\n";
+
+/// Items are reached only through their import (4.1): the importer, and
+/// two imported modules, may each declare `discount` and `clamp`, `pub` or
+/// not, and every reference reaches its own module's item (W-MOD-3).
+#[test]
+fn same_names_in_two_modules_and_the_importer() {
+    let a = "module a
+use shop.pricing
+use other.pricing as o
+
+fn clamp(p: i64) -> i64 = p + 1
+fn discount(x: i64) -> i64 = clamp(x) * 2
+
+check discount(1) == 4
+check pricing.discount(200, 500) == 0
+check pricing.discount(200, 10) == 180
+check o.discount(1) == 1001
+";
+    let r = go(&[("pricing.rce", PRICING), ("other.rce", OTHER), ("a.rce", a)]);
+    assert!(r.iter().all(|x| x.is_ok()), "{r:?}");
+    // the checks run on the linked program: each name reaches its own item
+    for bad in ["check discount(1) == 1001", "check o.discount(1) == 4", "check pricing.discount(200, 500) == 400"] {
+        let src = a.replace("check discount(1) == 4", bad);
+        let r = go(&[("pricing.rce", PRICING), ("other.rce", OTHER), ("a.rce", &src)]);
+        assert!(r[2].as_ref().is_err_and(|e| e.contains("check")), "{bad}: {r:?}");
+    }
+    // a private item of an imported module stays private
+    let src = a.replace("check discount(1) == 4", "check pricing.clamp(1) == 1");
+    let r = go(&[("pricing.rce", PRICING), ("other.rce", OTHER), ("a.rce", &src)]);
+    assert!(r[2].as_ref().is_err_and(|e| e.contains("W-VIS-1")), "{r:?}");
+}
+
+/// Every pair of standard-library modules can be imported into one module,
+/// each under its own import name. A pair whose default import names are
+/// equal (`use os.clock` and `use time.clock` would both be `clock`) needs
+/// `as` (W-MOD-3); that pair is listed, and admitted with `as`.
+#[test]
+fn every_pair_of_stdlib_modules_imports_together() {
+    let names = rce_spec_check::stdlib::names();
+    let mut fail = vec![];
+    let mut same_name = vec![];
+    for (i, a) in names.iter().enumerate() {
+        for b in &names[i + 1..] {
+            let src = format!("module pair\nuse {a} as m1\nuse {b} as m2\n\nfn f() -> i64 = 1\n");
+            // the module reads neither import, so W-UNUSED-1 on the two
+            // `use` lines is expected; any other diagnostic is a failure
+            if let Err(e) = rce_spec_check::check_one(&src) {
+                let rest: Vec<&str> = e.split("; ").filter(|d| !d.contains("W-UNUSED-1 `use ")).collect();
+                if !rest.is_empty() {
+                    fail.push(format!("{a} + {b}: {}", rest.join("; ")));
+                }
+            }
+            if a.rsplit('.').next() == b.rsplit('.').next() {
+                same_name.push(format!("{a} + {b}"));
+                let src = format!("module pair\nuse {a}\nuse {b}\n\nfn f() -> i64 = 1\n");
+                let r = rce_spec_check::check_one(&src);
+                assert!(r.as_ref().is_err_and(|e| e.contains("W-MOD-3")), "{a} + {b}: {r:?}");
+            }
+        }
+    }
+    let n = names.len();
+    eprintln!("{} modules, {} pairs; {} pairs share an import name and need `as`: {}", n, n * (n - 1) / 2, same_name.len(), same_name.join(", "));
+    assert!(fail.is_empty(), "{} of {} pairs require change:\n{}", fail.len(), n * (n - 1) / 2, fail.join("\n"));
 }
 
 #[test]

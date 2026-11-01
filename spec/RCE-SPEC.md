@@ -2362,9 +2362,11 @@ Names and modules
 - W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference
   checker reports a private name reached through `use` as W-VIS-1, which
   is the same rule.
-- W-MOD-3 An imported name that clashes with a declaration of the
-  importing module or with a name imported from another module (imported
-  names are not renamed).
+- W-MOD-3 An import's name (`q` of `use p.q`, `r` of `use p.q as r`) that
+  clashes with a declaration of the importing module or names two different
+  modules. The items of an imported module are reached only through that
+  name (4.1), so an item never clashes with the importer's items or with
+  another module's, `pub` or not; `use p.q as r` resolves a clash.
 - W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`,
   `static`: requires change, with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
@@ -5050,9 +5052,8 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
 ### C.12 Rules that are not draft 0.6
 
 The reference checker also raises three rules that belong to the 0.5
-language and are now listed in section 7: W-MOD-3 (an imported name that
-clashes with a declaration or with another import; names are not
-renamed), W-VIS-1 (use of a name private to its module, the form W-MOD-1
+language and are now listed in section 7: W-MOD-3 (an import's name that
+clashes with a declaration or with another import's name), W-VIS-1 (use of a name private to its module, the form W-MOD-1
 takes in `link.rs`) and W-TRAIT-3 (a type used with `==`, `<` or a
 generic bound that does not implement the required trait).
 

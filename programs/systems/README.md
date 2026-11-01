@@ -90,7 +90,7 @@ reproduces `door.lifted.rce` from `door.go` exactly.
 
 **The program.** `ls.rce` is written by hand:
 
-- the mode string (`mode_string`, GNU's, with `s S t T`; and
+- the mode string (GNU's is `perm.filemode`, with `s S t T`; and
   `ref_mode_string`, the reference's case 8);
 - the visible names (`visible`: cases 4 and 5, with `.` and `..` sorted
   among the other names in byte order, as GNU `ls` does in the C locale);
@@ -104,17 +104,16 @@ reproduces `door.lifted.rce` from `door.go` exactly.
 
 Names and link texts are bytes (`List[i64]`), never text, so a name that
 is not UTF-8 is listed exactly, and the output is written as bytes
-(`Display(data: List[i64])`). 34 `check` lines pin the core, among them
+(`Display(data: List[i64])`). 35 `check` lines pin the core, among them
 byte-exact rows for a fixed set of five entries and two names that differ
 only in bytes that are not UTF-8, and four examples drive the steps.
 Cases 1 and 2 do not carry over: RCE's command line takes words, never
 flags, so the path, `all` and `long` are the fields of the `Ls` event.
 Case 3 becomes a `FileListDone` whose status is not `delivered`, which
 counts in `failed` and prints `ls: ` and the host's error text. The mode
-string is written here rather than taken from the standard library's
-`os.perm.filemode` because a module cannot `use` both `os.perm` and `time`
-today: both declare a function `digits` (W-MOD-3, "imported names are not
-renamed yet").
+string is the standard library's `os.perm.filemode`, imported beside
+`time`; both modules have a private `digits`, and an item is reached only
+through its module's import, so the two never clash (W-MOD-3).
 
 **On the host.** `rce host run fs DIR names ls.rce D`, given
 `Ls(path: "d", all: true, long: true)`, makes only host requests (Appendix
@@ -154,7 +153,7 @@ for byte (14, 17, 15 and 18 lines), `total` line, columns, `s` and `t`,
 of the 2020 file included, and the log of `ls -la` (90 entries) replays.
 
 One difference from GNU `ls` follows the reference and is not exercised by
-the test: an unknown file type is `-` in `row` but `?` in `mode_string`.
+the test: an unknown file type is `-` in `row` but `?` in `perm.filemode`.
 
 Check this folder with `rce test *.rce`, or the whole repository with
 `scripts/check.sh`.

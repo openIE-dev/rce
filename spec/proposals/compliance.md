@@ -810,7 +810,7 @@ So the 76 fixtures become 12 syntax fixtures, 46 type fixtures, 4 admission fixt
 | W-NAME-2 (09:21), W-PAT-1 (09:41) | `rewrite`: rename; names carry no meaning (T7). W-PAT-1 is a `choice` of which binding to rename. |
 | W-MOD-1, W-VIS-1 (09:23-24) | `choice`: use the module's `pub` surface, or have its owner export the item. The module's declared boundary is kept (T36); a tool never infers an export. |
 | W-MOD-2 (09:23) | `form`: an import cycle is checked as one package. |
-| W-MOD-3 (09:26) | `rewrite`: `use p.q as r`; the linker qualifies a clashing name by its module (XF-2). |
+| W-MOD-3 (09:26) | `rewrite`: `use p.q as r`. Items never clash: the linker gives a module's item `x` the name `p_q__x` where another linked item is named `x`. |
 | W-SAFE-1 (09:29-30; `check.rs:106, 230, 234, 817, 821, 1099`) | `lift`: `Rc` and `Arc` become owned copy-on-write values or content ids; `RefCell` becomes a `state` field or an actor; `static` becomes `const` or `state`; `unsafe` and `transmute` go through the `extern "C"` boundary of 5.11. The message reads "`Rc` has its form in RCE as …". |
 | W-FFI-1 (09:32) | `lift`: another ABI becomes a host adapter (HC-4) or a fabric's named form; a generic extern is monomorphised; a comptime extern call moves to run time. |
 | W-WORLD-1 (F.4.1, 17:176) | `rewrite`: `&World` becomes the extern's first parameter. `choice` where a caller does not hold `&World`: move the call into `fn main` or a task function, or pass the handle. |
