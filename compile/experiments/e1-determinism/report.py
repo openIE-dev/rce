@@ -116,14 +116,14 @@ def section(name, res):
         out.append("")
     survive = sorted({r["config"] for r in res["rows"] if r["remapped"]["status"] == "differs"})
     same = sorted({r["config"] for r in res["rows"] if r["same_dir"]["status"] != "identical"})
-    clock = sorted({r["config"] for r in res["rows"] if r["same_dir_clock"]["status"] == "differs"})
+    clock = sorted({r["config"] for r in res["rows"] if r["same_dir_clock"]["status"] == "differs" and r["same_dir"]["status"] == "identical"})
     cross_path = sorted({r["config"] for r in res["rows"] if r["cross_dir"]["status"] == "differs" and (r.get("path_copies_cross") or 0) > 0})
     out.append("Computed from the rows above:")
     out.append("")
     out.append("- configurations with any difference between two builds in the same directory: %s;" % (", ".join("`%s`" % c for c in same) or "none"))
     out.append("- configurations whose two-directory difference comes with the build directory in the output: %s;" % (", ".join("`%s`" % c for c in cross_path) or "none"))
     out.append("- configurations with a difference that survives the remapped build: %s;" % (", ".join("`%s`" % c for c in survive) or "none"))
-    out.append("- configurations whose output depends on the clock when SOURCE_DATE_EPOCH is unset: %s." % (", ".join("`%s`" % c for c in clock) or "none"))
+    out.append("- configurations identical in the same directory with SOURCE_DATE_EPOCH set but not with it unset (the clock is an input): %s." % (", ".join("`%s`" % c for c in clock) or "none"))
     out.append("")
     return out
 
