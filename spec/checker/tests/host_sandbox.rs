@@ -21,7 +21,8 @@ fn host_run_enters_sandbox_and_granted_authority_still_works() {
     } else {
         assert!(err.contains("sandbox OS target not entered"), "{err}");
     }
-    assert!(out.contains("durable"), "{out}\n{err}");
+    // HC-28: the host's closing status line is on stderr, not stdout
+    assert!(err.contains("durable") && !out.contains("durable"), "{out}\n{err}");
     // P5: every run validates its own D by replay before it reports
     assert!(err.contains("validated") && o.status.success(), "{err}");
     let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg(&log).output().unwrap();

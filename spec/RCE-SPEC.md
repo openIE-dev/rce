@@ -6311,7 +6311,13 @@ delivers depends on the adapters it is granted.
   `RCE_STATUS=on` writes them whatever stderr is, and `RCE_STATUS=off`
   writes none. A report is not in D, no program reads it, and replay and
   the state hash do not depend on it, so D is the same byte for byte with
-  reports and without them.
+  reports and without them. When the host loop ends, `rce host run` and
+  `rce host serve` also write one plain line to stderr, whatever stderr
+  is: `durable N entries=M state_hash H`, the durable mark (HS-2, `none`
+  before the first barrier), the number of entries of D and the state
+  hash. Standard output carries only the program's output: the Display
+  bytes under `serve`, and under `run` the listing of the admitted entries
+  and the final state.
 
 ### E.4f Frames and their confirmations (HC-29)
 
@@ -6641,7 +6647,7 @@ is cited by a test.
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
-| HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports` |
+| HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports`, `stdout_carries_only_the_programs_output` |
 | HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
 | HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 

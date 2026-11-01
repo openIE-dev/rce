@@ -107,7 +107,9 @@ standard library's `os.perm.filemode` because a module cannot `use` both
 
 **On the host.** `rce host serve fs DIR ls.rce D`, given the line
 `Ls(path: "", all: false)` on stdin, sends one `FileList` request under the
-`fs DIR` grant (HC-3, HC-5) and prints the names on the Display sink. A
+`fs DIR` grant (HC-3, HC-5) and prints the names on the Display sink;
+stdout is that listing alone, since the host writes its closing status
+line, `durable N entries=M state_hash H`, to stderr (HC-28). A
 long listing cannot be made on the host: its stat records come in a
 `Stats` event, typed by whoever writes the input (HC-10b), because these
 effects do not exist:
@@ -119,7 +121,6 @@ effects do not exist:
 | user and group names | no adapter turns a uid or gid into a name (`/etc/passwd`, `/etc/group`, or the other sources of the Name Service Switch) | HC-3 and a capability of HC-5 for the account databases, the answer logged as HC-10 requires |
 | local time | time enters only as events, and `WallTime(ns)` carries no UTC offset; the zone's offset at each mtime (the rules of its time zone file) is not an input | HC-2 (clocks only as events) and HC-10: the offset delivered as an input or a logged answer |
 | exact names | `FileList` answers names as text made by a lossy conversion: the two names `a\xfeb` and `a\xffb` both arrive as `a\u{fffd}b` | HC-10a (bytes delivered exactly): names as bytes |
-| clean stdout | `rce host serve` writes `durable N entries=M state_hash H` to stdout after the program's Display bytes, so stdout is not the listing alone | HC-28, which puts the host's status on stderr |
 
 **Against coreutils.** [`ls_coreutils.sh`](ls_coreutils.sh) makes a
 directory with two regular files and a hard link to one, a dotfile, a
