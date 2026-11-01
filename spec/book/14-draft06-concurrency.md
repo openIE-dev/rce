@@ -691,9 +691,8 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
 ### C.12 Rules that are not draft 0.6
 
 The reference checker also raises three rules that belong to the 0.5
-language and are now listed in section 7: W-MOD-3 (an imported name that
-clashes with a declaration or with another import; names are not
-renamed), W-VIS-1 (use of a name private to its module, the form W-MOD-1
+language and are now listed in section 7: W-MOD-3 (an import's name that
+clashes with a declaration or with another import's name), W-VIS-1 (use of a name private to its module, the form W-MOD-1
 takes in `link.rs`) and W-TRAIT-3 (a type used with `==`, `<` or a
 generic bound that does not implement the required trait).
 
@@ -824,4 +823,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 62e6ddd483f6f4259708c203b44642455cde6fcfe34c3abc75cf28dc658bd730 -->
+<!-- body-sha256: 84a8d8db10a63430faa638ca4f47b7e2ccd57db266de2808076d9487eab07716 -->

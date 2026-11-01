@@ -100,10 +100,10 @@ five entries, and four examples drive the steps. Cases 1 and 2 do not
 carry over: RCE's command line takes words, never flags, so the path and
 `all` are the fields of the `Ls` event. Case 3 becomes a `FileListDone`
 whose status is not `delivered`, which counts in `failed` and prints
-`ls: ` and the host's error text. The mode string is written here rather than taken from the
-standard library's `os.perm.filemode` because a module cannot `use` both
-`os.perm` and `time` today: both declare a function `digits` (W-MOD-3,
-"imported names are not renamed yet").
+`ls: ` and the host's error text. The mode string is the standard library's `os.perm.filemode`,
+imported beside `time`; both modules have a private `digits`, and an
+item is reached only through its module's import, so the two never clash
+(W-MOD-3).
 
 **On the host.** `rce host serve fs DIR ls.rce D`, given the line
 `Ls(path: "", all: false)` on stdin, sends one `FileList` request under the
