@@ -7,7 +7,7 @@ Programs of the kind found in operating systems and infrastructure tools.
 | `ring_buffer.rce` | a fixed-size ring buffer that never overwrites when full |
 | `reconcile.rce` | a reconcile loop that moves the actual state one step towards the desired state |
 | `accounts.rce` | a long-running account service on the host: an unbounded run of bounded steps, where a transfer that fails half way keeps the state |
-| `ls.rce` | `ls`, `ls -a` and `ls -l` brought in from an existing Go program: a pure core of mode strings, names and rows, and a directory read through the host's `fs` grant |
+| `ls.rce` | `ls`, `ls -a`, `ls -l` and `ls -la` brought in from an existing Go program: a pure core of mode strings, names and rows, and every name, record, link text, owner, group, clock reading and UTC offset read through host requests |
 
 **A service as a stream of bounded steps.** `accounts.rce` has no main
 loop. The host (`rce host serve accounts.rce D`, Appendix E) reads
@@ -92,64 +92,69 @@ reproduces `door.lifted.rce` from `door.go` exactly.
 
 - the mode string (`mode_string`, GNU's, with `s S t T`; and
   `ref_mode_string`, the reference's case 8);
-- the visible names (`visible`: cases 4 and 5);
+- the visible names (`visible`: cases 4 and 5, with `.` and `..` sorted
+  among the other names in byte order, as GNU `ls` does in the C locale);
 - the reference's long row (`row`: cases 8 to 10, the time from seconds
   and a UTC offset through the standard library's `time` module);
 - exercise 1, GNU's columns (`aligned_row`, `widths`): the link count and
   size right-aligned, owner and group left-aligned, and GNU's half-year
-  rule, which shows the year instead of the time for an old or future
-  file; with GNU's `total` line (`total_line`);
+  rule, to the nanosecond, which shows the year instead of the time for an
+  old or future file; with GNU's `total` line (`total_line`);
 - exercise 2, `name -> target` (`name_field`).
 
-31 `check` lines pin these, among them byte-exact rows for a fixed set of
-five entries, and four examples drive the steps. Cases 1 and 2 do not
-carry over: RCE's command line takes words, never flags, so the path and
-`all` are the fields of the `Ls` event. Case 3 becomes a `FileListDone`
-whose status is not `delivered`, which counts in `failed` and prints
-`ls: ` and the host's error text. The mode string is written here rather than taken from the
-standard library's `os.perm.filemode` because a module cannot `use` both
-`os.perm` and `time` today: both declare a function `digits` (W-MOD-3,
-"imported names are not renamed yet").
+Names and link texts are bytes (`List[i64]`), never text, so a name that
+is not UTF-8 is listed exactly, and the output is written as bytes
+(`Display(data: List[i64])`). 34 `check` lines pin the core, among them
+byte-exact rows for a fixed set of five entries and two names that differ
+only in bytes that are not UTF-8, and four examples drive the steps.
+Cases 1 and 2 do not carry over: RCE's command line takes words, never
+flags, so the path, `all` and `long` are the fields of the `Ls` event.
+Case 3 becomes a `FileListDone` whose status is not `delivered`, which
+counts in `failed` and prints `ls: ` and the host's error text. The mode
+string is written here rather than taken from the standard library's
+`os.perm.filemode` because a module cannot `use` both `os.perm` and `time`
+today: both declare a function `digits` (W-MOD-3, "imported names are not
+renamed yet").
 
-**On the host.** `rce host serve fs DIR ls.rce D`, given the line
-`Ls(path: "", all: false)` on stdin, sends one `FileList` request under the
-`fs DIR` grant (HC-3, HC-5) and prints the names on the Display sink;
-stdout is that listing alone, since the host writes its closing status
-line, `durable N entries=M state_hash H`, to stderr (HC-28). A
-long listing cannot be made on the host: its stat records come in a
-`Stats` event, typed by whoever writes the input (HC-10b), because these
-effects do not exist:
+**On the host.** `rce host run fs DIR names ls.rce D`, given
+`Ls(path: "d", all: true, long: true)`, makes only host requests (Appendix
+E): `FileList` for the names, as bytes (HC-30), and `WallClock` for the
+time now (HC-32); then for each name `FileLstat`, which does not follow a
+final symbolic link, and `FileReadlink` for a link's text (HC-31);
+`LocalOffset` for the UTC offset of the host's zone at its mtime (HC-32);
+and `UserName` and `GroupName`, which exist only under the grant word
+`names` (HC-33). Stdout is the listing alone: the host writes its closing
+status line, `durable N entries=M state_hash H`, to stderr (HC-28). Each
+answer is a result event in D (HC-10), so `rce host replay ls.rce D`
+re-derives the listing with every adapter disconnected.
+A uid or gid without a name is printed as the number, as GNU `ls` does.
+The OS target the host enters reads only under the log directory, `/dev`
+and DIR, and the two account databases only under `names` (HC-5a).
 
-| Gap | What is missing | The rule it would need |
-|---|---|---|
-| lstat | a file request that answers mode, link count, uid, gid, size, mtime and blocks without following a final symbolic link | HC-3 (one typed result event per request), under the `fs` grant of HC-5 |
-| readlink | a file request that answers a link's text; the file adapter resolves a path by canonicalising it, so a link whose target leaves the root is refused even though neither lstat nor readlink follows it | HC-3, and HC-5's root check applied to the parent directory, not the target |
-| user and group names | no adapter turns a uid or gid into a name (`/etc/passwd`, `/etc/group`, or the other sources of the Name Service Switch) | HC-3 and a capability of HC-5 for the account databases, the answer logged as HC-10 requires |
-| local time | time enters only as events, and `WallTime(ns)` carries no UTC offset; the zone's offset at each mtime (the rules of its time zone file) is not an input | HC-2 (clocks only as events) and HC-10: the offset delivered as an input or a logged answer |
-| exact names | `FileList` answers names as text made by a lossy conversion: the two names `a\xfeb` and `a\xffb` both arrive as `a\u{fffd}b` | HC-10a (bytes delivered exactly): names as bytes |
+The listing of DIR itself (`path: ""`) has no `..` row: `..` of the
+granted root is outside it, so its lstat is refused. List a directory
+under DIR instead, as the test below does. Device files are listed with
+their size, not GNU's `major, minor`, because the lstat record carries no
+device number.
 
-**Against coreutils.** [`ls_coreutils.sh`](ls_coreutils.sh) makes a
-directory with two regular files and a hard link to one, a dotfile, a
-set-user-ID file, a named pipe, a subdirectory, a sticky directory, a symbolic
-link and a dangling one, modes set with `chmod` and times pinned with
-`touch` in UTC. GNU `stat` and `readlink` give each entry's record (the
-inputs), and coreutils `ls` in the C locale gives the expected bytes. On
-1 November 2026, with GNU coreutils on Linux: the short listing through the
-host's `FileList` equals `ls -1` (9 names) and `ls -1a` (12 names), and the
-Display text of the pure core equals `ls -la` (13 lines) and `ls -l` (10
-lines) byte for byte, `total` line, columns, `s` and `t`, `->` targets and
-the year of the 2020 file included. The first run differed: with `all`,
-`.` and `..` appeared twice, because the stat records include the
-directory's own two and `visible` added them again; `visible` now drops a
-`.` or `..` among its input names, and a check pins it.
+**Against coreutils.** [`ls_coreutils.sh`](ls_coreutils.sh) makes
+`WORKDIR/t/d` with two regular files and a hard link to one, a dotfile, a
+set-user-ID file, a named pipe, a subdirectory, a sticky directory, a
+symbolic link, a dangling one and one whose target leaves the granted
+root, the names `x\376` and `x\377` and `caf\351`, which are not UTF-8, and,
+when run as root, a file whose owner and group have no name. Modes are set
+with `chmod` and times pinned with `touch` in the zone
+`EST5EDT,M3.2.0,M11.1.0`, so the files of October 2026 are at UTC-4 and
+the file of January 2020 at UTC-5. It runs the program on the host under
+`fs WORKDIR/t names` for `ls`, `ls -a`, `ls -l` and `ls -la` of `d`, and
+compares the bytes of its output with coreutils `ls` in the C locale. On
+1 November 2026, with GNU coreutils 9.4 on Linux, all four are equal byte
+for byte (14, 17, 15 and 18 lines), `total` line, columns, `s` and `t`,
+`->` targets, the numeric owner, the bytes that are not UTF-8 and the year
+of the 2020 file included, and the log of `ls -la` (90 entries) replays.
 
-Two differences from GNU `ls` follow the reference and are not exercised
-by the test: `.` and `..` always come first (GNU sorts them with the
-other names, so a name that sorts before `.` in bytes, such as
-`-x`, comes before them), and an unknown file type is `-` in `row` but `?`
-in `mode_string`. For a uid or gid without a name the reference prints `?`
-where GNU prints the number; `ls.rce` prints the name its `Entry` record
-carries.
+One difference from GNU `ls` follows the reference and is not exercised by
+the test: an unknown file type is `-` in `row` but `?` in `mode_string`.
 
 Check this folder with `rce test *.rce`, or the whole repository with
 `scripts/check.sh`.

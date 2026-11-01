@@ -56,9 +56,11 @@ its new spelling, so a unit or container command written for an earlier
 A systemd unit needs only that `ExecStart=`, `Restart=on-failure`, a user
 that owns the log directory, and `KillSignal=SIGTERM` (the default).
 
-On start the host prints its sandbox: on Linux, Landlock (writes only under
-the log directory, no TCP bind or connect after the listener is open, no
-exec) and a seccomp filter. It works under Docker's default seccomp profile;
+On start the host prints its sandbox: on Linux, Landlock (writes and reads
+only under the log directory and the granted roots, no TCP bind or connect
+after the listener is open, no exec) and a seccomp filter. The grant word
+`names` lets a program turn user and group ids into names; only with it
+does the host read `/etc/passwd` and `/etc/group` (Appendix E, HC-33). It works under Docker's default seccomp profile;
 no extra capability is needed.
 
 When stderr is a terminal, the host also reports its status there as OSC

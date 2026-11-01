@@ -1,0 +1,146 @@
+module fs_stat
+
+intent "the stat, link, name, clock and offset requests: each answers once with a logged result, and the names of a directory arrive as their exact bytes"
+    example Names(path: ""), FileListDone(req: 1, status: "delivered", data: some([[97, 255], [97, 254]]), err: "") -> names == [[97, 255], [97, 254]]
+
+struct Stat
+    mode: i64
+    nlink: i64
+    uid: i64
+    gid: i64
+    size: i64
+    mtime: i64
+    mtime_ns: i64
+    blocks: i64
+
+struct FileList
+    req: u64
+    path: text
+
+struct FileLstat
+    req: u64
+    path: List[i64]
+
+struct FileReadlink
+    req: u64
+    path: text
+
+struct FileRead
+    req: u64
+    path: text
+
+struct UserName
+    req: u64
+    id: i64
+
+struct GroupName
+    req: u64
+    id: i64
+
+struct WallClock
+    req: u64
+
+struct LocalOffset
+    req: u64
+    at: i64
+
+event Names(path: text)
+event Lstat(path: List[i64])
+event Link(path: text)
+event Load(path: text)
+event User(id: i64)
+event Group(id: i64)
+event Now
+event Offset(at: i64)
+event FileListDone(req: u64, status: text, data: List[List[i64]]?, err: text)
+event FileLstatDone(req: u64, status: text, data: Stat?, err: text)
+event FileReadlinkDone(req: u64, status: text, data: List[i64]?, err: text)
+event FileReadDone(req: u64, status: text, data: text?, err: text)
+event UserNameDone(req: u64, status: text, data: text?, err: text)
+event GroupNameDone(req: u64, status: text, data: text?, err: text)
+event WallClockDone(req: u64, status: text, data: u64?, err: text)
+event LocalOffsetDone(req: u64, status: text, data: i64?, err: text)
+
+state S
+    next: u64 = 0
+    names: List[List[i64]] = []
+    stats: List[Stat] = []
+    target: List[i64] = []
+    content: text = ""
+    user: text = ""
+    group_name: text = ""
+    now_ns: u64 = 0
+    offsets: List[i64] = []
+    errors: List[text] = []
+
+step S on Names(path: p)
+    next += 1
+    emit FileList(req: next, path: p)
+
+step S on Lstat(path: p)
+    next += 1
+    emit FileLstat(req: next, path: p)
+
+step S on Link(path: p)
+    next += 1
+    emit FileReadlink(req: next, path: p)
+
+step S on Load(path: p)
+    next += 1
+    emit FileRead(req: next, path: p)
+
+step S on User(id: i)
+    next += 1
+    emit UserName(req: next, id: i)
+
+step S on Group(id: i)
+    next += 1
+    emit GroupName(req: next, id: i)
+
+step S on Now
+    next += 1
+    emit WallClock(req: next)
+
+step S on Offset(at: t)
+    next += 1
+    emit LocalOffset(req: next, at: t)
+
+step S on FileListDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(xs) -> names = copy(xs)
+        none -> errors.push(copy(e))
+
+step S on FileLstatDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(st) -> stats.push(st)
+        none -> errors.push(copy(e))
+
+step S on FileReadlinkDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(t) -> target = copy(t)
+        none -> errors.push(copy(e))
+
+step S on FileReadDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(t) -> content = copy(t)
+        none -> errors.push(copy(e))
+
+step S on UserNameDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(n) -> user = copy(n)
+        none -> errors.push(copy(e))
+
+step S on GroupNameDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(n) -> group_name = copy(n)
+        none -> errors.push(copy(e))
+
+step S on WallClockDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(n) -> now_ns = n
+        none -> errors.push(copy(e))
+
+step S on LocalOffsetDone(req: _r, status: _s, data: d, err: e)
+    match d
+        some(o) -> offsets.push(o)
+        none -> errors.push(copy(e))

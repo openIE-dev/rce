@@ -17,8 +17,14 @@ use std::path::{Component, Path, PathBuf};
 /// `FileRead(req, path)` -> text; `FileWrite(req, path, data)` -> u64 bytes
 /// (atomic: temp file, barrier, rename, directory barrier);
 /// `FileAppend(req, path, data)` -> u64 bytes (barrier before the result);
-/// `FileList(req, path)` -> List[text] in canonical (sorted) order.
-pub const FILE_KINDS: [&str; 4] = ["FileRead", "FileWrite", "FileAppend", "FileList"];
+/// `FileList(req, path)` -> the names, each as its exact bytes (HC-10a), in
+/// byte order (HC-30);
+/// `FileLstat(req, path)` -> the record {mode, nlink, uid, gid, size,
+/// mtime, mtime_ns, blocks} of lstat(2): a final symbolic link is not
+/// followed (HC-31);
+/// `FileReadlink(req, path)` -> a symbolic link's target, as its exact
+/// bytes (HC-31).
+pub const FILE_KINDS: [&str; 6] = ["FileRead", "FileWrite", "FileAppend", "FileList", "FileLstat", "FileReadlink"];
 
 pub struct FileAdapter {
     kind: &'static str,
@@ -31,18 +37,49 @@ pub fn file_adapters(root: &Path) -> Vec<FileAdapter> {
     FILE_KINDS.iter().map(|k| FileAdapter { kind: k, root: root.clone() }).collect()
 }
 
+/// Whether a request kind reads the entry a path names without following a
+/// final symbolic link (HC-31).
+fn no_follow(kind: &str) -> bool {
+    matches!(kind, "FileLstat" | "FileReadlink")
+}
+
+/// A path as the OS takes it, from its exact bytes.
+#[cfg(unix)]
+fn path_of(b: &[u8]) -> PathBuf {
+    PathBuf::from(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(b))
+}
+#[cfg(not(unix))]
+fn path_of(b: &[u8]) -> PathBuf {
+    PathBuf::from(String::from_utf8_lossy(b).into_owned())
+}
+
+/// The path a request names: text, or its exact bytes as a list of
+/// integers in 0..255 (a name that is not UTF-8, HC-30).
+fn request_path(r: &Value) -> Result<Vec<u8>, String> {
+    match &r["path"] {
+        Value::String(s) => Ok(s.as_bytes().to_vec()),
+        Value::Array(_) => request_bytes(&r["path"]).map_err(|e| format!("path: {e}")),
+        Value::Null => Ok(vec![]),
+        _ => Err("path is neither text nor bytes".into()),
+    }
+}
+
 impl FileAdapter {
     /// The path under the root, or why the access is not performed (least
     /// privilege).
-    fn resolve(&self, p: &str) -> Result<PathBuf, String> {
-        if p.is_empty() && self.kind == "FileList" {
+    fn resolve(&self, pb: &[u8]) -> Result<PathBuf, String> {
+        if pb.is_empty() && matches!(self.kind, "FileList" | "FileLstat") {
             return Ok(self.root.clone());
         }
-        let rel = Path::new(p);
-        if p.is_empty() || rel.is_absolute() || rel.components().any(|c| !matches!(c, Component::Normal(_) | Component::CurDir)) {
+        if no_follow(self.kind) {
+            return self.resolve_entry(pb);
+        }
+        let p = String::from_utf8_lossy(pb);
+        let rel = path_of(pb);
+        if pb.is_empty() || rel.is_absolute() || rel.components().any(|c| !matches!(c, Component::Normal(_) | Component::CurDir)) {
             return Err(format!("path `{p}` is outside the granted root"));
         }
-        let full = self.root.join(rel);
+        let full = self.root.join(&rel);
         let probe = if full.exists() {
             full.canonicalize().map_err(|e| e.to_string())?
         } else {
@@ -54,11 +91,70 @@ impl FileAdapter {
         }
         Ok(full)
     }
+
+    /// HC-31: the entry a path names, for a request that does not follow a
+    /// final symbolic link. The root check applies to the directory that
+    /// holds the entry, resolved with every link in it followed, and not to
+    /// where the entry points: a link whose target leaves the root is
+    /// still an entry under it. A path whose last part is `.` or `..` names
+    /// a directory itself, which must be under the root.
+    fn resolve_entry(&self, pb: &[u8]) -> Result<PathBuf, String> {
+        let outside = || format!("path `{}` is outside the granted root", String::from_utf8_lossy(pb));
+        let rel = path_of(pb);
+        if pb.is_empty() || rel.is_absolute() || rel.components().any(|c| !matches!(c, Component::Normal(_) | Component::CurDir | Component::ParentDir)) {
+            return Err(outside());
+        }
+        let full = self.root.join(&rel);
+        let trimmed = pb.iter().rposition(|c| *c != b'/').map_or(&pb[..0], |i| &pb[..=i]);
+        let last = trimmed.rsplit(|c| *c == b'/').next().unwrap_or(&[]);
+        let probe = match full.file_name() {
+            Some(name) if last != b"." && last != b".." => {
+                let parent = full.parent().unwrap_or(&self.root);
+                parent.canonicalize().map_err(|e| e.to_string())?.join(name)
+            }
+            _ => full.canonicalize().map_err(|e| e.to_string())?,
+        };
+        if !probe.starts_with(&self.root) {
+            return Err(outside());
+        }
+        Ok(probe)
+    }
 }
 
 fn barrier_dir(p: &Path) -> std::io::Result<()> {
     let d = p.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
     File::open(d)?.sync_all()
+}
+
+/// Bytes received from outside, as the host's value (HC-10a): a list of
+/// integers in 0..255.
+fn bytes_json(b: &[u8]) -> Value {
+    Value::Array(b.iter().map(|x| Value::from(*x)).collect())
+}
+
+/// The exact bytes of a name the OS gives (HC-10a).
+#[cfg(unix)]
+fn os_bytes(s: &std::ffi::OsStr) -> Vec<u8> {
+    std::os::unix::ffi::OsStrExt::as_bytes(s).to_vec()
+}
+#[cfg(not(unix))]
+fn os_bytes(s: &std::ffi::OsStr) -> Vec<u8> {
+    s.to_string_lossy().into_owned().into_bytes()
+}
+
+/// HC-31: the lstat(2) record of an entry.
+#[cfg(unix)]
+fn lstat_json(full: &Path) -> Result<Value, String> {
+    use std::os::unix::fs::MetadataExt;
+    let m = fs::symlink_metadata(full).map_err(|e| e.to_string())?;
+    Ok(json!({
+        "mode": m.mode(), "nlink": m.nlink(), "uid": m.uid(), "gid": m.gid(), "size": m.size(),
+        "mtime": m.mtime(), "mtime_ns": m.mtime_nsec(), "blocks": m.blocks(),
+    }))
+}
+#[cfg(not(unix))]
+fn lstat_json(_full: &Path) -> Result<Value, String> {
+    Err("FileLstat needs a Unix host".into())
 }
 
 fn perform_file(kind: &str, full: &Path, r: &Value) -> Result<Value, String> {
@@ -87,10 +183,13 @@ fn perform_file(kind: &str, full: &Path, r: &Value) -> Result<Value, String> {
             Ok(json!(data.len()))
         }
         "FileList" => {
-            let mut v: Vec<String> = fs::read_dir(full).map_err(s)?.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            // HC-30: each name as its bytes, never through a lossy conversion
+            let mut v: Vec<Vec<u8>> = fs::read_dir(full).map_err(s)?.flatten().map(|e| os_bytes(&e.file_name())).collect();
             v.sort();
-            Ok(json!(v))
+            Ok(Value::Array(v.iter().map(|b| bytes_json(b)).collect()))
         }
+        "FileLstat" => lstat_json(full),
+        "FileReadlink" => fs::read_link(full).map(|t| bytes_json(&os_bytes(t.as_os_str()))).map_err(s),
         k => Err(format!("unknown file request `{k}`")),
     }
 }
@@ -100,7 +199,7 @@ impl Adapter for FileAdapter {
         self.kind
     }
     fn perform(&mut self, r: &Value) -> EffectResult {
-        let res = self.resolve(r["path"].as_str().unwrap_or("")).and_then(|full| perform_file(self.kind, &full, r));
+        let res = request_path(r).and_then(|p| self.resolve(&p)).and_then(|full| perform_file(self.kind, &full, r));
         match res {
             Ok(v) => EffectResult::ok(v),
             Err(e) => EffectResult::failed(e),
@@ -322,6 +421,148 @@ impl Adapter for RandomAdapter {
         match File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut b)) {
             Ok(()) => EffectResult::ok(json!(b.iter().map(|x| format!("{x:02x}")).collect::<String>())),
             Err(e) => EffectResult::failed(e.to_string()),
+        }
+    }
+}
+
+/// HC-2, HC-32: the wall clock as a request: `WallClock(req)` -> u64,
+/// nanoseconds since the Unix epoch. The admitter logs the reading in the
+/// result event, so replay reads it from D and no clock.
+pub struct WallClockAdapter;
+
+impl Adapter for WallClockAdapter {
+    fn kind(&self) -> &'static str {
+        "WallClock"
+    }
+    fn perform(&mut self, _r: &Value) -> EffectResult {
+        match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => EffectResult::ok(json!(d.as_nanos() as u64)),
+            Err(e) => EffectResult::failed(format!("the clock is before the Unix epoch: {e}")),
+        }
+    }
+}
+
+/// HC-32: the UTC offset of the host's time zone at an instant:
+/// `LocalOffset(req, at: i64)` -> i64 seconds east of UTC at `at` seconds
+/// since the Unix epoch, from localtime_r(3) (the zone of `TZ`, else
+/// `/etc/localtime`). The zone's rules are read when the adapter is made,
+/// before the sandbox is entered, and each answer is logged in its result.
+pub struct LocalOffsetAdapter;
+
+/// The offset adapter, with the zone's rules read now (tzset(3)).
+pub fn local_offset_adapter() -> LocalOffsetAdapter {
+    #[cfg(unix)]
+    {
+        unsafe extern "C" {
+            fn tzset();
+        }
+        // SAFETY: tzset reads TZ and the zone file into libc's own state.
+        unsafe { tzset() };
+    }
+    LocalOffsetAdapter
+}
+
+/// HC-32: the payload of `host.Zone`: the value of `TZ` (`null` when it is
+/// not set), the zone file the C library reads for it (`""` for a POSIX
+/// rule such as `EST5EDT,M3.2.0,M11.1.0`, which names no file), and the
+/// SHA-256 of that file's bytes (`""` without one). Keys are sorted.
+pub fn zone_record() -> String {
+    let tz = std::env::var("TZ").ok();
+    let file = match tz.as_deref().map(|t| t.strip_prefix(':').unwrap_or(t)) {
+        None => "/etc/localtime".to_string(),
+        Some("") => String::new(),
+        Some(t) if t.starts_with('/') => t.to_string(),
+        Some(t) => {
+            let f = format!("/usr/share/zoneinfo/{t}");
+            if Path::new(&f).is_file() { f } else { String::new() }
+        }
+    };
+    let sha = if file.is_empty() {
+        String::new()
+    } else {
+        use sha2::{Digest, Sha256};
+        fs::read(&file).map(|b| Sha256::digest(&b).iter().map(|x| format!("{x:02x}")).collect()).unwrap_or_default()
+    };
+    json!({"file": file, "sha256": sha, "tz": tz}).to_string()
+}
+
+/// The offset east of UTC at `at`, in seconds.
+#[cfg(unix)]
+pub fn local_offset(at: i64) -> Result<i64, String> {
+    let t: libc::time_t = at.try_into().map_err(|_| format!("{at} is outside time_t"))?;
+    // SAFETY: localtime_r writes one tm through a valid pointer.
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    if unsafe { libc::localtime_r(&t, &mut tm) }.is_null() {
+        return Err(format!("no local time for {at}: {}", std::io::Error::last_os_error()));
+    }
+    Ok(tm.tm_gmtoff as i64)
+}
+#[cfg(not(unix))]
+pub fn local_offset(_at: i64) -> Result<i64, String> {
+    Err("LocalOffset needs a Unix host".into())
+}
+
+impl Adapter for LocalOffsetAdapter {
+    fn kind(&self) -> &'static str {
+        "LocalOffset"
+    }
+    fn perform(&mut self, r: &Value) -> EffectResult {
+        let Some(at) = r["at"].as_i64() else { return EffectResult::failed("LocalOffset needs `at`, seconds since the Unix epoch") };
+        match local_offset(at) {
+            Ok(o) => EffectResult::ok(json!(o)),
+            Err(e) => EffectResult::failed(e),
+        }
+    }
+}
+
+/// HC-33: under the `names` grant, a user or group id to its name:
+/// `UserName(req, id)` and `GroupName(req, id)` -> the name, as its exact
+/// bytes (HC-10a), from the first line of `/etc/passwd` or `/etc/group`
+/// (the `files` source of the Name Service Switch) whose third field is
+/// the id; `failed` when no line has it.
+pub const NAME_KINDS: [&str; 2] = ["UserName", "GroupName"];
+
+pub struct NameAdapter {
+    kind: &'static str,
+    db: PathBuf,
+}
+
+/// The two name adapters, reading the system's account databases.
+pub fn name_adapters() -> Vec<NameAdapter> {
+    name_adapters_from(Path::new(ACCOUNT_DBS[0]), Path::new(ACCOUNT_DBS[1]))
+}
+
+/// The account databases the `names` grant reads (HC-33, HC-5a).
+pub const ACCOUNT_DBS: [&str; 2] = ["/etc/passwd", "/etc/group"];
+
+/// The name adapters with other databases (tests).
+pub fn name_adapters_from(passwd: &Path, group: &Path) -> Vec<NameAdapter> {
+    vec![NameAdapter { kind: "UserName", db: passwd.to_path_buf() }, NameAdapter { kind: "GroupName", db: group.to_path_buf() }]
+}
+
+/// The name of `id` in a database of colon-separated lines whose first
+/// field is the name and third the id.
+pub fn lookup_name(db: &[u8], id: u64) -> Option<Vec<u8>> {
+    let want = id.to_string();
+    db.split(|b| *b == b'\n').find_map(|l| {
+        let f: Vec<&[u8]> = l.split(|b| *b == b':').collect();
+        (f.len() >= 3 && f[2] == want.as_bytes()).then(|| f[0].to_vec())
+    })
+}
+
+impl Adapter for NameAdapter {
+    fn kind(&self) -> &'static str {
+        self.kind
+    }
+    fn perform(&mut self, r: &Value) -> EffectResult {
+        let what = if self.kind == "UserName" { "user" } else { "group" };
+        let Some(id) = r["id"].as_u64() else { return EffectResult::failed(format!("{} needs `id`, a {what} id", self.kind)) };
+        match fs::read(&self.db) {
+            Ok(b) => match lookup_name(&b, id) {
+                Some(n) => EffectResult::ok(bytes_json(&n)),
+                None => EffectResult::failed(format!("no {what} with id {id} in {}", self.db.display())),
+            },
+            Err(e) => EffectResult::failed(format!("{}: {e}", self.db.display())),
         }
     }
 }

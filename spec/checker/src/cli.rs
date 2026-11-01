@@ -757,8 +757,10 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 10] = [
+const GRANTS: [Word; 11] = [
     Word::set("fs", &["DIR"]),
+    // HC-33: user and group ids to names, from the account databases
+    Word::mode("names"),
     Word::set("blob", &["DIR"]),
     Word::set("media", &["DIR"]),
     Word::set("wasm", &["DIR"]),
@@ -772,18 +774,18 @@ const GRANTS: [Word; 10] = [
 ];
 
 /// The grants, then `http` and `presented`, which only the host loop takes.
-const fn serve_words() -> [Word; 12] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 12];
+const fn serve_words() -> [Word; 13] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 13];
     let mut i = 0;
-    while i < 10 {
+    while i < 11 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[11] = Word::set("presented", &["FILE"]);
+    w[12] = Word::set("presented", &["FILE"]);
     w
 }
-const SERVE_WORDS: [Word; 12] = serve_words();
+const SERVE_WORDS: [Word; 13] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -874,7 +876,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29)",
     },
     Command {
         path: &["host", "serve"],
@@ -1672,6 +1674,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             let (tls, mut pins) = (p.has("tls"), vec![]);
             let mut tls_id = None;
             let mut exact: Option<String> = None;
+            let mut wasm_root = None::<std::path::PathBuf>;
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
             let http_addr = p.value("http").map(String::from);
@@ -1688,13 +1691,24 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 }
                 None => None,
             };
-            // random bytes are an input, not authority: always available (HC-10)
+            // random bytes are an input, not authority: always available (HC-10);
+            // so are the clock and the zone's UTC offset (HC-2, HC-32), whose
+            // rules are read here, before the sandbox is entered
             adapters.push(Box::new(crate::adapters::RandomAdapter));
+            adapters.push(Box::new(crate::adapters::WallClockAdapter));
+            adapters.push(Box::new(crate::adapters::local_offset_adapter()));
+            let mut names = false;
             for (word, v) in &p.words {
                 match *word {
                     "fs" => {
                         fs_root = Some(std::path::PathBuf::from(v[0].as_str()));
                         for x in crate::adapters::file_adapters(std::path::Path::new(v[0].as_str())) {
+                            adapters.push(Box::new(x));
+                        }
+                    }
+                    "names" => {
+                        names = true;
+                        for x in crate::adapters::name_adapters() {
                             adapters.push(Box::new(x));
                         }
                     }
@@ -1708,6 +1722,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                         peers.push(v[0].clone());
                     }
                     "wasm" => {
+                        wasm_root = Some(std::path::PathBuf::from(v[0].as_str()));
                         let wa = crate::adapters::wasm_adapter(std::path::Path::new(v[0].as_str()));
                         exact = Some(wa.exact.clone());
                         adapters.push(Box::new(wa));
@@ -1791,6 +1806,10 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
+            // HC-32: which zone rules the offsets in D come from
+            if h.binds_kind("LocalOffset") {
+                h.zone(&crate::adapters::zone_record())?;
+            }
             if crate::sandbox::enabled() {
                 use crate::sandbox::{GrantKind, NetGrant};
                 let lp = std::path::Path::new(log);
@@ -1817,7 +1836,13 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 }
                 grants.sort();
                 grants.dedup();
-                match crate::sandbox::enter(dir, &writable, pty, &grants) {
+                // HC-5a: what is read after entering: the wasm root, and the
+                // account databases only under `names` (HC-33)
+                let mut reads = crate::sandbox::Reads { roots: wasm_root.iter().map(|p| p.as_path()).collect(), files: vec![] };
+                if names {
+                    reads.files.extend(crate::adapters::ACCOUNT_DBS.iter().map(std::path::Path::new).filter(|p| p.exists()));
+                }
+                match crate::sandbox::enter(dir, &writable, &reads, pty, &grants) {
                     Ok(d) => eprintln!("rce host: {d}"),
                     Err(r) => eprintln!("rce host: sandbox OS target not entered: {r}"),
                 }
@@ -2216,7 +2241,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
                 eprintln!("rce host: seq {} kept ({c})", a.seq);
             }
             for d in &a.display {
-                write!(out, "{d}").map_err(w)?;
+                out.write_all(d).map_err(w)?;
             }
             exit |= a.exit;
         }

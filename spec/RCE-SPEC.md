@@ -5682,8 +5682,9 @@ adapter.
   without replication holds term 0 for its lifetime, which is the single
   admitter of earlier versions.
 - **HC-2 Only the admitter reads clocks.** Wall time and monotonic time
-  enter only as events (`Tick(n)`, and `host.WallTime` when an adapter
-  supplies it). Time inside the language is logical (6.3 N11, C.11.12).
+  enter only as events (`Tick(n)`, `host.WallTime` when an adapter
+  supplies it, and the result of a `WallClock` request, HC-32). Time
+  inside the language is logical (6.3 N11, C.11.12).
 - **HC-3 Typed output requests.** Each effect requested by λ (a write, a
   send, a draw, a foreign call) has exactly one result event: delivered,
   failed, timed out or unreachable. A result is delivered as the module
@@ -5741,6 +5742,16 @@ adapter.
   permit new IP sockets unless some grant is connected to or bound after
   entering, so with `http` alone neither the host nor a PTY child can
   open a socket; otherwise no layer restricts UDP, and the line says so.
+  Landlock also handles reading a file and listing a directory: they are
+  allowed only under the log directory, `/dev`, the granted roots (`fs`,
+  `blob`, `media`, `wasm`) and, under `names` and only then, the files
+  `/etc/passwd` and `/etc/group` (HC-33), and the line names them.
+  Landlock has no right for lstat or readlink, so it restricts neither, and
+  the line says so; seccomp denies none of lstat, readlink or getdents, so
+  the requests of HC-30 and HC-31 run under DIR. Under `pty`, whose
+  programs read the whole system, and with a grant that names a host by
+  name, whose resolver reads the system's configuration after entering,
+  reads are not handled, and the line says which of the two is the reason.
   The channel adapters start their threads after the target is entered, so
   Landlock covers them as well. The Seatbelt rules follow Apple's profile
   language and are still to be confirmed on a macOS machine; the two tests
@@ -6571,6 +6582,72 @@ delivers depends on the adapters it is granted.
   it looked: pixels and the timing of presentation stay outside D.
   Reference: `spec/checker/src/frame.rs`, `Host::presented`.
 
+### E.4g Directories, entries, the zone and account names (HC-30 to HC-33)
+
+A listing such as `ls -l` (`programs/systems/ls.rce`) reads a directory's
+names, each entry's own record and link text, the owner and group names
+and the local time of each modification time. Each is a request with one
+result event (HC-3), so each is in D (HC-10) and replay re-derives the
+listing from D alone (HC-8).
+
+- **HC-30 Directory names are bytes.** `FileList(req, path)` under `fs
+  DIR` answers the names of the directory, without `.` and `..`, each as
+  its exact bytes (HC-10a), in byte order. A module that takes them as
+  `List[List[i64]]` receives two names that differ only in bytes that are
+  not UTF-8 as two names. One that takes them as `List[text]` receives
+  them by E.4c HD-3: as text when every name is UTF-8, and otherwise the
+  result is delivered as `failed`, naming the element and the offset, and
+  `host.Kept` keeps the bytes in D. A request's `path` is text or bytes,
+  so a name that is not UTF-8 can be named again. A `Display(data)` whose
+  data is a `List[i64]` with every element in 0..255 is written to stdout
+  as those bytes, so such a name is printed as it is. Reference:
+  `adapters::FileAdapter`, `host::BYTES_LIST_FIELDS`.
+- **HC-31 lstat and readlink do not follow the entry.** `FileLstat(req,
+  path)` answers the lstat(2) record {mode, nlink, uid, gid, size, mtime,
+  mtime_ns, blocks} of the entry the path names (`mtime` in seconds since
+  the Unix epoch, `mtime_ns` the nanoseconds past them, `blocks` in
+  512-byte units), and `FileReadlink(req, path)` the text of a symbolic
+  link as its exact bytes, unchanged. Neither follows a final symbolic
+  link. The root check of HC-5 applies to the path that is read, not to
+  where a link points: the directory that holds the entry, resolved with
+  every link in it followed, must be under DIR, and a path whose last part
+  is `.` or `..` names a directory itself, which must be under DIR. A link
+  whose target leaves DIR is therefore an entry of DIR: its record and its
+  text are delivered, and reading the text does not follow it. `FileRead`,
+  `FileWrite`, `FileAppend` and `FileList` follow links and refuse a path
+  that resolves outside DIR, as before. Reference: `FileAdapter::resolve_entry`.
+- **HC-32 The clock and the zone's offset are answers.** `WallClock(req)`
+  answers the wall clock in nanoseconds since the Unix epoch. `LocalOffset(req,
+  at)` answers the offset east of UTC, in seconds, of the host's time zone
+  at `at` seconds since the epoch, by the zone's rules (localtime(3): the
+  zone of `TZ`, else `/etc/localtime`), which the host reads once at
+  start, before it enters the OS target of HC-5. The offset is a request
+  and not a field of `host.WallTime`, because a listing needs the offset
+  at each modification time, and a zone's offset changes with summer
+  time. Neither request needs a grant: like random bytes (HC-10), each
+  answer is an input and gives no authority over any resource. When the
+  module binds `LocalOffset`, the admitter appends `host.Zone` {file,
+  sha256, tz} at start: the value of `TZ` (null when it is not set), the
+  zone file the C library reads for it (empty for a POSIX rule such as
+  `EST5EDT,M3.2.0,M11.1.0`, which names no file) and that file's SHA-256,
+  so D says which rules gave its offsets. Replay reads every answer from
+  D, and no clock or zone file. Reference: `adapters::WallClockAdapter`,
+  `adapters::LocalOffsetAdapter`, `Host::zone`.
+- **HC-33 Account names need the `names` grant.** `UserName(req, id)` and
+  `GroupName(req, id)` answer the name of a user or group id as its exact
+  bytes: the first field of the first line of `/etc/passwd` or
+  `/etc/group` (the `files` source of the Name Service Switch) whose third
+  field is the id, or `failed` when no line has it. They are performed
+  only under `names`, a mode word of `rce host run` and `rce host serve`
+  (PC-3; it takes no value, since the two files are fixed), because the
+  databases are files outside every granted root and name the people of
+  the machine, and HC-5 gives the host no ambient authority. Without
+  `names` no adapter answers them, and the OS target of HC-5a does not
+  allow reading the two files. The adapter reads the files and does not
+  call getpwuid(3), whose other sources (NIS, LDAP, systemd) may answer
+  from the network or from another process, which no file grant bounds.
+  Reference: `adapters::NameAdapter`.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -6602,6 +6679,7 @@ JSON. The host entries are:
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
 | `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `http`, and when a retried bind succeeds (HC-24) |
 | `host.Presented` | digest (the frame digest), seq | when a renderer confirms that it presented the frame of seq (HC-29) |
+| `host.Zone` | file, sha256, tz | at start, when the module binds `LocalOffset` (HC-32) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -6820,7 +6898,7 @@ is cited by a test.
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
-| HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_blocks_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
+| HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, `linux_reads_are_restricted_to_the_grants`, and on macOS only `seatbelt_blocks_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, HD-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_is_delivered_as_text` |
 | HC-10b | typed inputs are inputs | `tests/host_kept.rs`: `typed_step_kept_is_admitted_and_marked`, `replay_detects_a_forged_host_step_kept`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
 | HC-21, HD-4 | kept steps are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
@@ -6830,6 +6908,10 @@ is cited by a test.
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
 | HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports`, `stdout_carries_only_the_programs_output` |
 | HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
+| HC-30, HC-10a | directory names as exact bytes, written exactly by Display | `tests/host_fs.rs`: `directory_names_arrive_as_their_exact_bytes`, `ls_lists_through_the_host_as_coreutils_does` |
+| HC-31 | lstat and readlink without following, checked on the directory that holds the entry | `tests/host_fs.rs`: `lstat_and_readlink_do_not_follow_and_replay`; `tests/host_adapters.rs`: `file_effects_stay_under_the_granted_root` |
+| HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |
+| HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
 | HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
