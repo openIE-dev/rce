@@ -1,0 +1,13 @@
+{
+  "name": "rce-ui-web",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "description": "A DOM renderer for ui.view frames and its test in headless Chromium with axe-core",
+  "scripts": {
+    "test": "node test/render.test.cjs"
+  },
+  "devDependencies": {
+    "axe-core": "4.14.0",
+    "playwright": "1.56.1"
+  }
+}

@@ -1,0 +1,1 @@
+Add(k: "a", t: "Apples"), Add(k: "b", t: "Bread"), Focus, Add(k: "c", t: "Cheese"), Up(k: "c"), Mark(k: "a"), Rename(k: "b", t: "Brown bread"), Mark(k: "a"), Remove(k: "a"), Break(what: "contrast"), Fix, Break(what: "name"), Fix, Break(what: "hidden"), Fix, Break(what: "focus"), Fix

@@ -690,6 +690,21 @@ raised.
   a disagreement is a defect in one of them. The renderer also supplies
   the layout geometry that 1.4.4, 1.4.10, 1.4.12, 2.4.11 and 2.5.8 need,
   so those parts become exact. *Small addition.*
+  *Implemented in part* (`ui/web/`, branch `claude/dom-renderer`): a
+  renderer of HC-29's sink lines, with no framework, that applies the
+  `view.diff` operations in order, passes every attribute through, gives
+  each keyed node its key as DOM id and turns the presentation attributes
+  into inline style; `ui/web/README.md` says what it guarantees and what it
+  does not (the view tree and its digest stay the reference). Its test in
+  headless Chromium (`.github/workflows/ui-web.yml`) requires the DOM to
+  equal each frame's tree and axe-core 4.14.0 (WCAG 2.x A and AA rules) to
+  report no violation on the 13 frames of `ui/web/test/shop.rce` on which
+  `ui.rules` finds nothing, and exactly `color-contrast`, `button-name`
+  and `aria-hidden-focus` on the frames that fail 1.4.3, 4.1.2 (no name)
+  and 4.1.2 (focusable under `aria-hidden`); for a widget role with no
+  `tabindex` (2.1.1) axe-core has no rule, and the test records that. Not
+  yet: layout geometry for 1.4.4, 1.4.10, 1.4.12, 2.4.11 and 2.5.8, and
+  the playground integration.
 - **H5 Native reference adapter.** A host adapter that draws `ui.view`
   frames in a desktop window with a native accessibility tree, feeds
   keys, pointer, focus and resize back as inputs (HC-10), and reports
@@ -768,7 +783,8 @@ proposal.
 4. **Done:** H1 (frame sink, replay mode word `frames`, HC-29). It
    edits `host.rs`, `cli.rs` and Appendix E, and its words follow PC-1 to
    PC-8.
-5. **After H1:** H4 (DOM renderer and axe-core in CI), then H3.
+5. **After H1:** H4 (DOM renderer and axe-core in CI; the renderer and
+   its CI job are built, layout geometry is not), then H3.
 6. **Spike, outside the repository, any time:** the Raven host-platform
    and accessibility question for H5. The choice of H5 goes to the
    owner.

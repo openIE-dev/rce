@@ -220,3 +220,22 @@ fn serve_reads_a_renderers_confirmations() {
     assert_eq!(replayed_sink(&rep), std::fs::read_to_string(&sink).unwrap());
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// The fixture of the DOM renderer's test (ui/web/test) is the reference
+/// checker's output: the sink of `rce host run frames` of shop.rce on the
+/// inputs of shop.events, and `rce host replay frames` of that D, as
+/// ui/web/test/fixture.sh writes them.
+#[test]
+fn ui_web_fixture_is_current() {
+    let t = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/web/test");
+    let d = dir("uiweb");
+    let (sink, log) = (d.join("frames.jsonl"), d.join("shop.log"));
+    let events = std::fs::read_to_string(t.join("shop.events")).unwrap();
+    let (c, out, err) = rce(&["host", "run", "frames", s(&sink), s(&t.join("shop.rce")), s(&log), events.trim_end()]);
+    assert_eq!(c, 0, "{out}{err}");
+    assert_eq!(std::fs::read_to_string(&sink).unwrap(), std::fs::read_to_string(t.join("shop.frames.jsonl")).unwrap(), "ui/web/test/shop.frames.jsonl is stale: run ui/web/test/fixture.sh");
+    let (c, rep, _) = rce(&["host", "replay", "frames", s(&t.join("shop.rce")), s(&log)]);
+    assert_eq!(c, 0, "{rep}");
+    assert_eq!(rep, std::fs::read_to_string(t.join("shop.replay.txt")).unwrap(), "ui/web/test/shop.replay.txt is stale: run ui/web/test/fixture.sh");
+    let _ = std::fs::remove_dir_all(&d);
+}
