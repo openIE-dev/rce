@@ -92,7 +92,7 @@ checked at one boundary has one outcome (determinism), and the
 refinement reuses the one boundary the language already has, the range
 check, rather than a second mechanism (one meaning per construct). The
 fragment is decidable in time linear in p and in the value, so the check
-has a fixed cost class (energy observability); full dependent types are
+has a fixed cost class (its work is bounded before it runs); full dependent types are
 excluded by the same derivation, since an undecidable obligation would
 make acceptance itself unbounded. Example: `type Pct = u8 where self <=
 100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` keeps the state with
@@ -326,4 +326,4 @@ sound and is excluded (F.2).
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: f3e970007bb2faf57da1674ca03cb6cc103a163c3fcbad7da4add6bc741e1baf -->
+<!-- body-sha256: 857c1b43e187f03f4ad2efc72660d85d8627a71a67ebec9aa7f63636561fdb14 -->
