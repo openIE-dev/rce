@@ -109,7 +109,12 @@ fn directory_names_arrive_as_their_exact_bytes() {
     let b = base("names");
     let root = b.join("root");
     for n in [&b"a\xffb"[..], b"a\xfeb", b"plain"] {
-        std::fs::write(root.join(std::ffi::OsStr::from_bytes(n)), "").unwrap();
+        // a file system that keeps only UTF-8 names (APFS) refuses these
+        if let Err(e) = std::fs::write(root.join(std::ffi::OsStr::from_bytes(n)), "") {
+            eprintln!("this file system refuses the name {n:?}: {e}; skipped");
+            let _ = std::fs::remove_dir_all(&b);
+            return;
+        }
     }
     let (state, text) = run(files(&root), &[r#"Names(path: "")"#]);
     assert!(text.contains("\"data\":[[97,254,98],[97,255,98],[112,108,97,105,110]]"), "{text}");

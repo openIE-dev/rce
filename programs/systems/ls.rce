@@ -102,7 +102,7 @@ state Listing
     shown: List[List[i64]] = []
     entries: List[Entry] = []
     # which entry each outstanding request is for (-1: the clock)
-    at: Map[u64, i64] = {}
+    entry_of: Map[u64, i64] = {}
     # the results the long listing still waits for
     owed: i64 = 0
     # entries whose lstat failed, left out of the listing
@@ -383,13 +383,13 @@ step Listing on Ls(path: p, all: a, long: l)
     entries = []
     gone = []
     rows = []
-    at = {}
+    entry_of = {}
     owed = 0
     next += 1
     emit FileList(req: next, path: p)
     if l
         next += 1
-        at[next] = -1
+        entry_of[next] = -1
         owed += 1
         emit WallClock(req: next)
 
@@ -406,7 +406,7 @@ step Listing on FileListDone(req: _r, status: s, data: d, err: e)
             for n in shown
                 entries.push(blank(&n))
                 next += 1
-                at[next] = (entries.len() - 1) as i64
+                entry_of[next] = (entries.len() - 1) as i64
                 owed += 1
                 emit FileLstat(req: next, path: path_of(&dir, &n))
             if owed == 0
@@ -415,7 +415,7 @@ step Listing on FileListDone(req: _r, status: s, data: d, err: e)
                 emit Display(data: long_listing(xs, now_ns))
 
 step Listing on WallClockDone(req: r, status: s, data: d, err: _e)
-    if index_of(&at, r) == -1
+    if index_of(&entry_of, r) == -1
         if s == "delivered"
             now_ns = d.or(0) as i64
         owed -= 1
@@ -425,7 +425,7 @@ step Listing on WallClockDone(req: r, status: s, data: d, err: _e)
             emit Display(data: long_listing(xs, now_ns))
 
 step Listing on FileLstatDone(req: r, status: s, data: d, err: e)
-    let i = index_of(&at, r)
+    let i = index_of(&entry_of, r)
     if i >= 0
         owed -= 1
         let k = i as usize
@@ -440,18 +440,18 @@ step Listing on FileLstatDone(req: r, status: s, data: d, err: e)
             entries[k].mtime_ns = st.mtime_ns
             entries[k].blocks = st.blocks
             next += 1
-            at[next] = i
+            entry_of[next] = i
             emit UserName(req: next, id: st.uid)
             next += 1
-            at[next] = i
+            entry_of[next] = i
             emit GroupName(req: next, id: st.gid)
             next += 1
-            at[next] = i
+            entry_of[next] = i
             emit LocalOffset(req: next, at: st.mtime)
             owed += 3
             if st.mode & S_IFMT == S_IFLNK
                 next += 1
-                at[next] = i
+                entry_of[next] = i
                 owed += 1
                 emit FileReadlink(req: next, path: path_of(&dir, &entries[k].name))
         else
@@ -463,7 +463,7 @@ step Listing on FileLstatDone(req: r, status: s, data: d, err: e)
             emit Display(data: long_listing(xs, now_ns))
 
 step Listing on UserNameDone(req: r, status: s, data: d, err: _e)
-    let i = index_of(&at, r)
+    let i = index_of(&entry_of, r)
     if i >= 0
         if s == "delivered"
             entries[i as usize].owner = d.or("")
@@ -474,7 +474,7 @@ step Listing on UserNameDone(req: r, status: s, data: d, err: _e)
             emit Display(data: long_listing(xs, now_ns))
 
 step Listing on GroupNameDone(req: r, status: s, data: d, err: _e)
-    let i = index_of(&at, r)
+    let i = index_of(&entry_of, r)
     if i >= 0
         if s == "delivered"
             entries[i as usize].group_name = d.or("")
@@ -485,7 +485,7 @@ step Listing on GroupNameDone(req: r, status: s, data: d, err: _e)
             emit Display(data: long_listing(xs, now_ns))
 
 step Listing on LocalOffsetDone(req: r, status: s, data: d, err: _e)
-    let i = index_of(&at, r)
+    let i = index_of(&entry_of, r)
     if i >= 0
         if s == "delivered"
             entries[i as usize].offset = d.or(0)
@@ -496,7 +496,7 @@ step Listing on LocalOffsetDone(req: r, status: s, data: d, err: _e)
             emit Display(data: long_listing(xs, now_ns))
 
 step Listing on FileReadlinkDone(req: r, status: s, data: d, err: _e)
-    let i = index_of(&at, r)
+    let i = index_of(&entry_of, r)
     if i >= 0
         if s == "delivered"
             entries[i as usize].target = d.or([])
