@@ -1,0 +1,24 @@
+intent "a byte accumulator: an overflow keeps the state, as a declared error does"
+    example Add(k: 200), Add(k: 55) -> total == 255
+    example Add(k: 200), Add(k: 56), Add(k: 1) -> total == 201
+    example Take(k: 1) -> kept: Empty
+    example Add(k: 3), Scale(f: 100), Scale(f: 2) -> total == 600
+
+error Empty
+
+state Acc
+    total: u16 = 0
+
+event Add(k: u8)
+event Take(k: u8)
+event Scale(f: u16)
+
+step Acc on Add(k: k)
+    total = total + (k as u16)
+    if total > 255
+        total = total + 65535
+
+step Acc on Take(k: k) -> try total.checked_sub(k as u16) else Empty
+
+step Acc on Scale(f: f)
+    total *= f
