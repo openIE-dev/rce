@@ -13,7 +13,17 @@ pub fn unparse(m: &Module) -> String {
     if let Some(p) = &m.path {
         o.push_str(&format!("module {}\n", p.join(".")));
     }
+    // a law written inside an intent follows it in `items` (6.11)
+    let mut in_intent = false;
     for it in &m.items {
+        if let Item::Law(l) = it
+            && l.in_intent
+            && in_intent
+        {
+            law(&mut o, 1, l);
+            continue;
+        }
+        in_intent = matches!(it, Item::Intent(..));
         let pubd = crate::link::item_name(it).is_some_and(|n| m.pubs.contains(&n))
             && matches!(it, Item::Const { .. } | Item::TypeAlias { .. } | Item::Struct { .. } | Item::Kind { .. } | Item::Trait { .. } | Item::Fn(_) | Item::Actor { .. } | Item::Protocol { .. });
         o.push('\n');
@@ -598,7 +608,7 @@ fn proto(o: &mut String, d: usize, steps: &[ProtoStep]) {
 fn item(o: &mut String, it: &Item) {
     match it {
         Item::Use(p, a, _) => line(o, 0, &format!("use {}{}", p.join("."), a.as_ref().map(|a| format!(" as {a}")).unwrap_or_default())),
-        Item::Intent(s, ex, ck, laws) => {
+        Item::Intent(s, ex, ck) => {
             line(o, 0, &format!("intent {}", text(s)));
             for x in ex {
                 line(o, 1, &example(x));
@@ -606,10 +616,8 @@ fn item(o: &mut String, it: &Item) {
             for c in ck {
                 line(o, 1, &format!("check {}", expr(c)));
             }
-            for l in laws {
-                law(o, 1, l);
-            }
         }
+        // a law of an intent is printed inside it by `unparse`
         Item::Law(l) => law(o, 0, l),
         Item::Example(x) => line(o, 0, &example(x)),
         Item::Check(e) => line(o, 0, &format!("check {}", expr(e))),

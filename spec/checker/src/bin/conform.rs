@@ -176,7 +176,7 @@ fn whole_trace(src: &str, events: Option<&str>) -> Result<Vec<String>, String> {
     for i in &m.items {
         match i {
             Item::Example(x) if line.is_none_or(|l| x.line == l) => last = Some(x),
-            Item::Intent(_, xs, ..) if line.is_none() => last = xs.last().or(last),
+            Item::Intent(_, xs, _) if line.is_none() => last = xs.last().or(last),
             _ => {}
         }
     }

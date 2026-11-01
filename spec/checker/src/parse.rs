@@ -352,6 +352,8 @@ pub struct Parser {
     pub need_exhausted: bool,
     /// token indices consumed as 0.9 keywords (the rest require change as names)
     pub kw_used: Vec<usize>,
+    /// items an item's text carries after it (the laws of an `intent`)
+    after_item: Vec<Item>,
     /// errors found while expanding template renderers (W-TPL-1, W-TPL-2)
     pub tpl_errs: Vec<String>,
     /// names of the `ct fn` functions parsed so far (F.5.4)
@@ -371,7 +373,7 @@ pub fn reserved(s: &str) -> bool {
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0, need_exhausted: false, kw_used: vec![], tpl_errs: vec![], ct_names: vec![] }
+        Parser { t, p: 0, need_exhausted: false, kw_used: vec![], after_item: vec![], tpl_errs: vec![], ct_names: vec![] }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -498,6 +500,7 @@ impl Parser {
                 m.pubs.insert(n);
             }
             m.items.push(it);
+            m.items.append(&mut self.after_item);
         }
         m.x09.ct = self.ct_names.iter().cloned().collect();
         if self.need_exhausted
@@ -576,7 +579,7 @@ impl Parser {
                     _ => return self.err("intent needs a string"),
                 };
                 self.nl()?;
-                let (mut ex, mut ck, mut laws) = (vec![], vec![], vec![]);
+                let (mut ex, mut ck) = (vec![], vec![]);
                 if matches!(self.peek(), Tok::Indent) {
                     self.bump();
                     while !self.is_dedent() {
@@ -586,7 +589,10 @@ impl Parser {
                             ck.push(self.expr()?);
                             self.nl()?;
                         } else if self.is_kw("law") && matches!(self.peek2(), Tok::Id(_)) {
-                            laws.push(self.law()?);
+                            // a law of the intent: an item after it (Item::Law)
+                            let mut l = self.law()?;
+                            l.in_intent = true;
+                            self.after_item.push(Item::Law(l));
                         } else if let Tok::Str(_) = self.peek() {
                             self.bump();
                             self.nl()?;
@@ -596,7 +602,7 @@ impl Parser {
                     }
                     self.bump();
                 }
-                Ok(Item::Intent(s, ex, ck, laws))
+                Ok(Item::Intent(s, ex, ck))
             }
             "example" => Ok(Item::Example(self.example()?)),
             "law" if matches!(self.peek2(), Tok::Id(_)) => Ok(Item::Law(self.law()?)),
@@ -1163,7 +1169,7 @@ impl Parser {
             }
         }
         self.bump();
-        Ok(Law { name, claim, attest, line })
+        Ok(Law { name, claim, attest, line, in_intent: false })
     }
 
     fn field(&mut self) -> R<Field> {

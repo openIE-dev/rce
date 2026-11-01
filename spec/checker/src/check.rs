@@ -510,15 +510,12 @@ impl Checker {
         for it in &m.items {
             match it {
                 Item::Check(e) => self.check_comptime_bool(e),
-                Item::Intent(_, ex, ck, laws) => {
+                Item::Intent(_, ex, ck) => {
                     for e in ck {
                         self.check_comptime_bool(e);
                     }
                     for x in ex {
                         self.check_example(x, m);
-                    }
-                    for l in laws {
-                        self.check_law(l, m);
                     }
                 }
                 Item::Example(x) => self.check_example(x, m),

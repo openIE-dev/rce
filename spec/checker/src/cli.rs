@@ -178,7 +178,7 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
         match i {
             Item::Example(_) => e += 1,
             Item::Check(_) => c += 1,
-            Item::Intent(_, xs, cs, ..) => {
+            Item::Intent(_, xs, cs) => {
                 e += xs.len();
                 c += cs.len();
             }
@@ -243,7 +243,7 @@ pub fn recommendations(m: &Module) -> Vec<String> {
     for i in &m.items {
         match i {
             Item::Example(x) => lines.push(x.line),
-            Item::Intent(_, xs, ..) => lines.extend(xs.iter().map(|x| x.line)),
+            Item::Intent(_, xs, _) => lines.extend(xs.iter().map(|x| x.line)),
             _ => {}
         }
     }
@@ -1939,7 +1939,7 @@ pub fn concept_record(m: &Module) -> String {
     let mut rows: Vec<String> = vec![];
     let mut intents: Vec<String> = vec![];
     for (i, it) in m.items.iter().enumerate() {
-        if let Item::Intent(text, ..) = it {
+        if let Item::Intent(text, _, _) = it {
             intents.push(serde_json::to_string(text).unwrap_or_default());
         }
         if let Some(n) = crate::link::item_name(it) {

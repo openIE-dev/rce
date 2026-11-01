@@ -904,7 +904,7 @@ fn walk(m: &Module) -> (Vec<String>, Vec<Rename>) {
             Item::Kind { variants, .. } => variants.iter().for_each(|(_, fs)| fs.iter().for_each(|(_, t)| w.ty(t))),
             Item::Check(e) => w.expr(e),
             Item::Example(ex) => example(&mut w, ex),
-            Item::Intent(_, exs, es, ..) => {
+            Item::Intent(_, exs, es) => {
                 exs.iter().for_each(|ex| example(&mut w, ex));
                 es.iter().for_each(|e| w.expr(e));
             }

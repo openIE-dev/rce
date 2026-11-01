@@ -28,7 +28,7 @@ pub fn reference(m: &Module) -> String {
                 out.push(format!("fuel {}", it.steps_used()));
             }
             Item::Check(e) => check(m, e, &mut out),
-            Item::Intent(_, xs, cks, ..) => {
+            Item::Intent(_, xs, cks) => {
                 for e in cks {
                     check(m, e, &mut out);
                 }

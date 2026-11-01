@@ -225,6 +225,8 @@ pub struct Law {
     /// the text of each `attest "WHO;YYYY-MM-DD;COVER"` line, in order
     pub attest: Vec<String>,
     pub line: usize,
+    /// written inside the `intent` that precedes it in `Module::items`
+    pub in_intent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -269,9 +271,10 @@ pub enum TraitMember {
 pub enum Item {
     /// `use a.b [as c]` and its line
     Use(Vec<String>, Option<String>, usize),
-    Intent(String, Vec<Example>, Vec<Expr>, Vec<Law>),
+    Intent(String, Vec<Example>, Vec<Expr>),
     Example(Example),
-    /// a top-level `law` (6.11)
+    /// a `law` (6.11); one written inside an `intent` follows that intent
+    /// in `items`, with `in_intent` set
     Law(Law),
     Check(Expr),
     Const {

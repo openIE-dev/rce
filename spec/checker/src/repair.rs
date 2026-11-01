@@ -310,7 +310,7 @@ fn order_units(m: &Module, err: &str) -> Vec<Unit> {
     for it in &m.items {
         match it {
             Item::Check(e) if lines.contains(&e.line()) => roots.extend(expr_names(e)),
-            Item::Intent(_, xs, cs, ..) => {
+            Item::Intent(_, xs, cs) => {
                 for c in cs {
                     if lines.contains(&c.line()) {
                         roots.extend(expr_names(c));
@@ -365,7 +365,7 @@ fn is_spec_line(m: &Module, l: usize) -> bool {
     m.items.iter().any(|it| match it {
         Item::Check(e) => e.line() == l,
         Item::Example(x) => x.line == l,
-        Item::Intent(_, xs, cs, ..) => xs.iter().any(|x| x.line == l) || cs.iter().any(|c| c.line() == l),
+        Item::Intent(_, xs, cs) => xs.iter().any(|x| x.line == l) || cs.iter().any(|c| c.line() == l),
         _ => false,
     })
 }

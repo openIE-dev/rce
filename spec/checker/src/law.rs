@@ -118,15 +118,7 @@ fn walk_mut(e: &mut Expr, f: &mut dyn FnMut(&mut Expr)) {
 
 /// Every law of a module, top level and inside intents, in text order.
 pub fn laws(m: &Module) -> Vec<&Law> {
-    let mut v = vec![];
-    for it in &m.items {
-        match it {
-            Item::Law(l) => v.push(l),
-            Item::Intent(_, _, _, ls) => v.extend(ls.iter()),
-            _ => {}
-        }
-    }
-    v
+    m.items.iter().filter_map(|it| if let Item::Law(l) = it { Some(l) } else { None }).collect()
 }
 
 /// One event instance of the alphabet: the event, its arguments as written
@@ -706,12 +698,7 @@ pub fn change_rows(old: &Module, new: &Module) -> (Vec<String>, Option<String>) 
     // OLD's laws, as written, over NEW's definitions
     let mut graft = new.clone();
     graft.items.retain(|i| !matches!(i, Item::Law(_)));
-    for i in graft.items.iter_mut() {
-        if let Item::Intent(_, _, _, ls) = i {
-            ls.clear();
-        }
-    }
-    graft.items.extend(lo.iter().map(|l| Item::Law((*l).clone())));
+    graft.items.extend(lo.iter().map(|l| Item::Law(Law { in_intent: false, ..(*l).clone() })));
     let on_new = decide(&graft);
     for (l, d) in lo.iter().zip(&on_new) {
         let edit = match ln.iter().find(|x| x.name == l.name) {

@@ -360,7 +360,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
     };
     let def = match it {
         Item::Use(..) => return,
-        Item::Intent(text, ex, checks, _) => {
+        Item::Intent(text, ex, checks) => {
             for e in ex {
                 for (ev, a) in &e.events {
                     n.names.push((ev.clone(), false));
