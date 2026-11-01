@@ -5,8 +5,8 @@ Status: open. The owner decided its first two questions on 2026-10-31
 `ui.rules`) is implemented by the change on branch `claude/ui-rules`
 (ledger row of 2026-10-31). H1 (4.3), the frame sink and replay of
 frames, is implemented by the change on branch `claude/frame-replay`
-as HC-29, which also decides Q4 (ledger row of 2026-11-01); every other
-later item is a plan. Sections 1
+as HC-29, which also decides Q4 (ledger row of 2026-11-01). H6's fixes
+of the 1.4 findings are done (4.5); every other later item is a plan. Sections 1
 to 3 describe `main` at a5df5be7, before that change.
 
 The RCE owner wrote, after reading the Raven GUI library: "this is the
