@@ -21,7 +21,8 @@ fn host_run_enters_sandbox_and_granted_authority_still_works() {
     } else {
         assert!(err.contains("sandbox OS target not entered"), "{err}");
     }
-    assert!(out.contains("durable"), "{out}\n{err}");
+    // HC-28: the host's closing status line is on stderr, not stdout
+    assert!(err.contains("durable") && !out.contains("durable"), "{out}\n{err}");
     // P5: every run validates its own D by replay before it reports
     assert!(err.contains("validated") && o.status.success(), "{err}");
     let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg(&log).output().unwrap();
@@ -79,11 +80,20 @@ fn description_is_generated_from_rules() {
     }
     assert_eq!(seatbelt_description(&[]), "no network");
     // the Linux line, from what Landlock added
-    let l = landlock_description(7, &[(8080, true, true)], &[grant("127.0.0.1:8080", GrantKind::Listen), grant("127.0.0.1:8080", GrantKind::Connect)], true, false, false);
-    assert_eq!(l, "Landlock ABI 7: TCP bind and connect only on ports [8080] (by port: any address on those ports; the net adapter allows only 127.0.0.1:8080), UDP not restricted, writes only under the log directory, no exec");
-    let h = landlock_description(7, &[], &[grant("127.0.0.1:8080", GrantKind::Prebound)], false, false, true);
-    assert_eq!(h, "Landlock ABI 7: no TCP bind or connect (the listener 127.0.0.1:8080 was opened before entering), writes only under the log directory");
-    let old = landlock_description(3, &[], &[grant("127.0.0.1:1", GrantKind::Connect)], true, true, true);
+    let none = rce_spec_check::sandbox::Reads::default();
+    let l = landlock_description(7, &[(8080, true, true)], &[grant("127.0.0.1:8080", GrantKind::Listen), grant("127.0.0.1:8080", GrantKind::Connect)], true, false, Ok(&none), false);
+    assert_eq!(l, "Landlock ABI 7: TCP bind and connect only on ports [8080] (by port: any address on those ports; the net adapter allows only 127.0.0.1:8080), UDP not restricted, writes only under the log directory, reads only under the log directory, /dev (lstat and readlink of a path are not reads: Landlock has no right for them), no exec");
+    let h = landlock_description(7, &[], &[grant("127.0.0.1:8080", GrantKind::Prebound)], false, false, Err("the terminal's programs read the system"), true);
+    assert_eq!(h, "Landlock ABI 7: no TCP bind or connect (the listener 127.0.0.1:8080 was opened before entering), writes only under the log directory, reads not restricted (the terminal's programs read the system)");
+    let db = [Path::new("/etc/passwd"), Path::new("/etc/group")];
+    let names = rce_spec_check::sandbox::Reads { roots: vec![], files: db.to_vec() };
+    let n = landlock_description(7, &[], &[], false, true, Ok(&names), false);
+    assert!(n.contains("writes only under the log directory and the granted roots, reads only under the log directory, /dev and the granted roots, and the files /etc/passwd and /etc/group (lstat"), "{n}");
+    // reads cannot be restricted under a terminal or a resolver
+    assert!(rce_spec_check::sandbox::reads_open(true, &[]).is_some());
+    assert!(rce_spec_check::sandbox::reads_open(false, &[grant("example.org:443", GrantKind::Connect)]).is_some());
+    assert!(rce_spec_check::sandbox::reads_open(false, &[grant("127.0.0.1:443", GrantKind::Connect), grant("localhost:80", GrantKind::Prebound)]).is_none());
+    let old = landlock_description(3, &[], &[grant("127.0.0.1:1", GrantKind::Connect)], true, true, Ok(&none), true);
     assert!(old.starts_with("Landlock ABI 3: network not restricted by Landlock (ABI 3), UDP not restricted"), "{old}");
     assert!(!needs_ip_sockets(&[grant("127.0.0.1:8080", GrantKind::Prebound)]));
     assert!(needs_ip_sockets(&[grant("127.0.0.1:8080", GrantKind::Listen)]));
@@ -290,5 +300,68 @@ fn landlock_confines_the_terminal_shell() {
     }
     assert!(out.contains("\nIN-OK") && out.contains("\nOUT-DENIED"), "{out}");
     assert!(!outside.exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The child half of `linux_reads_are_restricted_to_the_grants`: run only
+/// when that test starts this binary again with RCE_SBX_CHILD set. It
+/// enters the Linux target with the reads the variables name, then reports
+/// what it could read.
+#[cfg(target_os = "linux")]
+#[test]
+fn sandboxed_child_reads() {
+    let Ok(dir) = std::env::var("RCE_SBX_CHILD") else { return };
+    let dir = Path::new(&dir);
+    let root = dir.join("root");
+    let db = Path::new("/etc/passwd");
+    let files: Vec<&Path> = if std::env::var("RCE_SBX_NAMES").is_ok() { vec![db] } else { vec![] };
+    let reads = rce_spec_check::sandbox::Reads { roots: vec![], files };
+    let line = rce_spec_check::sandbox::enter(&dir.join("log"), &[root.as_path()], &reads, false, &[]).unwrap_or_else(|e| format!("NOT ENTERED {e}"));
+    println!("LINE {line}");
+    let say = |what: &str, ok: bool| println!("{what} {}", if ok { "OK" } else { "DENIED" });
+    say("PASSWD", std::fs::read(db).is_ok());
+    say("ROOT-LIST", std::fs::read_dir(&root).is_ok());
+    say("ROOT-READ", std::fs::read(root.join("f")).is_ok());
+    say("OUTSIDE-LIST", std::fs::read_dir("/etc").is_ok());
+    say("OUTSIDE-LSTAT", std::fs::symlink_metadata("/etc/passwd").is_ok());
+    say("LINK-READLINK", std::fs::read_link(root.join("l")).is_ok());
+}
+
+/// HC-5a, HC-33: on Linux the target allows reading only under the log
+/// directory, /dev and the granted roots, and the account database only
+/// when it is granted; lstat and readlink stay possible, and the line says
+/// what was installed.
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_reads_are_restricted_to_the_grants() {
+    let dir = std::env::temp_dir().join(format!("rce-sbx-reads-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("root")).unwrap();
+    std::fs::create_dir_all(dir.join("log")).unwrap();
+    std::fs::write(dir.join("root/f"), "x").unwrap();
+    std::os::unix::fs::symlink("/etc/passwd", dir.join("root/l")).unwrap();
+    let child = |names: bool| {
+        let mut c = Command::new(std::env::current_exe().unwrap());
+        // libtest prints a test's output only when it is not captured
+        c.arg("sandboxed_child_reads").env("RCE_SBX_CHILD", &dir).env("RUST_TEST_NOCAPTURE", "1");
+        if names {
+            c.env("RCE_SBX_NAMES", "1");
+        }
+        String::from_utf8_lossy(&c.output().unwrap().stdout).into_owned()
+    };
+    let without = child(false);
+    if without.contains("Landlock unavailable") || without.contains("NOT ENTERED") {
+        eprintln!("Landlock not entered here: {without}");
+        let _ = std::fs::remove_dir_all(&dir);
+        return;
+    }
+    assert!(without.contains("reads only under the log directory, /dev and the granted roots (lstat and readlink of a path are not reads"), "{without}");
+    assert!(!without.contains("/etc/passwd"), "{without}");
+    for (k, v) in [("PASSWD", "DENIED"), ("ROOT-LIST", "OK"), ("ROOT-READ", "OK"), ("OUTSIDE-LIST", "DENIED"), ("OUTSIDE-LSTAT", "OK"), ("LINK-READLINK", "OK")] {
+        assert!(without.contains(&format!("{k} {v}")), "{k}: {without}");
+    }
+    let with = child(true);
+    assert!(with.contains("and the files /etc/passwd"), "{with}");
+    assert!(with.contains("PASSWD OK") && with.contains("OUTSIDE-LIST DENIED"), "{with}");
     let _ = std::fs::remove_dir_all(&dir);
 }

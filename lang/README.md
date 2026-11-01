@@ -32,7 +32,7 @@ is a first lifter: section 16's grammar lock, lift table and print table
 are not written, and the other languages have only the Go probe
 [`spec/lift/go/lift_go.py`](../spec/lift/go/lift_go.py), which lifts one Go
 pattern (a struct with one method per event, `spec/lift/go/door.go`) into a
-Form. The rest of this directory is the other side of the comparison: for
+Form and reports every other construct with a rule and a line. The rest of this directory is the other side of the comparison: for
 each of three languages, a pinned implementation, the rule that turns one
 of its runs into a record, and a corpus of programs, each with the record
 of its run on that implementation.

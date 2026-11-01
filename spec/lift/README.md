@@ -10,15 +10,28 @@ directory holds the probes that test the construction before it is in the
 checker (spec/proposals/emit-targets.md, section 1; the universality
 proposition U3 of the paper).
 
-`go/`: `lift_go.py` lifts a Go struct with one pointer-receiver method per
-event, `if field { return Err }` guards and field assignments into a Form.
+`go/`: `lift_go.py lift FILE` lifts a Go struct with one pointer-receiver
+method per event, `if <condition> { return Err }` guards before any write,
+field assignments and `errors.New` variables into a Form; a guard's
+condition and an assigned value are fields of the receiver, literals, `!`,
+`&&`, `||` and comparisons. Like the Python lift, it drops nothing: every
+other construct (a function, a loop, a switch, another if, a call, a type
+assertion, an array, integer arithmetic, an import other than `errors`, a
+name that is an RCE keyword) requires change with one of the rules
+`lift_go.py rules` prints, in the form
+`requires change FILE: line N: RULE: reason`, with exit status 1 and no
+Form; a construct inside one that is not carried is reported on its own
+line too. `fixtures/counter.go` holds such constructs and
+`fixtures/counter.requires-change` the probe's report on it.
 On `door.go` the lifted Form (`door.lifted.rce`) checks, runs, has 3
 behaviours and 3 control states, and its `shape_ctl` equals that of the
 hand-written `spec/examples/61_dim_minimal.rce` when the two errors are
 declared in the same order: the first cross-language agreement of the
 canonical control form on this project (2026-10-23). The probe needs
-`pip install tree-sitter tree-sitter-go`; `tests/lift_go.rs` checks the
-committed lifted file against the hand-written one without Python.
+`pip install tree-sitter tree-sitter-go`; `test_lift_go.py` checks, with
+Python, that the probe still gives both committed files byte for byte, and
+`tests/lift_go.rs` checks the committed lifted file against the hand-written
+one, and the committed report's rules and lines, without Python.
 
 `python/`: `lift_py.py` lifts a subset of Python 3.13 (read by Python's own
 `ast`) into RCE text, route T of `spec/proposals/rce-form.md` section 16:

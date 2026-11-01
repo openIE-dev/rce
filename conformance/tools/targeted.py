@@ -304,7 +304,7 @@ pub fn fa() -> i64 = 1
 t("w-mod-3-clash", "types-checking", ["W-MOD-3"], """
 module app
 use lib.c
-fn helper() -> i64 = 2
+fn c() -> i64 = 2
 """, "change", diagnostic="W-MOD-3", fixtures={"lib-c_FIXTURE.rce": "module lib.c\npub fn helper() -> i64 = 1\n"})
 
 # --- effects and capabilities (0.8)

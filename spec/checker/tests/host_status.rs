@@ -85,8 +85,10 @@ fn states(rs: &[Vec<(String, String)>]) -> Vec<&str> {
     rs.iter().map(|r| field(r, "state")).collect()
 }
 
-fn state_hash(stdout: &[u8]) -> String {
-    let s = String::from_utf8_lossy(stdout);
+/// The state hash of the host's closing status line, `durable N entries=M
+/// state_hash H`, which HC-28 puts on stderr.
+fn state_hash(stderr: &[u8]) -> String {
+    let s = String::from_utf8_lossy(stderr);
     s.split("state_hash ").nth(1).unwrap().split_whitespace().next().unwrap().to_string()
 }
 
@@ -107,9 +109,9 @@ fn host_run_prints_status_records_in_order_on_stderr() {
         assert_eq!(field(r, "title"), "counter", "the title is the module name");
         assert_eq!(field(r, "kind"), "", "a report is never `blocked`");
     }
-    let hash = state_hash(&o.stdout);
+    let hash = state_hash(&o.stderr);
     let entries: Vec<&str> = rs.iter().map(|r| field(r, "msg")).collect();
-    let n = String::from_utf8_lossy(&o.stdout).split("entries=").nth(1).unwrap().split_whitespace().next().unwrap().to_string();
+    let n = String::from_utf8_lossy(&o.stderr).split("entries=").nth(1).unwrap().split_whitespace().next().unwrap().to_string();
     assert_eq!(entries[4], format!("{n} entries, state {}", &hash[..12]), "the idle msg gives the entry count and a short state hash");
     assert_eq!(entries[5], format!("stopped: {n} entries, state {}", &hash[..12]));
 
@@ -177,5 +179,33 @@ fn d_is_byte_identical_with_and_without_reports() {
         assert_eq!(r.code, 0);
         assert!(!r.stderr.contains(&0x1b) && !r.stdout.contains(&0x1b), "replay is not the host loop and reports nothing");
     }
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+const SHOW: &str = "module show\n\nstruct Display\n    data: text\n\nevent Say(t: text)\n\nstate S\n    n: i64 = 0\n\nstep S on Say(t)\n    n += 1\n    emit Display(data: t)\n";
+
+/// HC-28: the host's status, including its closing line `durable N
+/// entries=M state_hash H`, is on stderr, so stdout of `rce host serve`
+/// is the program's Display bytes alone, and stdout of `rce host run` is
+/// the listing of the entries and the final state.
+#[test]
+fn stdout_carries_only_the_programs_output() {
+    let d = dir("stdout");
+    let prog = write(&d, "show.rce", SHOW);
+    let log = d.join("serve").to_string_lossy().into_owned();
+    let o = rce(&["host", "serve", &prog, &log], "Say(t: \"a\")\nSay(t: \"b\")\n", None);
+    assert_eq!(o.code, 0, "{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "ab", "serve: stdout is the Display bytes alone");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.lines().any(|l| l.starts_with("durable ") && l.contains(" entries=") && l.contains(" state_hash ")), "{err}");
+
+    let log = d.join("run").to_string_lossy().into_owned();
+    let o = rce(&["host", "run", &prog, &log], "Say(t: \"a\")\n", None);
+    assert_eq!(o.code, 0, "{}", String::from_utf8_lossy(&o.stderr));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(!out.contains("durable") && !out.contains("state_hash"), "run: no host status on stdout: {out}");
+    assert!(out.lines().last().is_some_and(|l| l.contains("n = 1")), "run: stdout ends with the final state: {out}");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(state_hash(&o.stderr).len(), 64, "{err}");
     let _ = std::fs::remove_dir_all(&d);
 }
