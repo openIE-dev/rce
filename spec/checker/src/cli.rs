@@ -847,7 +847,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE [MODULE...]",
         min: 1,
         max: MANY,
-        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (not yet wired to alter.rs), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
     },
     Command {
         path: &["host", "run"],
