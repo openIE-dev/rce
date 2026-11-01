@@ -265,6 +265,12 @@ pub enum Flow {
     Stop,
     /// Cancellation of a `with deadline` frame or of a whole task (C.6.2, C.11.9).
     Cancel(u64),
+    /// A task run as a state machine reached a step the scheduler has not
+    /// answered yet, or a `par` branch run without threads reached a `wait`
+    /// that is not yet satisfied (`conc`, 10.3): the evaluation stops here
+    /// and is run again from its start once the answer exists. No program
+    /// construct catches it.
+    Suspend,
 }
 pub type R<T> = Result<T, Flow>;
 pub(crate) fn trap<T>(m: impl Into<String>) -> R<T> {

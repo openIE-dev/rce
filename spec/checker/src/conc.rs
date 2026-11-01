@@ -8,7 +8,8 @@
 //! * `for ... par` with the fixed reduction tree T(n) of C.5.2;
 //! * workgroups and barriers (C.11.2), `pscan` (C.11.6), LVars (C.11.8)
 //!   and the built-in `Merge` instances (C.11.5);
-//! * the tick runtime of 6.8 for `fn main`: tasks on threads that move one
+//! * the tick runtime of 6.8 for `fn main`: tasks, each on a thread or as a
+//!   state machine of the scheduler (`Tasks`), that move one
 //!   communication step per tick, channels with held sends, `select` with
 //!   rotation or `nondet` choice logged as `Choice` (C.5), `spawn ...
 //!   priority` (order (-p, id)), `with deadline ... else` cancellation at
@@ -136,13 +137,41 @@ pub struct TaskCx {
     pub atomic: Option<Vec<(V, V)>>,
     pub handler_sends: Option<Vec<(V, V)>>,
     pub par_ctx: Option<Arc<ParCtx>>,
+    /// a task run as a state machine of the scheduler (`Tasks::Machines`):
+    /// the answers it has had so far, replayed from its start at every move
+    pub machine: Option<Machine>,
+    /// no OS thread may be started: a `par` with `wait` runs its branches
+    /// one after another (`par_exec`), as on a host without threads
+    pub no_threads: bool,
 }
+
+/// The replay state of a task run as a state machine (`TaskCx::machine`).
+/// A task is a deterministic function of the answers it receives, so it is
+/// held as the list of those answers: a move runs its body again from the
+/// start, `comm` returns the logged answers in order, and the first step
+/// with no answer yet is the task's next request, after which the run
+/// stops (`Flow::Suspend`). No thread of the host is needed.
+#[derive(Default)]
+pub struct Machine {
+    replies: Vec<RepMsg>,
+    pos: usize,
+    out: Option<Req>,
+}
+
+/// Whether the host can start OS threads. WASI preview 1 has none, so
+/// there every task of the tick runtime is a state machine and every `par`
+/// runs its branches one after another (10.3).
+pub const HOST_THREADS: bool = !cfg!(target_os = "wasi");
 
 /// Shared state of the branches of one threaded `par` (LVar waits).
 #[derive(Default)]
 pub struct ParCtx {
     m: Mutex<ParState>,
     cv: Condvar,
+    /// the branches run one after another on the evaluator's own thread:
+    /// a `wait` that is not satisfied stops its branch (`Flow::Suspend`)
+    /// instead of blocking, and `par_exec` runs it again later
+    seq: bool,
     /// the enclosing par's context: a put wakes the waiters of every enclosing par
     parent: Option<Arc<ParCtx>>,
 }
@@ -160,10 +189,11 @@ struct ParState {
     stuck: bool,
 }
 impl ParCtx {
-    fn new(running: usize, parent: Option<Arc<ParCtx>>) -> ParCtx {
+    fn new(running: usize, parent: Option<Arc<ParCtx>>, seq: bool) -> ParCtx {
         ParCtx {
             m: Mutex::new(ParState { running, ..ParState::default() }),
             cv: Condvar::new(),
+            seq,
             parent,
         }
     }
@@ -434,6 +464,7 @@ pub struct Link {
     pub tx: mpsc::Sender<Req>,
     pub rx: mpsc::Receiver<RepMsg>,
 }
+#[derive(Clone)]
 pub struct Req {
     pub op: Op,
     pub dl: Vec<(u64, u64)>,
@@ -444,12 +475,14 @@ pub enum PatClass {
     Some,
     None,
 }
+#[derive(Clone)]
 pub enum SArm {
     Recv(V, PatClass),
     Send(V, V),
     After(u64),
     Default,
 }
+#[derive(Clone)]
 pub enum Op {
     Send(V, V),
     Recv(V),
@@ -473,6 +506,7 @@ pub enum Op {
     Atomic(Vec<(V, V)>),
     Done(Result<V, Flow>),
 }
+#[derive(Clone)]
 pub enum Rep {
     Go,
     Val(V),
@@ -481,6 +515,7 @@ pub enum Rep {
     Cancel(u64),
     Failed(V),
 }
+#[derive(Clone)]
 pub struct RepMsg {
     pub tick: u64,
     pub rep: Rep,
@@ -612,6 +647,7 @@ impl<'a> Interp<'a> {
         c.cx.par_mode = self.cx.par_mode;
         c.cx.id = self.cx.id.clone();
         c.cx.now = self.cx.now;
+        c.cx.no_threads = self.cx.no_threads;
         c
     }
 
@@ -727,7 +763,7 @@ impl<'a> Interp<'a> {
                 r?;
                 if let Some(o) = self.cx.atomic.as_mut() {
                     o.extend(buf);
-                } else if self.cx.link.is_some() {
+                } else if self.in_task() {
                     self.comm(Op::Atomic(buf))?;
                 } else {
                     return trap("concurrency is not available at comptime");
@@ -774,8 +810,38 @@ impl<'a> Interp<'a> {
                 let r = c.exec_block(bodies[i]);
                 results[i] = Some((r, c));
             }
+        } else if self.cx.no_threads || !HOST_THREADS {
+            // no thread may be started: the branches run in source order,
+            // each until it ends or reaches a `wait` not yet satisfied; a
+            // stopped branch runs again from the fork after a pass in which
+            // a put changed an lvar. A pass with no change is the state in
+            // which every waiting thread of the threaded run is idle (T29):
+            // the waits then fail together, as there
+            let ctx = Arc::new(ParCtx::new(k, self.cx.par_ctx.clone(), true));
+            loop {
+                let ver = ctx.m.lock().unwrap().ver;
+                let mut waiting = false;
+                for (i, b) in bodies.iter().enumerate() {
+                    if results[i].is_some() {
+                        continue;
+                    }
+                    let mut c = self.fork_copy();
+                    c.cx.par_ctx = Some(ctx.clone());
+                    match c.exec_block(b) {
+                        Err(Flow::Suspend) => waiting = true,
+                        r => results[i] = Some((r, c)),
+                    }
+                }
+                if !waiting {
+                    break;
+                }
+                let mut g = ctx.m.lock().unwrap();
+                if g.ver == ver {
+                    g.stuck = true;
+                }
+            }
         } else {
-            let ctx = Arc::new(ParCtx::new(k, self.cx.par_ctx.clone()));
+            let ctx = Arc::new(ParCtx::new(k, self.cx.par_ctx.clone(), false));
             let copies: Vec<Interp<'a>> = (0..k)
                 .map(|_| {
                     let mut c = self.fork_copy();
@@ -1216,6 +1282,17 @@ impl<'a> Interp<'a> {
                 None => trap("lvar wait cannot be satisfied"),
             };
         };
+        if ctx.seq {
+            // a branch run again after a pass: the waits it passed before
+            // are satisfied again (the lvar only grows); the first one that
+            // is not stops the branch, or fails once no put can come
+            let cur = c.peek();
+            return match self.lvar_above(&ths, &cur)? {
+                Some(t) => Ok(t),
+                None if ctx.m.lock().unwrap().stuck => trap("lvar wait cannot be satisfied"),
+                None => Err(Flow::Suspend),
+            };
+        }
         let mut g = ctx.m.lock().unwrap();
         let mut seen: Option<u64> = None;
         loop {
@@ -1294,7 +1371,34 @@ impl<'a> Interp<'a> {
     }
 
     // ---- the task side of the tick runtime
+    /// Whether this evaluator runs a task of the tick runtime (on a thread
+    /// or as a state machine), not a comptime or test evaluation.
+    pub(crate) fn in_task(&self) -> bool {
+        self.cx.link.is_some() || self.cx.machine.is_some()
+    }
+
     pub(crate) fn comm(&mut self, op: Op) -> R<Rep> {
+        if let Some(mc) = self.cx.machine.as_mut() {
+            // a task run as a state machine: the answers it has had are
+            // replayed; the first step with no answer is its request
+            if mc.out.is_some() {
+                return Err(Flow::Suspend);
+            }
+            let Some(RepMsg { tick, rep }) = mc.replies.get(mc.pos).cloned() else {
+                mc.out = Some(Req {
+                    op,
+                    dl: self.cx.dl.clone(),
+                });
+                return Err(Flow::Suspend);
+            };
+            mc.pos += 1;
+            self.cx.now = tick;
+            return match rep {
+                Rep::Cancel(f) => Err(Flow::Cancel(f)),
+                Rep::Failed(v) => Err(Flow::Fail(v)),
+                r => Ok(r),
+            };
+        }
         let Some(link) = self.cx.link.as_ref() else {
             return trap("concurrency is not available at comptime");
         };
@@ -1317,14 +1421,14 @@ impl<'a> Interp<'a> {
     }
 
     pub(crate) fn await_scope(&mut self, sid: u64) -> R<()> {
-        if self.cx.link.is_none() {
+        if !self.in_task() {
             return Ok(());
         }
         self.comm(Op::AwaitScope(sid)).map(|_| ())
     }
 
     pub(crate) fn conc_emit(&mut self, v: V) -> R<()> {
-        if self.cx.link.is_some() && self.cx.handler_sends.is_none() {
+        if self.in_task() && self.cx.handler_sends.is_none() {
             self.comm(Op::Emit(v))?;
         } else {
             self.outputs.push(v);
@@ -1461,7 +1565,7 @@ impl<'a> Interp<'a> {
     }
 
     pub(crate) fn chan_new(&mut self, t: &Ty, cap: Option<&Expr>, line: usize) -> R<V> {
-        if self.cx.link.is_none() {
+        if !self.in_task() {
             return trap("channels are not available at comptime");
         }
         let n = match cap {
@@ -1491,7 +1595,7 @@ impl<'a> Interp<'a> {
     }
 
     pub(crate) fn actor_new(&mut self, ty: &str, line: usize) -> R<V> {
-        if self.cx.link.is_none() {
+        if !self.in_task() {
             return trap(format!("cannot call {ty} at comptime"));
         }
         let _ = line;
@@ -1549,6 +1653,28 @@ pub struct RunCfg {
     /// with no such actor it is logged as `Unhandled(..)`, never dropped
     /// silently.
     pub events: Vec<(u64, V)>,
+    /// how the tasks of the run are held (`Tasks`); the log is the same
+    pub tasks: Tasks,
+}
+
+/// How the scheduler holds the tasks of a run of `fn main`. The meaning,
+/// and so the log D of the run, is the same either way; only the host's
+/// resources differ.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tasks {
+    /// each task on an OS thread of its own, which blocks at every
+    /// communication step until the scheduler answers it; a task whose
+    /// thread the host cannot start is held as a state machine
+    Threads,
+    /// every task a state machine of the one scheduler (`Machine`): no
+    /// thread is started, so the run needs none from the host (WASI
+    /// preview 1, 10.3)
+    Machines,
+}
+impl Default for Tasks {
+    fn default() -> Self {
+        if HOST_THREADS { Tasks::Threads } else { Tasks::Machines }
+    }
 }
 
 /// A supervision decision, logged as an input of the run (C.11.11): at a
@@ -1574,6 +1700,7 @@ impl Default for RunCfg {
             restarts: None,
             restart_tree: None,
             events: vec![],
+            tasks: Tasks::default(),
         }
     }
 }
@@ -1641,11 +1768,24 @@ enum St {
     Pending(Req),
     Done,
 }
-struct Slot {
+/// Where a task runs: on a thread, reached through its link, or as a state
+/// machine that the scheduler runs to its next request at every move.
+enum Host<'a> {
+    Thread {
+        rx: mpsc::Receiver<Req>,
+        tx: mpsc::Sender<RepMsg>,
+    },
+    Machine {
+        fd: &'a FnDecl,
+        args: Vec<V>,
+        replies: Vec<RepMsg>,
+    },
+}
+
+struct Slot<'a> {
     id: String,
     prio: u8,
-    rx: mpsc::Receiver<Req>,
-    tx: mpsc::Sender<RepMsg>,
+    host: Host<'a>,
     st: St,
     parent: Option<usize>,
     scope: u64,
@@ -1663,7 +1803,7 @@ struct Sched<'a> {
     m: &'a Module,
     it: Interp<'a>,
     cfg: RunCfg,
-    slots: Vec<Slot>,
+    slots: Vec<Slot<'a>>,
     chans: BTreeMap<String, ChanSt>,
     staged: Vec<(String, Msg)>,
     actors: BTreeMap<String, ActorSt>,
@@ -1688,14 +1828,54 @@ struct Sched<'a> {
     stop: Option<Outcome>,
     /// record the state of the run with every entry (`Entry::state`)
     trace: bool,
-    /// set when a task thread could not be started (`NO_TASK_THREADS`)
+    /// set when a run whose tasks are state machines needs task threads
+    /// (`NO_TASK_THREADS`)
     no_threads: Option<String>,
 }
 
-/// The start of the failure of a run of `fn main` on a host that cannot
-/// start a task thread (10.3): WASI preview 1 (`wasm32-wasip1`) has no
-/// threads, and the tick runtime runs each task on its own thread.
+/// The start of the failure of a run of `fn main` that needs task threads
+/// on a run whose tasks are state machines (10.3): when an lvar passes from
+/// one task to another (a `spawn` argument, a message, a task's result).
+/// Every other run of `fn main` needs no thread: where the host cannot
+/// start one (WASI preview 1, `wasm32-wasip1`) its tasks are state
+/// machines of the scheduler and the log is the same.
 pub const NO_TASK_THREADS: &str = "fn main needs task threads, which this host does not provide";
+
+/// The host's target name: on WASI `std::env::consts::OS` is empty.
+fn host_name() -> String {
+    if cfg!(all(target_os = "wasi", target_env = "p1")) {
+        "wasm32-wasip1".to_string()
+    } else if cfg!(target_os = "wasi") {
+        "wasm32-wasi".to_string()
+    } else {
+        format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)
+    }
+}
+
+/// Whether a value holds an lvar cell, at any depth.
+fn carries_lvar(v: &V) -> bool {
+    match v {
+        V::LVar(_) => true,
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => xs.0.iter().any(carries_lvar),
+        V::Map(kv) => kv.0.iter().any(|(k, v)| carries_lvar(k) || carries_lvar(v)),
+        V::Opt(Some(x)) | V::Err(x) => carries_lvar(&x.0),
+        V::Rec(_, fs) => fs.0.iter().any(|(_, v)| carries_lvar(v)),
+        V::Closure(_, _, env) => env.iter().any(|fr| fr.values().any(carries_lvar)),
+        _ => false,
+    }
+}
+
+/// Whether a request passes an lvar to another task or actor.
+fn carries_lvar_req(op: &Op) -> bool {
+    match op {
+        Op::Send(_, v) => carries_lvar(v),
+        Op::Select { arms, .. } => arms.iter().any(|a| matches!(a, SArm::Send(_, v) if carries_lvar(v))),
+        Op::Spawn { args, .. } => args.iter().any(carries_lvar),
+        Op::Atomic(sends) => sends.iter().any(|(_, v)| carries_lvar(v)),
+        Op::Done(Ok(v)) => carries_lvar(v),
+        _ => false,
+    }
+}
 
 /// Whether an error of `run_main` is the failure to start a task thread.
 pub fn is_no_task_threads(e: &str) -> bool {
@@ -1710,8 +1890,9 @@ thread_local! {
 
 /// Let runs of `fn main` started from the calling thread start at most `n`
 /// task threads, and fail to start any further one as a host without
-/// threads does; `None` lifts the limit. Tests use it to check the failure
-/// of `NO_TASK_THREADS` on a host that has threads.
+/// threads does, so that task is held as a state machine; `None` lifts the
+/// limit. Tests use it to check a run without task threads on a host that
+/// has them.
 pub fn refuse_task_threads_after(n: Option<usize>) {
     TASK_THREADS_LEFT.with(|c| c.set(n));
 }
@@ -1819,8 +2000,9 @@ impl<'a> Sched<'a> {
         }
     }
 
-    /// Start the thread of a task. When the host cannot start it, the error
-    /// is `NO_TASK_THREADS`, the host and the reason.
+    /// Add a task to the run. Under `Tasks::Threads` it runs on a thread of
+    /// its own; under `Tasks::Machines`, or when the host cannot start that
+    /// thread, it is a state machine of this scheduler (`Machine`).
     #[allow(clippy::too_many_arguments)]
     fn spawn_task<'s, 'e>(
         &mut self,
@@ -1831,7 +2013,42 @@ impl<'a> Sched<'a> {
         prio: u8,
         parent: Option<usize>,
         scope: u64,
-    ) -> Result<(), String>
+    ) where
+        'a: 's,
+    {
+        let host = match self.cfg.tasks {
+            Tasks::Threads => self.start_thread(s, fd, args.clone(), id.clone()),
+            Tasks::Machines => None,
+        };
+        let host = host.unwrap_or(Host::Machine {
+            fd,
+            args,
+            replies: vec![],
+        });
+        self.slots.push(Slot {
+            id,
+            prio,
+            host,
+            st: St::Ready(Rep::Go),
+            parent,
+            scope,
+            result: None,
+            joined: false,
+            cancel: false,
+            holding: None,
+            released: false,
+            since: 0,
+        });
+    }
+
+    /// Start the thread of a task; `None` when the host cannot start it.
+    fn start_thread<'s, 'e>(
+        &mut self,
+        s: &'s std::thread::Scope<'s, 'e>,
+        fd: &'a FnDecl,
+        args: Vec<V>,
+        id: String,
+    ) -> Option<Host<'a>>
     where
         'a: 's,
     {
@@ -1843,17 +2060,18 @@ impl<'a> Sched<'a> {
             }
             None => false,
         });
+        if refused || !HOST_THREADS {
+            return None;
+        }
         let (req_tx, req_rx) = mpsc::channel::<Req>();
         let (rep_tx, rep_rx) = mpsc::channel::<RepMsg>();
         let m = self.m;
         let pm = self.cfg.par_mode;
-        let tid = id.clone();
-        let started = if refused {
-            Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
-        } else {
-            std::thread::Builder::new().stack_size(256 << 20).spawn_scoped(s, move || {
+        std::thread::Builder::new()
+            .stack_size(256 << 20)
+            .spawn_scoped(s, move || {
                 let mut it = Interp::new(m);
-                it.cx.id = tid;
+                it.cx.id = id;
                 it.cx.par_mode = pm;
                 let tx = req_tx.clone();
                 it.cx.link = Some(Link {
@@ -1877,34 +2095,59 @@ impl<'a> Sched<'a> {
                     dl: vec![],
                 });
             })
+            .ok()?;
+        Some(Host::Thread { rx: req_rx, tx: rep_tx })
+    }
+
+    /// Move task `i`, held as a state machine, with the answer `rm`: run
+    /// its body from the start on a fresh evaluator, replaying every answer
+    /// it has had, to the first step not yet answered, which is its next
+    /// request, or to its end. The body is a deterministic function of its
+    /// arguments and answers, so the run repeats every earlier step exactly
+    /// and the request is the one a thread of the task would send now.
+    fn move_machine(&mut self, i: usize, rm: RepMsg) -> Req {
+        let m = self.m;
+        let pm = self.cfg.par_mode;
+        let id = self.slots[i].id.clone();
+        let Host::Machine { fd, args, replies } = &mut self.slots[i].host else {
+            unreachable!("move_machine on a task thread")
         };
-        if let Err(e) = started {
-            // the target's name: on WASI `std::env::consts::OS` is empty
-            let host = if cfg!(all(target_os = "wasi", target_env = "p1")) {
-                "wasm32-wasip1".to_string()
-            } else if cfg!(target_os = "wasi") {
-                "wasm32-wasi".to_string()
-            } else {
-                format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)
-            };
-            return Err(format!("{NO_TASK_THREADS} ({host}: {e})"));
-        }
-        self.slots.push(Slot {
-            id,
-            prio,
-            rx: req_rx,
-            tx: rep_tx,
-            st: St::Ready(Rep::Go),
-            parent,
-            scope,
-            result: None,
-            joined: false,
-            cancel: false,
-            holding: None,
-            released: false,
-            since: 0,
+        replies.push(rm);
+        let (fd, args) = (*fd, args.clone());
+        let mut it = Interp::new(m);
+        it.cx.id = id;
+        it.cx.par_mode = pm;
+        it.cx.no_threads = true;
+        let first = replies[0].clone();
+        it.cx.machine = Some(Machine {
+            replies: std::mem::take(replies),
+            pos: 1,
+            out: None,
         });
-        Ok(())
+        let r = match first {
+            RepMsg { tick, rep: Rep::Go } => {
+                it.cx.now = tick;
+                it.cx.scopes = vec![0];
+                match it.call_values(fd, args) {
+                    Ok(v) => it.await_scope(0).map(|_| v),
+                    Err(e) => Err(e),
+                }
+            }
+            _ => Err(Flow::Cancel(CANCEL_TASK)),
+        };
+        let mc = it.cx.machine.take().expect("machine state");
+        if let Host::Machine { replies, .. } = &mut self.slots[i].host {
+            *replies = mc.replies;
+        }
+        mc.out.unwrap_or(Req {
+            op: Op::Done(r),
+            dl: vec![],
+        })
+    }
+
+    /// Whether some task of the run is held as a state machine.
+    fn has_machines(&self) -> bool {
+        self.cfg.tasks == Tasks::Machines || self.slots.iter().any(|s| matches!(s.host, Host::Machine { .. }))
     }
 
     fn order(&self) -> Vec<usize> {
@@ -2644,21 +2887,35 @@ impl<'a> Sched<'a> {
             let mut progress = self.links_phase();
             progress |= self.events_phase();
             let order = self.order();
-            // move phase: each task that may move runs, on its own thread and
-            // at the same time as the others, to its next communication step
+            // move phase: each task that may move runs to its next
+            // communication step: a task thread at the same time as the
+            // others, a state machine here, in task order. Tasks share no
+            // state but through the scheduler, so the steps are the same
             let mut moved = vec![];
             for &i in &order {
                 if let St::Ready(_) = &self.slots[i].st {
                     let St::Ready(rep) = std::mem::replace(&mut self.slots[i].st, St::Done) else {
                         unreachable!()
                     };
-                    let _ = self.slots[i].tx.send(RepMsg { tick: self.tick, rep });
+                    let rm = RepMsg { tick: self.tick, rep };
+                    match &self.slots[i].host {
+                        Host::Thread { tx, .. } => {
+                            let _ = tx.send(rm);
+                        }
+                        Host::Machine { .. } => {
+                            let req = self.move_machine(i, rm);
+                            self.slots[i].st = St::Pending(req);
+                        }
+                    }
                     moved.push(i);
                 }
             }
             for &i in &moved {
                 progress = true;
-                match self.slots[i].rx.recv() {
+                let Host::Thread { rx, .. } = &self.slots[i].host else {
+                    continue;
+                };
+                match rx.recv() {
                     Ok(req) => self.slots[i].st = St::Pending(req),
                     Err(_) => {
                         self.slots[i].st = St::Done;
@@ -2676,6 +2933,15 @@ impl<'a> Sched<'a> {
                 let St::Pending(req) = std::mem::replace(&mut self.slots[i].st, St::Done) else {
                     continue;
                 };
+                if self.has_machines() && carries_lvar_req(&req.op) {
+                    // a state machine's earlier steps run again at every
+                    // move, so an lvar shared with another task would be
+                    // read at a later state than the step it belongs to
+                    let e = format!("{NO_TASK_THREADS} ({}: an lvar passes from one task to another)", host_name());
+                    self.slots[i].st = St::Pending(req);
+                    self.no_threads = Some(e.clone());
+                    return Outcome::Stopped(e);
+                }
                 if let Op::Done(r) = &req.op {
                     progress = true;
                     if let Some(o) = self.finish_task(i, r) {
@@ -2701,8 +2967,9 @@ impl<'a> Sched<'a> {
                         return Outcome::Stopped(format!("trap: no task function {f}"));
                     };
                     self.local(0, format!("Spawn(task {id}, priority {prio})"));
-                    if let Err(e) = self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope) {
-                        // the spawning task is cancelled when the run is wound up
+                    self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope);
+                    if args.iter().any(carries_lvar) && self.has_machines() {
+                        let e = format!("{NO_TASK_THREADS} ({}: an lvar passes from one task to another)", host_name());
                         self.slots[i].st = St::Ready(rep);
                         self.no_threads = Some(e.clone());
                         return Outcome::Stopped(e);
@@ -2761,28 +3028,28 @@ fn run_main_with(m: &Module, cfg: &RunCfg, trace: bool) -> Result<RunResult, Str
     let (outcome, sch) = std::thread::scope(|s| {
         let mut sch = Sched::new(m, cfg);
         sch.trace = trace;
-        let o = match sch.spawn_task(s, main, vec![], hid("main"), 0, None, 0) {
-            Ok(()) => sch.run(s),
-            Err(e) => {
-                sch.no_threads = Some(e.clone());
-                Outcome::Stopped(e)
-            }
-        };
-        // stop every task thread that is still waiting
+        sch.spawn_task(s, main, vec![], hid("main"), 0, None, 0);
+        let o = sch.run(s);
+        // stop every task thread that is still waiting; a state machine
+        // that is not done is dropped
         let tick = sch.tick;
         for sl in sch.slots.iter_mut() {
+            let Host::Thread { tx, rx } = &sl.host else {
+                sl.st = St::Done;
+                continue;
+            };
             while !matches!(sl.st, St::Done) {
                 if matches!(sl.st, St::Ready(_)) || matches!(sl.st, St::Pending(_)) {
                     if let St::Pending(Req { op: Op::Done(_), .. }) = sl.st {
                         sl.st = St::Done;
                         continue;
                     }
-                    let _ = sl.tx.send(RepMsg {
+                    let _ = tx.send(RepMsg {
                         tick,
                         rep: Rep::Cancel(CANCEL_TASK),
                     });
                 }
-                match sl.rx.recv() {
+                match rx.recv() {
                     Ok(Req { op: Op::Done(_), .. }) | Err(_) => sl.st = St::Done,
                     Ok(r) => sl.st = St::Pending(r),
                 }

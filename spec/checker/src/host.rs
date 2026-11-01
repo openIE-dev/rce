@@ -2423,7 +2423,7 @@ impl<'a> Host<'a> {
             let a = l.as_array()?;
             Some((a.first()?.as_u64()?, a.get(1)?.as_bool()?, a.get(2)?.as_str()?.to_string(), a.get(3)?.as_str()?.to_string()))
         }).collect();
-        let cfg = crate::conc::RunCfg { seed: start["seed"].as_u64().unwrap_or(0), choices, links, max_ticks: start["max_ticks"].as_u64().unwrap_or(100_000), par_mode: crate::conc::ParMode::Seq, restarts: None, restart_tree: None, events };
+        let cfg = crate::conc::RunCfg { seed: start["seed"].as_u64().unwrap_or(0), choices, links, max_ticks: start["max_ticks"].as_u64().unwrap_or(100_000), par_mode: crate::conc::ParMode::Seq, restarts: None, restart_tree: None, events, tasks: crate::conc::Tasks::default() };
         crate::conc::run_main(self.m, &cfg)
     }
 

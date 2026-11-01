@@ -92,10 +92,6 @@ jobs:
         env:
           XARCH_TARGET: wasm32-wasip1
           XARCH_OUT: xarch-wasm32-wasip1.txt
-          # the five examples with fn main(): the tick runtime runs each task
-          # on its own thread and WASI preview 1 has no threads, so their
-          # trace ends with the main trace absent and exit status 4 (10.9)
-          XARCH_SKIP: ' trace (02_hello_main|13_spawn_chan|37_actor_spawn|40_extern|48_linear_handle)\.rce$'
           RCE_BIN: ${{ github.workspace }}/spec/checker/target/wasm32-wasip1/release/rce.wasm
           # the engine stack sized for interp::EVAL_DEPTH (.cargo/config.toml)
           RCE_RUNNER: wasmtime run -W max-wasm-stack=67108864 --dir /
