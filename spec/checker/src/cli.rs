@@ -259,7 +259,8 @@ pub fn recommendations(m: &Module) -> Vec<String> {
 
 /// `rce emit TARGET FILE`: `form` prints the Form JSON, `core` the core
 /// `rce-core/1` as JSON; `rust`, `python`, `js` and `scala` print a
-/// self-contained program that prints the module's observations (10.5).
+/// self-contained program that prints the module's observations; `verilog`
+/// prints the step function as one Verilog-2005 module (10.5).
 pub fn emit(target: &str, src: &str) -> Result<String, String> {
     match target {
         "form" => {
@@ -277,9 +278,16 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             let lang = crate::emit::Lang::parse(target).expect("target");
             crate::emit::emit(&crate::program(src)?, lang)
         }
+        "verilog" => {
+            let d = diagnostics(src, &HashSet::new());
+            if !d.is_empty() {
+                return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+            }
+            crate::emit::verilog::emit(&crate::program(src)?)
+        }
         "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
         t => Err(format!(
-            "unknown emit target `{t}` (form, core, rust, python, js, scala; the core evaluator's output is `rce run-core FILE`)"
+            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog; the core evaluator's output is `rce run-core FILE`)"
         )),
     }
 }
@@ -786,7 +794,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "TARGET FILE",
         min: 2,
         max: 2,
-        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations)",
+        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module)",
     },
     Command {
         path: &["run-core"],
@@ -1361,7 +1369,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program that requires change is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "core", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
+                if ["form", "core", "rust", "python", "js", "scala", "verilog"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                     && !e.starts_with("not covered by the lowering")
                     && !e.starts_with("internal:")

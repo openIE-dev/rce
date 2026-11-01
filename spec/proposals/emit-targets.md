@@ -95,6 +95,7 @@ must repair (6.3 and the atlas, 2026-10-22).
 | JavaScript | V8, Node, browsers | i64 needs BigInt, no integer type, map order insertion | registered |
 | Scala | JVM | int wrap (checked helpers), no `?T` (Option) | registered; emitted today, 1,459 conformance tests pass, 0 fail |
 | XState, SCXML | statechart runtimes | control projection only (Form IR targets) | registered (T9-F) |
+| Verilog (IEEE 1364-2005) | Icarus Verilog, Verilator; synthesis by Yosys | δ only, for the subset EV-1 of [emit-verilog.md](emit-verilog.md): fixed-width state in registers, one step per clock, loops unrolled to constant bounds, integers computed exactly and checked | first slice: `rce emit verilog`; simulated traces equal the reference on the programs of `tests/emit_verilog.rs` (CI: `.github/workflows/verilog.yml`); no board run |
 
 ### Tier 1: the systems and platform languages (every device class)
 
@@ -149,7 +150,7 @@ must repair (6.3 and the atlas, 2026-10-22).
 | SQL (SQLite, PostgreSQL, DuckDB) | the log is the database; `rce db emit` already prints these | a Form as tables, δ as triggers or an incremental view (DBSP) |
 | Datalog (Soufflé), Dedalus-style | the nearest chart to the engine profile | monotone rules direct; non-monotone via stratification |
 | Cypher / Gremlin | graph stores (`rce db emit cypher` exists) | edges relation |
-| Verilog / SystemVerilog, VHDL | hardware; joules per step become real | one step per clock; bounded state only; the Esterel size ceiling applies |
+| Verilog / SystemVerilog, VHDL | hardware; joules per step become real | one step per clock; bounded state only; the Esterel size ceiling applies (Verilog's first slice is in Tier 0: [emit-verilog.md](emit-verilog.md), with a ceiling of 20,000 unrolled statements) |
 | Bluespec, Chisel, SpinalHDL, Amaranth, Clash | guarded atomic actions = `step … on … if` | the natural hardware chart |
 | Lustre / SCADE, Esterel | certified synchronous systems | ticks are instants; no allocation (matches 6.7) |
 | Simulink / Stateflow | control engineering | statechart projection |

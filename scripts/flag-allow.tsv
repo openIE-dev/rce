@@ -42,3 +42,4 @@ ide/crates/rce-mcp/src/main.rs	Removed \{ flag:	the table of removed flags (deci
 ide/crates/rce-ide/src/main.rs	Removed \{ flag:	the table of removed flags (decision 2)
 scripts/positional.py	`--log D`|`--NAME`	the reader of removed flags (decision 2)
 spec/checker/tests/repair.rs	"repair", "--json"	the test that a dash argument exits 2
+**	\b(iverilog|verilator|yosys|vvp)\b[^\n]*(-V|--version|-g2005|--binary)	the HDL tools' own flags (Icarus Verilog, Verilator, Yosys)
