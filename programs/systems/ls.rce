@@ -1,0 +1,294 @@
+# ls: list a directory, as `ls`, `ls -a` and `ls -l` do.
+#
+# The reference behaviour is github.com/tonybanters/go-lsbtw (ls.go); this
+# program is written for RCE and takes no code from it. The listing is a
+# pure core and a thin edge of effects:
+#  - the core: the mode string of a mode, the visible names, the long row
+#    of the reference, and the two exercises its README leaves open
+#    (right-aligned columns, and `name -> target` for a symbolic link);
+#  - the edge: one FileList request under the host's `fs DIR` grant gives
+#    the names (HC-3, HC-5). The host has no lstat, readlink, user or group
+#    name or time zone adapter, so a long listing takes its stat records
+#    from the `Stats` input (HC-10b) instead; README.md lists these gaps.
+module ls
+
+intent "list a directory as ls does: names in byte order, a dot name only when all is asked, and each long row computed from the entry's stat record"
+    example Ls(path: "", all: false), FileListDone(req: 1, status: "delivered", data: some(["b", ".hid", "a"]), err: "") -> shown == ["a", "b"] and failed == 0
+    example Ls(path: "", all: true), FileListDone(req: 1, status: "delivered", data: some(["b", ".hid", "a"]), err: "") -> shown == [".", "..", ".hid", "a", "b"]
+    example Ls(path: "nope", all: false), FileListDone(req: 1, status: "failed", data: none, err: "not found") -> shown == [] and failed == 1
+    example Stats(all: false, now: 1783000000, offset_min: 0, entries: [Entry(name: "a.txt", mode: 33188, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "", blocks: 8)]) -> rows == ["-rw-r--r-- 1 root root 5 Jul  2 00:00 a.txt"]
+
+use time
+
+# One entry's stat record: what lstat, readlink and the user and group
+# databases give for it. `mode` is st_mode, `mtime` is seconds since the
+# Unix epoch, `blocks` is st_blocks (512-byte units) and `target` is the
+# text of a symbolic link ("" for any other entry).
+struct Entry
+    name: text
+    mode: i64
+    nlink: i64
+    owner: text
+    group_name: text
+    size: i64
+    mtime: i64
+    target: text
+    blocks: i64
+
+struct FileList
+    req: u64
+    path: text
+
+struct Display
+    data: text
+
+event Ls(path: text, all: bool)
+event FileListDone(req: u64, status: text, data: List[text]?, err: text)
+event Stats(all: bool, now: i64, offset_min: i64, entries: List[Entry])
+
+state Listing
+    next: u64 = 0
+    all: bool = false
+    shown: List[text] = []
+    rows: List[text] = []
+    failed: u64 = 0
+
+# ---------------- the mode string ----------------
+
+# POSIX st_mode: the file type is the bits under S_IFMT; then set-user-ID,
+# set-group-ID, sticky, and three rwx triples.
+const S_IFMT: i64 = 61440
+const S_IFLNK: i64 = 40960
+
+fn type_char(m: i64) -> text
+    let t = m & S_IFMT
+    if t == 32768
+        return "-"
+    if t == 16384
+        return "d"
+    if t == S_IFLNK
+        return "l"
+    if t == 8192
+        return "c"
+    if t == 24576
+        return "b"
+    if t == 4096
+        return "p"
+    if t == 49152
+        return "s"
+    return "?"
+
+fn bit(m: i64, k: i64) -> bool = (m >> k) & 1 == 1
+
+# One rwx triple at bit `k`; `special` is the set-ID or sticky bit that
+# shares the x place, shown as `set_x` over x and `set_no_x` without it.
+fn triple(m: i64, k: i64, special: bool, set_x: text, set_no_x: text) -> text
+    let r = if bit(m, k + 2) then "r" else "-"
+    let w = if bit(m, k + 1) then "w" else "-"
+    let x = if special then (if bit(m, k) then set_x else set_no_x) else (if bit(m, k) then "x" else "-")
+    return r + w + x
+
+# The mode string GNU ls prints: type, then s/S, s/S and t/T over the x places.
+fn mode_string(m: i64) -> text
+    return type_char(m) + triple(m, 6, bit(m, 11), "s", "S") + triple(m, 3, bit(m, 10), "s", "S") + triple(m, 0, bit(m, 9), "t", "T")
+
+# The reference's mode string: an unknown type is `-`, and the set-ID and
+# sticky bits are not shown (it prints only the 0777 permission bits).
+fn ref_mode_string(m: i64) -> text
+    let t = type_char(m)
+    let head = if t == "?" then "-" else t
+    return head + triple(m, 6, false, "", "") + triple(m, 3, false, "", "") + triple(m, 0, false, "", "")
+
+# ---------------- names ----------------
+
+# The names a listing shows, in byte order. Without `all`, a name that
+# starts with a dot is left out; with it, `.` and `..` come first, as in
+# the reference, which puts them before the sorted entries. A directory
+# read never gives `.` or `..` (the reference's os.ReadDir drops them, and
+# so does the host's FileList), so a `.` or `..` among the names is the
+# directory's own record and is shown only in that first place.
+fn visible(names: List[text], all: bool) -> List[text]
+    var xs: List[text] = []
+    for n in names
+        if n != "." and n != ".." and (all or not n.startswith("."))
+            xs.push(copy(n))
+    xs.sort()
+    if not all
+        return xs
+    var out: List[text] = [".", ".."]
+    for x in xs
+        out.push(copy(x))
+    return out
+
+# ---------------- the time column ----------------
+const MONTHS: List[text] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+# GNU ls: a time more than half a Gregorian year (31556952 / 2 s) before
+# now, or after now, is shown with its year instead of its time of day.
+const HALF_YEAR: i64 = 15778476
+
+fn pad_left(s: text, w: i64) -> text
+    var o = copy(s)
+    var n = s.len_chars() as i64
+    while n < w bound 1000
+        o = " " + o
+        n += 1
+    return o
+
+fn pad_right(s: text, w: i64) -> text
+    var o = copy(s)
+    var n = s.len_chars() as i64
+    while n < w bound 1000
+        o = o + " "
+        n += 1
+    return o
+
+fn two(v: i64) -> text = if v < 10 then "0" + v.tostr() else v.tostr()
+
+fn local(t: i64, offset_min: i64) -> i64 = t + offset_min * 60
+
+fn month_day(t: i64, offset_min: i64) -> text
+    let c = time.civil_from_days(time.fdiv(local(t, offset_min), 86400))
+    return MONTHS[(c.m - 1) as usize] + " " + pad_left(c.d.tostr(), 2)
+
+fn year(t: i64, offset_min: i64) -> i64 = time.civil_from_days(time.fdiv(local(t, offset_min), 86400)).y
+
+fn clock(t: i64, offset_min: i64) -> text
+    let s = time.fmod(local(t, offset_min), 86400)
+    return two(s / 3600) + ":" + two((s / 60) % 60)
+
+# The reference's time column, Go's layout "Jan _2 15:04": always the time of day.
+fn date_hm(t: i64, offset_min: i64) -> text = month_day(t, offset_min) + " " + clock(t, offset_min)
+
+# GNU ls in the C locale: "%b %e %H:%M" when recent, "%b %e  %Y" otherwise.
+fn date_ls(t: i64, now: i64, offset_min: i64) -> text
+    if now - HALF_YEAR < t and t <= now
+        return date_hm(t, offset_min)
+    return month_day(t, offset_min) + " " + pad_left(year(t, offset_min).tostr(), 5)
+
+# ---------------- rows ----------------
+fn is_link(e: &Entry) -> bool = e.mode & S_IFMT == S_IFLNK
+
+# Exercise 2: a symbolic link is shown as `name -> target`.
+fn name_field(e: &Entry) -> text = if is_link(e) and not e.target.isempty() then e.name + " -> " + e.target else copy(e.name)
+
+# The reference's long row: every field single spaced, the name alone.
+fn row(e: &Entry, offset_min: i64) -> text
+    return ref_mode_string(e.mode) + " " + e.nlink.tostr() + " " + e.owner + " " + e.group_name + " " + e.size.tostr() + " " + date_hm(e.mtime, offset_min) + " " + e.name
+
+struct Widths
+    nlink: i64
+    owner: i64
+    group_name: i64
+    size: i64
+
+fn widths(es: &[Entry]) -> Widths
+    var w = Widths(nlink: 0, owner: 0, group_name: 0, size: 0)
+    for e in es
+        w.nlink = w.nlink.max(e.nlink.tostr().len_chars() as i64)
+        w.owner = w.owner.max(e.owner.len_chars() as i64)
+        w.group_name = w.group_name.max(e.group_name.len_chars() as i64)
+        w.size = w.size.max(e.size.tostr().len_chars() as i64)
+    return w
+
+# Exercise 1: the row in GNU ls's columns: the link count and the size
+# right-aligned, owner and group left-aligned, each to its widest entry.
+fn aligned_row(e: &Entry, w: &Widths, now: i64, offset_min: i64) -> text
+    return mode_string(e.mode) + " " + pad_left(e.nlink.tostr(), w.nlink) + " " + pad_right(copy(e.owner), w.owner) + " " + pad_right(copy(e.group_name), w.group_name) + " " + pad_left(e.size.tostr(), w.size) + " " + date_ls(e.mtime, now, offset_min) + " " + name_field(e)
+
+# GNU ls's first line: the entries' 512-byte blocks in 1024-byte units, rounded up.
+fn total_line(es: &[Entry]) -> text
+    var b: i64 = 0
+    for e in es
+        b += e.blocks
+    return "total " + ((b + 1) / 2).tostr()
+
+# The entries a listing shows, in the order of `visible`.
+fn shown_entries(es: &[Entry], all: bool) -> List[Entry]
+    var names: List[text] = []
+    for e in es
+        names.push(copy(e.name))
+    var out: List[Entry] = []
+    for n in visible(names, all)
+        for e in es
+            if e.name == n
+                out.push(copy(e))
+    return out
+
+# The aligned rows of `ls -l` (with `-a` when all), one per entry.
+fn long_rows(es: &[Entry], all: bool, now: i64, offset_min: i64) -> List[text]
+    let xs = shown_entries(es, all)
+    let w = widths(&xs)
+    var out: List[text] = []
+    for e in xs
+        out.push(aligned_row(&e, &w, now, offset_min))
+    return out
+
+fn lines(xs: &[text]) -> text
+    var o = ""
+    for x in xs
+        o = o + x + "\n"
+    return o
+
+# ---------------- checks of the core ----------------
+check type_char(33188) == "-" and type_char(8592) == "c" and type_char(25008) == "b" and type_char(49645) == "s" and type_char(0) == "?"
+check mode_string(33188) == "-rw-r--r--"
+check mode_string(16877) == "drwxr-xr-x"
+check mode_string(41471) == "lrwxrwxrwx"
+check mode_string(35309) == "-rwsr-xr-x"
+check mode_string(35236) == "-rwSr--r--" and mode_string(34212) == "-rw-r-Sr--"
+check mode_string(34285) == "-rwxr-sr-x"
+check mode_string(17407) == "drwxrwxrwt"
+check mode_string(17406) == "drwxrwxrwT"
+check mode_string(4512) == "prw-r-----"
+check ref_mode_string(35309) == "-rwxr-xr-x"
+check ref_mode_string(17407) == "drwxrwxrwx"
+check ref_mode_string(420) == "-rw-r--r--"
+check visible(["b", "B", "-x", ".y", "a"], false) == ["-x", "B", "a", "b"]
+check visible(["b", ".y", "a"], true) == [".", "..", ".y", "a", "b"]
+check visible([], true) == [".", ".."]
+check visible(["..", "a", "."], true) == [".", "..", "a"] and visible(["..", "a", "."], false) == ["a"]
+check date_hm(1782950400, 0) == "Jul  2 00:00"
+check date_hm(1782950400, -90) == "Jul  1 22:30"
+check date_hm(1767225599, 0) == "Dec 31 23:59"
+check date_ls(1782950400, 1783000000, 0) == "Jul  2 00:00"
+check date_ls(1700000000, 1783000000, 0) == "Nov 14  2023"
+check date_ls(1783000001, 1783000000, 0) == "Jul  2  2026"
+
+const FIXED: List[Entry] = [
+    Entry(name: "a.txt", mode: 33188, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "", blocks: 8),
+    Entry(name: "big.bin", mode: 33152, nlink: 1, owner: "root", group_name: "wheel", size: 123456, mtime: 1782950460, target: "", blocks: 248),
+    Entry(name: "sub", mode: 16877, nlink: 12, owner: "daemon", group_name: "root", size: 4096, mtime: 1782954000, target: "", blocks: 8),
+    Entry(name: "link", mode: 41471, nlink: 1, owner: "root", group_name: "root", size: 5, mtime: 1782950400, target: "a.txt", blocks: 0),
+    Entry(name: ".dot", mode: 33204, nlink: 1, owner: "root", group_name: "root", size: 0, mtime: 1700000000, target: "", blocks: 0)]
+
+check row(&FIXED[0], 0) == "-rw-r--r-- 1 root root 5 Jul  2 00:00 a.txt"
+check row(&FIXED[2], 0) == "drwxr-xr-x 12 daemon root 4096 Jul  2 01:00 sub"
+check row(&FIXED[3], 0) == "lrwxrwxrwx 1 root root 5 Jul  2 00:00 link"
+check name_field(&FIXED[3]) == "link -> a.txt"
+check name_field(&FIXED[0]) == "a.txt"
+check total_line(&FIXED) == "total 132"
+check long_rows(&FIXED, false, 1783000000, 0) == [
+    "-rw-r--r--  1 root   root       5 Jul  2 00:00 a.txt",
+    "-rw-------  1 root   wheel 123456 Jul  2 00:01 big.bin",
+    "lrwxrwxrwx  1 root   root       5 Jul  2 00:00 link -> a.txt",
+    "drwxr-xr-x 12 daemon root    4096 Jul  2 01:00 sub"]
+check long_rows(&FIXED, true, 1783000000, 0)[0] == "-rw-rw-r--  1 root   root       0 Nov 14  2023 .dot"
+
+# ---------------- the effects ----------------
+step Listing on Ls(path: p, all: a)
+    next += 1
+    all = a
+    emit FileList(req: next, path: p)
+
+step Listing on FileListDone(req: _r, status: s, data: d, err: e)
+    if s == "delivered"
+        shown = visible(d.or([]), all)
+        emit Display(data: lines(&shown))
+    else
+        failed += 1
+        emit Display(data: "ls: " + e + "\n")
+
+step Listing on Stats(all: a, now: n, offset_min: o, entries: es)
+    rows = long_rows(&es, a, n, o)
+    let xs = shown_entries(&es, a)
+    emit Display(data: total_line(&xs) + "\n" + lines(&rows))
