@@ -3319,10 +3319,8 @@ and shows that the step of the third event keeps the state, with exit status 1.
    command could not decide within its bound: `rce equiv` and `rce change`
    when exploration reached `fuel` before either equivalence or a
    distinguishing event sequence was established, and `rce law` when the
-   bound LAW_FUEL left a law undecided (10.11). 4 means a run
-   the host cannot perform: a run of `fn main` in which an lvar passes
-   from one task to another needs task threads, and the host cannot start
-   one (10.3).
+   bound LAW_FUEL left a law undecided (10.11). Status 4 is not used:
+   every run of `fn main` runs on a host without task threads too (10.3).
 
 `rce` is one binary, built from the reference checker crate in
 `spec/checker` (crate `rce-spec-check`, `cargo build --release --bin rce`).
@@ -3432,18 +3430,42 @@ host cannot start a thread, such as WASI preview 1 (`rce` built for
 `wasm32-wasip1`), every task is a state machine and every `par` runs this
 way, so the run needs no thread and prints what it prints on any host.
 
-One run still needs task threads: one in which an lvar (C.11.8) passes
-from one task to another, as a `spawn` argument, in a message to a
-channel or an actor, or as a task's result. A state machine runs its
-earlier steps again at every move, so it would read a shared lvar at a
-later state than the step it belongs to. On a host without threads such
-a run stops at that step: the command prints nothing on standard output
-and one line on standard error, `FILE: fn main needs task threads, which
-this host does not provide (HOST: an lvar passes from one task to
-another)`, HOST being the host's target, and the status is 4. Whatever
-output the run had produced before that step is not printed. The tick
-runtime written in the core, which `rce run-core` would run, is still
-the next slice of the proposal `one-emitter.md` (section 13, 10.12).
+An lvar (C.11.8) can pass from one task to another, as a `spawn`
+argument, in a message to a channel or an actor, as a task's result, or
+inside a closure that captures it, and is then shared: from that point on
+a task's lvar operations can see another task's. The reference keeps
+such a run a function of the program on every host by three rules.
+
+1. **Logged lvar operations.** A state machine logs what each of its lvar
+   operations gave (`lvar_new`, `put`, `wait`, `freeze`) with the fuel and
+   cost units it took and whether it changed the cell (`conc::LvTape`).
+   A replay gives each logged result back and charges its cost without
+   reading or changing any cell, so a replayed `lvar_new` is the cell
+   other tasks hold, not a new one, and a replayed read is not made at a
+   later state.
+2. **Moves in task order.** Once an lvar has passed between tasks, every
+   task moves alone, in task order (6.8), on a thread as well as when it
+   is a state machine, so the lvar operations of a tick happen in one
+   order on every host.
+3. **Waits the scheduler answers.** In a task, outside the branches of a
+   `par`, a `wait` on a shared lvar that is at no threshold is a
+   communication step: the scheduler answers it at the first delivery
+   at which a put has brought the lvar to a threshold, and when no task
+   can move any more such waits trap with `lvar wait cannot be
+   satisfied`, as the waits of a `par` do (T29).
+
+A body is a function of its arguments, its answers and the results of its
+lvar operations, and a replay is given all three, so it takes the path of
+the run it repeats up to the first step not yet answered; that step and
+the steps after it run at the point of the run where a thread of the task
+runs them, in its move, and the moves happen in the same order on every
+host. The log is therefore the same entry for entry with or without
+threads (`emit_run.rs`, `lvar_passing_traces_without_threads_equal_the_reference`,
+on eight programs that pass an lvar by each route, two of them filling it
+after the waiting task has started, each also on twenty threaded runs).
+No run of `fn main` needs task threads. The tick runtime written in the
+core, which `rce run-core` would run, is still the next slice of the
+proposal `one-emitter.md` (section 13, 10.12).
 
 ### 10.4 `rce test FILE|DIR...`
 
@@ -3992,14 +4014,8 @@ On a host that cannot start a task thread (10.3, WASI preview 1) the
 tasks are state machines of the scheduler and the trace of `fn main` is
 the same as on any host; the cross-architecture parity job
 (`.github/workflows/xarch-parity.yml`) compares the five examples with
-`fn main()` on `wasm32-wasip1` as on the other targets. Only a run in
-which an lvar passes from one task to another needs task threads (10.3):
-on such a host its trace of `fn main` is absent, `{"source": "main",
-"outcome": {"absent": REASON}, "steps": []}`, REASON being the line of
-10.3 after `FILE: `. The other traces are printed as on any host,
-standard error has one line `FILE: no trace of fn main: REASON`, and the
-status is 4. A projector conforms on such a module only on a host that
-runs it.
+`fn main()` on `wasm32-wasip1` as on the other targets. That holds
+also for a run in which an lvar passes from one task to another (10.3).
 
 `spec/traces/` holds the reference traces of the example corpus: one
 file per top-level example (the package `26_use_module/` has no state
@@ -4214,7 +4230,8 @@ tick runtime: the lowering covers no channel, `spawn`, `select`, actor or
 supervisor (status 2), and the core has no scheduler, so `rce run-core`
 prints no trace of `fn main` (10.9). The reference's tick runtime now
 holds tasks as state machines where the host has no threads (10.3), so
-the run of `fn main` happens on WASI preview 1 as on other hosts; that
+the run of `fn main` happens on WASI preview 1 as on other hosts, also
+when an lvar passes from one task to another; that
 scheduler is written in Rust inside the reference (`conc.rs`), not in the
 core. The next slice of the proposal is the same scheduler in the core:
 the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
@@ -4891,7 +4908,17 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   differs from `v` (a put that changes nothing is allowed). `freeze()`
   sets the bit and returns the exact value. `wait(Q)` returns the `t` in
   `Q` with `t ⊔ v = v`, in the same `Merge` order as `put`, and blocks
-  until there is one. The threshold tests charge no fuel and no budget,
+  until there is one. In a task of `fn main`, outside the branches of a
+  `par`, a `wait` on an LVar that has passed from one task to another (a
+  `spawn` argument, a message, a task's result, a closure that captures
+  it) and is at no threshold is a communication step (6.8): the task is
+  blocked until a put of another task or actor brings the LVar to a
+  threshold, and when no task can move any more the blocked waits trap
+  with `trap("lvar wait cannot be satisfied")`. A wait on an LVar that
+  has not passed between tasks traps at once, since no other put can
+  come. Once an LVar has passed between tasks, the tasks of each tick
+  move one after another in task order, so the puts, waits and freezes
+  of a tick happen in one order (10.3). The threshold tests charge no fuel and no budget,
   so the cost of a `wait` does not depend on how often a schedule
   rechecks it. A `Q` with more than one element must be pairwise
   incompatible: distinct elements join to the top. Every `wait` checks
