@@ -316,6 +316,26 @@ pub fn nameless(src: &str) -> Result<String, String> {
     if own.contains("DirRead") || own.contains("DirWrite") {
         foreign.insert("root".to_string());
     }
+    // The lines inside a region (`state` or `actor`) block. A region field
+    // is read as a bare name (`at[k] = v`), never after `.`, so its
+    // declaration takes the rename its bare uses take, even when an imported
+    // type declares a field of the same name (which keeps that name only
+    // where it names a field: after `.` and as a label).
+    let mut region_lines: HashSet<usize> = HashSet::new();
+    {
+        let mut in_region = false;
+        let mut at = 0usize;
+        for line in src.split_inclusive('\n') {
+            let body = line.trim_end_matches(['\n', '\r']);
+            let t = body.trim_start();
+            if !t.is_empty() && !t.starts_with('#') && body.len() == t.len() {
+                in_region = t.starts_with("state ") || t.starts_with("actor ");
+            } else if in_region {
+                region_lines.insert(at);
+            }
+            at += line.len();
+        }
+    }
     let b = src.as_bytes();
     let mut out = String::with_capacity(src.len());
     let mut i = 0;
@@ -468,8 +488,9 @@ pub fn nameless(src: &str) -> Result<String, String> {
                     Callee::Other => true,
                 }
             } else if rest.starts_with(':') && !rest.starts_with("::") && src[line_start..start].trim().is_empty() {
-                // a field declared at the start of a line in a type block
-                foreign.contains(word)
+                // a field declared at the start of a line in a type block;
+                // a region field is renamed as its bare uses are
+                foreign.contains(word) && !region_lines.contains(&line_start)
             } else {
                 false
             };

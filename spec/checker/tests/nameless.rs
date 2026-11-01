@@ -276,3 +276,29 @@ fn the_authority_structs_keep_their_names() {
     let (st, out) = rce(&["check", &g]);
     assert_eq!(st, 0, "{p}\n{out}");
 }
+
+#[test]
+fn a_region_field_named_like_an_imported_field_is_renamed_with_its_uses() {
+    // T7 sweep finding (programs/systems/ls.rce, before its state field `at`
+    // became `entry_of`): `use time` brings `error BadTime(at: i64)`, so `at`
+    // keeps its name where it names a field. The state declaration `at: …`
+    // kept it too, while the bare uses `at[next] = …` were renamed, and the
+    // projection trapped on `assignment to unknown v…`. A region field is read
+    // bare, so its declaration is renamed as its uses are; the struct field
+    // `at` keeps its name in the declaration and the literal label alike.
+    let src = "use time\n\nstruct LocalOffset\n    req: u64\n    at: i64\n\nevent Ask(x: i64)\n\nstate Book\n    next: u64 = 0\n    at: Map[u64, i64] = {}\n\nstep Book on Ask(x: x)\n    next += 1\n    at[next] = -1\n    emit LocalOffset(req: next, at: time.fdiv(x, 60))\n";
+    let f = tmp("region_field_src.rce", src);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (st, p) = rce(&["fmt", "nameless", &f]);
+    assert_eq!(st, 0, "{p}");
+    let field = p.lines().find(|l| l.contains(": Map[u64, i64] = {}")).unwrap().trim().split(':').next().unwrap().to_string();
+    assert!(field.starts_with('v'), "the state field is renamed: {p}");
+    assert!(p.contains(&format!("    {field}[")), "its uses take the same name: {p}");
+    assert!(p.contains("\n    at: i64\n") && p.contains(", at: time.fdiv("), "the struct field keeps `at`: {p}");
+    let g = tmp("region_field_nameless.rce", &p);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{p}\n{out}");
+    let (st, out) = rce(&["equiv", "fuel", "200", &f, &g]);
+    assert_eq!(st, 0, "{p}\n{out}");
+}
