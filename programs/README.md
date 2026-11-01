@@ -51,7 +51,7 @@ RCE=/path/to/rce scripts/check.sh
 | [data/](data/) | `totals.rce` | records, totals and a group-by |
 | [money/](money/) | `account.rce`, `ledger.rce`, `checkout.rce` | balances in integer cents; double-entry bookkeeping with an invariant; a checkout of 40 independent options |
 | [science/](science/) | `numerics.rce`, `knapsack.rce`, `graph.rce`, `dpll.rce` | dot product, mean, Newton's method; dynamic programming; shortest paths over an input graph; a SAT solver and the bound it has to state |
-| [systems/](systems/) | `ring_buffer.rce`, `reconcile.rce`, `accounts.rce` | a ring buffer that never overwrites; a reconcile loop; a long-running service on the host, one bounded step per event |
+| [systems/](systems/) | `ring_buffer.rce`, `reconcile.rce`, `accounts.rce`, `ls.rce` | a ring buffer that never overwrites; a reconcile loop; a long-running service on the host, one bounded step per event; `ls` brought in from an existing Go program, compared byte for byte with coreutils |
 | [hardware/](hardware/) | `bits.rce` | bit counting, bit fields, a CRC-32 table built while checking |
 | [multi/](multi/) | `elevator.rce`, `vending.rce`, `crossing.rce`, `parking.rce`, `printer.rce`, `lobby.rce`, `card.rce`, `washer.rce`, `session.rce`, `player.rce`, `climate.rce`, `reservoir.rce` | twelve devices whose state is split over two regions the same events drive; every one emits or keeps the state, and every one is explored completely by `rce dim` |
 
@@ -78,7 +78,7 @@ output must equal the `.out` file next to it; and a folder with a
 All programs are in the one language of the current specification draft
 (spec 2.7: a `# rce-version:` label selects nothing). They are checked by `programs.yml` against the reference checker built from
 the same commit, so there is no commit to name: `scripts/check.sh` must report
-every program passed at the current head (42 checks, 0 failed, on 29 October 2026). The
+every program passed at the current head (43 checks, 0 failed, on 1 November 2026). The
 `ecosystem/` programs import modules of the standard library (`use hpke`,
 `use pq`, `use mls`, `use crypto`), which the reference checker has built in
 (specification 4.1); `scripts/check.sh` leaves them out, and `programs.yml`
