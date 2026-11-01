@@ -71,7 +71,9 @@ not in D and does not change replay or the state hash.
 ## Stop, restart, back up
 
 - `docker stop` (SIGTERM) is the host loop's stop input: the loop ends after
-  the entry in progress, and D is complete.
+  the entry in progress, and D is complete. The host then writes its closing status
+  line, `durable N entries=M state_hash H`, to stderr (HC-28), which
+  `docker logs` shows; stdout carries only the program's Display bytes.
 - A new process on the same log continues where the last one stopped. A
   restart is itself recorded, and ids are never reused.
 - `rce host replay FILE D` re-derives every state hash of D with every

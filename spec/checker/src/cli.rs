@@ -1830,7 +1830,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             // HC-28: open, and waiting for input
             st.idle(h.len(), h.state_hash());
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out, http.as_mut(), st, &mut frames, acks)?;
+                let code = serve_loop(&mut h, &src, out, err, http.as_mut(), st, &mut frames, acks)?;
                 let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
                 let code = validate_run(&m, log, &live, code, err)?;
@@ -1883,7 +1883,9 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 out.flush().map_err(w)?;
                 st.idle(h.len(), h.state_hash());
             }
-            writeln!(out, "durable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash()).map_err(w)?;
+            // HC-28: the host's status goes to stderr; stdout is the listing
+            // of the entries and the final state
+            writeln!(err, "{}", durable_line(&h)).map_err(w)?;
             writeln!(out, "{}", show_state(h.state())).map_err(w)?;
             let (live, n) = (h.state_hash().to_string(), h.len());
             drop(h);
@@ -1998,7 +2000,7 @@ pub const FRAME_MS: u64 = 16;
 /// starts at once while requests are queued, so a stop is read between
 /// drains even when results keep requesting effects.
 #[allow(clippy::too_many_arguments)]
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status, frames: &mut Frames, acks: Option<std::fs::File>) -> Result<i32, String> {
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status, frames: &mut Frames, acks: Option<std::fs::File>) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::host::Host;
     use std::sync::mpsc;
@@ -2230,8 +2232,16 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             }
         }
     }
-    writeln!(out, "\ndurable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash()).map_err(w)?;
+    // HC-28: the host's status goes to stderr, so stdout is the program's
+    // Display bytes alone
+    writeln!(err, "{}", durable_line(h)).map_err(w)?;
     Ok(OK)
+}
+
+/// The host's closing status line (HC-28, on stderr): the durable mark,
+/// the number of entries of D and the state hash.
+fn durable_line(h: &crate::host::Host) -> String {
+    format!("durable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash())
 }
 
 /// After SIGTERM or SIGINT, the longest the host loop waits for open
