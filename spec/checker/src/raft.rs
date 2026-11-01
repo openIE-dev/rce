@@ -729,7 +729,8 @@ fn frame(me: usize, m: &Msg) -> Vec<u8> {
 /// identity): a node accepts a connection only from a key in its peer
 /// list, and accepts a frame only when the frame's sender id is the id
 /// pinned to that key. A node dials a peer only if the peer presents the
-/// key pinned for it.
+/// key pinned for it. Built where build.rs sets `rce_tls`.
+#[cfg(rce_tls)]
 pub struct TlsTransport {
     me: usize,
     peers: Vec<(SocketAddr, [u8; 32])>,
@@ -738,6 +739,7 @@ pub struct TlsTransport {
     rx: mpsc::Receiver<(usize, Msg)>,
 }
 
+#[cfg(rce_tls)]
 impl TlsTransport {
     pub fn new(me: usize, listener: TcpListener, peers: Vec<(SocketAddr, [u8; 32])>, id: &crate::tls::Identity) -> Result<TlsTransport, String> {
         let keys: Vec<[u8; 32]> = peers.iter().map(|p| p.1).collect();
@@ -766,6 +768,7 @@ impl TlsTransport {
     }
 }
 
+#[cfg(rce_tls)]
 impl Transport for TlsTransport {
     fn send(&mut self, to: usize, m: &Msg) {
         if !self.conns.contains_key(&to) {

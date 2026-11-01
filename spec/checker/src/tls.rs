@@ -6,15 +6,28 @@
 //! `host.TlsIdentity` at start, so the identity a run used is part of the
 //! record; the 32-byte seed stays in `<log>.tlskey` (mode 0600), never in D.
 //! Pinning is a byte comparison of keys; nothing here asks a model.
+//!
+//! The TLS crates are built only where build.rs sets `rce_tls` (every
+//! target except wasm32-unknown-unknown). Elsewhere an identity cannot be
+//! made, so the commands that need one report `UNAVAILABLE`.
+#[cfg(rce_tls)]
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+#[cfg(rce_tls)]
 use rustls::crypto::{CryptoProvider, verify_tls13_signature};
+#[cfg(rce_tls)]
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
+#[cfg(rce_tls)]
 use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
+#[cfg(rce_tls)]
 use rustls::{ClientConfig, DigitallySignedStruct, DistinguishedName, Error, ServerConfig, SignatureScheme};
 use std::path::Path;
+#[cfg(rce_tls)]
 use std::sync::Arc;
 
 pub const SERVER_NAME: &str = "rce-peer";
+
+/// Why a TLS command fails on a target without `rce_tls`.
+pub const UNAVAILABLE: &str = "TLS between hosts is not built for this target (wasm32-unknown-unknown)";
 
 #[derive(Clone)]
 pub struct Identity {
@@ -37,6 +50,7 @@ pub fn unhex32(s: &str) -> Option<[u8; 32]> {
     Some(o)
 }
 
+#[cfg(rce_tls)]
 fn pkcs8(seed: &[u8; 32]) -> Vec<u8> {
     // RFC 8410 OneAsymmetricKey for Ed25519: fixed prefix, then the seed
     let mut v = vec![0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
@@ -45,6 +59,7 @@ fn pkcs8(seed: &[u8; 32]) -> Vec<u8> {
 }
 
 impl Identity {
+    #[cfg(rce_tls)]
     pub fn from_seed(seed: [u8; 32]) -> Result<Identity, String> {
         use ring::signature::KeyPair;
         let kp = ring::signature::Ed25519KeyPair::from_seed_unchecked(&seed).map_err(|e| e.to_string())?;
@@ -53,8 +68,14 @@ impl Identity {
         Ok(Identity { seed, public })
     }
 
+    #[cfg(not(rce_tls))]
+    pub fn from_seed(_seed: [u8; 32]) -> Result<Identity, String> {
+        Err(UNAVAILABLE.into())
+    }
+
     /// The identity kept beside the log `D` in `D.tlskey`, made from the OS
     /// CSPRNG the first time.
+    #[cfg(rce_tls)]
     pub fn load_or_create(log: &Path) -> Result<Identity, String> {
         let p = log.with_extension(match log.extension() {
             Some(e) => format!("{}.tlskey", e.to_string_lossy()),
@@ -77,6 +98,12 @@ impl Identity {
         Identity::from_seed(seed)
     }
 
+    #[cfg(not(rce_tls))]
+    pub fn load_or_create(_log: &Path) -> Result<Identity, String> {
+        Err(UNAVAILABLE.into())
+    }
+
+    #[cfg(rce_tls)]
     fn cert(&self) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>), String> {
         let der = PrivatePkcs8KeyDer::from(pkcs8(&self.seed));
         let kp = rcgen::KeyPair::from_pkcs8_der_and_sign_algo(&der, &rcgen::PKCS_ED25519).map_err(|e| e.to_string())?;
@@ -94,16 +121,19 @@ pub fn ed25519_key_of(cert: &[u8]) -> Option<[u8; 32]> {
     cert.get(i + pat.len()..i + pat.len() + 32)?.try_into().ok()
 }
 
+#[cfg(rce_tls)]
 fn provider() -> Arc<CryptoProvider> {
     Arc::new(rustls::crypto::ring::default_provider())
 }
 
+#[cfg(rce_tls)]
 #[derive(Debug)]
 struct Pins {
     keys: Vec<[u8; 32]>,
     prov: Arc<CryptoProvider>,
 }
 
+#[cfg(rce_tls)]
 impl Pins {
     fn check(&self, c: &CertificateDer<'_>) -> Result<(), Error> {
         match ed25519_key_of(c) {
@@ -119,6 +149,7 @@ impl Pins {
     }
 }
 
+#[cfg(rce_tls)]
 impl ServerCertVerifier for Pins {
     fn verify_server_cert(&self, e: &CertificateDer<'_>, _: &[CertificateDer<'_>], _: &ServerName<'_>, _: &[u8], _: UnixTime) -> Result<ServerCertVerified, Error> {
         self.check(e).map(|_| ServerCertVerified::assertion())
@@ -134,6 +165,7 @@ impl ServerCertVerifier for Pins {
     }
 }
 
+#[cfg(rce_tls)]
 impl ClientCertVerifier for Pins {
     fn root_hint_subjects(&self) -> &[DistinguishedName] {
         &[]
@@ -152,6 +184,7 @@ impl ClientCertVerifier for Pins {
     }
 }
 
+#[cfg(rce_tls)]
 /// Accepts clients whose key is one of `pins`.
 pub fn server_config(id: &Identity, pins: Vec<[u8; 32]>) -> Result<Arc<ServerConfig>, String> {
     let prov = provider();
@@ -166,6 +199,7 @@ pub fn server_config(id: &Identity, pins: Vec<[u8; 32]>) -> Result<Arc<ServerCon
     Ok(Arc::new(cfg))
 }
 
+#[cfg(rce_tls)]
 /// Connects only to a server whose key is `pin`.
 pub fn client_config(id: &Identity, pin: [u8; 32]) -> Result<Arc<ClientConfig>, String> {
     let prov = provider();

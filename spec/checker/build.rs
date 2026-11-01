@@ -15,7 +15,20 @@ fn main() {
     println!("cargo:rerun-if-changed=../../.git/HEAD");
     println!("cargo:rerun-if-changed=../../.git/refs/heads");
     emit_targets();
+    tls_cfg();
     tree_sitter();
+}
+
+/// `rce_tls`: the target has the TLS crates (Cargo.toml lists rustls, rcgen
+/// and ring for every target except wasm32-unknown-unknown). Without it the
+/// TLS host commands report that TLS is not built for the target.
+fn tls_cfg() {
+    println!("cargo:rustc-check-cfg=cfg(rce_tls)");
+    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if !(arch == "wasm32" && os == "unknown") {
+        println!("cargo:rustc-cfg=rce_tls");
+    }
 }
 
 /// The emit targets that `tests/emit_targets.txt` names (spec 10.5,

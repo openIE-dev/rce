@@ -913,14 +913,17 @@ pub mod chan {
     }
 
     /// A TLS stream that can name the Ed25519 key its peer presented.
+    #[cfg(rce_tls)]
     trait TlsIo: std::io::Read + Write + Send {
         fn peer_key(&self) -> Option<[u8; 32]>;
     }
+    #[cfg(rce_tls)]
     impl TlsIo for rustls::StreamOwned<rustls::ServerConnection, TcpStream> {
         fn peer_key(&self) -> Option<[u8; 32]> {
             self.conn.peer_certificates().and_then(|c| c.first()).and_then(|c| crate::tls::ed25519_key_of(c))
         }
     }
+    #[cfg(rce_tls)]
     impl TlsIo for rustls::StreamOwned<rustls::ClientConnection, TcpStream> {
         fn peer_key(&self) -> Option<[u8; 32]> {
             self.conn.peer_certificates().and_then(|c| c.first()).and_then(|c| crate::tls::ed25519_key_of(c))
@@ -930,6 +933,7 @@ pub mod chan {
     /// One TLS connection, owned by one thread: it writes the frames queued
     /// on `rx` and reads frames, accepting a frame only when its `from` is
     /// pinned to the key this connection presented (authenticated sender).
+    #[cfg(rce_tls)]
     fn tls_loop(mut s: Box<dyn TlsIo>, rx: Option<std::sync::mpsc::Receiver<String>>, sh: Arc<(Mutex<Shared>, Condvar)>, pins: Arc<HashMap<String, [u8; 32]>>) {
         let mut buf: Vec<u8> = vec![];
         let mut b = [0u8; 8192];
@@ -972,12 +976,14 @@ pub mod chan {
         }
     }
 
+    #[cfg(rce_tls)]
     const TLS_POLL: Duration = Duration::from_millis(20);
 
     /// As `chan_adapters`, over mutual TLS 1.3: `peers` are (address, pinned
     /// Ed25519 key); a connection whose certificate key is not pinned for its
     /// address fails the handshake, and frames claiming another sender are
     /// dropped (crate::tls).
+    #[cfg(rce_tls)]
     pub fn chan_adapters_tls(me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
         let l = TcpListener::bind(me).map_err(|e| e.to_string())?;
         chan_adapters_tls_on(l, me, peers, id)
@@ -985,6 +991,7 @@ pub mod chan {
 
     /// As `chan_adapters_tls`, on a listener the caller already bound (for example to
     /// port 0), so there is no window between choosing the address and listening on it.
+    #[cfg(rce_tls)]
     pub fn chan_adapters_tls_on(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
         let (xs, start) = chan_adapters_tls_deferred(l, me, peers, id)?;
         start();
@@ -998,6 +1005,7 @@ pub mod chan {
     pub type Start = Box<dyn FnOnce() + Send>;
 
     /// `chan_adapters_tls_on` with its threads not started yet.
+    #[cfg(rce_tls)]
     pub fn chan_adapters_tls_deferred(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<(Vec<ChanAdapter>, Start), String> {
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let pins: Arc<HashMap<String, [u8; 32]>> = Arc::new(peers.iter().cloned().collect());
@@ -1069,6 +1077,17 @@ pub mod chan {
             let Some((id, pins)) = self.tls.clone() else {
                 return self.conn(peer).and_then(|s| writeln!(s, "{frame}").map_err(|e| e.to_string()));
             };
+            self.write_tls(peer, frame, id, pins)
+        }
+
+        /// Without `rce_tls` no constructor sets `tls`, so this is not reached.
+        #[cfg(not(rce_tls))]
+        fn write_tls(&mut self, _peer: &str, _frame: &str, _id: crate::tls::Identity, _pins: Arc<HashMap<String, [u8; 32]>>) -> Result<(), String> {
+            Err(crate::tls::UNAVAILABLE.into())
+        }
+
+        #[cfg(rce_tls)]
+        fn write_tls(&mut self, peer: &str, frame: &str, id: crate::tls::Identity, pins: Arc<HashMap<String, [u8; 32]>>) -> Result<(), String> {
             if !self.tls_out.contains_key(peer) {
                 let pin = *pins.get(peer).ok_or("peer has no pinned key")?;
                 let cfg = crate::tls::client_config(&id, pin)?;

@@ -30,8 +30,13 @@ wasmi = "=1.1.0"
 wasmparser = "=0.262.0"
 wasm-encoder = { version = "=0.262.0", default-features = false, features = ["std", "wasmparser"] }
 wat = "=1.262.0"
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 # TLS between hosts (P4): TLS 1.3, mutual, pinned Ed25519 keys, no CA; ring
-# as the one crypto provider (no C toolchain beyond what ring needs)
+# as the one crypto provider (no C toolchain beyond what ring needs).
+# Not on wasm32-unknown-unknown (the browser IDE): ring needs an OS random
+# source there, and a browser page opens no TCP listener. build.rs sets the
+# cfg `rce_tls` on exactly the targets that have these crates.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rcgen = { version = "0.13", default-features = false, features = ["ring", "crypto"] }
 ring = "0.17"

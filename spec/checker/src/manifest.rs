@@ -350,6 +350,19 @@ pub struct Advisory {
     pub seq: u64,
 }
 
+/// Ed25519 (RFC 8032) verification of `sig` over `msg` by `key`. `None`
+/// where ring is not built (no `rce_tls`): an advisory is then reported,
+/// never taken unverified.
+#[cfg(rce_tls)]
+fn ed25519_verify(key: &[u8; 32], msg: &[u8], sig: &[u8]) -> Option<bool> {
+    Some(ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key).verify(msg, sig).is_ok())
+}
+
+#[cfg(not(rce_tls))]
+fn ed25519_verify(_key: &[u8; 32], _msg: &[u8], _sig: &[u8]) -> Option<bool> {
+    None
+}
+
 /// Verify a list of signed advisories: `[{"advisory": {kind, hash, reason,
 /// issued_by, seq}, "signature": "<128 hex>"}, ...]`. Each is signed with
 /// Ed25519 (RFC 8032, deterministic) over the SHA-256 of the canonical JSON of
@@ -384,9 +397,13 @@ pub fn verify_advisories(text: &str, keys: &BTreeMap<String, [u8; 32]>) -> Resul
         };
         let digest = Sha256::digest(canonical(adv.unwrap()).as_bytes());
         let sigb: Vec<u8> = (0..sig.len() / 2).filter_map(|j| u8::from_str_radix(sig.get(2 * j..2 * j + 2)?, 16).ok()).collect();
-        let ok = sig.len() == 128
-            && sigb.len() == 64
-            && ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key).verify(&digest, &sigb).is_ok();
+        let ok = match ed25519_verify(key, &digest, &sigb) {
+            Some(v) => sig.len() == 128 && sigb.len() == 64 && v,
+            None => {
+                errs.push(format!("W-PIN-1 advisory {i} (hash {hash}): its signature cannot be checked on this target (ring is not built for wasm32-unknown-unknown)"));
+                continue;
+            }
+        };
         if !ok {
             errs.push(format!("W-PIN-1 advisory {i} (hash {hash}) has a bad signature"));
             continue;

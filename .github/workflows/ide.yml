@@ -21,12 +21,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ide
-      # crates/ide-sandbox tests build crates/rce-guest for WASI
-      - name: Add the WASI target
-        run: rustup target add wasm32-wasip1
+      # crates/ide-sandbox tests build crates/rce-guest for WASI;
+      # the browser IDE (crates/rce-ide/src/web.rs) builds for wasm32-unknown-unknown
+      - name: Add the WASI and browser targets
+        run: rustup target add wasm32-wasip1 wasm32-unknown-unknown
       - name: Build
         run: cargo build --release --workspace
       - name: Tests
         run: cargo test --release --workspace --no-fail-fast
       - name: Clippy
         run: cargo clippy --release --workspace --all-targets -- -D warnings
+      # web.rs is compiled only for wasm32, so the native steps above do not
+      # build it; this is the library step of crates/rce-ide/web/build.sh
+      - name: Clippy, browser build
+        run: cargo clippy --release --target wasm32-unknown-unknown -p rce-ide --lib -- -D warnings

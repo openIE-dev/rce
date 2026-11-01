@@ -1606,7 +1606,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             let mut net: Vec<String> = vec![];
             let (mut chan_me, mut peers) = (None::<String>, vec![]);
             let (tls, mut pins) = (p.has("tls"), vec![]);
-            let mut tls_id = None;
+            let mut tls_id = None::<crate::tls::Identity>;
             let mut exact: Option<String> = None;
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
@@ -1666,11 +1666,16 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             let mut chan_start: Option<crate::adapters::chan::Start> = None;
             if let Some(me) = &chan_me {
                 let (xs, start) = if tls {
-                    let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
-                    let l = std::net::TcpListener::bind(me).map_err(|e| format!("chan {me}: {e}"))?;
-                    let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("chan {me}: {e}"))?;
-                    tls_id = Some(id);
-                    xs
+                    #[cfg(not(rce_tls))]
+                    return Err(format!("chan {me}: {}", crate::tls::UNAVAILABLE));
+                    #[cfg(rce_tls)]
+                    {
+                        let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
+                        let l = std::net::TcpListener::bind(me).map_err(|e| format!("chan {me}: {e}"))?;
+                        let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("chan {me}: {e}"))?;
+                        tls_id = Some(id);
+                        xs
+                    }
                 } else {
                     crate::adapters::chan::chan_adapters_deferred(me, &peers).map_err(|e| format!("chan {me}: {e}"))?
                 };
