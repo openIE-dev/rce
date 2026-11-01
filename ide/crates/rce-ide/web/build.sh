@@ -14,15 +14,16 @@ esac
 here=$(cd "$(dirname "$0")" && pwd)
 ws=$(cd "$here/../../.." && pwd)
 dist="$here/dist"
+tgt="${CARGO_TARGET_DIR:-$ws/target}"
 mkdir -p "$dist"
 cd "$ws"
 cargo build --release -p rce-ide --lib --target wasm32-unknown-unknown
 wasm-bindgen --target web --no-typescript --out-dir "$dist/pkg" \
-  target/wasm32-unknown-unknown/release/rce_ide.wasm
+  "$tgt/wasm32-unknown-unknown/release/rce_ide.wasm"
 cargo build --release -p rce-ide --bin rce-ide
 demo=$(mktemp -d)
-cp "${RCE_DEMO_FILE:-$ws/vendor/rce-spec/examples/01_counter.rce}" "$demo/counter.rce"
-(cd "$demo" && "$ws/target/release/rce-ide" demo Counter export-model "$dist/model.json" . counter.rce)
+cp "${RCE_DEMO_FILE:-$ws/../spec/examples/01_counter.rce}" "$demo/counter.rce"
+(cd "$demo" && "$tgt/release/rce-ide" demo Counter export-model "$dist/model.json" . counter.rce)
 cp "${RCE_FONT:-/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf}" "$dist/font.ttf"
 cp "$here/index.html" "$dist/index.html"
 ls -la "$dist" "$dist/pkg"
