@@ -497,13 +497,7 @@ pub fn memory(
             .accessibility_label("memory-query".to_string())
             .accessibility_role(AccessibilityRole::TextBox)
             .on_tap(move || qf.borrow_mut().push(Action::Focus(Focus::Memory))),
-            button(
-                "recall",
-                ACCENT,
-                q,
-                Action::Recall(m.query.clone()),
-                focus,
-            ),
+            button("recall", ACCENT, q, Action::Recall(m.query.clone()), focus),
         ],
         8.0,
     )];

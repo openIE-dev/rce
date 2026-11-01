@@ -528,7 +528,11 @@ fn every_button_is_reachable_from_the_keyboard() {
         .collect();
     assert_eq!(
         labels,
-        vec![format!("accept {id}"), format!("reject {id}"), "recall".into()]
+        vec![
+            format!("accept {id}"),
+            format!("reject {id}"),
+            "recall".into()
+        ]
     );
     // Forward: the editor, the memory query, each button, the editor again.
     let mut seen = vec![ide.focus];
