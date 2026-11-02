@@ -286,6 +286,94 @@ mod ioreport {
         }
         assert!(clpc_channels("com.apple.driver.AppleUnknownCLPC", "27.0.1").is_none());
     }
+
+    mod package {
+        use super::{m5max, r};
+        use ide_energy::ioreport::{PACKAGE, Rail, Row, package_joules, select_package};
+
+        fn described(rows: &[Row]) -> Vec<String> {
+            select_package(rows).unwrap().iter().map(|c| c.describe()).collect()
+        }
+
+        #[test]
+        fn m5max_reads_clpc_and_sums_cpu_gpu_ane() {
+            let rows = m5max();
+            // the stuck Energy Model CPU is not chosen; DRAM is outside the boundary
+            assert_eq!(
+                described(&rows),
+                [r#"cpu: CLPC "CPU Energy" nJ"#, r#"gpu: CLPC "GPU Energy" nJ"#, r#"ane: CLPC "ANE" nJ"#]
+            );
+            let sel = select_package(&rows).unwrap();
+            let j = package_joules(&rows, &sel).unwrap();
+            assert_eq!(j, [30.992368044, 39.201512326, 0.0]);
+            assert_eq!(PACKAGE, [Rail::Cpu, Rail::Gpu, Rail::Ane]);
+        }
+
+        #[test]
+        fn energy_model_units_are_read_per_channel() {
+            // an older macOS: no CLPC, Energy Model only, units mixed
+            let rows = vec![
+                r("ECPU0 CPU Energy", 100, "mJ"),
+                r("CPU Energy", 400, "mJ"),
+                r("GPU Energy", 50_000, "uJ"),
+                r("GPU SRAM0", 9, "mJ"),
+                r("ANE0", 2_000_000, "nJ"),
+                r("DRAM0", 7, "mJ"),
+            ];
+            assert_eq!(
+                described(&rows),
+                [
+                    r#"cpu: Energy Model "CPU Energy" mJ"#,
+                    r#"gpu: Energy Model "GPU Energy" uJ"#,
+                    r#"ane: Energy Model "ANE0" nJ"#
+                ]
+            );
+            let sel = select_package(&rows).unwrap();
+            assert_eq!(package_joules(&rows, &sel).unwrap(), [0.4, 0.05, 0.002]);
+            // a later delta in which the unit label changed is read by its new label
+            let later = vec![r("CPU Energy", 4_000_000, "nJ"), r("GPU Energy", 0, "uJ"), r("ANE0", 0, "nJ")];
+            assert_eq!(package_joules(&later, &sel).unwrap(), [0.004, 0.0, 0.0]);
+        }
+
+        #[test]
+        fn ultra_sums_every_die() {
+            let rows = vec![
+                Row::new("CLPC", "CPU Energy", 1_000_000_000, "nJ"),
+                Row::new("CLPC", "CPU Energy", 2_000_000_000, "nJ"),
+                Row::new("CLPC", "GPU Energy", 500_000_000, "nJ"),
+                Row::new("CLPC", "GPU Energy", 0, "nJ"),
+                Row::new("CLPC", "ANE", 0, "nJ"),
+                Row::new("CLPC", "ANE", 0, "nJ"),
+            ];
+            assert_eq!(described(&rows)[0], r#"cpu: CLPC "CPU Energy" nJ x2"#);
+            let em = vec![r("DIE_0_CPU Energy", 100, "mJ"), r("DIE_1_CPU Energy", 200, "mJ"), r("GPU Energy", 1, "mJ"), r("ANE0", 0, "mJ")];
+            assert_eq!(described(&em)[..2], [r#"cpu: Energy Model "DIE_0_CPU Energy" mJ"#, r#"cpu: Energy Model "DIE_1_CPU Energy" mJ"#]);
+            let sel = select_package(&rows).unwrap();
+            assert_eq!(package_joules(&rows, &sel).unwrap(), [3.0, 0.5, 0.0]);
+        }
+
+        #[test]
+        fn no_figure_without_counters() {
+            // nothing at all (a VM): the reason names the first domain
+            assert_eq!(select_package(&[]).unwrap_err(), "no cpu channel with a known unit");
+            // a CPU that did not move is broken, never 0 J
+            let still = vec![r("CPU Energy", 0, "mJ"), r("GPU Energy", 5, "mJ"), r("ANE0", 0, "mJ")];
+            assert_eq!(select_package(&still).unwrap_err(), "cpu counters did not move");
+            // a unit that is not J, mJ, uJ or nJ is never chosen, nor scaled
+            let watts = vec![r("CPU Energy", 5, "W"), r("GPU Energy", 5, "mJ"), r("ANE0", 0, "mJ")];
+            assert_eq!(select_package(&watts).unwrap_err(), "no cpu channel with a known unit");
+            let no_ane = vec![r("CPU Energy", 5, "mJ"), r("GPU Energy", 5, "mJ")];
+            assert_eq!(select_package(&no_ane).unwrap_err(), "no ane channel with a known unit");
+            // later deltas: a counter that went back, a lost channel, a new unit
+            let rows = vec![r("CPU Energy", 5, "mJ"), r("GPU Energy", 5, "mJ"), r("ANE0", 0, "mJ")];
+            let sel = select_package(&rows).unwrap();
+            let back = vec![r("CPU Energy", -3, "mJ"), r("GPU Energy", 5, "mJ"), r("ANE0", 0, "mJ")];
+            assert_eq!(package_joules(&back, &sel).unwrap_err(), r#"Energy Model "CPU Energy" went back by 3 mJ"#);
+            assert_eq!(package_joules(&rows[..2], &sel).unwrap_err(), r#"Energy Model "ANE0" is missing from the sample"#);
+            let odd = vec![r("CPU Energy", 5, "kWh"), r("GPU Energy", 5, "mJ"), r("ANE0", 0, "mJ")];
+            assert_eq!(package_joules(&odd, &sel).unwrap_err(), r#"Energy Model "CPU Energy" has unit `kWh`, not J, mJ, uJ or nJ"#);
+        }
+    }
 }
 
 mod power {
@@ -307,10 +395,16 @@ mod power {
 
     #[test]
     fn polled_meter_integrates_and_reports_errors() {
+        let t0 = std::time::Instant::now();
         let mut m = PolledMeter::start("test", Duration::from_millis(10), || Ok(5.0)).unwrap();
         std::thread::sleep(Duration::from_millis(120));
         let s = m.sample().unwrap();
-        assert!(s.joules > 0.3 && s.joules < 1.0, "{}", s.joules);
+        // 5 W over at most the time that really passed: a loaded machine
+        // sleeps longer than asked, so the bound is the elapsed time, not 120 ms.
+        // The meter stamps its polls with SystemTime and this test reads an
+        // Instant, so the two intervals can differ by up to one poll period (10 ms)
+        let most = 5.0 * (t0.elapsed().as_secs_f64() + 0.01);
+        assert!(s.joules > 0.3 && s.joules <= most + 1e-9, "{} J, at most {most} J", s.joules);
         assert!(
             PolledMeter::start("test", Duration::from_millis(10), || {
                 Err(MeterError::Unsupported("test", "x".into()))

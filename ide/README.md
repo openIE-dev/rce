@@ -48,9 +48,11 @@ addition of the IDE's own, the energy-budget gate
 in `crates/rce-ide/src/ci.rs`; the `rce` of `../spec/checker` does not have
 it), `rce-lsp` (language server) and `rce-mcp` (MCP server for agents).
 
-`measure` reads the RAPL package counters (Linux powercap
-`intel-rapl:N/energy_uj`, every top-level zone except `psys`) before the
-run, once a second during it and after it, and prints the reading as a
+`measure` reads the package energy counters before the run, once a second
+during it and after it: on Linux the RAPL package counters (powercap
+`intel-rapl:N/energy_uj`, every top-level zone except `psys`), on macOS
+(Apple silicon) the IOReport counters of the CPU, GPU and ANE (below). It
+prints the reading as a
 receipt term of spec Appendix D, D.11, with basis `reported` (an on-chip
 counter; D.11 keeps `measured` for a wall or shunt meter), its
 `provenance` and `amortization` `per_call`:
@@ -70,6 +72,35 @@ the second line. With no readable counter (no `/sys/class/powercap`, or
 read failed`, `the counter did not move`) and the energy gate has no figure
 (`energy: no measurement`, which fails only under `strict`); it never falls
 back to the simulated figure. The code is `crates/rce-ide/src/reading.rs`.
+
+On macOS, `measure` reads IOReport with no root and no setup:
+`/usr/lib/libIOReport.dylib` is opened at run time, and the `package`
+boundary is the sum of the CPU, GPU and ANE domains (DRAM is outside it),
+each read from the AppleCLPC energy counter where it moves, else from the
+`Energy Model` group, and converted by the unit its channel's label gives.
+The receipt has the same nine provenance fields; `counter` names every
+channel summed, `machine` comes from `sysctl` (host, chip, `hw.model`,
+macOS version, Darwin release), and `wraps` is 0 because the counters give
+64-bit deltas and a negative one is refused as a failed read. The form,
+with the figures of the unit test `ioreport_receipt_is_deterministic` (not
+a run):
+
+    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":0.0,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}
+
+To read it on a Mac (Apple silicon), build the IDE `rce` from `ide/` and
+run it on a program, with positional arguments only:
+
+```sh
+cd rce/ide
+cargo build --release -p rce-ide --bin rce
+target/release/rce test measure FILE
+```
+
+A Mac whose counters cannot be opened (a virtual machine, such as GitHub's
+macOS runners, may lack them) prints `energy: unmeasured: no counter
+available (REASON)`. `scripts/measure-check.sh target/release/rce` runs the
+command on a small program and checks that it printed one of the two.
+`docs/TELEMETRY.md` gives the channels, units and domains in full.
 
 `measured J PROVENANCE.json` (a wall or shunt meter) and `reported J
 PROVENANCE.json` (another OS or on-chip counter, such as NVML) give the gate

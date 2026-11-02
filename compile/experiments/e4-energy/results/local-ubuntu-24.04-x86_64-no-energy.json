@@ -1,0 +1,10087 @@
+{
+ "absent": [],
+ "date_utc": "2026-11-02T10:16:34Z",
+ "energy": {
+  "end_utc": "2026-11-02T10:16:33Z",
+  "kind": "unmeasured",
+  "reason": "no RAPL counter: /sys/class/powercap: No such file or directory",
+  "regime": null,
+  "start_utc": "2026-11-02T10:14:56Z"
+ },
+ "harness": {
+  "e4.py": "672e8eaa0d189cd1ec29b094f329f1af6b664455e2bcfb5d40afd613e78a9be5",
+  "matrix.json": "afea7f3db0a3379fdcd5152dea91498e87d3321aea6fb3fba680922d4f9f7892",
+  "meters.py": "9abd78e631b70e32cef31b3d5d2f7d14cc1c305a486e7d2258046c6559eab663",
+  "reference.py": "b429eeedb33f8265dd4c1a2f4e40ded29ac933a7fa5f20f9b495fd27281e16af",
+  "stats.py": "72d7145af420a932fbd610120cd0be749f9cbab24ae4fc2ecde421967929a19b",
+  "wasm_eps.py": "08a3d0e2c1b16579a6ffaa395f34eca917df57e953f06be0a5891e6336da4412"
+ },
+ "lambda": {
+  "compress_level": 9,
+  "compressor": "zlib",
+  "primary": "ir_nodes"
+ },
+ "landauer": {
+  "temperature_k": 300,
+  "temperature_kind": "modelled (declared, no ambient sensor read)"
+ },
+ "machine": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpus": 4,
+  "machine": "x86_64",
+  "os": "Ubuntu 24.04.5 LTS",
+  "python": "3.13.16",
+  "release": "6.18.44-fc-v185",
+  "system": "Linux",
+  "zlib": "1.3"
+ },
+ "rows": [
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/O0/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.1505346220001229
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/O0/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3520016,
+    "landauer_joules": 1.0105891611139269e-14,
+    "ops": 1240051,
+    "seconds": 1.472540380999817,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 92,
+    "native_bytes": 16200,
+    "native_zlib_bytes": 2535,
+    "wasm_bytes": 252,
+    "wasm_code_bytes": 196,
+    "wasm_zlib_bytes": 203
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/O1/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.16426717400008783
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/O1/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2719968,
+    "landauer_joules": 7.808970696089807e-15,
+    "ops": 420013,
+    "seconds": 0.5395871330001683,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 37,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2548,
+    "wasm_bytes": 127,
+    "wasm_code_bytes": 72,
+    "wasm_zlib_bytes": 117
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/O2/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.15071395199993276
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/O2/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2600048,
+    "landauer_joules": 7.464682908191166e-15,
+    "ops": 210030,
+    "seconds": 0.38655573399955756,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 100,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2625,
+    "wasm_bytes": 230,
+    "wasm_code_bytes": 174,
+    "wasm_zlib_bytes": 162
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/O3/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.1966237850001562
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/O3/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2600048,
+    "landauer_joules": 7.464682908191166e-15,
+    "ops": 210030,
+    "seconds": 0.2974073120003595,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 100,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2625,
+    "wasm_bytes": 230,
+    "wasm_code_bytes": 174,
+    "wasm_zlib_bytes": 162
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/Os/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.16094408800017845
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/Os/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2719968,
+    "landauer_joules": 7.808970696089807e-15,
+    "ops": 300013,
+    "seconds": 0.613348075000431,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 31,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2543,
+    "wasm_bytes": 115,
+    "wasm_code_bytes": 60,
+    "wasm_zlib_bytes": 110
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/sumsq.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sumsq/Oz/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.1596036829996592
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/sumsq.c",
+     "-o",
+     "{work}/build/c-sumsq/Oz/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2719976,
+    "landauer_joules": 7.808993663920886e-15,
+    "ops": 360012,
+    "seconds": 0.3637154030002421,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 27,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2517,
+    "wasm_bytes": 107,
+    "wasm_code_bytes": 52,
+    "wasm_zlib_bytes": 106
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/sumsq",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/O0/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.1597326269993573
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/O0/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1811840,
+    "landauer_joules": 5.201754383141035e-15,
+    "ops": 870187,
+    "seconds": 0.810286066000117,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 211,
+    "native_bytes": 16200,
+    "native_zlib_bytes": 2602,
+    "wasm_bytes": 486,
+    "wasm_code_bytes": 430,
+    "wasm_zlib_bytes": 356
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/O1/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.16488504700009798
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/O1/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495984,
+    "landauer_joules": 4.29493847641561e-15,
+    "ops": 282617,
+    "seconds": 0.2960666589997345,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 93,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2603,
+    "wasm_bytes": 229,
+    "wasm_code_bytes": 173,
+    "wasm_zlib_bytes": 176
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/O2/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.1794675630007987
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/O2/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495984,
+    "landauer_joules": 4.29493847641561e-15,
+    "ops": 238728,
+    "seconds": 0.22502230500049336,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 76,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2603,
+    "wasm_bytes": 196,
+    "wasm_code_bytes": 140,
+    "wasm_zlib_bytes": 159
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/O3/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.1478687560002072
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/O3/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495984,
+    "landauer_joules": 4.29493847641561e-15,
+    "ops": 238728,
+    "seconds": 0.2524116120002873,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 76,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2603,
+    "wasm_bytes": 196,
+    "wasm_code_bytes": 140,
+    "wasm_zlib_bytes": 159
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/Os/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.17822371000056592
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/Os/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495984,
+    "landauer_joules": 4.29493847641561e-15,
+    "ops": 238728,
+    "seconds": 0.2246629920000487,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 76,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2595,
+    "wasm_bytes": 196,
+    "wasm_code_bytes": 140,
+    "wasm_zlib_bytes": 159
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/collatz.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-collatz/Oz/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.1609502950004753
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/collatz.c",
+     "-o",
+     "{work}/build/c-collatz/Oz/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1497584,
+    "landauer_joules": 4.299532042631735e-15,
+    "ops": 223490,
+    "seconds": 0.23947999399933906,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 66,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2558,
+    "wasm_bytes": 176,
+    "wasm_code_bytes": 121,
+    "wasm_zlib_bytes": 143
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/collatz",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/O0/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.12615562900009536
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/O0/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1789568,
+    "landauer_joules": 5.137811941412561e-15,
+    "ops": 714647,
+    "seconds": 0.7849343289999524,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 241,
+    "native_bytes": 16256,
+    "native_zlib_bytes": 2631,
+    "wasm_bytes": 569,
+    "wasm_code_bytes": 513,
+    "wasm_zlib_bytes": 407
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/O1/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.13352536000002146
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/O1/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1362304,
+    "landauer_joules": 3.911146019058286e-15,
+    "ops": 318546,
+    "seconds": 0.3237925619996531,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 124,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2677,
+    "wasm_bytes": 311,
+    "wasm_code_bytes": 255,
+    "wasm_zlib_bytes": 234
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/O2/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.14936142900023697
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/O2/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1362304,
+    "landauer_joules": 3.911146019058286e-15,
+    "ops": 216476,
+    "seconds": 0.2310830710002847,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 94,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2677,
+    "wasm_bytes": 253,
+    "wasm_code_bytes": 197,
+    "wasm_zlib_bytes": 201
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/O3/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.15543918599996687
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/O3/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1362304,
+    "landauer_joules": 3.911146019058286e-15,
+    "ops": 216476,
+    "seconds": 0.21616392099986115,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 94,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2677,
+    "wasm_bytes": 253,
+    "wasm_code_bytes": 197,
+    "wasm_zlib_bytes": 201
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/Os/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.14182443199933914
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/Os/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1362304,
+    "landauer_joules": 3.911146019058286e-15,
+    "ops": 216476,
+    "seconds": 0.21502246300042316,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 94,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2675,
+    "wasm_bytes": 253,
+    "wasm_code_bytes": 197,
+    "wasm_zlib_bytes": 201
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/sieve.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sieve/Oz/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.14259557599962136
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/sieve.c",
+     "-o",
+     "{work}/build/c-sieve/Oz/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1362312,
+    "landauer_joules": 3.911168986889367e-15,
+    "ops": 241020,
+    "seconds": 0.2384346619992357,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 97,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2643,
+    "wasm_bytes": 258,
+    "wasm_code_bytes": 202,
+    "wasm_zlib_bytes": 207
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/sieve",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/O0/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.13538007799979823
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/O0/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3866992,
+    "landauer_joules": 1.1102052380768344e-14,
+    "ops": 1334272,
+    "seconds": 1.419348970000101,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 465,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2730,
+    "wasm_bytes": 1029,
+    "wasm_code_bytes": 973,
+    "wasm_zlib_bytes": 714
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/O1/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.1566445799999201
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/O1/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1108472,
+    "landauer_joules": 3.182399706700983e-15,
+    "ops": 270131,
+    "seconds": 0.35135161000016524,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 175,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2718,
+    "wasm_bytes": 411,
+    "wasm_code_bytes": 355,
+    "wasm_zlib_bytes": 278
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/O2/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.1780255820003731
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/O2/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1096624,
+    "landauer_joules": 3.1483843488705706e-15,
+    "ops": 205321,
+    "seconds": 0.22369850100039912,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 333,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2999,
+    "wasm_bytes": 720,
+    "wasm_code_bytes": 664,
+    "wasm_zlib_bytes": 376
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/O3/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.17263624899987917
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/O3/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1096624,
+    "landauer_joules": 3.1483843488705706e-15,
+    "ops": 205321,
+    "seconds": 0.2591284479995011,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 333,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2999,
+    "wasm_bytes": 720,
+    "wasm_code_bytes": 664,
+    "wasm_zlib_bytes": 376
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/Os/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.14247920900015743
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/Os/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1108480,
+    "landauer_joules": 3.1824226745320643e-15,
+    "ops": 207884,
+    "seconds": 0.27779647700026544,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 147,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2690,
+    "wasm_bytes": 356,
+    "wasm_code_bytes": 300,
+    "wasm_zlib_bytes": 258
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/sort.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-sort/Oz/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.162113863999366
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/sort.c",
+     "-o",
+     "{work}/build/c-sort/Oz/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1186864,
+    "landauer_joules": 3.407461483460075e-15,
+    "ops": 229089,
+    "seconds": 0.2615288679999139,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 146,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2673,
+    "wasm_bytes": 359,
+    "wasm_code_bytes": 303,
+    "wasm_zlib_bytes": 250
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/sort",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/O0/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.12228077200052212
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/O0/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 4351952,
+    "landauer_joules": 1.2494362300876121e-14,
+    "ops": 1356062,
+    "seconds": 1.1252612890002638,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 195,
+    "native_bytes": 16200,
+    "native_zlib_bytes": 2594,
+    "wasm_bytes": 465,
+    "wasm_code_bytes": 409,
+    "wasm_zlib_bytes": 360
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/O1/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.1394409109998378
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/O1/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3408000,
+    "landauer_joules": 9.784296040348292e-15,
+    "ops": 396015,
+    "seconds": 0.43184844400002476,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 68,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2590,
+    "wasm_bytes": 193,
+    "wasm_code_bytes": 137,
+    "wasm_zlib_bytes": 177
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/O2/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.15937197699986427
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/O2/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2560000,
+    "landauer_joules": 7.349705945801533e-15,
+    "ops": 178013,
+    "seconds": 0.22490328300045803,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 104,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2710,
+    "wasm_bytes": 265,
+    "wasm_code_bytes": 209,
+    "wasm_zlib_bytes": 222
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/O3/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.16253404100007174
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/O3/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2560000,
+    "landauer_joules": 7.349705945801533e-15,
+    "ops": 178013,
+    "seconds": 0.20338594499935425,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 104,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2710,
+    "wasm_bytes": 265,
+    "wasm_code_bytes": 209,
+    "wasm_zlib_bytes": 222
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/Os/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.15845042099954298
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/Os/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3408000,
+    "landauer_joules": 9.784296040348292e-15,
+    "ops": 316015,
+    "seconds": 0.5981281140002466,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 56,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2587,
+    "wasm_bytes": 167,
+    "wasm_code_bytes": 112,
+    "wasm_zlib_bytes": 158
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/crc32.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-crc32/Oz/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.1446237670006667
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/crc32.c",
+     "-o",
+     "{work}/build/c-crc32/Oz/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3408008,
+    "landauer_joules": 9.784319008179373e-15,
+    "ops": 372016,
+    "seconds": 0.3200057869999,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 58,
+    "native_bytes": 16216,
+    "native_zlib_bytes": 2581,
+    "wasm_bytes": 171,
+    "wasm_code_bytes": 116,
+    "wasm_zlib_bytes": 160
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/crc32",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/O0/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.12837895800021215
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/O0/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3604448,
+    "landauer_joules": 1.0348294100364237e-14,
+    "ops": 1035294,
+    "seconds": 1.0884505559997706,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 641,
+    "native_bytes": 16280,
+    "native_zlib_bytes": 2775,
+    "wasm_bytes": 1457,
+    "wasm_code_bytes": 1401,
+    "wasm_zlib_bytes": 957
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/O1/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.17020493099971645
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/O1/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1486568,
+    "landauer_joules": 4.267905339233708e-15,
+    "ops": 247535,
+    "seconds": 0.3810157190000609,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 233,
+    "native_bytes": 16296,
+    "native_zlib_bytes": 2815,
+    "wasm_bytes": 517,
+    "wasm_code_bytes": 461,
+    "wasm_zlib_bytes": 295
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/O2/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.17263862499930838
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/O2/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1344536,
+    "landauer_joules": 3.860134466228207e-15,
+    "ops": 145255,
+    "seconds": 0.1934811789997184,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 473,
+    "native_bytes": 16296,
+    "native_zlib_bytes": 3523,
+    "wasm_bytes": 948,
+    "wasm_code_bytes": 892,
+    "wasm_zlib_bytes": 505
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/O3/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.19722754800022813
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/O3/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1344536,
+    "landauer_joules": 3.860134466228207e-15,
+    "ops": 145255,
+    "seconds": 0.20137423100004526,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 473,
+    "native_bytes": 16296,
+    "native_zlib_bytes": 3794,
+    "wasm_bytes": 948,
+    "wasm_code_bytes": 892,
+    "wasm_zlib_bytes": 505
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/Os/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.1681140669998058
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/Os/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1486592,
+    "landauer_joules": 4.267974242726951e-15,
+    "ops": 201562,
+    "seconds": 0.39563197000006767,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 202,
+    "native_bytes": 16296,
+    "native_zlib_bytes": 2802,
+    "wasm_bytes": 452,
+    "wasm_code_bytes": 396,
+    "wasm_zlib_bytes": 283
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/matmul.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-matmul/Oz/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.16693995900004666
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/matmul.c",
+     "-o",
+     "{work}/build/c-matmul/Oz/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1487072,
+    "landauer_joules": 4.269352312591788e-15,
+    "ops": 229168,
+    "seconds": 0.27363431499998114,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 219,
+    "native_bytes": 16296,
+    "native_zlib_bytes": 2760,
+    "wasm_bytes": 482,
+    "wasm_code_bytes": 426,
+    "wasm_zlib_bytes": 304
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/matmul",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/O0/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.1489177710000149
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/O0/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1337216,
+    "landauer_joules": 3.839118900789431e-15,
+    "ops": 564407,
+    "seconds": 0.6133578569997553,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 145,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2576,
+    "wasm_bytes": 387,
+    "wasm_code_bytes": 330,
+    "wasm_zlib_bytes": 241
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/O1/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.1536740870005815
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/O1/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 150505,
+    "seconds": 0.19804917500005104,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 37,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2592,
+    "wasm_bytes": 138,
+    "wasm_code_bytes": 82,
+    "wasm_zlib_bytes": 124
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/O2/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.16444367500025692
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/O2/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.10143192299983639,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2597,
+    "wasm_bytes": 135,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/O3/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.1493885270001556
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/O3/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.18892653199964116,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2597,
+    "wasm_bytes": 135,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/Os/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.154375772000094
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/Os/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.187888323000152,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2596,
+    "wasm_bytes": 135,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/fib.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-fib/Oz/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.17398920899995574
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/fib.c",
+     "-o",
+     "{work}/build/c-fib/Oz/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117060,
+    "seconds": 0.1560690149999573,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 32,
+    "native_bytes": 16240,
+    "native_zlib_bytes": 2581,
+    "wasm_bytes": 128,
+    "wasm_code_bytes": 72,
+    "wasm_zlib_bytes": 119
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/fib",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O0",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/O0/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.14184965300046315
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O0",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/O0/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3619992,
+    "landauer_joules": 1.0392920596153899e-14,
+    "ops": 1347686,
+    "seconds": 1.733574840000074,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 137,
+    "native_bytes": 16200,
+    "native_zlib_bytes": 2560,
+    "wasm_bytes": 347,
+    "wasm_code_bytes": 291,
+    "wasm_zlib_bytes": 263
+   },
+   "language": "C",
+   "level": "-O0",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O1",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/O1/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.17064996699991752
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O1",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/O1/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 319968,
+    "landauer_joules": 9.18621371900869e-16,
+    "ops": 44015,
+    "seconds": 0.040148221999515954,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 40,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2574,
+    "wasm_bytes": 136,
+    "wasm_code_bytes": 81,
+    "wasm_zlib_bytes": 127
+   },
+   "language": "C",
+   "level": "-O1",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O2",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/O2/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.15630279299966787
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O2",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/O2/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 272048,
+    "landauer_joules": 7.810440637278966e-16,
+    "ops": 19530,
+    "seconds": 0.037563287999546446,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 95,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2637,
+    "wasm_bytes": 235,
+    "wasm_code_bytes": 179,
+    "wasm_zlib_bytes": 171
+   },
+   "language": "C",
+   "level": "-O2",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-O3",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/O3/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.1694368949993077
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-O3",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/O3/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -O3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 272048,
+    "landauer_joules": 7.810440637278966e-16,
+    "ops": 19530,
+    "seconds": 0.02601132800009509,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 95,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2637,
+    "wasm_bytes": 235,
+    "wasm_code_bytes": 179,
+    "wasm_zlib_bytes": 171
+   },
+   "language": "C",
+   "level": "-O3",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Os",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/Os/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.1461839029998373
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Os",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/Os/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Os",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 319968,
+    "landauer_joules": 9.18621371900869e-16,
+    "ops": 30013,
+    "seconds": 0.03313731700018252,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 31,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2563,
+    "wasm_bytes": 118,
+    "wasm_code_bytes": 63,
+    "wasm_zlib_bytes": 117
+   },
+   "language": "C",
+   "level": "-Os",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "clang",
+     "-Oz",
+     "programs/c/popcount.c",
+     "programs/c/driver.c",
+     "-o",
+     "{work}/build/c-popcount/Oz/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.15833234599995194
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "clang",
+     "--target=wasm32",
+     "-nostdlib",
+     "-Wl,--no-entry",
+     "-Wl,--export=run",
+     "-Oz",
+     "programs/c/popcount.c",
+     "-o",
+     "{work}/build/c-popcount/Oz/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "clang -Oz",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3540016,
+    "landauer_joules": 1.0163311188840844e-14,
+    "ops": 488404,
+    "seconds": 0.49203857600059564,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 45,
+    "native_bytes": 16224,
+    "native_zlib_bytes": 2550,
+    "wasm_bytes": 142,
+    "wasm_code_bytes": 87,
+    "wasm_zlib_bytes": 131
+   },
+   "language": "C",
+   "level": "-Oz",
+   "program": "c/popcount",
+   "toolchain": "c"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/0/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.1409416139995301
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/0/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 4160008,
+    "landauer_joules": 1.1943295129758571e-14,
+    "ops": 760030,
+    "seconds": 1.1892782949998946,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 101,
+    "native_bytes": 4387496,
+    "native_zlib_bytes": 1134784,
+    "wasm_bytes": 520,
+    "wasm_code_bytes": 254,
+    "wasm_zlib_bytes": 398
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/1/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.22037041400017188
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/1/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2600048,
+    "landauer_joules": 7.464682908191166e-15,
+    "ops": 230038,
+    "seconds": 0.26999193699975876,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 119,
+    "native_bytes": 4369128,
+    "native_zlib_bytes": 1129340,
+    "wasm_bytes": 270,
+    "wasm_code_bytes": 213,
+    "wasm_zlib_bytes": 189
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/2/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.25536748900049133
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/2/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2600048,
+    "landauer_joules": 7.464682908191166e-15,
+    "ops": 210032,
+    "seconds": 0.3922021840007801,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 97,
+    "native_bytes": 4369352,
+    "native_zlib_bytes": 1129367,
+    "wasm_bytes": 226,
+    "wasm_code_bytes": 169,
+    "wasm_zlib_bytes": 165
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/3/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.2334869490005076
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/3/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2600048,
+    "landauer_joules": 7.464682908191166e-15,
+    "ops": 210032,
+    "seconds": 0.3606711800002813,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 97,
+    "native_bytes": 4369384,
+    "native_zlib_bytes": 1129380,
+    "wasm_bytes": 226,
+    "wasm_code_bytes": 169,
+    "wasm_zlib_bytes": 165
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/s/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.22404421900046145
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/s/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2719968,
+    "landauer_joules": 7.808970696089807e-15,
+    "ops": 300013,
+    "seconds": 0.39699608699993405,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 31,
+    "native_bytes": 4367840,
+    "native_zlib_bytes": 1128802,
+    "wasm_bytes": 116,
+    "wasm_code_bytes": 60,
+    "wasm_zlib_bytes": 112
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/z/sumsq"
+    ],
+    "error": null,
+    "seconds": [
+     0.2094861639998271
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sumsq.rs",
+     "-o",
+     "{work}/build/rust-sumsq/z/sumsq.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2719976,
+    "landauer_joules": 7.808993663920886e-15,
+    "ops": 360012,
+    "seconds": 0.37481275600021036,
+    "status": "counted"
+   },
+   "eps_input": 20000,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "748694189",
+      "748694189"
+     ],
+     [
+      "957790448",
+      "957790448"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     748694189,
+     957790448
+    ]
+   },
+   "kernel": "sumsq",
+   "lambda": {
+    "ir_nodes": 27,
+    "native_bytes": 4368784,
+    "native_zlib_bytes": 1129122,
+    "wasm_bytes": 108,
+    "wasm_code_bytes": 52,
+    "wasm_zlib_bytes": 107
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/sumsq",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/0/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.1377860149996195
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/0/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2416328,
+    "landauer_joules": 6.937226667424503e-15,
+    "ops": 486956,
+    "seconds": 0.5871014690001175,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 177,
+    "native_bytes": 4387816,
+    "native_zlib_bytes": 1134794,
+    "wasm_bytes": 691,
+    "wasm_code_bytes": 409,
+    "wasm_zlib_bytes": 478
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/1/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.22280642399982753
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/1/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495944,
+    "landauer_joules": 4.294823637260206e-15,
+    "ops": 282607,
+    "seconds": 0.42513664299985976,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 83,
+    "native_bytes": 4368960,
+    "native_zlib_bytes": 1129243,
+    "wasm_bytes": 213,
+    "wasm_code_bytes": 156,
+    "wasm_zlib_bytes": 169
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/2/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.24613507300000492
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/2/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495944,
+    "landauer_joules": 4.294823637260206e-15,
+    "ops": 238718,
+    "seconds": 0.20056112099973689,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 66,
+    "native_bytes": 4369224,
+    "native_zlib_bytes": 1129194,
+    "wasm_bytes": 178,
+    "wasm_code_bytes": 122,
+    "wasm_zlib_bytes": 147
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/3/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.246992381000382
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/3/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495944,
+    "landauer_joules": 4.294823637260206e-15,
+    "ops": 238718,
+    "seconds": 0.23218750400064891,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 66,
+    "native_bytes": 4369240,
+    "native_zlib_bytes": 1129214,
+    "wasm_bytes": 178,
+    "wasm_code_bytes": 122,
+    "wasm_zlib_bytes": 147
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/s/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.20913374599967938
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/s/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1495944,
+    "landauer_joules": 4.294823637260206e-15,
+    "ops": 238718,
+    "seconds": 0.21435637600006885,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 66,
+    "native_bytes": 4367928,
+    "native_zlib_bytes": 1128845,
+    "wasm_bytes": 178,
+    "wasm_code_bytes": 122,
+    "wasm_zlib_bytes": 147
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/z/collatz"
+    ],
+    "error": null,
+    "seconds": [
+     0.23809871499997826
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/collatz.rs",
+     "-o",
+     "{work}/build/rust-collatz/z/collatz.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1497544,
+    "landauer_joules": 4.299417203476332e-15,
+    "ops": 240516,
+    "seconds": 0.20280997600002593,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "67",
+      "67"
+     ],
+     [
+      "8418",
+      "8418"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     1,
+     67,
+     8418
+    ]
+   },
+   "kernel": "collatz",
+   "lambda": {
+    "ir_nodes": 58,
+    "native_bytes": 4368840,
+    "native_zlib_bytes": 1129155,
+    "wasm_bytes": 163,
+    "wasm_code_bytes": 107,
+    "wasm_zlib_bytes": 141
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/collatz",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/0/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.14862210599949321
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/0/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3863440,
+    "landauer_joules": 1.1091854663768545e-14,
+    "ops": 699680,
+    "seconds": 0.8130142630006958,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 1460,
+    "native_bytes": 4388984,
+    "native_zlib_bytes": 1135179,
+    "wasm_bytes": 3903,
+    "wasm_code_bytes": 3132,
+    "wasm_zlib_bytes": 2015
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/1/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.2127020830002948
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/1/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1231296,
+    "landauer_joules": 3.5350248172818925e-15,
+    "ops": 312542,
+    "seconds": 0.3923346510000556,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 122,
+    "native_bytes": 4369224,
+    "native_zlib_bytes": 1129380,
+    "wasm_bytes": 309,
+    "wasm_code_bytes": 252,
+    "wasm_zlib_bytes": 232
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/2/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.24058378500012623
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/2/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1231296,
+    "landauer_joules": 3.5350248172818925e-15,
+    "ops": 209380,
+    "seconds": 0.24366249099966808,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 92,
+    "native_bytes": 4369480,
+    "native_zlib_bytes": 1129411,
+    "wasm_bytes": 251,
+    "wasm_code_bytes": 194,
+    "wasm_zlib_bytes": 198
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/3/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.25978389700048865
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/3/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1231296,
+    "landauer_joules": 3.5350248172818925e-15,
+    "ops": 209380,
+    "seconds": 0.330188636999992,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 92,
+    "native_bytes": 4369496,
+    "native_zlib_bytes": 1129429,
+    "wasm_bytes": 251,
+    "wasm_code_bytes": 194,
+    "wasm_zlib_bytes": 198
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/s/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.28610438400028215
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/s/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1231296,
+    "landauer_joules": 3.5350248172818925e-15,
+    "ops": 209380,
+    "seconds": 0.21226814600049693,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 92,
+    "native_bytes": 4368088,
+    "native_zlib_bytes": 1128931,
+    "wasm_bytes": 251,
+    "wasm_code_bytes": 194,
+    "wasm_zlib_bytes": 198
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/z/sieve"
+    ],
+    "error": null,
+    "seconds": [
+     0.22445752599924162
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sieve.rs",
+     "-o",
+     "{work}/build/rust-sieve/z/sieve.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1231304,
+    "landauer_joules": 3.535047785112973e-15,
+    "ops": 243457,
+    "seconds": 0.30669484499958344,
+    "status": "counted"
+   },
+   "eps_input": 4096,
+   "equivalence": {
+    "expected": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     4096
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "564",
+      "564"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     0,
+     0,
+     4,
+     564
+    ]
+   },
+   "kernel": "sieve",
+   "lambda": {
+    "ir_nodes": 97,
+    "native_bytes": 4368992,
+    "native_zlib_bytes": 1129290,
+    "wasm_bytes": 259,
+    "wasm_code_bytes": 202,
+    "wasm_zlib_bytes": 205
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/sieve",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/0/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.15127366000069742
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/0/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 9278072,
+    "landauer_joules": 2.6637148806240126e-14,
+    "ops": 1455773,
+    "seconds": 1.6500810650004496,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 1724,
+    "native_bytes": 4389984,
+    "native_zlib_bytes": 1135497,
+    "wasm_bytes": 4554,
+    "wasm_code_bytes": 3707,
+    "wasm_zlib_bytes": 2203
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/1/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.2497053600000072
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/1/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1085448,
+    "landauer_joules": 3.116298288850931e-15,
+    "ops": 265770,
+    "seconds": 0.33205980700040527,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 1469,
+    "native_bytes": 4369640,
+    "native_zlib_bytes": 1129756,
+    "wasm_bytes": 3557,
+    "wasm_code_bytes": 3022,
+    "wasm_zlib_bytes": 1930
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/2/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.24060807200021372
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/2/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1083856,
+    "landauer_joules": 3.1117276904658857e-15,
+    "ops": 204422,
+    "seconds": 0.32041620800009696,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 315,
+    "native_bytes": 4370256,
+    "native_zlib_bytes": 1130023,
+    "wasm_bytes": 697,
+    "wasm_code_bytes": 640,
+    "wasm_zlib_bytes": 424
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/3/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.26596992400027375
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/3/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1083856,
+    "landauer_joules": 3.1117276904658857e-15,
+    "ops": 204422,
+    "seconds": 0.25367662600001495,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 315,
+    "native_bytes": 4370272,
+    "native_zlib_bytes": 1130021,
+    "wasm_bytes": 697,
+    "wasm_code_bytes": 640,
+    "wasm_zlib_bytes": 424
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/s/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.2196356160002324
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/s/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1089296,
+    "landauer_joules": 3.127345815600714e-15,
+    "ops": 206680,
+    "seconds": 0.25136633799957053,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 133,
+    "native_bytes": 4368016,
+    "native_zlib_bytes": 1128869,
+    "wasm_bytes": 335,
+    "wasm_code_bytes": 278,
+    "wasm_zlib_bytes": 250
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/z/sort"
+    ],
+    "error": null,
+    "seconds": [
+     0.2252347829999053
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/sort.rs",
+     "-o",
+     "{work}/build/rust-sort/z/sort.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1174064,
+    "landauer_joules": 3.3707129537310673e-15,
+    "ops": 247709,
+    "seconds": 0.3271583779996945,
+    "status": "counted"
+   },
+   "eps_input": 200,
+   "equivalence": {
+    "expected": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     200
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "21468",
+      "21468"
+     ],
+     [
+      "52924",
+      "52924"
+     ],
+     [
+      "947144",
+      "947144"
+     ],
+     [
+      "441523108",
+      "441523108"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     21468,
+     52924,
+     947144,
+     441523108
+    ]
+   },
+   "kernel": "sort",
+   "lambda": {
+    "ir_nodes": 139,
+    "native_bytes": 4368952,
+    "native_zlib_bytes": 1129223,
+    "wasm_bytes": 348,
+    "wasm_code_bytes": 291,
+    "wasm_zlib_bytes": 256
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/sort",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/0/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.13670436500069627
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/0/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 4911944,
+    "landauer_joules": 1.4102087508689127e-14,
+    "ops": 886035,
+    "seconds": 1.4029319880000912,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 172,
+    "native_bytes": 4387680,
+    "native_zlib_bytes": 1134818,
+    "wasm_bytes": 688,
+    "wasm_code_bytes": 406,
+    "wasm_zlib_bytes": 499
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/1/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.2429211500002566
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/1/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2560000,
+    "landauer_joules": 7.349705945801533e-15,
+    "ops": 188015,
+    "seconds": 0.23719788899961713,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 111,
+    "native_bytes": 4369224,
+    "native_zlib_bytes": 1129403,
+    "wasm_bytes": 280,
+    "wasm_code_bytes": 223,
+    "wasm_zlib_bytes": 235
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/2/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.21797757000058482
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/2/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2560000,
+    "landauer_joules": 7.349705945801533e-15,
+    "ops": 178013,
+    "seconds": 0.2770202400006383,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 104,
+    "native_bytes": 4369480,
+    "native_zlib_bytes": 1129502,
+    "wasm_bytes": 266,
+    "wasm_code_bytes": 209,
+    "wasm_zlib_bytes": 226
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/3/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.2668314669999745
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/3/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2560000,
+    "landauer_joules": 7.349705945801533e-15,
+    "ops": 178013,
+    "seconds": 0.20246328300072491,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 104,
+    "native_bytes": 4369496,
+    "native_zlib_bytes": 1129493,
+    "wasm_bytes": 266,
+    "wasm_code_bytes": 209,
+    "wasm_zlib_bytes": 226
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/s/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.19961396800044895
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/s/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3408000,
+    "landauer_joules": 9.784296040348292e-15,
+    "ops": 316015,
+    "seconds": 0.3218516940005429,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 56,
+    "native_bytes": 4367912,
+    "native_zlib_bytes": 1128845,
+    "wasm_bytes": 168,
+    "wasm_code_bytes": 112,
+    "wasm_zlib_bytes": 160
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/z/crc32"
+    ],
+    "error": null,
+    "seconds": [
+     0.23001290899992455
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/crc32.rs",
+     "-o",
+     "{work}/build/rust-crc32/z/crc32.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3408008,
+    "landauer_joules": 9.784319008179373e-15,
+    "ops": 372016,
+    "seconds": 0.4301552189999711,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "4251816714",
+      "4251816714"
+     ],
+     [
+      "3203995635",
+      "3203995635"
+     ],
+     [
+      "60915460",
+      "60915460"
+     ],
+     [
+      "3096486666",
+      "3096486666"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     4251816714,
+     3203995635,
+     60915460,
+     3096486666
+    ]
+   },
+   "kernel": "crc32",
+   "lambda": {
+    "ir_nodes": 58,
+    "native_bytes": 4368848,
+    "native_zlib_bytes": 1129169,
+    "wasm_bytes": 172,
+    "wasm_code_bytes": 116,
+    "wasm_zlib_bytes": 163
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/crc32",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/0/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.15527871300037077
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/0/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 10057528,
+    "landauer_joules": 2.887495052408805e-14,
+    "ops": 1917455,
+    "seconds": 2.5239922410000872,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 2089,
+    "native_bytes": 4392256,
+    "native_zlib_bytes": 1136102,
+    "wasm_bytes": 5674,
+    "wasm_code_bytes": 4609,
+    "wasm_zlib_bytes": 2873
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/1/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.2140675900000133
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/1/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 2208208,
+    "landauer_joules": 6.339718541861919e-15,
+    "ops": 255225,
+    "seconds": 0.3704022879992408,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 554,
+    "native_bytes": 4369760,
+    "native_zlib_bytes": 1129730,
+    "wasm_bytes": 1079,
+    "wasm_code_bytes": 1022,
+    "wasm_zlib_bytes": 544
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/2/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.3462650190003842
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/2/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1332376,
+    "landauer_joules": 3.82522336298565e-15,
+    "ops": 144051,
+    "seconds": 0.24784025299959467,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 467,
+    "native_bytes": 4373904,
+    "native_zlib_bytes": 1131704,
+    "wasm_bytes": 940,
+    "wasm_code_bytes": 883,
+    "wasm_zlib_bytes": 503
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/3/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.3128088009998464
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/3/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1332376,
+    "landauer_joules": 3.82522336298565e-15,
+    "ops": 144051,
+    "seconds": 0.1979619650001041,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 467,
+    "native_bytes": 4373920,
+    "native_zlib_bytes": 1131704,
+    "wasm_bytes": 940,
+    "wasm_code_bytes": 883,
+    "wasm_zlib_bytes": 503
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/s/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.2291042920005566
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/s/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1462248,
+    "landauer_joules": 4.198083132748593e-15,
+    "ops": 200057,
+    "seconds": 0.24200156099959713,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 199,
+    "native_bytes": 4368288,
+    "native_zlib_bytes": 1129069,
+    "wasm_bytes": 450,
+    "wasm_code_bytes": 393,
+    "wasm_zlib_bytes": 283
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/z/matmul"
+    ],
+    "error": null,
+    "seconds": [
+     0.21990101499977754
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/matmul.rs",
+     "-o",
+     "{work}/build/rust-matmul/z/matmul.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1529952,
+    "landauer_joules": 4.3924598871839634e-15,
+    "ops": 227685,
+    "seconds": 0.304758498999945,
+    "status": "counted"
+   },
+   "eps_input": 20,
+   "equivalence": {
+    "expected": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     20
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "102",
+      "102"
+     ],
+     [
+      "4908750",
+      "4908750"
+     ],
+     [
+      "647430000",
+      "647430000"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     3,
+     102,
+     4908750,
+     647430000
+    ]
+   },
+   "kernel": "matmul",
+   "lambda": {
+    "ir_nodes": 219,
+    "native_bytes": 4369192,
+    "native_zlib_bytes": 1129359,
+    "wasm_bytes": 483,
+    "wasm_code_bytes": 426,
+    "wasm_zlib_bytes": 306
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/matmul",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/0/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.12179326699970261
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/0/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 1604720,
+    "landauer_joules": 4.60711723646353e-15,
+    "ops": 376259,
+    "seconds": 0.42839181999988796,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 143,
+    "native_bytes": 4387576,
+    "native_zlib_bytes": 1134794,
+    "wasm_bytes": 644,
+    "wasm_code_bytes": 360,
+    "wasm_zlib_bytes": 445
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/1/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.21798140600003535
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/1/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 150505,
+    "seconds": 0.1700162730003285,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 37,
+    "native_bytes": 4368896,
+    "native_zlib_bytes": 1129103,
+    "wasm_bytes": 139,
+    "wasm_code_bytes": 82,
+    "wasm_zlib_bytes": 124
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/2/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.23450433300058648
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/2/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.10120178000033775,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 4369192,
+    "native_zlib_bytes": 1129210,
+    "wasm_bytes": 136,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/3/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.252278158000081
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/3/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.10160810300021694,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 4369208,
+    "native_zlib_bytes": 1129253,
+    "wasm_bytes": 136,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/s/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.20281549199989968
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/s/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117439,
+    "seconds": 0.10190092799984996,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 36,
+    "native_bytes": 4367904,
+    "native_zlib_bytes": 1128818,
+    "wasm_bytes": 136,
+    "wasm_code_bytes": 79,
+    "wasm_zlib_bytes": 122
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/z/fib"
+    ],
+    "error": null,
+    "seconds": [
+     0.20601996400000644
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/fib.rs",
+     "-o",
+     "{work}/build/rust-fib/z/fib.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 601936,
+    "landauer_joules": 1.7281455461687468e-15,
+    "ops": 117060,
+    "seconds": 0.11590186900048138,
+    "status": "counted"
+   },
+   "eps_input": 18,
+   "equivalence": {
+    "expected": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     18
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "55",
+      "55"
+     ],
+     [
+      "2584",
+      "2584"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     1,
+     1,
+     55,
+     2584
+    ]
+   },
+   "kernel": "fib",
+   "lambda": {
+    "ir_nodes": 32,
+    "native_bytes": 4368864,
+    "native_zlib_bytes": 1129175,
+    "wasm_bytes": 129,
+    "wasm_code_bytes": 72,
+    "wasm_zlib_bytes": 118
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/fib",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=0",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/0/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.12636743800067052
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=0",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/0/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=0",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 4688304,
+    "landauer_joules": 1.3460021790830121e-14,
+    "ops": 1178123,
+    "seconds": 1.384842545000538,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 153,
+    "native_bytes": 4388072,
+    "native_zlib_bytes": 1134812,
+    "wasm_bytes": 693,
+    "wasm_code_bytes": 377,
+    "wasm_zlib_bytes": 486
+   },
+   "language": "Rust",
+   "level": "0",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=1",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/1/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.24784239699965838
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=1",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/1/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=1",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 272048,
+    "landauer_joules": 7.810440637278966e-16,
+    "ops": 21035,
+    "seconds": 0.02537697899970226,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 117,
+    "native_bytes": 4369160,
+    "native_zlib_bytes": 1129270,
+    "wasm_bytes": 294,
+    "wasm_code_bytes": 237,
+    "wasm_zlib_bytes": 246
+   },
+   "language": "Rust",
+   "level": "1",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=2",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/2/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.2437880449997465
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=2",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/2/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=2",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 272048,
+    "landauer_joules": 7.810440637278966e-16,
+    "ops": 21029,
+    "seconds": 0.02665231599985418,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 98,
+    "native_bytes": 4369432,
+    "native_zlib_bytes": 1129327,
+    "wasm_bytes": 256,
+    "wasm_code_bytes": 199,
+    "wasm_zlib_bytes": 223
+   },
+   "language": "Rust",
+   "level": "2",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=3",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/3/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.2904141980006898
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=3",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/3/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=3",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 272048,
+    "landauer_joules": 7.810440637278966e-16,
+    "ops": 21029,
+    "seconds": 0.026026147000266064,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 98,
+    "native_bytes": 4369448,
+    "native_zlib_bytes": 1129400,
+    "wasm_bytes": 256,
+    "wasm_code_bytes": 199,
+    "wasm_zlib_bytes": 223
+   },
+   "language": "Rust",
+   "level": "3",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=s",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/s/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.22338247500010766
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=s",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/s/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=s",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 319968,
+    "landauer_joules": 9.18621371900869e-16,
+    "ops": 30013,
+    "seconds": 0.03314858700014156,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 31,
+    "native_bytes": 4367896,
+    "native_zlib_bytes": 1128867,
+    "wasm_bytes": 119,
+    "wasm_code_bytes": 63,
+    "wasm_zlib_bytes": 118
+   },
+   "language": "Rust",
+   "level": "s",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  },
+  {
+   "build_native": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "-C",
+     "opt-level=z",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/z/popcount"
+    ],
+    "error": null,
+    "seconds": [
+     0.22903497500010417
+    ],
+    "status": "built"
+   },
+   "build_wasm": {
+    "argv": [
+     "rustc",
+     "--edition=2021",
+     "--target",
+     "wasm32-unknown-unknown",
+     "--crate-type",
+     "cdylib",
+     "-C",
+     "opt-level=z",
+     "programs/rust/popcount.rs",
+     "-o",
+     "{work}/build/rust-popcount/z/popcount.wasm"
+    ],
+    "error": null,
+    "status": "built"
+   },
+   "config": "rustc opt-level=z",
+   "energy": {
+    "status": "unmeasured"
+   },
+   "eps": {
+    "bits": 3268936,
+    "landauer_joules": 9.385046232673702e-15,
+    "ops": 486404,
+    "seconds": 0.4760102130003361,
+    "status": "counted"
+   },
+   "eps_input": 2000,
+   "equivalence": {
+    "expected": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ],
+    "inputs": [
+     0,
+     1,
+     2,
+     10,
+     2000
+    ],
+    "native": [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "13",
+      "13"
+     ],
+     [
+      "31",
+      "31"
+     ],
+     [
+      "159",
+      "159"
+     ],
+     [
+      "31885",
+      "31885"
+     ]
+    ],
+    "status": "equal to the reference",
+    "wasm": [
+     0,
+     13,
+     31,
+     159,
+     31885
+    ]
+   },
+   "kernel": "popcount",
+   "lambda": {
+    "ir_nodes": 44,
+    "native_bytes": 4368840,
+    "native_zlib_bytes": 1129145,
+    "wasm_bytes": 142,
+    "wasm_code_bytes": 86,
+    "wasm_zlib_bytes": 131
+   },
+   "language": "Rust",
+   "level": "z",
+   "program": "rust/popcount",
+   "toolchain": "rust"
+  }
+ ],
+ "schema": "rce-compile-e4-results/1",
+ "toolchains": {
+  "c": {
+   "tool": "clang",
+   "version": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+   "wasm": true,
+   "wasm_reason": null
+  },
+  "rust": {
+   "tool": "rustc",
+   "version": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+   "wasm": true,
+   "wasm_reason": null
+  }
+ }
+}
