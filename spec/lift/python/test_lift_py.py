@@ -13,8 +13,12 @@ requires change with the rules fixtures/neg/EXPECTED names, one line per
 construct in the form `requires change FILE: line N: RULE: reason`. The
 `rce` binary is $RCE, or spec/checker/target/release/rce. The test of the
 recorded output against CPython itself runs when /usr/bin/python3.13 is
-present. tests/lift_py.rs checks the committed lifted files without Python.
+present. `report` (Appendix D.8, L5 and L6) closes PY-RECORDED on every
+positive fixture with its recorded output and PY-PINNED with the pinned
+CPython; a recording of another fixture fails the report with exit 4.
+tests/lift_py.rs checks the committed lifted files without Python.
 """
+import json
 import os
 import re
 import subprocess
@@ -84,6 +88,47 @@ class Positive(unittest.TestCase):
             a = lift_file(os.path.join(POS, n + ".py"))[0]
             b = lift_file(os.path.join(POS, n + ".py"))[0]
             self.assertEqual(a, b)
+
+
+class Report(unittest.TestCase):
+    def report(self, *args):
+        p = subprocess.run([sys.executable, os.path.join(HERE, "lift_py.py"), "report"] + list(args), capture_output=True)
+        return p.returncode, (json.loads(p.stdout) if p.returncode in (0, 4) else p.stdout)
+
+    def test_without_evidence_every_claim_is_open(self):
+        code, rep = self.report(os.path.join(POS, "ints.py"))
+        self.assertEqual(code, 0)
+        self.assertEqual([(c["id"], c["requires"], c["verdict"]) for c in rep["claims"]],
+                         [("PY-RECORDED", "replay", "open"), ("PY-PINNED", "pinned", "open")])
+        b = rep["claims"][0]["bindings"]
+        self.assertEqual(sorted(b), ["checker", "form", "lifter", "recording", "source", "table"])
+        self.assertIsNone(b["checker"])
+
+    @unittest.skipUnless(os.path.exists(RCE), "the rce binary is not built")
+    def test_fixtures_close_their_claims(self):
+        for n in pos_names():
+            with self.subTest(fixture=n):
+                code, rep = self.report(os.path.join(POS, n + ".py"), RCE, os.path.join(POS, n + ".stdout"))
+                self.assertEqual(code, 0)
+                v = {c["id"]: c["verdict"] for c in rep["claims"]}
+                self.assertEqual(v["PY-RECORDED"], "closed")
+                self.assertEqual(v["PY-PINNED"], "closed" if os.path.exists(ORACLE) else "open")
+                for c in rep["claims"]:
+                    for e in c["evidence"]:
+                        self.assertEqual({k: c["bindings"][k] for k in e["bindings"]}, e["bindings"])
+
+    @unittest.skipUnless(os.path.exists(RCE), "the rce binary is not built")
+    def test_another_recording_fails(self):
+        names = pos_names()
+        code, rep = self.report(os.path.join(POS, names[0] + ".py"), RCE, os.path.join(POS, names[1] + ".stdout"))
+        self.assertEqual(code, 4)
+        self.assertEqual(rep["status"], "failed")
+        self.assertEqual(rep["claims"][0]["verdict"], "failed")
+
+    def test_requires_change_has_no_report(self):
+        code, out = self.report(os.path.join(NEG, sorted(f for f in os.listdir(NEG) if f.endswith(".py"))[0]))
+        self.assertEqual(code, 1)
+        self.assertTrue(out.startswith(b"requires change"))
 
 
 class Negative(unittest.TestCase):

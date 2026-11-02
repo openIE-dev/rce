@@ -1,0 +1,75 @@
+{
+ "claims": [
+  {
+   "bindings": {
+    "checker": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+    "form": "6d59e7e74839c4526eebf68d0d7f5dead4e8cd3caea663581775975b2bdbd081",
+    "lifter": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+    "source": "c20714d921c8c2123a62b1db730ed5fd2cdbad0086cd3da3e66623f214f780f4",
+    "table": "ee63e586dd7f46791cd4c5824789943165104688778d982184561689026daae5"
+   },
+   "evidence": [
+    {
+     "authority": "derived",
+     "bindings": {
+      "checker": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+      "form": "6d59e7e74839c4526eebf68d0d7f5dead4e8cd3caea663581775975b2bdbd081",
+      "lifter": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+      "source": "c20714d921c8c2123a62b1db730ed5fd2cdbad0086cd3da3e66623f214f780f4",
+      "table": "ee63e586dd7f46791cd4c5824789943165104688778d982184561689026daae5"
+     },
+     "claim": "GO-ROWS",
+     "detail": "9 rows of table.json: decl.error, decl.event, decl.struct, expr.field, lit.bool, stmt.assign, stmt.guard, stmt.return-nil, type.bool",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "lift_go.py rows"
+    }
+   ],
+   "id": "GO-ROWS",
+   "reason": "lift_go.py rows: derived",
+   "requires": "derived",
+   "revision": 1,
+   "statement": "every construct of the lifted Form comes from a row of spec/lift/go/table.json, and every row used cites its clause of the Go specification",
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": null,
+    "form": "6d59e7e74839c4526eebf68d0d7f5dead4e8cd3caea663581775975b2bdbd081",
+    "lifter": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+    "recording": null,
+    "source": "c20714d921c8c2123a62b1db730ed5fd2cdbad0086cd3da3e66623f214f780f4",
+    "table": "ee63e586dd7f46791cd4c5824789943165104688778d982184561689026daae5"
+   },
+   "evidence": [],
+   "id": "GO-AGREE",
+   "reason": "no evidence",
+   "requires": "replay",
+   "revision": 1,
+   "statement": "the lifted Form and the Go program give equal observations on every case of a pinned corpus, run by the pinned Go toolchain",
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": null,
+    "counterpart": null,
+    "form": "6d59e7e74839c4526eebf68d0d7f5dead4e8cd3caea663581775975b2bdbd081",
+    "lifter": "c3322fd1ae1aa139e7a80ac16a39dde74b1cbd4daa9d256b149adc0d694e0008",
+    "source": "c20714d921c8c2123a62b1db730ed5fd2cdbad0086cd3da3e66623f214f780f4",
+    "table": "ee63e586dd7f46791cd4c5824789943165104688778d982184561689026daae5"
+   },
+   "evidence": [],
+   "id": "GO-EQUIV",
+   "reason": "no evidence",
+   "requires": "bisimilar",
+   "revision": 1,
+   "statement": "the lifted Form is bisimilar to the hand-written RCE program named as its counterpart",
+   "verdict": "open"
+  }
+ ],
+ "file": "door.go",
+ "format": "rce-lift-report/1",
+ "lift": "go",
+ "status": "reported"
+}

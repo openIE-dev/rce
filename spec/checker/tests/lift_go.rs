@@ -32,7 +32,7 @@ fn go_door_lifts_to_the_hand_written_door() {
 /// the probe cannot carry is dropped without a word.
 #[test]
 fn go_constructs_the_probe_does_not_carry_require_change() {
-    let probe = std::fs::read_to_string("../lift/go/lift_go.py").unwrap();
+    let table: serde_json::Value = serde_json::from_str(&std::fs::read_to_string("../lift/go/table.json").unwrap()).unwrap();
     let src = std::fs::read_to_string("../lift/go/fixtures/counter.go").unwrap();
     let report = std::fs::read_to_string("../lift/go/fixtures/counter.requires-change").unwrap();
     let mut rules = std::collections::BTreeSet::new();
@@ -42,7 +42,7 @@ fn go_constructs_the_probe_does_not_carry_require_change() {
         let n: usize = n.parse().unwrap();
         assert!(n >= 1 && n <= src.lines().count(), "{line}");
         let (rule, reason) = rest.split_once(": ").unwrap();
-        assert!(rule.starts_with("L-GO-") && probe.contains(&format!("\"{rule}\":")), "{line}: not a rule of lift_go.py");
+        assert!(rule.starts_with("L-GO-") && table["rules"].get(rule).is_some(), "{line}: not a rule of lift_go.py (table.json)");
         assert!(!reason.is_empty(), "{line}");
         rules.insert(rule);
     }

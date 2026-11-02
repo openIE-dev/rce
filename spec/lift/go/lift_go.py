@@ -7,53 +7,44 @@ Usage (positional arguments only):
                             line per construct the probe does not carry on
                             standard output, `requires change FILE: line N: RULE: reason`
                             (exit 1); exit 3 when FILE does not parse as Go
+    lift_go.py report FILE [RCE HAND]
+                            the lift report (rce-lift-report/1, Appendix D.8 L5
+                            and L6) on standard output: every claim of
+                            spec/lift/authority.json for this probe, its required
+                            authority, the digests it is bound to, its evidence and
+                            its verdict; with RCE (the rce binary) and HAND (a
+                            hand-written RCE program), GO-EQUIV gets the evidence of
+                            `rce equiv json`. Exit 0, or 4 when a claim failed; 1, 3
+                            and 2 as for lift
     lift_go.py rules        the rule ids and what each covers
 
 Deterministic: no model, no heuristics beyond the table; every decision is a
-CST node kind looked up in SEM or RULES. The probe reads Go and runs
-nothing. Scope: a struct with a pointer-receiver method per event, guards as
+CST node kind looked up in the rows or rules of table.json, and every row
+cites its clause of the Go specification. The probe reads Go and runs no
+Go; `report` with RCE runs `rce equiv` on the lifted Form.
+
+Scope: a struct with a pointer-receiver method per event, guards as
 `if <condition> { return Err }` before any write, field assignments as
 updates, and `errors.New` variables as errors. Every other construct is
 reported with its rule and line, never dropped: a construct inside one that
 is not carried (a loop inside a function, a call inside a loop) is reported
 too, so the report lists everything the Form would be missing."""
-import sys, hashlib, re
+import sys, hashlib, json, os, re, subprocess, tempfile
 import tree_sitter, tree_sitter_go
 GO = tree_sitter.Language(tree_sitter_go.language())
 P = tree_sitter.Parser(GO)
 
-# the semantics table: Go spec facts the lift needs (Go spec §Numeric types, §Arithmetic)
-SEM = {
-  "types": {"bool": "bool", "int64": "i64", "int": "i64", "uint64": "u64", "string": "text", "float64": "f64"},
-  "zero": {"bool": "false", "i64": "0", "u64": "0", "text": '""', "f64": "0.0"},
-  "int_overflow": "wraps (Go spec: 'integer overflow ... wraps around'); RCE traps: emit must insert checked ops",
-  "division": "truncates toward zero, remainder takes dividend sign (Go spec) = RCE 6.3",
-  "error_return": "a function returning a non-nil error = an event whose step keeps the state (T8: state unchanged only if no write preceded the return)",
-  # Go operator -> RCE operator, for the operators whose meaning is the same in both
-  "ops": {"&&": "and", "||": "or", "==": "==", "!=": "!=", "<": "<", "<=": "<=", ">": ">", ">=": ">="},
-}
-
-RULES = {
-  "L-GO-IMPORT": "an import other than \"errors\": the standard library and other packages are not lifted",
-  "L-GO-FUNC": "a function declaration or function literal: only pointer-receiver methods of a lifted struct are events",
-  "L-GO-METHOD": "a method outside the event shape: a receiver that is not a pointer to a lifted struct, parameters, results other than error, or a second method of one name",
-  "L-GO-TYPE": "a type declaration that is not a struct, an embedded field, or a field type outside the semantics table",
-  "L-GO-DECL": "a const or var declaration other than `var ErrX = errors.New(\"Name\")`",
-  "L-GO-FOR": "a for loop (loops and their count bounds are not lifted)",
-  "L-GO-SWITCH": "a switch, type switch or select statement",
-  "L-GO-IF": "an if statement other than `if <condition> { return ErrX }` with no init statement and no else",
-  "L-GO-ORDER": "a guard after a field write: Go keeps the write when the method returns an error, an RCE fail keeps the state unchanged",
-  "L-GO-RETURN": "a return other than `return ErrX` of a declared error in a guard or `return nil` as the last statement",
-  "L-GO-ASSIGN": "an assignment other than `recv.field = <expression>` to a field of the receiver",
-  "L-GO-CALL": "a call (library and user functions are not lifted)",
-  "L-GO-ASSERT": "a type assertion",
-  "L-GO-COLLECTION": "an array, slice, map or channel type, a composite literal, an index or a slice expression",
-  "L-GO-POINTER": "a pointer type, an address-of or a dereference outside the receiver",
-  "L-GO-INT": "integer arithmetic: Go's integer overflow wraps, RCE's traps",
-  "L-GO-NAME": "a Go name that is an RCE keyword, or an error message that is not an RCE name",
-  "L-GO-EXPR": "another expression form outside the table (named in the reason)",
-  "L-GO-STMT": "another statement form outside the scope (named in the reason)",
-}
+# the lift table: data, every row citing its clause of the Go specification (table.json)
+HERE = os.path.dirname(os.path.abspath(__file__))
+TABLE_PATH = os.path.join(HERE, "table.json")
+with open(TABLE_PATH, encoding="utf-8") as _f:
+    TABLE = json.load(_f)
+ROWS = {r["id"]: r for r in TABLE["rows"]}
+TYPES = {r["go"]: r for r in TABLE["rows"] if r["id"].startswith("type.")}
+OPS = {r["go"]: r for r in TABLE["rows"] if r["id"].startswith("op.") and r["id"] != "op.not"}
+RULES = TABLE["rules"]
+sys.path.insert(0, os.path.dirname(HERE))
+import authority  # noqa: E402  (spec/lift/authority.py)
 
 # node kinds reported wherever they occur inside a construct that is not carried
 NESTED = {
@@ -92,6 +83,11 @@ class Lift:
     def __init__(self, src):
         self.src = src
         self.diags = []  # (start_byte, line, rule, reason)
+        self.used = set()  # the ids of the table rows the Form is built from
+
+    def row(self, rid):
+        self.used.add(rid)
+        return ROWS[rid]
 
     def text(self, n):
         return self.src[n.start_byte:n.end_byte].decode()
@@ -123,37 +119,42 @@ class Lift:
     def expr(self, n, recv, fields):
         k = n.type
         if k in ("true", "false"):
+            self.row("lit.bool")
             return k
         if k == "int_literal" and re.fullmatch(r"[0-9]+", self.text(n)) and (self.text(n) == "0" or not self.text(n).startswith("0")):
+            self.row("lit.int")
             return self.text(n)
         if k == "interpreted_string_literal" and "\\" not in self.text(n):
+            self.row("lit.string")
             return self.text(n)
         if k == "selector_expression":
             op, f = n.child_by_field_name("operand"), n.child_by_field_name("field")
             if op.type == "identifier" and self.text(op) == recv and self.text(f) in fields:
+                self.row("expr.field")
                 return self.text(f)
             return self.bad(n, "L-GO-EXPR", f"a selector that is not a field of the receiver: {self.describe(n)}")
         if k == "parenthesized_expression":
             inner = self.expr(n.named_children[0], recv, fields)
+            self.row("expr.paren")
             return None if inner is None else f"({inner})"
         if k == "unary_expression":
             op = self.text(n.child_by_field_name("operator"))
             if op == "!":
                 x = self.expr(n.child_by_field_name("operand"), recv, fields)
-                return None if x is None else f"not {x}"
+                return None if x is None else f"{self.row('op.not')['rce']} {x}"
             if op in ("&", "*"):
                 return self.bad(n, "L-GO-POINTER", self.describe(n))
             return self.bad(n, "L-GO-INT", self.describe(n))
         if k == "binary_expression":
             op = self.text(n.child_by_field_name("operator"))
-            if op not in SEM["ops"]:
+            if op not in OPS:
                 rule = "L-GO-INT" if op in ("+", "-", "*", "/", "%", "<<", ">>", "&", "|", "^", "&^") else "L-GO-EXPR"
                 return self.bad(n, rule, self.describe(n))
             a = self.expr(n.child_by_field_name("left"), recv, fields)
             b = self.expr(n.child_by_field_name("right"), recv, fields)
             if a is None or b is None:
                 return None
-            return f"{a} {SEM['ops'][op]} {b}"
+            return f"{a} {self.row(OPS[op]['id'])['rce']} {b}"
         if k in NESTED:
             return self.bad(n, NESTED[k], self.describe(n))
         if k == "identifier":
@@ -198,13 +199,15 @@ class Lift:
                         if not names:
                             self.drop(fd, "L-GO-TYPE", f"an embedded field: {self.describe(fd)}")
                             continue
-                        rt = SEM["types"].get(self.text(ftype))
-                        if rt is None:
+                        trow = TYPES.get(self.text(ftype))
+                        if trow is None:
                             self.drop(fd, "L-GO-TYPE", f"field type `{self.text(ftype)}` is outside the semantics table")
                             continue
+                        self.row(trow["id"])
                         for nm in names:
                             self.name(nm)
-                            fields.append((self.text(nm), rt))
+                            fields.append((self.text(nm), trow["rce"], trow["zero"]))
+                    self.row("decl.struct")
                     regions[name] = fields
             elif k == "var_declaration":
                 for vs in [x for x in self.walk(n) if x.type == "var_spec"]:
@@ -222,6 +225,7 @@ class Lift:
                     if not ok:
                         self.drop(vs, "L-GO-DECL", f"var {self.describe(vs)}")
                         continue
+                    self.row("decl.error")
                     err_vars[self.text(names[0])] = msg
                     errors.append(msg)
             elif k == "const_declaration":
@@ -265,7 +269,7 @@ class Lift:
             self.drop(n, "L-GO-METHOD", why)
             return None
         self.name(n.child_by_field_name("name"))
-        fields = {f for f, _ in regions[rtype]}
+        fields = {f for f, _, _ in regions[rtype]}
         body = n.child_by_field_name("body")
         stmts = [s for sl in body.named_children if sl.type == "statement_list" for s in sl.named_children]
         stmts += [s for s in body.named_children if s.type not in ("statement_list", "comment")]
@@ -280,6 +284,7 @@ class Lift:
                 if writes:
                     self.drop(s, "L-GO-ORDER", f"method {name}: guard `if {g[0]}` after a write")
                     continue
+                self.row("stmt.guard")
                 guards.append(g)
             elif s.type == "assignment_statement":
                 lhs, rhs = s.child_by_field_name("left").named_children, s.child_by_field_name("right").named_children
@@ -294,10 +299,13 @@ class Lift:
                     continue
                 v = self.expr(rhs[0], recv, fields)
                 if v is not None:
+                    self.row("stmt.assign")
                     writes.append((self.text(l.child_by_field_name("field")), v))
             elif s.type == "return_statement":
                 if not (last and self.text(s) == "return nil"):
                     self.drop(s, "L-GO-RETURN", self.describe(s))
+                else:
+                    self.row("stmt.return-nil")
             elif s.type in NESTED:
                 self.drop(s, NESTED[s.type], self.describe(s))
             else:
@@ -306,6 +314,7 @@ class Lift:
             self.report(n, "L-GO-RETURN", f"method {name} does not end with `return nil`")
         if len(self.diags) != before:
             return None
+        self.row("decl.event")
         return (rtype, name, guards, writes)
 
     def guard(self, s, recv, fields, err_vars):
@@ -327,17 +336,23 @@ class Lift:
 
 
 def lift(src):
+    form, diags, _ = lift_rows(src)
+    return form, diags
+
+
+def lift_rows(src):
+    """(Form text, diagnostics, ids of the table rows used)."""
     tree = P.parse(src)
     if tree.root_node.has_error:
-        return None, None
+        return None, None, None
     L = Lift(src)
     regions, errors, events, steps = L.run(tree.root_node)
     if L.diags:
-        return None, sorted(set(L.diags))
+        return None, sorted(set(L.diags)), None
     lines = []
     for r, fields in regions.items():
         lines.append(f"state {r}")
-        for f, t in fields: lines.append(f"    {f}: {t} = {SEM['zero'][t]}")
+        for f, t, z in fields: lines.append(f"    {f}: {t} = {z}")
     lines.append("")
     for e in events: lines.append(f"event {e}")
     lines.append("")
@@ -350,10 +365,70 @@ def lift(src):
         lines.append(f"step {r} on {e}")
         for l, v in writes: lines.append(f"    {l} = {v}")
         if not writes: lines.append("    pass")
-    return "\n".join(lines) + "\n", []
+    return "\n".join(lines) + "\n", [], sorted(L.used)
+
+
+def report(path, src, rce=None, hand=None):
+    """(the lift report, None), or (None, diagnostics) when the lift does not
+    apply; (None, None) when src is not Go."""
+    form, diags, used = lift_rows(src)
+    if form is None:
+        return None, diags
+    out = (form + "\n").encode()  # the bytes `lift FILE` prints
+    base = {"source": authority.sha256_bytes(src), "table": authority.sha256_file(TABLE_PATH),
+            "lifter": authority.sha256_file(os.path.abspath(__file__)), "form": authority.sha256_bytes(out)}
+    rce_d = authority.sha256_file(rce) if rce else None
+    bindings = {
+        "GO-ROWS": dict(base, checker=base["lifter"]),
+        "GO-AGREE": dict(base, checker=None, recording=None),
+        "GO-EQUIV": dict(base, checker=rce_d, counterpart=authority.sha256_file(hand) if hand else None),
+    }
+    records = []
+    bare = [r for r in used if not ROWS[r]["clause"].strip() or not ROWS[r]["derivation"].strip()]
+    detail = f"{len(used)} rows of table.json: {', '.join(used)}"
+    if bare:
+        detail += f"; without a clause or a derivation: {', '.join(bare)}"
+    records.append(authority.record("GO-ROWS", "lift_go.py rows", "derived", "derived",
+                                    "differs" if bare else "holds", bindings["GO-ROWS"], detail))
+    if rce and hand:
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "lifted.rce")
+            with open(f, "wb") as g:
+                g.write(out)
+            p = subprocess.run([rce, "equiv", "json", f, hand], capture_output=True)
+        try:
+            e = json.loads(p.stdout)
+        except ValueError:
+            e = None
+        if e is None or e.get("format") != "rce-equiv/1":
+            res, why = "undecided", f"rce equiv exited {p.returncode} with no rce-equiv/1 report"
+        elif e["equivalent"] and e["exact"]:
+            res, why = "holds", f"equivalent, exact: {e['states'][0]} and {e['states'][1]} states over {len(e['alphabet'])} event instances"
+        elif e["equivalent"] or e["undecided"]:
+            res, why = "undecided", "an exploration reached its bound: equivalent to the explored bound only" if e["equivalent"] else "undecided"
+        else:
+            w = e.get("witness")
+            res, why = "differs", ("after " + ", ".join(w["after"]) + f": {w['a']} / {w['b']}") if w else "different event instances explored"
+        records.append(authority.record("GO-EQUIV", "rce equiv", "bisimilar", "derived", res,
+                                        {k: v for k, v in bindings["GO-EQUIV"].items() if v is not None}, why))
+    return authority.report("go", path, bindings, records), None
 
 
 def main(argv):
+    if len(argv) in (3, 5) and argv[1] == "report":
+        path = argv[2]
+        with open(path, "rb") as f:
+            src = f.read()
+        rep, diags = report(path, src, *(argv[3:5] if len(argv) == 5 else ()))
+        if rep is None and diags is None:
+            print(f"{path}: does not parse as Go", file=sys.stderr)
+            return 3
+        if rep is None:
+            for _, line, rule, reason in diags:
+                print(f"requires change {path}: line {line}: {rule}: {reason}")
+            return 1
+        sys.stdout.write(authority.dumps(rep))
+        return 4 if rep["status"] == "failed" else 0
     if len(argv) == 2 and argv[1] == "rules":
         for k, v in RULES.items():
             print(f"{k}: {v}")

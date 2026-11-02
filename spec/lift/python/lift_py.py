@@ -11,6 +11,18 @@ Usage (positional arguments only):
     lift_py.py functions FILE    one line per function of FILE: `lifted NAME` with its
                                  RCE text checked by the caller, or the requires-change
                                  lines of that function (function-level coverage)
+    lift_py.py report FILE [RCE [RECORDED]]
+                                 the lift report (rce-lift-report/1, Appendix D.8 L5
+                                 and L6) on standard output: every claim of
+                                 spec/lift/authority.json for this lift, its required
+                                 authority, the digests it is bound to, its evidence
+                                 and its verdict. With RCE (the rce binary), PY-PINNED
+                                 gets the evidence of a run of the pinned CPython
+                                 (lang/python3.13/oracle/cpython-3.13.16.toml) when its
+                                 interpreter is present; with RECORDED (a standard
+                                 output recorded from it), PY-RECORDED gets the
+                                 evidence of its replay. Exit 0, or 4 when a claim
+                                 failed; 1, 3 and 2 as for lift
     lift_py.py rules             the rule ids and what each covers
 
 The stages are those of section 16: read (UTF-8; a PEP 263 coding line that
@@ -28,11 +40,15 @@ output is a function of the source bytes.
 import ast
 import os
 import re
+import subprocess
 import sys
+import tempfile
+import tomllib
 import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNTIME = os.path.join(HERE, "runtime.rce")
+ORACLE_RECORD = os.path.join(HERE, "..", "..", "..", "lang", "python3.13", "oracle", "cpython-3.13.16.toml")
 
 RULES = {
     "L-PY-ENCODING": "the source is not UTF-8, or a PEP 263 coding line names another codec",
@@ -2838,7 +2854,105 @@ def lift_functions(path, src):
     return res
 
 
+def rce_stdout(rce, text):
+    """(stdout bytes, None) of the lifted text under `rce check` and `rce run`
+    (the command profile of verify_lift.py), or (None, why)."""
+    sys.path.insert(0, HERE)
+    import verify_lift
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "lifted.rce")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        chk = subprocess.run([rce, "check", path], capture_output=True)
+        if chk.returncode != 0:
+            return None, "rce check does not accept the lifted text"
+        status, out, cls, stopped = verify_lift.observe(rce, path)
+    if status is None:
+        return None, stopped
+    if stopped is not None:
+        return None, f"the lifted program stopped: {stopped}"
+    return out, None
+
+
+def oracle_stdout(src):
+    """(stdout bytes or None, the executable's SHA-256 or None, why): the
+    pinned CPython of ORACLE_RECORD run on src now, with the record's run
+    line and environment, in a new, empty directory."""
+    sys.path.insert(0, os.path.dirname(HERE))
+    import authority
+    with open(ORACLE_RECORD, "rb") as f:
+        rec = tomllib.load(f)
+    exe = rec["toolchain"]["executable"]
+    if not os.path.exists(exe):
+        return None, None, f"{exe} is not present"
+    digest = authority.sha256_file(exe)
+    with tempfile.TemporaryDirectory() as d:
+        main = os.path.join(d, rec["source_name"])
+        with open(main, "wb") as g:
+            g.write(src)
+        env = {k: v.replace("{run}", d) for k, v in rec["pins"]["env"].items()}
+        argv = [a.replace("{src}", main) for a in rec["run"]]
+        p = subprocess.run(argv, capture_output=True, env=env, cwd=d, timeout=rec["limit"])
+    if p.returncode != 0 or p.stderr:
+        return None, digest, f"the oracle exited {p.returncode} with {len(p.stderr)} bytes of standard error"
+    return p.stdout, digest, None
+
+
+def report(path, src, rce=None, recorded=None):
+    """(the lift report, []) or (None, diagnostics) when the lift does not apply."""
+    sys.path.insert(0, os.path.dirname(HERE))
+    import authority
+    text, diags, _ = lift(path, src)
+    if diags:
+        return None, diags
+    with open(ORACLE_RECORD, "rb") as f:
+        pinned = tomllib.load(f)["toolchain"]["sha256"]
+    base = {"source": authority.sha256_bytes(src), "table": authority.sha256_file(RUNTIME),
+            "lifter": authority.sha256_file(os.path.abspath(__file__)),
+            "form": authority.sha256_bytes(text.encode("utf-8"))}
+    rce_d = authority.sha256_file(rce) if rce else None
+    bindings = {
+        "PY-RECORDED": dict(base, checker=rce_d, recording=authority.sha256_file(recorded) if recorded else None),
+        "PY-PINNED": dict(base, checker=rce_d, oracle=pinned),
+    }
+    records = []
+    if rce:
+        out, why = rce_stdout(rce, text)
+        if recorded:
+            with open(recorded, "rb") as f:
+                want = f.read()
+            res = "differs" if out is None or out != want else "holds"
+            records.append(authority.record("PY-RECORDED", "rce run, recorded stdout", "replay", "observed", res,
+                                            bindings["PY-RECORDED"], why or ("equal byte for byte" if res == "holds" else "standard output differs")))
+        live, digest, owhy = oracle_stdout(src)
+        if digest is not None:
+            if live is None or out is None:
+                res, detail = "differs", owhy or why
+            else:
+                res, detail = ("holds", "equal byte for byte") if live == out else ("differs", "standard output differs")
+            records.append(authority.record("PY-PINNED", "rce run, pinned CPython", "pinned", "observed", res,
+                                            dict(bindings["PY-PINNED"], oracle=digest), detail))
+    return authority.report("python", path, bindings, records), []
+
+
 def main(argv):
+    if 3 <= len(argv) <= 5 and argv[1] == "report":
+        sys.path.insert(0, os.path.dirname(HERE))
+        import authority
+        path = argv[2]
+        with open(path, "rb") as f:
+            src = f.read()
+        try:
+            rep, diags = report(path, src, *argv[3:])
+        except SystemExit as e:
+            print(str(e), file=sys.stderr)
+            return 3
+        if rep is None:
+            for line, rule, reason in diags:
+                print(f"requires change {path}: line {line}: {rule}: {reason}")
+            return 1
+        sys.stdout.write(authority.dumps(rep))
+        return 4 if rep["status"] == "failed" else 0
     if len(argv) == 2 and argv[1] == "rules":
         for k, v in RULES.items():
             print(f"{k}: {v}")
