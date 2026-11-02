@@ -1,0 +1,1444 @@
+{
+ "format": "rce-lift-authority-vectors/1",
+ "note": "Each vector is one claim, the digests a report states, the evidence records, the verdicts of the claim's dependencies, and the verdict and reason of L6 (Appendix D.8). spec/lift/authority.py and spec/checker/src/lift_authority.rs give every vector's verdict and reason.",
+ "vectors": [
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "oracle"
+    ],
+    "id": "C-1",
+    "requires": "pinned",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "pinned closes a pinned claim",
+   "reason": "v: pinned",
+   "records": [
+    {
+     "authority": "pinned",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "pinned closes a replay claim",
+   "reason": "v: pinned",
+   "records": [
+    {
+     "authority": "pinned",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "replay closes a replay claim",
+   "reason": "v: replay",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "oracle"
+    ],
+    "id": "C-1",
+    "requires": "pinned",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "replay does not close a pinned claim",
+   "reason": "no evidence of authority pinned: replay",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "bisimilar",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "bisimilar closes a bisimilar claim",
+   "reason": "v: bisimilar",
+   "records": [
+    {
+     "authority": "bisimilar",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "bisimilar does not close a replay claim",
+   "reason": "no evidence of authority replay: bisimilar",
+   "records": [
+    {
+     "authority": "bisimilar",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "derived",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "derived closes a derived claim",
+   "reason": "v: derived",
+   "records": [
+    {
+     "authority": "derived",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "derived does not close a replay claim",
+   "reason": "no evidence of authority replay: derived",
+   "records": [
+    {
+     "authority": "derived",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "derived",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "inferred never closes a claim",
+   "reason": "v: inferred evidence never closes a claim",
+   "records": [
+    {
+     "authority": "inferred",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "inferred",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "undecided"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a passing summary does not promote inferred evidence to replay",
+   "reason": "v: inferred evidence never closes a claim",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "inferred",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "undecided"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "oracle"
+    ],
+    "id": "C-1",
+    "requires": "pinned",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a passing summary does not promote inferred evidence to pinned",
+   "reason": "v: inferred evidence never closes a claim",
+   "records": [
+    {
+     "authority": "pinned",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "oracle": "9999999999999999999999999999999999999999999999999999999999999999",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "inferred",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "undecided"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "derived evidence is not promoted to an observation",
+   "reason": "v: derived evidence is not promoted to replay",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "undecided"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "inferred evidence beside a qualifying record does not block it",
+   "reason": "v: replay",
+   "records": [
+    {
+     "authority": "inferred",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "inferred",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "model"
+    },
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a digest mismatch fails closed",
+   "reason": "digest mismatch: v is bound to another source",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "0000000000000000000000000000000000000000000000000000000000000000",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": null,
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a record bound to a digest the report cannot state fails closed",
+   "reason": "digest mismatch: v is bound to another recording",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a qualifying record beside a mismatched one fails closed",
+   "reason": "digest mismatch: w is bound to another checker",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    },
+    {
+     "authority": "pinned",
+     "bindings": {
+      "checker": "1111111111111111111111111111111111111111111111111111111111111111",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "w"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "an unknown authority fails closed",
+   "reason": "malformed evidence: unknown authority `live-observation`",
+   "records": [
+    {
+     "authority": "live-observation",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "an unknown kind fails closed",
+   "reason": "malformed evidence: unknown kind `measured`",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "measured",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a malformed digest fails closed",
+   "reason": "malformed evidence: binding `form` is not a SHA-256 digest",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a record without a revision fails closed",
+   "reason": "malformed evidence: the record has no integer revision",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "verifier": "v"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a record that differs fails the claim and a holding one does not hide it",
+   "reason": "w: differs",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    },
+    {
+     "authority": "pinned",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "differs",
+     "revision": 1,
+     "verifier": "w"
+    }
+   ],
+   "verdict": "failed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "bisimilar",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "an undecided verifier leaves the claim undecided",
+   "reason": "v: undecided",
+   "records": [
+    {
+     "authority": "bisimilar",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "derived",
+     "result": "undecided",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "undecided"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "no evidence keeps a claim open",
+   "reason": "no evidence",
+   "records": [],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a record of another claim is not evidence",
+   "reason": "no evidence",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-2",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 2
+   },
+   "deps": {},
+   "name": "a stale revision keeps a claim open",
+   "reason": "stale revision: no record answers revision 2",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 2
+   },
+   "deps": {},
+   "name": "a stale record bound to an old digest does not fail the claim",
+   "reason": "stale revision: no record answers revision 2",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "0000000000000000000000000000000000000000000000000000000000000000",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "duplicate evidence keeps a claim open",
+   "reason": "duplicate evidence from v",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    },
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "depends": [
+     "C-0"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {
+    "C-0": "open"
+   },
+   "name": "a dependency that is not closed keeps a claim open",
+   "reason": "dependency C-0 is not closed",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "depends": [
+     "C-0"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {
+    "C-0": "closed"
+   },
+   "name": "a closed dependency does not",
+   "reason": "v: replay",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "closed"
+  },
+  {
+   "bindings": {
+    "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "recording": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "claim": {
+    "binds": [
+     "source",
+     "table",
+     "lifter",
+     "form",
+     "checker",
+     "recording"
+    ],
+    "id": "C-1",
+    "requires": "replay",
+    "revision": 1
+   },
+   "deps": {},
+   "name": "a record not bound to every digest the claim states keeps it open",
+   "reason": "v is not bound to recording",
+   "records": [
+    {
+     "authority": "replay",
+     "bindings": {
+      "checker": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "form": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lifter": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "table": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "claim": "C-1",
+     "detail": "",
+     "kind": "observed",
+     "result": "holds",
+     "revision": 1,
+     "verifier": "v"
+    }
+   ],
+   "verdict": "open"
+  }
+ ]
+}

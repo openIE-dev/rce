@@ -77,6 +77,9 @@ The project works from two principles set at its start.
 - A *checker* decides whether an output meets a stated property. A *gate*
   releases an output only after a checker has accepted it, and records that
   acceptance.
+- *SHA-256* is the hash function of FIPS 180-4; the SHA-256 of a file is
+  its *digest*, and a verdict *bound to* a digest names it, so that it
+  applies only to the exact bytes it was made on.
 - A *trace property* is a property of single runs; a *hyperproperty* relates
   several runs (non-interference is one). A *robust* property is preserved
   even when the compiled code is linked with arbitrary target-level code.
@@ -162,11 +165,47 @@ standard therefore states:
 1. **the property class it preserves**: trace properties, hyperproperties,
    a robust variant, or an equivalence at one of the four levels;
 2. **its linking assumption**;
-3. **its trusted computing base.**
+3. **its trusted computing base**;
+4. **the authority of its evidence**: the level, from the table below,
+   that the evidence behind its checker's acceptance must have;
+5. **the digests its verdict is bound to**: the SHA-256 of the declared
+   inputs (source, flags and toolchain), of the output it releases, of the
+   checker that accepted it, and the revision of the contract it checked.
 
-A gate that does not state all three is recorded as a gate with an
+A gate that does not state all five is recorded as a gate with an
 unstated guarantee. Fully abstract compilation usually needs run-time
 checks or isolation, so it raises cost [K].
+
+The levels of authority, and the rule that binds them, are taken from the
+reconstruction ledgers of REA (Reverse Engineer Anything,
+<https://github.com/morluto/rea>, MIT License; its documents
+`reconstruction-obligation-ledgers.md` and `reconstruction-coverage.md`
+were read on 2026-11-02) [F]. The *kind* of a piece of evidence says what
+it is: *observed* (a run of the compiler or the checker), *derived*
+(computed from definitions: a proof, or a rule with its source) or
+*inferred* (proposed by a model, a heuristic or a stochastic rung G3 to G5,
+section 6).
+
+| Authority | Kind | Evidence | REA |
+|---|---|---|---|
+| pinned | observed | the compiler, named by the SHA-256 of its toolchain, is run on the declared inputs now and its output compared byte for byte | `shipped-artifact` |
+| replay | observed | an output recorded earlier from that compiler, bound by its SHA-256, compared byte for byte | `controlled-replay` |
+| proved | derived | a checker certifies the contract for every input of its fragment: a proof that its kernel checks, a translation validator's verdict, an SMT solver's unsatisfiability of the negated contract | none |
+| derived | derived | the verdict follows from a stated rule that cites its source, such as a documented gate behaviour quoted with its passage | `derived` (a confidence) |
+| inferred | inferred | a model's or a heuristic's statement, a stochastic proposer's own claim about its output, or a summary that cites no record of a higher level | `inferred` (a confidence) |
+
+A gate accepts an output only when evidence of the authority it states,
+of that authority's kind, holds and is bound to every digest it states. A
+verdict bound to another digest, or evidence that cannot be read, fails
+closed: nothing is released. A check that fails is not hidden by another
+that passes. Inferred evidence never makes a gate accept: a passing
+summary of inferred evidence is not promoted to an observation or a proof,
+and the gate's verdict is *undecided*, with nothing released. Observed
+evidence on chosen inputs shows that a contract held on those inputs, or
+that it failed; only proved evidence certifies a contract for every input
+of a fragment. REA's third level, `live-observation` (behaviour watched in
+production), has no gate of the standard, since a gate decides before
+release.
 
 ### 4.5 Lowering is a standard to measure against
 
@@ -204,6 +243,10 @@ name-free R or U must strip. Experiment E1 repeats and extends that probe
 > measured in the regime the hardware belongs to.
 
 This is the report's refined statement, with a step that ends without output called a stop.
+The charter adds one requirement to G (section 4.4, items 4 and 5): K's
+acceptance is recorded with the authority of its evidence and bound by
+digest to the declared inputs, the output, K and the contract's revision,
+and inferred evidence never makes G release an output.
 It drops "holds for any compiler" in favour of "every compiler can be
 placed against it"; it replaces "semantics-preserving" with a declared
 contract, "canonical" with an operation, and "Landauer floor and
