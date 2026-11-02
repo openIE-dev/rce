@@ -1,0 +1,97 @@
+# W-MUT-1 (spec 6.12): checks that no single edit of their module makes
+# fail, so they carry no information about it and `rce check` refuses them.
+# The generator named in the first column does not write the check in the
+# second (scripts/gen/_vacuous.py). `rce mutants` lists such checks.
+clock_gen	check Isecs(Fsecs(1)) == 1
+clock_gen	check dk(Fsecs(1)) != dk(Fsecs(0))
+effect_gen	check cj(enc.JArr(items: [enc.JBool(v: true), enc.JObj(keys: [], vals: [])])) == "[true,{}]"
+effect_gen	check cj(enc.JObj(keys: [], vals: [])) == "{}"
+effect_gen	check hj(enc.JArr(items: [enc.JBool(v: true), enc.JObj(keys: [], vals: [])])) == "4a2018651ada83c9bb817369de6edc15113bb2747842a320d3bfb6b87ae0bf2e"
+effect_gen	check hj(enc.JObj(keys: [], vals: [])) == "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+effect_gen	check ok2(may_spawn, "actor", "actor") == false
+effect_gen	check ok2(may_spawn, "actor", "fn") == false
+effect_gen	check ok2(may_spawn, "actor", "foreign") == false
+effect_gen	check ok2(may_spawn, "comptime", "actor") == false
+effect_gen	check ok2(may_spawn, "comptime", "fn") == false
+effect_gen	check ok2(may_spawn, "comptime", "foreign") == false
+effect_gen	check ok2(may_spawn, "fn", "actor") == false
+effect_gen	check ok2(may_spawn, "fn", "fn") == false
+effect_gen	check ok2(may_spawn, "fn", "foreign") == false
+effect_gen	check ok2(may_spawn, "nope", "actor") == false
+effect_gen	check ok2(may_spawn, "nope", "fn") == false
+effect_gen	check ok2(may_spawn, "nope", "foreign") == false
+effect_gen	check ok2(may_spawn, "step", "actor") == false
+effect_gen	check ok2(may_spawn, "step", "fn") == false
+effect_gen	check ok2(may_spawn, "step", "foreign") == false
+io_gen	check rget("bogus", none, "") == none
+io_gen	check rget("delivered", none, "") == none
+io_gen	check rget("failed", none, "") == none
+io_gen	check rget("failed", none, "no such file") == none
+io_gen	check rget("timed_out", none, "") == none
+io_gen	check rget("unreachable", none, "no adapter") == none
+path_gen	check common_posix(["${%s}bar", "/usr/lib"]) == "ERR"
+path_gen	check common_posix([", '", "/bar"]) == "ERR"
+path_gen	check common_posix(["../baz/boom", "/link-y"]) == "ERR"
+path_gen	check common_posix(["..\\..\\..\\foo\\bar\\bat", "/k"]) == "ERR"
+path_gen	check common_posix([".bar", "/link-y/.."]) == "ERR"
+path_gen	check common_posix(["/%d", "../bar"]) == "ERR"
+path_gen	check common_posix(["//", "..\\..\\..\\foo\\bar\\bat"]) == "ERR"
+path_gen	check common_posix(["//./BootPartition", "link"]) == "ERR"
+path_gen	check common_posix(["//./c:", "D:\\Foo"]) == "ERR"
+path_gen	check common_posix(["////foo/..", "getpwall"]) == "ERR"
+path_gen	check common_posix(["//?/c:", "C:\\baz"]) == "ERR"
+path_gen	check common_posix(["//a/b", "broken"]) == "ERR"
+path_gen	check common_posix(["//computer/share/", "..\\..\\..\\x"]) == "ERR"
+path_gen	check common_posix(["//foo//bar", "foo "]) == "ERR"
+path_gen	check common_posix(["//x/", ".rc"]) == "ERR"
+path_gen	check common_posix(["//x/", "tmpdir"]) == "ERR"
+path_gen	check common_posix(["/bar", "Users\\eric"]) == "ERR"
+path_gen	check common_posix(["/dev", "a\\"]) == "ERR"
+path_gen	check common_posix(["/foo/..", "ntpath.splitext(\"c:a/b\\c.d\")"]) == "ERR"
+path_gen	check common_posix(["/foo/foo", "(\""]) == "ERR"
+path_gen	check common_posix(["/home/user/bar", "ntpath.split(\"c:\\foo\\bar\")"]) == "ERR"
+path_gen	check common_posix(["/home/victor/", "ntpath.join('c:a/b/', 'x/y')"]) == "ERR"
+path_gen	check common_posix(["/tmp\u{0}abcds", "C:and"]) == "ERR"
+path_gen	check common_posix(["/usr/lib64/", "\\Foo"]) == "ERR"
+path_gen	check common_posix(["C:\\Foo\\Bar", "/../../foo"]) == "ERR"
+path_gen	check common_posix(["\\\\?\\c:", "/../foo/../"]) == "ERR"
+path_gen	check common_posix(["\\broken\\bar", "//./PhysicalDrive0"]) == "ERR"
+path_gen	check common_posix(["\u{0}spam", "/foo/foo"]) == "ERR"
+path_gen	check common_posix(["foo/bar/bat", "/a/"]) == "ERR"
+path_gen	check common_posix(["foo\"bar", "/dev"]) == "ERR"
+path_gen	check common_posix(["getpwall", "//foo"]) == "ERR"
+path_gen	check common_posix(["ntpath.isabs(\"c:\\foo\\bar\")", "/foo/.."]) == "ERR"
+path_gen	check common_posix(["ntpath.relpath(\"a\", \"b/c\")", "/0"]) == "ERR"
+path_gen	check common_posix(["ntpath.split(\"c:/\")", "/usr/local"]) == "ERR"
+path_gen	check common_posix(["ntpath.split(\"c:\\\")", "/subdir"]) == "ERR"
+path_gen	check common_posix(["testjunc", "/foo/bar"]) == "ERR"
+path_gen	check common_posix(["usr", "/a/b"]) == "ERR"
+path_gen	check posix_normpath_s("") == "."
+svc_gen	check clean("killed", 11, false, "", false) == false
+svc_gen	check clean("killed", 34, false, "", false) == false
+svc_gen	check clean("killed", 6, false, "", false) == false
+svc_gen	check clean("killed", 64, false, "", false) == false
+svc_gen	check clean("killed", 9, false, "", false) == false
+svc_gen	check ld("bool", false, "", "", false, 1) == false
+svc_gen	check ld("bool", false, "", "", false, 10) == false
+svc_gen	check ld("bool", false, "", "", false, 11) == false
+svc_gen	check ld("bool", false, "", "", false, 12) == false
+svc_gen	check ld("bool", false, "", "", false, 13) == false
+svc_gen	check ld("bool", false, "", "", false, 14) == false
+svc_gen	check ld("bool", false, "", "", false, 15) == false
+svc_gen	check ld("bool", false, "", "", false, 2) == false
+svc_gen	check ld("bool", false, "", "", false, 24) == false
+svc_gen	check ld("bool", false, "", "", false, 3) == false
+svc_gen	check ld("bool", false, "", "", false, 30) == false
+svc_gen	check ld("bool", false, "", "", false, 4) == false
+svc_gen	check ld("bool", false, "", "", false, 5) == false
+svc_gen	check ld("bool", false, "", "", false, 6) == false
+svc_gen	check ld("bool", false, "", "", false, 7) == false
+svc_gen	check ld("bool", false, "", "", false, 8) == false
+svc_gen	check ld("bool", false, "", "", false, 9) == false
+svc_gen	check ld("bool", false, "", "", true, 0) == false
+svc_gen	check ld("bool", false, "", "", true, 11) == false
+svc_gen	check ld("bool", false, "", "", true, 3) == false
+svc_gen	check ld("bool", false, "", "", true, 4) == false
+svc_gen	check ld("bool", false, "", "", true, 6) == false
+sync_gen	check amm("[]", "[]") == "{}"

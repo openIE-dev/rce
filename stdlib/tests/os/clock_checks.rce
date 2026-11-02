@@ -85,7 +85,6 @@ fn fm(a: Dur?, prec: i64, width: i64, al: text, plus: bool) -> text
     return dur_debug_with(&x, prec, width, &al, plus)
 
 # creation
-check dk(Fsecs(1)) != dk(Fsecs(0))
 check dk(Oadd(Fsecs(1), Fsecs(2))) == dk(Fsecs(3))
 check dk(Oadd(Fmillis(10), Fsecs(4))) == dk(N(4, 10000000))
 check dk(Fmillis(4000)) == dk(N(4, 0))
@@ -117,7 +116,6 @@ check dk(Fmins(0)) == dk(N(0, 0))
 check Isecs(N(0, 0)) == 0
 check Isecs(N(0, 500000005)) == 0
 check Isecs(N(0, 1050000001)) == 1
-check Isecs(Fsecs(1)) == 1
 check Isecs(Fmillis(999)) == 0
 check Isecs(Fmillis(1001)) == 1
 check Isecs(Fmicros(999999)) == 0

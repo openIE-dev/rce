@@ -10,6 +10,7 @@ Then scripts/gen/clock_derived.rce is appended (derived checks for
 Timespec, wasi-clocks values, Mono admission and timers).
 """
 import re, sys, os, hashlib
+from _vacuous import drop_text  # W-MUT-1 (spec 6.12): scripts/gen/vacuous.tsv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, 'vectors/os/rust_core_time_tests.rs')
@@ -346,5 +347,5 @@ sys.stderr.write('live rust reference %d checks (%d rows)\n' % (nl, len(ld.decod
 
 der = open(os.path.join(ROOT, 'scripts/gen/clock_derived.rce')).read()
 nd = sum(1 for l in der.splitlines() if l.startswith('check '))
-sys.stdout.write(txt + '\n\n# ---- derived (scripts/gen/clock_derived.rce)\n' + der)
+sys.stdout.write(drop_text('clock_gen', txt + '\n\n# ---- derived (scripts/gen/clock_derived.rce)\n' + der))
 sys.stderr.write('rust Duration tests %d checks (%d tests skipped: %s), derived %d\n' % (n, len(skipped), ', '.join(skipped), nd))

@@ -8,7 +8,7 @@ intent "a flag in a sealed room on a board that wraps: winning is impossible"
         "a move never ends in a wall"
         every step -> not wall(x, y)
     law up_keeps_x
-        every step on Up -> x == old(x)
+        every step on Up -> x == old(x) and (y == old(y) or y + 1 == old(y) or (old(y) == 0 and y + 1 == H))
 
 const W: u8 = 12
 const H: u8 = 8

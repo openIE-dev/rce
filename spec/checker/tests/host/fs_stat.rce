@@ -1,7 +1,7 @@
 module fs_stat
 
 intent "the stat, link, name, clock and offset requests: each answers once with a logged result, and the names of a directory arrive as their exact bytes"
-    example Names(path: ""), FileListDone(req: 1, status: "delivered", data: some([[97, 255], [97, 254]]), err: "") -> names == [[97, 255], [97, 254]]
+    example Names(path: ""), FileListDone(req: 1, status: "delivered", data: some([[97, 255], [97, 254]]), err: "") -> names == [[97, 255], [97, 254]] and next == 1
 
 struct Stat
     mode: i64

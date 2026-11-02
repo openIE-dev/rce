@@ -13,6 +13,7 @@
 # cases.
 # Usage: python3 scripts/gen/path_gen.py > tests/os/path_checks.rce
 import ast, os, random, sys, posixpath, ntpath
+from _vacuous import drop  # W-MUT-1 (spec 6.12): scripts/gen/vacuous.tsv
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 R = random.Random(34)
 FN = {'split', 'splitext', 'splitdrive', 'splitroot', 'basename', 'dirname', 'isabs', 'join', 'normpath', 'commonpath', 'relpath', 'isreserved'}
@@ -142,5 +143,5 @@ for p in ('posix', 'win'):
 H += '''fn wasi_s(t: text) -> List[text] = wasi_resolve(&t) catch ["ERR"]
 fn pre_s(ps: List[text], t: text) -> Preopen = wasi_preopen(&ps, &t) catch Preopen(index: -1, rel: "ERR")
 '''
-sys.stdout.write(H + '\n'.join(out) + '\n')
+sys.stdout.write(H + '\n'.join(drop('path_gen', out)) + '\n')
 print('%d stated expectations agree; %d call checks, %d total checks (%d corpus strings)' % (len(stated), ncall, len(out), len(corpus)), file=sys.stderr)

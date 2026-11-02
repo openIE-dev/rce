@@ -7,6 +7,7 @@ import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rcelit import lit, lits
 from jcanon import loads, canon
+from _vacuous import drop  # W-MUT-1 (spec 6.12): scripts/gen/vacuous.tsv
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 V = os.path.join(ROOT, 'vectors/data')
 out = []
@@ -416,5 +417,5 @@ for f in os.listdir(os.path.join(ROOT, 'tests/data')):
 shards = [allc[i:i + SH] for i in range(0, len(allc), SH)]
 for k, sh in enumerate(shards):
     name = 'sync_checks.rce' if k == 0 else 'sync_checks_%d.rce' % (k + 1)
-    open(os.path.join(ROOT, 'tests/data', name), 'w').write(HEAD + '\n'.join(sh) + '\n')
+    open(os.path.join(ROOT, 'tests/data', name), 'w').write(HEAD + '\n'.join(drop('sync_gen', sh)) + '\n')
 print('official', sum(1 for c, _ in out if c == 'official'), 'derived', sum(1 for c, _ in out if c == 'derived'), 'shards', len(shards))

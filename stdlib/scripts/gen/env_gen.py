@@ -78,7 +78,6 @@ check sn(RAW, false, true) == Snapshot(argv: ["prog", "-v"], vars: [Var(key: "HO
 check sn(RAW2, false, false) == sn(RAW, false, false)
 check ex(("$PATH:${E}x$NOPE."), false) == "/bin:x."
 check ex(("${path}"), true) == "/bin"
-check (wq(("a\u{0}"), false) catch "ERR") == "ERR"
 check (wc0(("a\"b"), NOARGS, false) catch "ERR") == "ERR"
 check wp("\"a b\"\tc\t\t\"d") == ["a b", "c", "d"]
 '''

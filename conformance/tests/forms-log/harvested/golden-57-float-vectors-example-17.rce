@@ -14,7 +14,7 @@ intent "IEEE 754 binary64 vectors that every target computes bit for bit"
     example Mul(a: 5e-324, b: 3.0) -> 1.5e-323
     example Div(a: 2.2250738585072014e-308, b: 4503599627370496.0) -> 5e-324
     example Mul(a: 2.2250738585072014e-308, b: 0.5) -> 1.1125369292536007e-308
-    example Add(a: 1e16, b: 1.0) -> 10000000000000000.0
+    example Add(a: 1e16, b: 5.0) -> 10000000000000004.0
     example Add(a: 1e16, b: 3.0) -> 10000000000000004.0
     example Round(a: 2.5) -> 3.0
     example Round(a: -2.5) -> -3.0
@@ -49,13 +49,13 @@ step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
 # area: forms-log
 # clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, T1, T3, T5]
 # expect: trace
-# events: Add(a: 1e16, b: 1.0)
-# trace_head: 29d3405bb202bed62410671739052bae1d23fec22439f3fe1c21bcc2485221b7
+# events: Add(a: 1e16, b: 5.0)
+# trace_head: 3f26011fdab6dbaa17b4544850c75b2cc2d0010d80725b5460237345ccbc7f2e
 # trace_lines:
 #   - 0 (initial) Lab { x = 0 }
-#   - d applied 29d3405bb202bed62410671739052bae1d23fec22439f3fe1c21bcc2485221b7 {"event":{"payload":[1e16,1.0],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"6e697b408966d743095046e39a4028d54e7ffeddc341503c50a0260529da96d9"}
-#   - 1 Add(a: 1e+16, b: 1) Lab { x = 1e+16 }
-#   - trace 29d3405bb202bed62410671739052bae1d23fec22439f3fe1c21bcc2485221b7
+#   - d applied 3f26011fdab6dbaa17b4544850c75b2cc2d0010d80725b5460237345ccbc7f2e {"event":{"payload":[1e16,5.0],"type":1},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"b6726a64c72db8a5f777e08fd6d5d46ac8d2622da768eec2ff4b71eb56534a53"}
+#   - 1 Add(a: 1e+16, b: 5) Lab { x = 1.0000000000000004e+16 }
+#   - trace 3f26011fdab6dbaa17b4544850c75b2cc2d0010d80725b5460237345ccbc7f2e
 #   - fuel 6
 # provenance: golden spec/traces/57_float_vectors.json
 #---

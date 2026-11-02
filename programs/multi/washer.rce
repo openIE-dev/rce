@@ -3,7 +3,7 @@
 intent "a door that stays locked from start to finish"
     example Start, Tick, Tick, Tick -> phase == Idle and locked == false
     example Start, Open -> kept: DoorLocked
-    example Start, Start -> kept: Running
+    example Start, Tick, Start, Tick -> phase == Spin
 
 kind Phase
     Idle
