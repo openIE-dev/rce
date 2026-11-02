@@ -204,9 +204,8 @@ Computed from the rows above:
 
 ## macos-27.2-arm64
 
-Run of 2026-11-02T09:50:01Z (UTC). Machine: Darwin arm64, CPU model not reported, 18 CPUs, OS release not reported; Python 3.15.2.
-Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `e1.py` sha256 `20710174c5fb1b93`, `matrix.json` sha256 `150eaa3a3cffc5c8`.
-This file was written without Mach-O attribution (results schema 1): its differing Mach-O files have no per-region byte counts and no LC_UUID or debug map.
+Run of 2026-11-02T15:10:10Z (UTC). Machine: Darwin arm64, Apple M5 Max, model Mac17,6, 18 CPUs, macOS 27.2 (26B123); Python 3.15.2.
+Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `e1.py` sha256 `6c688bda9ae506b4`, `matrix.json` sha256 `3fa6fe4f5bf8c6d9`.
 
 | Tool | Version |
 |---|---|
@@ -227,26 +226,29 @@ This file was written without Mach-O attribution (results schema 1): its differi
 
 | Configuration | Language | Programs | Same directory twice | Two directories | Two directories, remapped | Same directory, clock free | Path copies (two directories / remapped) |
 |---|---|---|---|---|---|---|---|
-| `gcc -O2 -g` | C | 2 | differs (2 of 2; up to 101 bytes) | differs (2 of 2; up to 1,317 bytes) | differs (2 of 2; up to 1,316 bytes) | differs (2 of 2; up to 103 bytes) | 3/3 / 3/3 |
+| `gcc -O2 -g` | C | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 1,318 bytes) | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 103 bytes) | 3/3 / 0/0 |
 | `gcc -O2` | C | 2 | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | 0/0 / 0/0 |
-| `clang -O2 -g` | C | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 1,318 bytes) | differs (2 of 2; up to 1,319 bytes) | differs (2 of 2; up to 101 bytes) | 3/3 / 3/3 |
-| `g++ -O2 -g` | C++ | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 126,164 bytes) | differs (2 of 2; up to 126,165 bytes) | differs (2 of 2; up to 134 bytes) | 3/3 / 3/3 |
-| `clang++ -O2 -g` | C++ | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 126,165 bytes) | differs (2 of 2; up to 126,164 bytes) | differs (2 of 2; up to 135 bytes) | 3/3 / 3/3 |
-| `rustc -O -g` | Rust | 2 | identical (2 of 2) | differs (2 of 2; up to 105,506 bytes) | differs (2 of 2; up to 105,506 bytes) | identical (2 of 2) | 3/3 / 3/3 |
+| `clang -O2 -g` | C | 2 | differs (2 of 2; up to 101 bytes) | differs (2 of 2; up to 1,319 bytes) | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 103 bytes) | 3/3 / 0/0 |
+| `clang -O2 -g, compile and link split (macOS)` | C | 2 | identical (2 of 2) | differs (2 of 2; up to 1,708 bytes) | differs (1 of 2; up to 80 bytes); identical (1 of 2) | differs (2 of 2; up to 81 bytes) | 4/4 / 0/0 |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | C | 2 | identical (2 of 2) | differs (2 of 2; up to 1,708 bytes) | identical (2 of 2) | identical (2 of 2) | 4/4 / 0/0 |
+| `g++ -O2 -g` | C++ | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 126,166 bytes) | differs (2 of 2; up to 132 bytes) | differs (2 of 2; up to 134 bytes) | 3/3 / 0/0 |
+| `clang++ -O2 -g` | C++ | 2 | differs (2 of 2; up to 102 bytes) | differs (2 of 2; up to 126,165 bytes) | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 135 bytes) | 3/3 / 0/0 |
+| `rustc -O -g` | Rust | 2 | identical (2 of 2) | differs (2 of 2; up to 105,506 bytes) | differs (2 of 2; up to 3,835 bytes) | identical (2 of 2) | 3/3 / 1/1 |
 | `rustc -O` | Rust | 2 | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | 0/0 / 0/0 |
-| `go build` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,596 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
-| `go build, GOPATH mode` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,588 bytes) | differs (2 of 2; up to 120 bytes) | identical (2 of 2) | 1/1 / 0/0 |
-| `go build, GOPATH mode, import path declared` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,997 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
-| `gfortran -O2 -g` | Fortran | 2 | differs (2 of 2; up to 38 bytes) | differs (2 of 2; up to 1,015 bytes) | differs (2 of 2; up to 1,014 bytes) | differs (2 of 2; up to 103 bytes) | 3/3 / 3/3 |
+| `rustc -O -g, oso_prefix (macOS)` | Rust | 2 | identical (2 of 2) | differs (2 of 2; up to 105,506 bytes) | identical (2 of 2) | identical (2 of 2) | 3/3 / 0/0 |
+| `go build` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,593 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
+| `go build, GOPATH mode` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,593 bytes) | differs (2 of 2; up to 119 bytes) | identical (2 of 2) | 1/1 / 0/0 |
+| `go build, GOPATH mode, import path declared` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,089,915 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
+| `gfortran -O2 -g` | Fortran | 2 | differs (2 of 2; up to 103 bytes) | differs (2 of 2; up to 1,016 bytes) | differs (2 of 2; up to 402 bytes) | differs (2 of 2; up to 103 bytes) | 3/3 / 1/1 |
 | `gfortran -O2` | Fortran | 2 | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | 0/0 / 0/0 |
 | `lean -c` | Lean 4 | 1 | identical (1 of 1) | identical (1 of 1) | not tested | identical (1 of 1) | 0 / - |
 | `wasmtime compile` | WebAssembly text to native (Cranelift) | 1 | identical (1 of 1) | identical (1 of 1) | not tested | identical (1 of 1) | 0 / - |
-| `zig build-exe` | Zig | 1 | differs (1 of 1; up to 402 bytes) | differs (1 of 1; up to 28,099 bytes) | not tested | differs (1 of 1; up to 396 bytes) | 1 / - |
+| `zig build-exe` | Zig | 1 | differs (1 of 1; up to 374 bytes) | differs (1 of 1; up to 28,114 bytes) | not tested | differs (1 of 1; up to 177 bytes) | 1 / - |
 | `zig build-exe -O ReleaseSmall` | Zig | 1 | identical (1 of 1) | identical (1 of 1) | not tested | identical (1 of 1) | 0 / - |
 | `ghc -O1` | Haskell | 1 | identical (1 of 1) | identical (1 of 1) | not tested | identical (1 of 1) | 0 / - |
 | `cobc -x` | COBOL | 1 | identical (1 of 1) | identical (1 of 1) | not tested | differs (1 of 1; up to 50 bytes) | 0 / - |
 | `ocamlopt -g` | OCaml | 1 | identical (1 of 1) | differs (1 of 1; up to 669 bytes) | differs (1 of 1; up to 669 bytes) | identical (1 of 1) | 1 / 1 |
-| `julia code_llvm and code_native` | Julia | 1 | differs (1 of 1; up to 148 bytes) | differs (1 of 1; up to 60,594 bytes) | differs (1 of 1; up to 114 bytes) | differs (1 of 1; up to 100 bytes) | 3 / 0 |
+| `julia code_llvm and code_native` | Julia | 1 | differs (1 of 1; up to 101 bytes) | differs (1 of 1; up to 60,581 bytes) | differs (1 of 1; up to 104 bytes) | differs (1 of 1; up to 100 bytes) | 3 / 0 |
 
 Not run on this machine: `rustc wasm32-wasip1 -O -g` (probe failed: sh -c test -d "$(rustc --target wasm32-wasip1 --print target-libdir)"); `gnatmake -O2 -g` (gnatmake not on PATH); `erlc` (erlc not on PATH).
 
@@ -254,107 +256,223 @@ Files that differ, per build pair (sizes in bytes; the first build of the pair i
 
 | Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section or Mach-O region |
 |---|---|---|---|---|---|---|---|
-| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 85 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 469 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 86 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 37 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 471 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 87 | without Mach-O attribution |
-| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 38 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 468 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 85 | without Mach-O attribution |
-| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 14 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 38 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 473 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 85 | without Mach-O attribution |
-| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 578 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 577 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 87 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 37 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 608 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 609 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 118 | without Mach-O attribution |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 576 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 575 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 85 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 15 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 38 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 609 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 608 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 119 | without Mach-O attribution |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | without Mach-O attribution |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 436,120 | 436,152 | 3,683 | without Mach-O attribution |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | without Mach-O attribution |
-| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello` | 436,120 | 436,152 | 3,683 | without Mach-O attribution |
-| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | without Mach-O attribution |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 456,024 | 456,056 | 3,872 | without Mach-O attribution |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | without Mach-O attribution |
-| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic` | 456,024 | 456,056 | 3,872 | without Mach-O attribution |
-| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | without Mach-O attribution |
-| `go build` | `go/hello.go` | Two directories | `hello` | 2,429,714 | 2,429,714 | 1,075,534 | without Mach-O attribution |
-| `go build` | `go/maps.go` | Two directories | `maps` | 2,448,274 | 2,448,274 | 1,089,596 | without Mach-O attribution |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,124 | without Mach-O attribution |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,396,690 | 2,396,690 | 120 | without Mach-O attribution |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,588 | without Mach-O attribution |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,431,762 | 2,431,762 | 119 | without Mach-O attribution |
-| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,375 | without Mach-O attribution |
-| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,997 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello` | 34,168 | 34,168 | 38 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 34,168 | 34,184 | 436 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello` | 34,168 | 34,184 | 436 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello` | 34,168 | 34,168 | 87 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,741 | 16 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory twice | `kernels` | 34,376 | 34,376 | 38 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 34,376 | 34,392 | 440 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels` | 34,376 | 34,392 | 439 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels` | 34,376 | 34,376 | 86 | without Mach-O attribution |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,675 | 16 | without Mach-O attribution |
-| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 2,001,576 | 2,001,576 | 402 | without Mach-O attribution |
-| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 2,001,576 | 2,001,592 | 28,099 | without Mach-O attribution |
-| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 2,001,576 | 2,001,576 | 396 | without Mach-O attribution |
-| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 34,456 | 34,456 | 50 | without Mach-O attribution |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 2,864 | 2,880 | 669 | without Mach-O attribution |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories, remapped | `hello.o` | 2,864 | 2,880 | 669 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 58,262 | 58,262 | 127 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.ll` | 3,748 | 3,748 | 6 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.s` | 3,342 | 3,342 | 15 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 58,262 | 58,278 | 54,459 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,748 | 3,764 | 3,321 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 3,342 | 3,358 | 2,814 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 30,605 | 30,605 | 114 | without Mach-O attribution |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 58,262 | 58,262 | 100 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 38 | `code signature` 32, `string table` 6 |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 468 | `string table` 94, `code signature` 65, `LC_UUID` 16, `symbol table` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 314 | `__DWARF,__debug_str` 56, `__DWARF,__debug_line_str` 31, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 9, `__DWARF,__debug_names` 5, `__DWARF,__debug_str_offs` 5, `__DWARF,__debug_line` 1 |
+| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,640 | 33,640 | 38 | `code signature` 32, `string table` 6 |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 87 | `code signature` 64, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | `LC_UUID` 16 |
+| `gcc -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 37 | `code signature` 32, `string table` 5 |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 | `string table` 101, `code signature` 65, `LC_UUID` 16, `symbol table` 3, `load command LC_SYMTAB` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1 |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | `__DWARF,__debug_line_str` 389, `__DWARF,__debug_str` 124, `__DWARF,__debug_str_offs` 20, `LC_UUID` 16, `__DWARF,__debug_names` 10, `load command LC_SEGMENT_64 __DWARF` 9, `__DWARF,__debug_line` 8 |
+| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,912 | 33,912 | 38 | `code signature` 32, `string table` 6 |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 85 | `code signature` 62, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | `LC_UUID` 16 |
+| `clang -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 38 | `code signature` 32, `string table` 6 |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 467 | `string table` 94, `code signature` 65, `LC_UUID` 15, `symbol table` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | `__DWARF,__debug_str` 56, `__DWARF,__debug_line_str` 31, `LC_UUID` 15, `load command LC_SEGMENT_64 __DWARF` 9, `__DWARF,__debug_names` 5, `__DWARF,__debug_str_offs` 5, `__DWARF,__debug_line` 1 |
+| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,640 | 33,640 | 37 | `code signature` 31, `string table` 6 |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 87 | `code signature` 64, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | `LC_UUID` 16 |
+| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 85 | `code signature` 63, `LC_UUID` 16, `string table` 5, `symbol table` 1 |
+| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | `LC_UUID` 16 |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 473 | `string table` 100, `code signature` 65, `LC_UUID` 16, `symbol table` 4, `load command LC_SYMTAB` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1 |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | `__DWARF,__debug_line_str` 389, `__DWARF,__debug_str` 124, `__DWARF,__debug_str_offs` 20, `LC_UUID` 16, `__DWARF,__debug_names` 10, `load command LC_SEGMENT_64 __DWARF` 9, `__DWARF,__debug_line` 8 |
+| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,912 | 33,912 | 38 | `code signature` 32, `string table` 6 |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 85 | `code signature` 63, `LC_UUID` 15, `string table` 6, `symbol table` 1 |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 15 | `LC_UUID` 15 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Two directories | `hello` | 33,736 | 33,768 | 384 | `string table` 132, `code signature` 65, `LC_UUID` 16, `symbol table` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Two directories | `hello.o` | 2,256 | 2,288 | 486 | `__DWARF,__debug_str` 56, `__DWARF,__debug_line_str` 31, `load command LC_SEGMENT_64 ` 19, `__DWARF,__debug_names` 5, `__DWARF,__debug_str_offs` 5, `load command LC_SYMTAB` 2, `__DWARF,__debug_line` 1, `load command LC_LINKER_OPTIMIZATION_HINT` 1, `symbol table` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Same directory, clock free | `hello` | 33,736 | 33,736 | 81 | `code signature` 64, `LC_UUID` 16, `symbol table` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories | `sort` | 34,008 | 34,040 | 397 | `string table` 138, `code signature` 64, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories | `sort.o` | 4,456 | 4,488 | 1,311 | `__DWARF,__debug_line_str` 389, `__DWARF,__debug_str` 121, `load command LC_SEGMENT_64 ` 21, `__DWARF,__debug_str_offs` 20, `__DWARF,__debug_names` 10, `__DWARF,__debug_line` 8, `load command LC_SYMTAB` 2, `load command LC_LINKER_OPTIMIZATION_HINT` 1, `symbol table` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories, remapped | `sort` | 33,848 | 33,848 | 80 | `code signature` 63, `LC_UUID` 16, `symbol table` 1 |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Same directory, clock free | `sort` | 34,008 | 34,008 | 81 | `code signature` 64, `LC_UUID` 16, `symbol table` 1 |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/hello.c` | Two directories | `hello` | 33,736 | 33,768 | 383 | `string table` 132, `code signature` 65, `LC_UUID` 16, `symbol table` 2, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/hello.c` | Two directories | `hello.o` | 2,256 | 2,288 | 486 | `__DWARF,__debug_str` 56, `__DWARF,__debug_line_str` 31, `load command LC_SEGMENT_64 ` 19, `__DWARF,__debug_names` 5, `__DWARF,__debug_str_offs` 5, `load command LC_SYMTAB` 2, `__DWARF,__debug_line` 1, `load command LC_LINKER_OPTIMIZATION_HINT` 1, `symbol table` 1 |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/sort.c` | Two directories | `sort` | 34,008 | 34,040 | 397 | `string table` 138, `code signature` 64, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/sort.c` | Two directories | `sort.o` | 4,456 | 4,488 | 1,311 | `__DWARF,__debug_line_str` 389, `__DWARF,__debug_str` 121, `load command LC_SEGMENT_64 ` 21, `__DWARF,__debug_str_offs` 20, `__DWARF,__debug_names` 10, `__DWARF,__debug_line` 8, `load command LC_SYMTAB` 2, `load command LC_LINKER_OPTIMIZATION_HINT` 1, `symbol table` 1 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 | `code signature` 32, `string table` 6 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 578 | `string table` 204, `code signature` 65, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 | `__DWARF,__debug_str` 47,598, `__DWARF,__debug_line_str` 3,709, `__DWARF,__debug_str_offs` 1,744, `__DWARF,__debug_names` 345, `__DWARF,__debug_line` 133, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 9 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,616 | 36,616 | 38 | `code signature` 32, `string table` 6 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 86 | `code signature` 64, `LC_UUID` 16, `string table` 5, `symbol table` 1 |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 | `LC_UUID` 16 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 38 | `code signature` 32, `string table` 6 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 610 | `string table` 203, `code signature` 97, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | `__DWARF,__debug_str` 108,168, `__DWARF,__debug_line_str` 3,709, `__DWARF,__debug_str_offs` 2,112, `__DWARF,__debug_names` 500, `__DWARF,__debug_line` 139, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 9 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,480 | 37,480 | 116 | `code signature` 93, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,792 | 207,792 | 16 | `LC_UUID` 16 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 118 | `code signature` 95, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | `LC_UUID` 16 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 86 | `code signature` 63, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 | `LC_UUID` 16 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 576 | `string table` 204, `code signature` 63, `LC_UUID` 15, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 | `__DWARF,__debug_str` 47,598, `__DWARF,__debug_line_str` 3,709, `__DWARF,__debug_str_offs` 1,744, `__DWARF,__debug_names` 345, `__DWARF,__debug_line` 133, `LC_UUID` 15, `load command LC_SEGMENT_64 __DWARF` 9 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,616 | 36,616 | 37 | `code signature` 31, `string table` 6 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 86 | `code signature` 63, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 | `LC_UUID` 16 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 36 | `code signature` 32, `string table` 4 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 609 | `string table` 202, `code signature` 97, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | `__DWARF,__debug_str` 108,168, `__DWARF,__debug_line_str` 3,709, `__DWARF,__debug_str_offs` 2,112, `__DWARF,__debug_names` 500, `__DWARF,__debug_line` 139, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 9 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,480 | 37,480 | 38 | `code signature` 32, `string table` 6 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 119 | `code signature` 96, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | `LC_UUID` 16 |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 436,120 | 436,152 | 3,684 | `string table` 298, `code signature` 98, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 2, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | `__DWARF,__debug_str` 978, `__DWARF,__debug_info` 48, `__DWARF,__apple_names` 17, `LC_UUID` 16, `__DWARF,__apple_namespac` 11, `load command LC_SEGMENT_64 __DWARF` 10, `__DWARF,__apple_types` 6 |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello` | 436,040 | 436,056 | 3,630 | `string table` 169, `code signature` 97, `LC_UUID` 16, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1, `symbol table` 1 |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,892 | 130,892 | 16 | `LC_UUID` 16 |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 456,024 | 456,056 | 3,872 | `string table` 337, `code signature` 97, `LC_UUID` 16, `symbol table` 3, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | `__DWARF,__debug_str` 82,533, `__DWARF,__debug_info` 3,808, `__DWARF,__apple_names` 456, `__DWARF,__apple_types` 371, `__DWARF,__apple_namespac` 88, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 11 |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic` | 455,944 | 455,960 | 3,820 | `string table` 194, `code signature` 97, `LC_UUID` 15, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1, `symbol table` 1 |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,502 | 340,502 | 15 | `LC_UUID` 15 |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/hello.rs` | Two directories | `hello` | 436,120 | 436,152 | 3,684 | `string table` 298, `code signature` 98, `LC_UUID` 16, `symbol table` 4, `load command LC_CODE_SIGNATURE` 2, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | `__DWARF,__debug_str` 978, `__DWARF,__debug_info` 48, `__DWARF,__apple_names` 17, `LC_UUID` 16, `__DWARF,__apple_namespac` 11, `load command LC_SEGMENT_64 __DWARF` 10, `__DWARF,__apple_types` 6 |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/generic.rs` | Two directories | `generic` | 456,024 | 456,056 | 3,872 | `string table` 337, `code signature` 97, `LC_UUID` 16, `symbol table` 3, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | `__DWARF,__debug_str` 82,533, `__DWARF,__debug_info` 3,808, `__DWARF,__apple_names` 456, `__DWARF,__apple_types` 371, `__DWARF,__apple_namespac` 88, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 11 |
+| `go build` | `go/hello.go` | Two directories | `hello` | 2,429,714 | 2,429,714 | 943,777 | `__TEXT,__gopclntab` 377,749, `__DWARF,__zdebug_info` 242,400, `__DWARF,__zdebug_line` 114,074, `code signature` 8,989, `__TEXT,__text` 80, `LC_UUID` 16, `segment __TEXT, other` 16, `__DATA,__go_module` 9, `load command LC_SEGMENT_64 __DWARF` 6, `symbol table` 4, `outside segments` 3, `load command LC_SEGMENT_64 __TEXT` 1 |
+| `go build` | `go/maps.go` | Two directories | `maps` | 2,448,274 | 2,448,274 | 1,089,593 | `__TEXT,__gopclntab` 381,824, `__DWARF,__zdebug_info` 233,345, `__DWARF,__zdebug_line` 116,449, `code signature` 10,063, `__TEXT,__text` 79, `outside segments` 18, `LC_UUID` 16, `segment __TEXT, other` 16, `load command LC_SEGMENT_64 __DWARF` 13, `__DATA,__go_module` 8, `symbol table` 3, `load command LC_SEGMENT_64 __TEXT` 1 |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 943,513 | `__TEXT,__gopclntab` 377,750, `__DWARF,__zdebug_info` 241,815, `__DWARF,__zdebug_line` 114,074, `code signature` 8,998, `__TEXT,__text` 78, `LC_UUID` 16, `segment __TEXT, other` 16, `__DATA,__go_module` 9, `load command LC_SEGMENT_64 __DWARF` 6, `symbol table` 4, `load command LC_SEGMENT_64 __TEXT` 1, `outside segments` 1 |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,396,690 | 2,396,690 | 118 | `code signature` 64, `__TEXT,__text` 38, `LC_UUID` 16 |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,593 | `__TEXT,__gopclntab` 381,824, `__DWARF,__zdebug_info` 241,255, `__DWARF,__zdebug_line` 116,449, `code signature` 10,072, `__TEXT,__text` 80, `outside segments` 19, `LC_UUID` 16, `segment __TEXT, other` 16, `load command LC_SEGMENT_64 __DWARF` 13, `__DATA,__go_module` 8, `symbol table` 3, `load command LC_SEGMENT_64 __TEXT` 1 |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,431,762 | 2,431,762 | 119 | `code signature` 64, `__TEXT,__text` 39, `LC_UUID` 16 |
+| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,861 | `__TEXT,__gopclntab` 377,760, `__DWARF,__zdebug_info` 240,756, `__DWARF,__zdebug_line` 114,209, `code signature` 9,981, `__TEXT,__text` 78, `outside segments` 54, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 16, `segment __TEXT, other` 16, `__DATA,__go_module` 9, `symbol table` 4, `load command LC_SEGMENT_64 __TEXT` 1 |
+| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,915 | `__TEXT,__gopclntab` 381,841, `__DWARF,__zdebug_info` 272,638, `__DWARF,__zdebug_line` 116,511, `code signature` 10,065, `__TEXT,__text` 79, `outside segments` 74, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 16, `segment __TEXT, other` 16, `__DATA,__go_module` 9, `symbol table` 3, `load command LC_SEGMENT_64 __TEXT` 1 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello` | 34,168 | 34,168 | 87 | `code signature` 64, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,741 | 16 | `LC_UUID` 16 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 34,168 | 34,184 | 438 | `string table` 68, `code signature` 65, `LC_UUID` 16, `symbol table` 5, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 379 | `__DWARF,__debug_str` 77, `__DWARF,__debug_line_str` 33, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 13, `__DWARF,__debug_info` 6, `__DWARF,__apple_names` 2, `__DWARF,__apple_types` 2, `__DWARF,__debug_line` 2 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello` | 34,088 | 34,088 | 38 | `code signature` 32, `string table` 6 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,666 | 13,682 | 202 | `__DWARF,__debug_line_str` 33, `load command LC_SEGMENT_64 __DWARF` 10, `__DWARF,__debug_line` 2 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello` | 34,168 | 34,168 | 85 | `code signature` 63, `LC_UUID` 16, `string table` 5, `symbol table` 1 |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,741 | 16 | `LC_UUID` 16 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory twice | `kernels` | 34,376 | 34,376 | 38 | `code signature` 32, `string table` 6 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 34,376 | 34,392 | 439 | `string table` 69, `code signature` 65, `LC_UUID` 16, `symbol table` 3, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 577 | `__DWARF,__debug_str` 154, `__DWARF,__debug_line_str` 34, `__DWARF,__debug_info` 20, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 13, `__DWARF,__apple_names` 4, `__DWARF,__apple_types` 4, `__DWARF,__debug_line` 2 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels` | 34,296 | 34,296 | 87 | `code signature` 64, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,600 | 15,616 | 315 | `__DWARF,__debug_line_str` 34, `LC_UUID` 16, `load command LC_SEGMENT_64 __DWARF` 11, `__DWARF,__debug_line` 2 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels` | 34,376 | 34,376 | 87 | `code signature` 64, `LC_UUID` 16, `string table` 6, `symbol table` 1 |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,675 | 16 | `LC_UUID` 16 |
+| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 2,001,592 | 2,001,592 | 374 | `string table` 230, `code signature` 127, `LC_UUID` 16, `symbol table` 1 |
+| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 2,001,592 | 2,001,608 | 28,114 | `string table` 21,995, `symbol table` 2,145, `code signature` 257, `LC_UUID` 16, `load command LC_CODE_SIGNATURE` 1, `load command LC_SEGMENT_64 __LINKEDIT` 1, `load command LC_SYMTAB` 1 |
+| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 2,001,592 | 2,001,592 | 177 | `code signature` 128, `string table` 32, `LC_UUID` 16, `symbol table` 1 |
+| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 34,456 | 34,456 | 50 | `code signature` 32, `LC_UUID` 16, `__TEXT,__cstring` 1, `__TEXT,__text` 1 |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 2,864 | 2,880 | 669 | `__DWARF,__debug_line_str` 42, `load command LC_SEGMENT_64 ` 8, `__DWARF,__debug_line` 3, `load command LC_SYMTAB` 2 |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories, remapped | `hello.o` | 2,864 | 2,880 | 669 | `__DWARF,__debug_line_str` 42, `load command LC_SEGMENT_64 ` 8, `__DWARF,__debug_line` 3, `load command LC_SYMTAB` 2 |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 58,262 | 58,262 | 101 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 58,262 | 58,278 | 54,458 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,748 | 3,764 | 3,321 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 3,342 | 3,358 | 2,802 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 30,605 | 30,605 | 104 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 58,262 | 58,262 | 100 |  |
+
+LC_UUID and debug map (N_SO and N_OSO stab entries) of each differing Mach-O file, per build pair. An N_OSO entry is an object file path and that file's modification time; `{dir}` is the build directory and `{tmpdir}` the system temporary directory:
+
+| Configuration | Program | Comparison | File | LC_UUID | N_SO entries | N_OSO entries |
+|---|---|---|---|---|---|---|
+| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello` | same: `9f393064d9993985a665f9ce1f4305ed` | 2 in both | a only: `{tmpdir}/hello-59a122.o` mtime 1793632033<br>b only: `{tmpdir}/hello-804217.o` mtime 1793632033<br>0 in both |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | a `9f393064d9993985a665f9ce1f4305ed`<br>b `273410cdbc7b33d69d6e16d5102bd9c4` | 2 in both | a only: `{tmpdir}/hello-59a122.o` mtime 1793632033<br>b only: `{tmpdir}/hello-e3f50e.o` mtime 1793632033<br>0 in both |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `9f393064d9993985a665f9ce1f4305ed`<br>b `273410cdbc7b33d69d6e16d5102bd9c4` | 0 in both | 0 in both |
+| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | same: `c3406f19d5623f2c924e18d171f66f00` | 2 in both | a only: `{tmpdir}/hello-09eaf6.o` mtime 1793632033<br>b only: `{tmpdir}/hello-15f844.o` mtime 1793632033<br>0 in both |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | a `9f393064d9993985a665f9ce1f4305ed`<br>b `7a2938d33cea3fb385d9963fc1e706e1` | 2 in both | a only: `{tmpdir}/hello-b4a12d.o` mtime 1793632033<br>b only: `{tmpdir}/hello-d06931.o` mtime 1793632034<br>0 in both |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | a `9f393064d9993985a665f9ce1f4305ed`<br>b `7a2938d33cea3fb385d9963fc1e706e1` | 0 in both | 0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Same directory twice | `sort` | same: `0466cb01814234a1bd5180ad08534f97` | 2 in both | a only: `{tmpdir}/sort-147d2d.o` mtime 1793632034<br>b only: `{tmpdir}/sort-91585d.o` mtime 1793632034<br>0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | a `0466cb01814234a1bd5180ad08534f97`<br>b `4946707f2a7938ccb734f59bcc4ca16a` | 2 in both | a only: `{tmpdir}/sort-147d2d.o` mtime 1793632034<br>b only: `{tmpdir}/sort-968c8b.o` mtime 1793632034<br>0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | a `0466cb01814234a1bd5180ad08534f97`<br>b `4946707f2a7938ccb734f59bcc4ca16a` | 0 in both | 0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | same: `1621250188293ee3bc8f41caf8b5d361` | 2 in both | a only: `{tmpdir}/sort-2dfe31.o` mtime 1793632034<br>b only: `{tmpdir}/sort-79d753.o` mtime 1793632034<br>0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | a `a0b4a0beee4a3193b24a5d5d8eaf0081`<br>b `1c6b0f5fbcbe3c0f994df452c6c56aec` | 2 in both | a only: `{tmpdir}/sort-628a95.o` mtime 1793632035<br>b only: `{tmpdir}/sort-e96f77.o` mtime 1793632036<br>0 in both |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | a `a0b4a0beee4a3193b24a5d5d8eaf0081`<br>b `1c6b0f5fbcbe3c0f994df452c6c56aec` | 0 in both | 0 in both |
+| `clang -O2 -g` | `c/hello.c` | Same directory twice | `hello` | same: `254b44cabd973a72898dba6d74ba9499` | 2 in both | a only: `{tmpdir}/hello-38b45e.o` mtime 1793632039<br>b only: `{tmpdir}/hello-2d3fcc.o` mtime 1793632039<br>0 in both |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | a `254b44cabd973a72898dba6d74ba9499`<br>b `16176f29b5873f72bd7003843b20b027` | 2 in both | a only: `{tmpdir}/hello-38b45e.o` mtime 1793632039<br>b only: `{tmpdir}/hello-ba5da2.o` mtime 1793632039<br>0 in both |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `254b44cabd973a72898dba6d74ba9499`<br>b `16176f29b5873f72bd7003843b20b027` | 0 in both | 0 in both |
+| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | same: `03de27d03b093283afb4508b29bf7d5d` | 2 in both | a only: `{tmpdir}/hello-5bca21.o` mtime 1793632039<br>b only: `{tmpdir}/hello-8a37fb.o` mtime 1793632039<br>0 in both |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | a `254b44cabd973a72898dba6d74ba9499`<br>b `c037fb45fb7a3979ade454bbfce4398c` | 2 in both | a only: `{tmpdir}/hello-01608a.o` mtime 1793632039<br>b only: `{tmpdir}/hello-ba0b44.o` mtime 1793632040<br>0 in both |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | a `254b44cabd973a72898dba6d74ba9499`<br>b `c037fb45fb7a3979ade454bbfce4398c` | 0 in both | 0 in both |
+| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort` | a `805f1a2553a33890a082299d7d3fb859`<br>b `1765ee0357e33a3da3c6aeec1d6bc97f` | 2 in both | a only: `{tmpdir}/sort-910458.o` mtime 1793632040<br>b only: `{tmpdir}/sort-0c098e.o` mtime 1793632041<br>0 in both |
+| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort.dSYM/Contents/Resources/DWARF/sort` | a `805f1a2553a33890a082299d7d3fb859`<br>b `1765ee0357e33a3da3c6aeec1d6bc97f` | 0 in both | 0 in both |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | a `805f1a2553a33890a082299d7d3fb859`<br>b `3d88bb698ae531d7ad08d095b819ebe5` | 2 in both | a only: `{tmpdir}/sort-910458.o` mtime 1793632040<br>b only: `{tmpdir}/sort-533ad0.o` mtime 1793632041<br>0 in both |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | a `805f1a2553a33890a082299d7d3fb859`<br>b `3d88bb698ae531d7ad08d095b819ebe5` | 0 in both | 0 in both |
+| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | same: `83c58e8af1023d39a1eb5313d2ad6a4f` | 2 in both | a only: `{tmpdir}/sort-42e25f.o` mtime 1793632041<br>b only: `{tmpdir}/sort-967186.o` mtime 1793632041<br>0 in both |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | a `1765ee0357e33a3da3c6aeec1d6bc97f`<br>b `4d5257a46cf23cdca1234374a76bc02a` | 2 in both | a only: `{tmpdir}/sort-e545f0.o` mtime 1793632041<br>b only: `{tmpdir}/sort-901f03.o` mtime 1793632042<br>0 in both |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | a `1765ee0357e33a3da3c6aeec1d6bc97f`<br>b `4d5257a46cf23cdca1234374a76bc02a` | 0 in both | 0 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Two directories | `hello` | a `c5cec730cbed37b093b1a9b813f392a6`<br>b `28d0a6349842385c8c7a7f6db3b01286` | 2 in both | 1 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Two directories | `hello.o` | same: `None` | 0 in both | 0 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/hello.c` | Same directory, clock free | `hello` | a `5228a28575e13194acb8c92fb6c83222`<br>b `f27a039970df3b47a3fa99004c6123cc` | 2 in both | a only: `{dir}/hello.o` mtime 1793632043<br>b only: `{dir}/hello.o` mtime 1793632044<br>0 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories | `sort` | a `5dae61642dab30b7a74988ab6f8314c9`<br>b `7520766db3fa340c856b37a2c5d7bba2` | 2 in both | 1 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories | `sort.o` | same: `None` | 0 in both | 0 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Two directories, remapped | `sort` | a `cbf351f2963e38ec84ed251050331797`<br>b `b8a34276584a30ffa05bc0448c3acb8f` | 2 in both | a only: `sort.o` mtime 1793632044<br>b only: `sort.o` mtime 1793632045<br>0 in both |
+| `clang -O2 -g, compile and link split (macOS)` | `c/sort.c` | Same directory, clock free | `sort` | a `4bc0b0f731e6345b96a2d30b65e6fe78`<br>b `0c99834b0581325997b485b076e0672d` | 2 in both | a only: `{dir}/sort.o` mtime 1793632045<br>b only: `{dir}/sort.o` mtime 1793632046<br>0 in both |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/hello.c` | Two directories | `hello` | a `977065934a3e3e6aad991988a67a41cf`<br>b `46f36c2cede33f6c934d0e462da4b80f` | 2 in both | 1 in both |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/hello.c` | Two directories | `hello.o` | same: `None` | 0 in both | 0 in both |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/sort.c` | Two directories | `sort` | a `690b3f79baf832b2870450b8b5b98e6b`<br>b `4ba2fe9160a033acbd47c94e26875014` | 2 in both | 1 in both |
+| `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)` | `c/sort.c` | Two directories | `sort.o` | same: `None` | 0 in both | 0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | same: `e4fd314dafb53ad6ae3f3184cb7ec29a` | 2 in both | a only: `{tmpdir}/hello-ba5abc.o` mtime 1793632050<br>b only: `{tmpdir}/hello-feb47b.o` mtime 1793632050<br>0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | a `e4fd314dafb53ad6ae3f3184cb7ec29a`<br>b `c40d3ed644d333bba89b60c34d1922bd` | 2 in both | a only: `{tmpdir}/hello-ba5abc.o` mtime 1793632050<br>b only: `{tmpdir}/hello-130cf4.o` mtime 1793632051<br>0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `e4fd314dafb53ad6ae3f3184cb7ec29a`<br>b `c40d3ed644d333bba89b60c34d1922bd` | 0 in both | 0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | same: `6e066ce2baa63861b67f552a83d34c40` | 2 in both | a only: `{tmpdir}/hello-00624d.o` mtime 1793632051<br>b only: `{tmpdir}/hello-b33636.o` mtime 1793632051<br>0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | a `bccde625ddee342298fabdb0a29155b0`<br>b `b8415e3fe4bf3844a53ce674156298c0` | 2 in both | a only: `{tmpdir}/hello-cd8b70.o` mtime 1793632052<br>b only: `{tmpdir}/hello-00aa30.o` mtime 1793632053<br>0 in both |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | a `bccde625ddee342298fabdb0a29155b0`<br>b `b8415e3fe4bf3844a53ce674156298c0` | 0 in both | 0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | same: `1131d9f9f9453f359e972d3b1fdb9ac9` | 2 in both | a only: `{tmpdir}/templates-f1d487.o` mtime 1793632053<br>b only: `{tmpdir}/templates-19e629.o` mtime 1793632053<br>0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | a `1131d9f9f9453f359e972d3b1fdb9ac9`<br>b `ab004529684f345cb98e22277976db81` | 2 in both | a only: `{tmpdir}/templates-f1d487.o` mtime 1793632053<br>b only: `{tmpdir}/templates-a22d57.o` mtime 1793632054<br>0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | a `1131d9f9f9453f359e972d3b1fdb9ac9`<br>b `ab004529684f345cb98e22277976db81` | 0 in both | 0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | a `7175cf7381c239c0a1343396e9fabcef`<br>b `7ff25519d74a3d4d8b23b4b2e10ffc75` | 2 in both | a only: `{tmpdir}/templates-aaad46.o` mtime 1793632054<br>b only: `{tmpdir}/templates-45b07a.o` mtime 1793632055<br>0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | a `7175cf7381c239c0a1343396e9fabcef`<br>b `7ff25519d74a3d4d8b23b4b2e10ffc75` | 0 in both | 0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | a `e0e13315a278399e9c771f921d0d0128`<br>b `aa18bd070db43fffb0e20d59373aa718` | 2 in both | a only: `{tmpdir}/templates-bda4b3.o` mtime 1793632055<br>b only: `{tmpdir}/templates-f7d077.o` mtime 1793632056<br>0 in both |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | a `e0e13315a278399e9c771f921d0d0128`<br>b `aa18bd070db43fffb0e20d59373aa718` | 0 in both | 0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | a `4be25b0478083e549eb176ee91aaac9f`<br>b `d6967ffd11ad337886295f242c5d8ca5` | 2 in both | a only: `{tmpdir}/hello-05b63a.o` mtime 1793632056<br>b only: `{tmpdir}/hello-5f74c6.o` mtime 1793632057<br>0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | a `4be25b0478083e549eb176ee91aaac9f`<br>b `d6967ffd11ad337886295f242c5d8ca5` | 0 in both | 0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | a `4be25b0478083e549eb176ee91aaac9f`<br>b `f49363eb33083167b01740000b948337` | 2 in both | a only: `{tmpdir}/hello-05b63a.o` mtime 1793632056<br>b only: `{tmpdir}/hello-4cbe0d.o` mtime 1793632057<br>0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `4be25b0478083e549eb176ee91aaac9f`<br>b `f49363eb33083167b01740000b948337` | 0 in both | 0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | same: `2af0ca7c3d293860b8a4ecae87d97e89` | 2 in both | a only: `{tmpdir}/hello-01b26e.o` mtime 1793632058<br>b only: `{tmpdir}/hello-6c0c72.o` mtime 1793632058<br>0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | a `fea85da9bfdf3caab2a269da151a01c8`<br>b `4fa93a2191eb3ff599e845393dfca07e` | 2 in both | a only: `{tmpdir}/hello-05bd65.o` mtime 1793632058<br>b only: `{tmpdir}/hello-ae158d.o` mtime 1793632059<br>0 in both |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | a `fea85da9bfdf3caab2a269da151a01c8`<br>b `4fa93a2191eb3ff599e845393dfca07e` | 0 in both | 0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | same: `15d40a514b9333afbae3b2f2704f665e` | 2 in both | a only: `{tmpdir}/templates-25b140.o` mtime 1793632060<br>b only: `{tmpdir}/templates-55b4dc.o` mtime 1793632060<br>0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | a `15d40a514b9333afbae3b2f2704f665e`<br>b `e284641466e838ef8f7ffe3daac9d872` | 2 in both | a only: `{tmpdir}/templates-25b140.o` mtime 1793632060<br>b only: `{tmpdir}/templates-49852e.o` mtime 1793632061<br>0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | a `15d40a514b9333afbae3b2f2704f665e`<br>b `e284641466e838ef8f7ffe3daac9d872` | 0 in both | 0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | same: `71fdda5af89f3c4e9d43264cba353b8a` | 2 in both | a only: `{tmpdir}/templates-8c3754.o` mtime 1793632061<br>b only: `{tmpdir}/templates-e9bc1d.o` mtime 1793632061<br>0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | a `09747cb05fc13761b78f47a30d0f4fc1`<br>b `54288f7c3b9b318bbabf523371161c1e` | 2 in both | a only: `{tmpdir}/templates-7057c8.o` mtime 1793632062<br>b only: `{tmpdir}/templates-d6f9f0.o` mtime 1793632063<br>0 in both |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | a `09747cb05fc13761b78f47a30d0f4fc1`<br>b `54288f7c3b9b318bbabf523371161c1e` | 0 in both | 0 in both |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | a `486c4f5d042532dfacd3ffbda697b276`<br>b `218a4189d14838018963297463783562` | 2 in both | 1 in both |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `486c4f5d042532dfacd3ffbda697b276`<br>b `218a4189d14838018963297463783562` | 0 in both | 0 in both |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello` | a `aa05cc1dabfb309fab8f89e16b363e52`<br>b `143f9e48aa7231dda33c318c0e272d0f` | 2 in both | 1 in both |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | a `aa05cc1dabfb309fab8f89e16b363e52`<br>b `143f9e48aa7231dda33c318c0e272d0f` | 0 in both | 0 in both |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | a `f51eebe006d5321f8ec37237f95f012a`<br>b `776d082c4c123c6ca2ff6ba91c381f24` | 2 in both | 1 in both |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | a `f51eebe006d5321f8ec37237f95f012a`<br>b `776d082c4c123c6ca2ff6ba91c381f24` | 0 in both | 0 in both |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic` | a `2f10c230ae9a31b28068d641df3fa48e`<br>b `af0f87ff1e4638bb80fa776d5b8ee698` | 2 in both | 1 in both |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic.dSYM/Contents/Resources/DWARF/generic` | a `2f10c230ae9a31b28068d641df3fa48e`<br>b `af0f87ff1e4638bb80fa776d5b8ee698` | 0 in both | 0 in both |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/hello.rs` | Two directories | `hello` | a `486c4f5d042532dfacd3ffbda697b276`<br>b `218a4189d14838018963297463783562` | 2 in both | 1 in both |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `486c4f5d042532dfacd3ffbda697b276`<br>b `218a4189d14838018963297463783562` | 0 in both | 0 in both |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/generic.rs` | Two directories | `generic` | a `f51eebe006d5321f8ec37237f95f012a`<br>b `776d082c4c123c6ca2ff6ba91c381f24` | 2 in both | 1 in both |
+| `rustc -O -g, oso_prefix (macOS)` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | a `f51eebe006d5321f8ec37237f95f012a`<br>b `776d082c4c123c6ca2ff6ba91c381f24` | 0 in both | 0 in both |
+| `go build` | `go/hello.go` | Two directories | `hello` | a `198d0d0decf633bdbda4ef901e294c63`<br>b `ffbbe844fbdf34638ff16b4924401ef5` | 0 in both | 0 in both |
+| `go build` | `go/maps.go` | Two directories | `maps` | a `2151c9846ad73f7093b66d6da0c4d82a`<br>b `1ff44c6d301a3ae7a6ce4da2de873d47` | 0 in both | 0 in both |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | a `6725f4d6a6c33bea9cfb6fb04d110fa8`<br>b `6a3d166b2fac380dbe38b2f7bf360a08` | 0 in both | 0 in both |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | a `e8e83dd184c137ee9d99e3b3590d2e90`<br>b `e71bcbbe071233c49f62a57093740fc3` | 0 in both | 0 in both |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | a `af736483cd8a37ddbd4fbdb2b3d4453a`<br>b `813d9590c6763079875f5cdba2886130` | 0 in both | 0 in both |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | a `54df1b6db1033bd3a9c8fac4ff438563`<br>b `3bce5420441e3e4f8b42ce38182f51aa` | 0 in both | 0 in both |
+| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | a `a4e2d155c3b930a582e8636c6610d8ee`<br>b `d20f7d9677a2322cb517e214dc2b1fd1` | 0 in both | 0 in both |
+| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | a `fbc0ec768fab32eea78c1b5448cccef1`<br>b `b4ab8d73b42f3da2b863e43af16c7899` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello` | a `986dd5c044dd34209380f25a7360a49c`<br>b `ff7e198614e23950a9a7a0efa494d988` | 2 in both | a only: `/var/tmp//cceclZZu.o` mtime 1793632162<br>b only: `/var/tmp//cc1WbyBR.o` mtime 1793632163<br>0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | a `986dd5c044dd34209380f25a7360a49c`<br>b `ff7e198614e23950a9a7a0efa494d988` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | a `986dd5c044dd34209380f25a7360a49c`<br>b `49558c518b4f36ad8f51bcc4f27e3b5a` | 2 in both | a only: `/var/tmp//cceclZZu.o` mtime 1793632162<br>b only: `/var/tmp//ccxsxdjX.o` mtime 1793632163<br>0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | a `986dd5c044dd34209380f25a7360a49c`<br>b `49558c518b4f36ad8f51bcc4f27e3b5a` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello` | same: `2dffec4bdf5e353291837ffdfee8b788` | 2 in both | a only: `/var/tmp//ccM2zucb.o` mtime 1793632163<br>b only: `/var/tmp//ccKad5Nh.o` mtime 1793632163<br>0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | same: `2dffec4bdf5e353291837ffdfee8b788` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello` | a `ff7e198614e23950a9a7a0efa494d988`<br>b `2a0787eff4243b16869cedf252ca5b44` | 2 in both | a only: `/var/tmp//cch8YNlM.o` mtime 1793632163<br>b only: `/var/tmp//ccOdnN4q.o` mtime 1793632165<br>0 in both |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | a `ff7e198614e23950a9a7a0efa494d988`<br>b `2a0787eff4243b16869cedf252ca5b44` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory twice | `kernels` | same: `46563cc57aa131c9b47fd27ccda3a993` | 2 in both | a only: `/var/tmp//ccZPQKNv.o` mtime 1793632165<br>b only: `/var/tmp//ccHcUJSi.o` mtime 1793632165<br>0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | a `46563cc57aa131c9b47fd27ccda3a993`<br>b `2cca1c0a71a93f53a4cfba2806d922c2` | 2 in both | a only: `/var/tmp//ccZPQKNv.o` mtime 1793632165<br>b only: `/var/tmp//ccISLiSF.o` mtime 1793632165<br>0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels.dSYM/Contents/Resources/DWARF/kernels` | a `46563cc57aa131c9b47fd27ccda3a993`<br>b `2cca1c0a71a93f53a4cfba2806d922c2` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels` | a `a27e7b7a2740338ea2c94e8a8b5d036b`<br>b `7c5b2775c3f6352d96caa17eda22b550` | 2 in both | a only: `/var/tmp//ccUxrk87.o` mtime 1793632165<br>b only: `/var/tmp//cczoisuR.o` mtime 1793632166<br>0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels.dSYM/Contents/Resources/DWARF/kernels` | a `a27e7b7a2740338ea2c94e8a8b5d036b`<br>b `7c5b2775c3f6352d96caa17eda22b550` | 0 in both | 0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels` | a `757272bbcb973b308118d0cfeac32236`<br>b `99f54fd201ea3afb8fb7c995c92be8ec` | 2 in both | a only: `/var/tmp//ccLYnR5K.o` mtime 1793632166<br>b only: `/var/tmp//ccGvccHa.o` mtime 1793632167<br>0 in both |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels.dSYM/Contents/Resources/DWARF/kernels` | a `757272bbcb973b308118d0cfeac32236`<br>b `99f54fd201ea3afb8fb7c995c92be8ec` | 0 in both | 0 in both |
+| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | a `5d9d46b5f50b31ee9957eb7ab668234d`<br>b `f846595ec8ec3c22bd75c7409cf40364` | 4 in both | a only: `{tmpdir}/e1-nr9pa72w/fresh-mf5wpa1z/tmp/7f1393ae31d8097c/hello_zcu.o` mtime 1793632180<br>`{tmpdir}/e1-nr9pa72w/fresh-opruyi73/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>b only: `{tmpdir}/e1-nr9pa72w/fresh-fsdp9xiw/tmp/56c994b6de75a9e0/hello_zcu.o` mtime 1793632183<br>`{tmpdir}/e1-nr9pa72w/fresh-54x56ys5/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>0 in both |
+| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | a `5d9d46b5f50b31ee9957eb7ab668234d`<br>b `7c00e7494f223f28abc20211029b7d3c` | 4 in both | a only: `{tmpdir}/e1-nr9pa72w/fresh-mf5wpa1z/tmp/7f1393ae31d8097c/hello_zcu.o` mtime 1793632180<br>`{tmpdir}/e1-nr9pa72w/fresh-opruyi73/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>b only: `{tmpdir}/e1-nr9pa72w/fresh-l0b8j3k2/tmp/2504b3c8c0ca7481/hello_zcu.o` mtime 1793632185<br>`{tmpdir}/e1-nr9pa72w/fresh-iqchdov5/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>0 in both |
+| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | a `1d20890440a93c219eea0e53691a7711`<br>b `c7efd270ab1933039938b405b2953022` | 4 in both | a only: `{tmpdir}/e1-nr9pa72w/fresh-z3m3wsb8/tmp/944e8d432d00b386/hello_zcu.o` mtime 1793632188<br>`{tmpdir}/e1-nr9pa72w/fresh-7c7qswyd/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>b only: `{tmpdir}/e1-nr9pa72w/fresh-8r_46kln/tmp/e530bf9ac8c9665d/hello_zcu.o` mtime 1793632191<br>`{tmpdir}/e1-nr9pa72w/fresh-n7yfkztl/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)` mtime 0<br>0 in both |
+| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | a `e273c3ac467f317dbfcb8351fa2e49b8`<br>b `96b37418d8c73681b59c779eff38c7e1` | 0 in both | 0 in both |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | same: `None` | 0 in both | 0 in both |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories, remapped | `hello.o` | same: `None` | 0 in both | 0 in both |
 
 Inputs of the remapped build that name the build directory, as the tool's own trace prints them (`{dir}` is the build directory):
 
@@ -362,17 +480,17 @@ Inputs of the remapped build that name the build directory, as the tool's own tr
 |---|---|---|---|---|
 | `go build` | `go/hello.go` | `GODEBUG=gocachehash=1` | none | yes |
 | `go build` | `go/maps.go` | `GODEBUG=gocachehash=1` | none | yes |
-| `go build, GOPATH mode` | `go/hello.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_/private{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_/private{dir}\"\n"` | yes |
-| `go build, GOPATH mode` | `go/maps.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_/private{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_/private{dir}\"\n"` | yes |
+| `go build, GOPATH mode` | `go/hello.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"` | yes |
+| `go build, GOPATH mode` | `go/maps.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"` | yes |
 | `go build, GOPATH mode, import path declared` | `go/hello.go` | `GODEBUG=gocachehash=1` | none | yes |
 | `go build, GOPATH mode, import path declared` | `go/maps.go` | `GODEBUG=gocachehash=1` | none | yes |
 
 Computed from the rows above:
 
 - configurations with any difference between two builds in the same directory: `clang -O2 -g`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `julia code_llvm and code_native`, `zig build-exe`;
-- configurations whose two-directory difference comes with the build directory in the output: `clang -O2 -g`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build`, `go build, GOPATH mode`, `go build, GOPATH mode, import path declared`, `julia code_llvm and code_native`, `ocamlopt -g`, `rustc -O -g`, `zig build-exe`;
-- configurations with a difference that survives the remapped build: `clang -O2 -g`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build, GOPATH mode`, `julia code_llvm and code_native`, `ocamlopt -g`, `rustc -O -g`;
-- configurations identical in the same directory with SOURCE_DATE_EPOCH set but not with it unset (the clock is an input): `cobc -x`.
+- configurations whose two-directory difference comes with the build directory in the output: `clang -O2 -g`, `clang -O2 -g, compile and link split (macOS)`, `clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build`, `go build, GOPATH mode`, `go build, GOPATH mode, import path declared`, `julia code_llvm and code_native`, `ocamlopt -g`, `rustc -O -g`, `rustc -O -g, oso_prefix (macOS)`, `zig build-exe`;
+- configurations with a difference that survives the remapped build: `clang -O2 -g`, `clang -O2 -g, compile and link split (macOS)`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build, GOPATH mode`, `julia code_llvm and code_native`, `ocamlopt -g`, `rustc -O -g`;
+- configurations identical in the same directory with SOURCE_DATE_EPOCH set but not with it unset (the clock is an input): `clang -O2 -g, compile and link split (macOS)`, `cobc -x`.
 
 ## Across machines: ci-ubuntu-24.04-x86_64 and local-ubuntu-24.04-x86_64
 
