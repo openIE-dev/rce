@@ -1,7 +1,8 @@
 //! `rce`: the RCE reference checker CLI shipped with the IDE, with the
 //! energy-budget gate on `rce test`:
 //!
-//!   rce test [energy-budget J] [measured J | measure] [strict] FILE...
+//!   rce test [energy-budget J] [measured J PROVENANCE.json |
+//!            reported J PROVENANCE.json | measure] [strict] FILE...
 //!
 //! Without a budget word, `rce test` behaves exactly as the reference
 //! checker. Every other command is passed through unchanged, so it takes
