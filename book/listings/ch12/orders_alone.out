@@ -1,2 +1,3 @@
 requires change shop/orders.rce: line 2: W-NAME-1 unknown module `shop.pricing` [requires change]; line 10: W-NAME-1 unknown name `pricing` [requires change]
+attention: 2 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

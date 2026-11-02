@@ -18,7 +18,10 @@ fn rce(args: &[&str]) -> (i32, String) {
     let a: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let (mut out, mut err) = (vec![], vec![]);
     let code = cli::main(&a, &mut &b""[..], &mut out, &mut err);
-    (code, String::from_utf8(out).unwrap() + &String::from_utf8(err).unwrap())
+    // the attention line that ends every `rce check` run (7.1, AC-1) is
+    // tested in tests/rule_modes.rs
+    let err: String = String::from_utf8(err).unwrap().lines().filter(|l| !l.starts_with("attention: ")).map(|l| format!("{l}\n")).collect();
+    (code, String::from_utf8(out).unwrap() + &err)
 }
 
 fn fixture(name: &str) -> String {

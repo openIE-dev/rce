@@ -24,6 +24,11 @@ fn tmp(name: &str, text: &str) -> String {
 
 const BAD: &str = "fn f() -> i64\n    \"text\"\n";
 
+/// The attention line every `rce check` and `rce fmt` run ends with (7.1, AC-1).
+fn att(r: usize, c: usize, a: usize, o: usize) -> String {
+    format!("attention: {r} requires change, {c} recommended, {a} altered, {o} observed\n")
+}
+
 #[test]
 fn check_accepts_or_requires_change() {
     assert_eq!(
@@ -34,12 +39,12 @@ fn check_accepts_or_requires_change() {
                 "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 3 example lines are the only obligations on the steps; \
                  their lookup-table control (6.9) meets them, so they do not constrain behaviour beyond the listed examples\n"
             ),
-            String::new()
+            att(0, 1, 0, 0)
         )
     );
     // no example line, no recommendation (W-INT-2 needs example lines and a step)
     let p = tmp("plain.rce", "state C\n    n: u64 = 0\n\nevent Inc\n\nstep C on Inc -> n + 1\n");
-    assert_eq!(rce(&["check", &p]), (0, format!("ok {p}\n"), String::new()));
+    assert_eq!(rce(&["check", &p]), (0, format!("ok {p}\n"), att(0, 0, 0, 0)));
     let p = tmp("bad.rce", BAD);
     let (c, out, _) = rce(&["check", &p]);
     assert_eq!(c, 1);
@@ -206,14 +211,14 @@ fn fmt_command_check_and_write() {
     let p = tmp("messy.rce", MESSY);
     assert_eq!(
         rce(&["fmt", "check", &p]),
-        (1, format!("would reformat {p}\n"), String::new())
+        (1, format!("would reformat {p}\n"), att(1, 0, 0, 0))
     );
     assert_eq!(std::fs::read_to_string(&p).unwrap(), MESSY);
     assert_eq!(rce(&["fmt", &p]).0, 0);
     assert_eq!(std::fs::read_to_string(&p).unwrap(), TIDY);
     assert_eq!(
         rce(&["fmt", "check", &p]),
-        (0, String::new(), String::new())
+        (0, String::new(), att(0, 0, 0, 0))
     );
 }
 

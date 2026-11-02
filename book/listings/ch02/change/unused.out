@@ -1,2 +1,3 @@
 requires change unused.rce: line 3: W-UNUSED-1 `p` is never read; remove it or name it `_p` [altered by rce fmt]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

@@ -1,2 +1,3 @@
 requires change mixed_types.rce: line 1: W-TY-1 `+` on u8 and i64: no implicit conversion [requires change]; line 1: W-TY-1 expected i64, found u8 [requires change]
+attention: 2 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

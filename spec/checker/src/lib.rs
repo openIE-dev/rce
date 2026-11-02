@@ -6,6 +6,7 @@
 pub const GIT_COMMIT: &str = env!("RCE_GIT_COMMIT");
 
 pub mod adapters;
+pub mod admission;
 pub mod alter;
 pub mod anf;
 pub mod apidiff;
@@ -43,6 +44,7 @@ pub mod lsp;
 pub mod parse;
 pub mod raft;
 pub mod rcedb;
+pub mod receipt;
 pub mod refine;
 pub mod repair;
 pub mod repl;
@@ -83,62 +85,31 @@ pub fn check_program_with(
     parse_only: bool,
     mutation: bool,
 ) -> Vec<(String, Result<(), String>)> {
-    let mut out = vec![];
-    let mut parsed = vec![];
-    for (p, src) in files {
-        match parse::parse(src) {
-            Ok(m) => parsed.push((p.clone(), m)),
-            Err(e) => out.push((p.clone(), Err(e))),
-        }
+    if parse_only {
+        return files.iter().map(|(p, src)| (p.clone(), parse::parse(src).map(|_| ()))).collect();
     }
-    let known: HashSet<String> = parsed
-        .iter()
-        .filter_map(|(_, m)| m.path.as_ref().map(|q| q.join(".")))
-        .collect();
-    let mods: Vec<&ast::Module> = parsed.iter().map(|(_, m)| m).collect();
-    for (p, m) in &parsed {
-        if parse_only {
-            out.push((p.clone(), Ok(())));
-            continue;
-        }
-        // imported library items are linked in (4.1, src/link.rs)
-        let mut lk = link::link(m, &mods);
-        let mut c = check::Checker::new();
-        c.imported_fns = lk.imported_fns.clone();
-        c.imported_types = lk.imported_types.clone();
-        for e in std::mem::take(&mut lk.errs) {
-            c.e(e);
-        }
-        c.check_module(&lk.module, &known);
-        if c.errs.is_empty() {
-            c.errs = admit_gated(&mut lk, m.items.len(), &known, mutation);
-        }
-        out.push((
-            p.clone(),
-            if c.errs.is_empty() {
-                Ok(())
-            } else {
-                Err(c.errs.join("; "))
-            },
-        ));
-    }
-    // Same order as the input.
-    let pos = |n: &String| files.iter().position(|(p, _)| p == n).unwrap_or(usize::MAX);
-    out.sort_by_key(|(n, _)| pos(n));
-    out
+    // one admission for every tool (admission.rs): imported library items
+    // are linked in (4.1, src/link.rs), then the rules in force, their modes
+    // (7.1) and the admission gate decide
+    admission::program(admission::RuleSet::in_force(), files, mutation)
+        .into_iter()
+        .map(|(p, a)| {
+            let v = match a {
+                Err(e) => Err(e),
+                Ok(a) if a.errs.is_empty() => Ok(()),
+                Ok(a) => Err(a.errs.join("; ")),
+            };
+            (p, v)
+        })
+        .collect()
 }
 
-/// Admission (6.9, 6.11) of a linked program that type-checks, and then,
-/// when `mutation` is true and every obligation holds, the mutation gate
-/// (6.12, W-MUT-1) on its first `own` items.
-pub fn admit_gated(lk: &mut link::Linked, own: usize, known: &HashSet<String>, mutation: bool) -> Vec<String> {
-    let sites = if mutation { mutants::site_addresses(&mut lk.module, own) } else { mutants::Sites { addrs: vec![], emitted: Default::default() } };
-    let (errs, measure) = interp::admit_measured(&lk.module);
-    if !mutation || !errs.is_empty() {
-        return errs;
-    }
-    let p = mutants::Program { linked: &lk.module, own, imported_fns: &lk.imported_fns, imported_types: &lk.imported_types, known };
-    mutants::gate(&p, &sites, &measure)
+/// Admission (6.9, 6.11) of a linked program whose static reports are
+/// `errs`, under the rules in force and their modes (7.1), and then, when
+/// `mutation` is true and every obligation holds, the mutation gate (6.12,
+/// W-MUT-1) on its first `own` items: the reports that require change.
+pub fn admit_gated(lk: link::Linked, errs: Vec<String>, own: usize, known: &HashSet<String>, mutation: bool) -> Vec<String> {
+    admission::linked(admission::RuleSet::in_force(), lk, errs, own, known, mutation).errs
 }
 
 /// One source text as the program the tools run: parsed, and its `use`

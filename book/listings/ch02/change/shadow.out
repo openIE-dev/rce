@@ -1,2 +1,3 @@
 requires change shadow.rce: line 4: W-NAME-3 `cost` shadows a name declared at line 2 in an enclosing scope [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

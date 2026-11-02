@@ -1,2 +1,3 @@
 requires change ct_branch.rce: line 3: W-CTFN-1 an `if` condition is labeled {secret (from key)} in `ct fn same_tag`: control flow and memory access must not depend on a secret (use `ct_choose` or bitwise operators) [in `same_tag` called with {secret (from key)}, public] [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1
