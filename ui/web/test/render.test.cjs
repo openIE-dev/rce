@@ -107,7 +107,8 @@ async function main() {
   await page.route("http://rce.test/**", (route) => {
     const p = path.join(WEB, new URL(route.request().url()).pathname);
     if (!p.startsWith(WEB) || !fs.existsSync(p)) return route.fulfill({ status: 404, body: "" });
-    route.fulfill({ status: 200, contentType: p.endsWith(".js") ? "text/javascript" : "text/html", body: fs.readFileSync(p) });
+    const type = p.endsWith(".js") ? "text/javascript" : p.endsWith(".ttf") ? "font/ttf" : "text/html";
+    route.fulfill({ status: 200, contentType: type, body: fs.readFileSync(p) });
   });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));

@@ -1,0 +1,619 @@
+module ui.layout
+use ui.view
+
+# The layout model rce.ui.layout/1: the boxes a ui.view tree occupies, in
+# exact integer arithmetic. Pure. Used by ui.rules for the WCAG 2.2 success
+# criteria that need geometry (spec/proposals/human-interface.md, 4.2).
+#
+# Unit. Every length is an integer number of hundredths of a CSS px
+# ("centi-px"); attributes are given in whole CSS px. With font sizes in
+# whole px every length below is an integer in this unit, including the
+# WCAG 1.4.12 text spacing (0.12, 0.16, 1.5 and 2 times the font size).
+#
+# Font metric. Text is set in a cell font: every Unicode scalar value
+# advances one em (the font size F), and a line of text is F high
+# (line-height 1). ui/web/rce-cell.ttf is such a font for the printable
+# ASCII range, and the DOM renderer (ui/web/render.js) uses it, so a
+# browser lays out the same boxes (ui/web/test/layout.test.cjs).
+#
+# Attributes read (all optional; integers are CSS px):
+# - w, h: the least width and height of the border box; with clip="true"
+#   they are its exact width and height.
+# - pad: padding on all four sides; border: any value draws a 1 px border.
+# - flow: "column" (the default) stacks the children top to bottom, each
+#   as wide as the content box; "row" places them left to right, each as
+#   wide as its content on one line (its max-content width), starting a
+#   new line when the next one has no room left; gap: the space between
+#   children (and between lines of a row).
+# - clip: "true" hides what lies outside the padding box (overflow hidden).
+# - layer: an integer above 0 takes the node out of the flow and draws it
+#   above it, at x, y from the padding box of its containing block (the
+#   nearest layered ancestor, else the root), as wide as its content
+#   allows (no wider than its content); a higher layer is drawn above a lower one,
+#   and of two equal layers the later one in tree order.
+# - font-px: the font size, inherited (16 at the root).
+# - the root's vw: the viewport width for the normal layout (1280).
+#
+# Text. The text children of an element that stand next to each other form
+# one run. White space (space, tab, line feed, carriage return, as CSS
+# collapses them) is collapsed to one space and removed at the start and end of the run; a
+# run with no other character has no box. A line may break only at a space;
+# lines are filled greedily, and a word longer than the line stands alone
+# on its line and overflows. In a column a run is as wide as the content
+# box; in a row it is as wide as its text on one line, or, alone on a line
+# that is too narrow, as wide as the line (but not narrower than its widest
+# word).
+#
+# A Mode gives the viewport width (CSS px), a font scale (percent, a
+# multiple of 100: 200 for WCAG 1.4.4) and whether the WCAG 1.4.12 text
+# spacing applies: line height 1.5 F, letter spacing 0.12 F after every
+# character, word spacing 0.16 F more on every space, and 2 F below each
+# paragraph (tag p or role paragraph).
+#
+# Painting. A node's stacking path (stack) lists, for each layered
+# ancestor-or-self from the outermost, its layer and its position in
+# tree order. A node is drawn above another when its path is greater:
+# compared pair by pair, a higher layer, then a later position; a path
+# that extends another is above it.
+
+pub struct Mode
+    vw: i64
+    scale: i64
+    spacing: bool
+
+# The boxes of one view. Per node (by node index):
+# - x, y, w, h: the border box of an element, or for the first text node
+#   of a run the bounding box of its lines (relative to the root's top
+#   left corner, centi-px); shown is false for a node with no box (a text
+#   node that is not the first of a non-empty run).
+# - lines: for the first text node of a run, the width of each line; lh
+#   its line height and fc its font size (centi-px); every line starts at
+#   x, line i at y + i * lh.
+# - clip: the region that the node's clipping ancestors leave visible,
+#   [x0, y0, x1, y1], or [] when none clips it.
+# - stack: the stacking path (above); order: the node's position in tree
+#   order (preorder), which decides between two boxes of one path.
+# - bad: the nodes with an attribute of this model that is malformed, and
+#   why, one text per node; the model reads such a value as absent, so a
+#   rule must not decide on a layout with bad nodes.
+pub struct Layout
+    x: List[i64]
+    y: List[i64]
+    w: List[i64]
+    h: List[i64]
+    shown: List[bool]
+    lines: List[List[i64]]
+    lh: List[i64]
+    fc: List[i64]
+    clip: List[List[i64]]
+    stack: List[List[i64]]
+    order: List[i64]
+    bad: List[i64]
+    why: List[text]
+
+pub const CPX: i64 = 100
+pub const VW_DEFAULT: i64 = 1280
+pub const FONT_DEFAULT: i64 = 16
+
+# a non-negative integer of at most 9 digits, or -1
+pub fn px_of(s: &text) -> i64
+    if s.len_chars() == 0 or s.len_chars() > 9 or not s.isdigit()
+        return -1
+    return s.toint()
+
+fn ws_char(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r"
+
+# the words of a run as lengths in characters (after collapsing white space)
+pub fn word_lengths(t: &text) -> List[i64]
+    var out: List[i64] = []
+    var n: i64 = 0
+    for c in t.chars()
+        if ws_char(&c)
+            if n > 0
+                out.push(n)
+            n = 0
+        else
+            n += 1
+    if n > 0
+        out.push(n)
+    return out
+
+fn adv(f: i64, ls: i64) -> i64 = f + ls
+
+# the width of a word of k characters, and of a space
+fn word_w(k: i64, f: i64, ls: i64) -> i64 = k * adv(f, ls)
+
+# the line widths of a run of words set greedily in width cw
+pub fn break_lines(ws: &[i64], f: i64, ls: i64, sp: i64, cw: i64) -> List[i64]
+    var out: List[i64] = []
+    var cur: i64 = -1
+    for k in ws
+        let wd = word_w(k, f, ls)
+        if cur < 0
+            cur = wd
+        elif cur + sp + wd <= cw
+            cur = cur + sp + wd
+        else
+            out.push(cur)
+            cur = wd
+    if cur >= 0
+        out.push(cur)
+    return out
+
+fn run_max(ws: &[i64], f: i64, ls: i64, sp: i64) -> i64
+    var s: i64 = 0
+    for i in 0..ws.len()
+        s += word_w(ws[i], f, ls) + (if i > 0 then sp else 0)
+    return s
+
+fn run_min(ws: &[i64], f: i64, ls: i64) -> i64
+    var m: i64 = 0
+    for k in ws
+        m = m.max(word_w(k, f, ls))
+    return m
+
+fn list_max(xs: &[i64]) -> i64
+    var m: i64 = 0
+    for x in xs
+        m = m.max(x)
+    return m
+
+fn none_ints() -> List[i64] = []
+
+# A box per node of v in mode m.
+pub fn layout(v: &View, m: &Mode) -> Layout
+    let n = view.size(v) as usize
+    # preorder
+    var pre: List[i64] = []
+    var st: List[i64] = [0]
+    while st.len() > 0 bound 16777216
+        let u = st[st.len() - 1]
+        let _ = st.pop()
+        pre.push(u)
+        var t = v.kids[u as usize].len()
+        while t > 0 bound 16777216
+            t -= 1
+            st.push(v.kids[u as usize][t])
+    var idx: List[i64] = []
+    var aw: List[i64] = []
+    var ah: List[i64] = []
+    var pad: List[i64] = []
+    var gap: List[i64] = []
+    var ax: List[i64] = []
+    var ay: List[i64] = []
+    var lay: List[i64] = []
+    var fpx: List[i64] = []
+    var bd: List[i64] = []
+    var row: List[bool] = []
+    var clp: List[bool] = []
+    var para: List[bool] = []
+    var bad: List[i64] = []
+    var why: List[text] = []
+    for _i in 0..n
+        idx.push(-1)
+        aw.push(-1)
+        ah.push(-1)
+        pad.push(0)
+        gap.push(0)
+        ax.push(0)
+        ay.push(0)
+        lay.push(0)
+        fpx.push(FONT_DEFAULT)
+        bd.push(0)
+        row.push(false)
+        clp.push(false)
+        para.push(false)
+    for i in 0..pre.len()
+        idx[pre[i] as usize] = i as i64
+    # attributes, fonts (inherited), parsed in preorder
+    for u in pre
+        let k = u as usize
+        if v.tag[k] == ""
+            if v.parent[k] >= 0
+                fpx[k] = fpx[v.parent[k] as usize]
+            continue
+        var probs: List[text] = []
+        var fp: i64 = -1
+        let ns = &v.names[k]
+        for j in 0..ns.len()
+            let a = &ns[j]
+            # one pass over the node's attributes (only those of this model)
+            if a == "w" or a == "h" or a == "pad" or a == "gap" or a == "x" or a == "y" or a == "layer" or a == "font-px" or a == "vw"
+                let s = v.values[k][j].strip()
+                let x = if s == "" then -2 else px_of(&s)
+                if x == -1 or (a == "vw" and x == 0)
+                    probs.push(a + " \"" + s + "\"")
+                elif x >= 0
+                    if a == "w"
+                        aw[k] = x
+                    elif a == "h"
+                        ah[k] = x
+                    elif a == "pad"
+                        pad[k] = x * CPX
+                    elif a == "gap"
+                        gap[k] = x * CPX
+                    elif a == "x"
+                        ax[k] = x * CPX
+                    elif a == "y"
+                        ay[k] = x * CPX
+                    elif a == "layer"
+                        lay[k] = if u == 0 then 0 else x
+                    elif a == "font-px"
+                        fp = x
+            elif a == "flow"
+                let flv = v.values[k][j].strip()
+                if flv == "row"
+                    row[k] = true
+                elif flv != "" and flv != "column"
+                    probs.push("flow \"" + flv + "\"")
+            elif a == "clip"
+                let c = v.values[k][j].strip()
+                if c == "true"
+                    clp[k] = true
+                elif c != "" and c != "false"
+                    probs.push("clip \"" + c + "\"")
+            elif a == "border"
+                bd[k] = CPX
+            elif a == "role"
+                if v.values[k][j].strip() == "paragraph"
+                    para[k] = true
+        if v.tag[k] == "p"
+            para[k] = true
+        fpx[k] = if fp >= 0 then fp else (if v.parent[k] >= 0 then fpx[v.parent[k] as usize] else FONT_DEFAULT)
+        if probs.len() > 0
+            bad.push(u)
+            why.push(", ".join(probs))
+    # text metrics per node: font size, letter and word spacing, line height
+    var fc: List[i64] = []
+    for i in 0..n
+        fc.push(fpx[i] * m.scale)
+    # flow items of each element: element children that are not layered, and
+    # runs of adjacent text children (a run is -(r + 1), r its index)
+    var items: List[List[i64]] = []
+    var run_first: List[i64] = []
+    var run_words: List[List[i64]] = []
+    var run_f: List[i64] = []
+    for i in 0..n
+        var it: List[i64] = []
+        if v.tag[i] != ""
+            var txt = ""
+            var first: i64 = -1
+            for c in v.kids[i]
+                let ck = c as usize
+                if v.tag[ck] == ""
+                    if first < 0
+                        first = c
+                    txt = txt + v.text[ck]
+                else
+                    if first >= 0
+                        let ws = word_lengths(&txt)
+                        if ws.len() > 0
+                            it.push(-(run_first.len() as i64) - 1)
+                            run_first.push(first)
+                            run_words.push(ws)
+                            run_f.push(fc[i])
+                        first = -1
+                        txt = ""
+                    if lay[ck] <= 0
+                        it.push(c)
+            if first >= 0
+                let ws = word_lengths(&txt)
+                if ws.len() > 0
+                    it.push(-(run_first.len() as i64) - 1)
+                    run_first.push(first)
+                    run_words.push(ws)
+                    run_f.push(fc[i])
+        items.push(it)
+    let nr = run_first.len()
+    var run_ls: List[i64] = []
+    var run_sp: List[i64] = []
+    var run_lh: List[i64] = []
+    for r in 0..nr
+        let f = run_f[r]
+        let ls = if m.spacing then f * 12 / 100 else 0
+        let wsp = if m.spacing then f * 16 / 100 else 0
+        run_ls.push(ls)
+        run_sp.push(f + ls + wsp)
+        run_lh.push(if m.spacing then f * 150 / 100 else f)
+    # intrinsic widths, children before parents
+    var maxc: List[i64] = []
+    var minc: List[i64] = []
+    var cbn: List[i64] = []
+    for _i in 0..n
+        maxc.push(0)
+        minc.push(0)
+        cbn.push(0)
+    var p = pre.len()
+    while p > 0 bound 16777216
+        p -= 1
+        let u = pre[p] as usize
+        if v.tag[u] == ""
+            continue
+        let bp = 2 * (pad[u] + bd[u])
+        var cmax: i64 = 0
+        var cmin: i64 = 0
+        var cnt: i64 = 0
+        for e in items[u]
+            var imax: i64 = 0
+            var imin: i64 = 0
+            if e >= 0
+                let c = e as usize
+                let wc = if aw[c] >= 0 then aw[c] * CPX else 0
+                if clp[c] and aw[c] >= 0
+                    imax = wc
+                    imin = wc
+                else
+                    imax = wc.max(maxc[c])
+                    imin = if row[u] then imax else wc.max(minc[c])
+            else
+                let r = (-e - 1) as usize
+                imax = run_max(&run_words[r], run_f[r], run_ls[r], run_sp[r])
+                imin = run_min(&run_words[r], run_f[r], run_ls[r])
+            if row[u]
+                cmax += imax + (if cnt > 0 then gap[u] else 0)
+                cmin = cmin.max(imin)
+            else
+                cmax = cmax.max(imax)
+                cmin = cmin.max(imin)
+            cnt += 1
+        maxc[u] = bp + cmax
+        minc[u] = bp + cmin
+    # containing block of each layered node: the nearest layered ancestor, else the root
+    for u in pre
+        let k = u as usize
+        if u != 0
+            let q = v.parent[k] as usize
+            cbn[k] = if lay[q] > 0 then q as i64 else cbn[q]
+    # widths, parents before children; rows are broken into lines here
+    var bw: List[i64] = []
+    var bh: List[i64] = []
+    var bx: List[i64] = []
+    var by: List[i64] = []
+    var rw: List[i64] = []
+    var rlines: List[List[i64]] = []
+    for _i in 0..n
+        bw.push(0)
+        bh.push(0)
+        bx.push(0)
+        by.push(0)
+    for _r in 0..nr
+        rw.push(0)
+        rlines.push(none_ints())
+    # per row element: for each item its line and x offset
+    var iline: List[List[i64]] = []
+    var ixo: List[List[i64]] = []
+    for _i in 0..n
+        iline.push(none_ints())
+        ixo.push(none_ints())
+    let vw0 = if m.vw > 0 then m.vw else VW_DEFAULT
+    for u in pre
+        let k = u as usize
+        if v.tag[k] == ""
+            continue
+        if u == 0
+            let wr = if aw[0] >= 0 then aw[0] * CPX else 0
+            bw[0] = if clp[0] and aw[0] >= 0 then wr else wr.max(vw0 * CPX)
+        elif lay[k] > 0
+            let cb = cbn[k] as usize
+            let avail = bw[cb] - 2 * bd[cb] - ax[k]
+            let snug = maxc[k].min(minc[k].max(avail))
+            let wc = if aw[k] >= 0 then aw[k] * CPX else 0
+            bw[k] = if clp[k] and aw[k] >= 0 then wc else wc.max(snug)
+        let cw = bw[k] - 2 * (pad[k] + bd[k])
+        var lines_of: List[i64] = []
+        var xo: List[i64] = []
+        var line: i64 = 0
+        var xcur: i64 = 0
+        var on_line: i64 = 0
+        for e in items[k]
+            var iw: i64 = 0
+            if e >= 0
+                let c = e as usize
+                let wc = if aw[c] >= 0 then aw[c] * CPX else 0
+                if clp[c] and aw[c] >= 0
+                    iw = wc
+                elif row[k]
+                    iw = wc.max(maxc[c])
+                else
+                    iw = wc.max(cw)
+                bw[c] = iw
+            else
+                let r = (-e - 1) as usize
+                iw = if row[k] then run_max(&run_words[r], run_f[r], run_ls[r], run_sp[r]) else cw
+                rw[r] = iw
+            if row[k]
+                if on_line > 0 and xcur + gap[k] + iw > cw
+                    line += 1
+                    xcur = 0
+                    on_line = 0
+                let x0 = if on_line > 0 then xcur + gap[k] else 0
+                lines_of.push(line)
+                xo.push(x0)
+                xcur = x0 + iw
+                on_line += 1
+        if row[k]
+            # a run alone on a line wider than the content box shrinks to it
+            for j in 0..items[k].len()
+                let e = items[k][j]
+                if e < 0
+                    let r = (-e - 1) as usize
+                    var alone = true
+                    for j2 in 0..items[k].len()
+                        if j2 != j and lines_of[j2] == lines_of[j]
+                            alone = false
+                    if alone and rw[r] > cw
+                        rw[r] = run_min(&run_words[r], run_f[r], run_ls[r]).max(cw)
+            iline[k] = lines_of
+            ixo[k] = xo
+    # run lines
+    for r in 0..nr
+        rlines[r] = break_lines(&run_words[r], run_f[r], run_ls[r], run_sp[r], rw[r])
+    # heights, children before parents
+    p = pre.len()
+    while p > 0 bound 16777216
+        p -= 1
+        let u = pre[p] as usize
+        if v.tag[u] == ""
+            continue
+        let bp = 2 * (pad[u] + bd[u])
+        var content: i64 = 0
+        let its = &items[u]
+        if row[u]
+            var lh_: List[i64] = []
+            for j in 0..its.len()
+                let e = its[j]
+                let ih = item_h(e, &bh, &para, &fc, m.spacing, &rlines, &run_lh)
+                let ln = iline[u][j] as usize
+                while lh_.len() <= ln bound 16777216
+                    lh_.push(0)
+                lh_[ln] = lh_[ln].max(ih)
+            for j in 0..lh_.len()
+                content += lh_[j] + (if j > 0 then gap[u] else 0)
+        else
+            for j in 0..its.len()
+                content += item_h(its[j], &bh, &para, &fc, m.spacing, &rlines, &run_lh) + (if j > 0 then gap[u] else 0)
+        let hc = if ah[u] >= 0 then ah[u] * CPX else 0
+        bh[u] = if clp[u] and ah[u] >= 0 then hc else hc.max(bp + content)
+    # positions, parents before children
+    var shown: List[bool] = []
+    var lines: List[List[i64]] = []
+    var lhs: List[i64] = []
+    for i in 0..n
+        shown.push(v.tag[i] != "")
+        lines.push(none_ints())
+        lhs.push(0)
+    for u in pre
+        let k = u as usize
+        if v.tag[k] == ""
+            continue
+        if u != 0 and lay[k] > 0
+            let cb = cbn[k] as usize
+            bx[k] = bx[cb] + bd[cb] + ax[k]
+            by[k] = by[cb] + bd[cb] + ay[k]
+        let cx = bx[k] + pad[k] + bd[k]
+        let cy = by[k] + pad[k] + bd[k]
+        let its = &items[k]
+        var lt: List[i64] = []
+        if row[k]
+            var lh_: List[i64] = []
+            for j in 0..its.len()
+                let ln = iline[k][j] as usize
+                while lh_.len() <= ln bound 16777216
+                    lh_.push(0)
+                lh_[ln] = lh_[ln].max(item_h(its[j], &bh, &para, &fc, m.spacing, &rlines, &run_lh))
+            var t: i64 = cy
+            for j in 0..lh_.len()
+                lt.push(t)
+                t += lh_[j] + gap[k]
+        var cur = cy
+        for j in 0..its.len()
+            let e = its[j]
+            let ix = if row[k] then cx + ixo[k][j] else cx
+            let iy = if row[k] then lt[iline[k][j] as usize] else cur
+            if e >= 0
+                bx[e as usize] = ix
+                by[e as usize] = iy
+            else
+                let r = (-e - 1) as usize
+                let f0 = run_first[r] as usize
+                bx[f0] = ix
+                by[f0] = iy
+                bw[f0] = list_max(&rlines[r])
+                bh[f0] = (rlines[r].len() as i64) * run_lh[r]
+                lines[f0] = copy(rlines[r])
+                lhs[f0] = run_lh[r]
+            cur += item_h(e, &bh, &para, &fc, m.spacing, &rlines, &run_lh) + gap[k]
+    for i in 0..n
+        if v.tag[i] == ""
+            shown[i] = lines[i].len() > 0
+    # clipping regions: inner[u] clips u's flow descendants
+    var clip: List[List[i64]] = []
+    var inner: List[List[i64]] = []
+    for _i in 0..n
+        clip.push(none_ints())
+        inner.push(none_ints())
+    for u in pre
+        let k = u as usize
+        if u != 0
+            let q = if v.tag[k] != "" and lay[k] > 0 then cbn[k] as usize else v.parent[k] as usize
+            clip[k] = copy(inner[q])
+        if v.tag[k] != "" and clp[k]
+            let r = [bx[k] + bd[k], by[k] + bd[k], bx[k] + bw[k] - bd[k], by[k] + bh[k] - bd[k]]
+            inner[k] = meet(&clip[k], &r)
+        else
+            inner[k] = copy(clip[k])
+    # stacking paths
+    var stack: List[List[i64]] = []
+    for _i in 0..n
+        stack.push(none_ints())
+    for u in pre
+        let k = u as usize
+        if u != 0
+            var s = copy(stack[v.parent[k] as usize])
+            if v.tag[k] != "" and lay[k] > 0
+                s.push(lay[k])
+                s.push(idx[k])
+            stack[k] = s
+    return Layout(x: bx, y: by, w: bw, h: bh, shown: shown, lines: lines, lh: lhs, fc: fc, clip: clip, stack: stack, order: idx, bad: bad, why: why)
+
+# the height of a flow item, with the paragraph spacing below it
+fn item_h(e: i64, bh: &[i64], para: &[bool], fc: &[i64], spacing: bool, rlines: &[List[i64]], run_lh: &[i64]) -> i64
+    if e >= 0
+        let c = e as usize
+        return bh[c] + (if spacing and para[c] then 2 * fc[c] else 0)
+    let r = (-e - 1) as usize
+    return (rlines[r].len() as i64) * run_lh[r]
+
+# the intersection of a region ([] for everything) and a rectangle
+pub fn meet(a: &List[i64], r: &List[i64]) -> List[i64]
+    if a.len() == 0
+        return copy(r)
+    return [a[0].max(r[0]), a[1].max(r[1]), a[2].min(r[2]), a[3].min(r[3])]
+
+# a rectangle [x0, y0, x1, y1] has no area
+pub fn empty(r: &List[i64]) -> bool = r.len() == 4 and (r[0] >= r[2] or r[1] >= r[3])
+
+# the border box of node i as [x0, y0, x1, y1]
+pub fn rect(l: &Layout, i: i64) -> List[i64]
+    let k = i as usize
+    return [l.x[k], l.y[k], l.x[k] + l.w[k], l.y[k] + l.h[k]]
+
+# the part of node i's border box its clipping ancestors leave visible
+pub fn visible(l: &Layout, i: i64) -> List[i64]
+    let r = rect(l, i)
+    return meet(&l.clip[i as usize], &r)
+
+# whether path a is drawn above path b (a greater stacking path)
+pub fn above(a: &List[i64], b: &List[i64]) -> bool
+    var j: usize = 0
+    while j < a.len() and j < b.len() bound 65536
+        if a[j] != b[j]
+            return a[j] > b[j]
+        j += 1
+    return a.len() > b.len()
+
+# The rectangles of each line of the run whose first text node is i: the
+# glyph box of line j is [x, y + j * lh + (lh - fc) / 2, x + width, that + fc].
+pub fn line_rects(l: &Layout, i: i64) -> List[List[i64]]
+    let k = i as usize
+    var out: List[List[i64]] = []
+    let lead = (l.lh[k] - l.fc[k]) / 2
+    for j in 0..l.lines[k].len()
+        let y0 = l.y[k] + (j as i64) * l.lh[k] + lead
+        out.push([l.x[k], y0, l.x[k] + l.lines[k][j], y0 + l.fc[k]])
+    return out
+
+# The boxes as text, one line per node with a box: "N x y w h" in
+# centi-px, followed for a run by " lines W1,W2,... lh LH".
+pub fn boxes_text(v: &View, l: &Layout) -> text
+    var out: List[text] = []
+    for i in 0..v.tag.len()
+        if l.shown[i]
+            var s = i.tostr() + " " + l.x[i].tostr() + " " + l.y[i].tostr() + " " + l.w[i].tostr() + " " + l.h[i].tostr()
+            if v.tag[i] == ""
+                var ws: List[text] = []
+                for x in l.lines[i]
+                    ws.push(x.tostr())
+                s = s + " lines " + ",".join(ws) + " lh " + l.lh[i].tostr()
+            out.push(s)
+    return "\n".join(out)
