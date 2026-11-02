@@ -29,6 +29,22 @@
 //!   `not` removed). The edits never introduce or rename a name, so they act
 //!   the same on the name-free projection. At most `bound` candidates
 //!   (default 2000) are judged.
+//! - **e, renames**: one name changed to another: a use of a value name (or
+//!   of a name the report names) becomes another value name in scope there,
+//!   or a binding becomes a name the report names. A rename carries no
+//!   information about behaviour: the name-free projection (10.6) removes
+//!   names, so a consistent renaming leaves it unchanged, and a use renamed
+//!   to another binding is what the checker sees. With `known GOOD`, when
+//!   the canonical texts of FILE and GOOD differ in identifiers only, the
+//!   renaming onto GOOD is read from the two texts and judged before rung
+//!   a (at most two candidates, no search). At most `bound` candidates.
+//!
+//! The rungs that edit the program's own text at one site (c, d, e) run in
+//! order of how many alternatives an edit chooses among: c judges at most
+//! one candidate and changes no behaviour; d chooses among a fixed handful
+//! at each site (an operator of its class, four literals, one negation);
+//! e chooses among the names in scope, a number that grows with the
+//! definition.
 //!
 //! Sites are visited in a fixed order: definitions named by a failing line
 //! first, then the definitions reachable from the failing checks and
@@ -57,7 +73,7 @@ enum Unit {
 /// What the ladder did.
 pub struct Outcome {
     pub closed: bool,
-    /// "a", "b", "c", "d", or "none" when the program already complies
+    /// "a" to "e", or "none" when the program already complies
     pub rung: Option<String>,
     pub edit: Option<String>,
     pub diff: Vec<String>,
@@ -99,7 +115,7 @@ impl Ctx<'_> {
 }
 
 /// Run the ladder on `file` (its text `src`), checked together with `others`.
-pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) -> Outcome {
+pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<&Known>, bound: usize) -> Outcome {
     let mut files = vec![(file.to_string(), src.to_string())];
     files.extend(others.iter().cloned());
     let first = crate::check_program(&files, false).remove(0).1;
@@ -128,7 +144,7 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
     let m = match crate::parse::parse(src) {
         Ok(m) => m,
         Err(e) => {
-            out.skipped.push(format!("a, b, c, d: the text does not parse ({e}); every rung edits the parsed module"));
+            out.skipped.push(format!("a, b, c, d, e: the text does not parse ({e}); every rung edits the parsed module"));
             return out;
         }
     };
@@ -139,14 +155,18 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], bound: usize) 
     out.canonical_same_report = Some(same);
     let mut cx = Ctx { file: file.to_string(), others, attempts: vec![], tried: BTreeMap::new(), seen: HashSet::new() };
     cx.seen.insert(base.clone());
-    for r in ["a", "b", "c", "d"] {
+    for r in ["a", "b", "c", "d", "e"] {
         cx.tried.insert(r.into(), 0);
     }
     let units = order_units(&m, &err);
-    let found = rung_a(&m, &units, others, &mut cx)
+    // with `known GOOD`, the renaming onto GOOD (no search) first
+    let found = known
+        .and_then(|k| rung_e_exact(&base, k, &mut cx))
+        .or_else(|| rung_a(&m, &units, others, &mut cx))
         .or_else(|| rung_b(&m, &units, file, src, others, &mut cx))
         .or_else(|| rung_c(src, &mut cx))
-        .or_else(|| rung_d(&m, &units, bound, &mut cx));
+        .or_else(|| rung_d(&m, &units, bound, &mut cx))
+        .or_else(|| rung_e(&m, &units, &err, bound, &mut cx));
     out.tried = cx.tried;
     out.attempts = cx.attempts;
     if let Some((rung, edit, text)) = found {
@@ -896,6 +916,546 @@ fn rung_d(m: &Module, units: &[Unit], bound: usize, cx: &mut Ctx) -> Option<(Str
     None
 }
 
+// ---------- rung e: renames ----------
+
+/// The names a pattern binds (a one-segment lowercase path), in order.
+fn pat_binders(p: &Pat, out: &mut Vec<String>) {
+    match p {
+        Pat::Path(v) if v.len() == 1 && v[0] != "_" && v[0].starts_with(|c: char| c.is_ascii_lowercase() || c == '_') => {
+            out.push(v[0].clone())
+        }
+        Pat::Ctor(_, fs) => fs.iter().for_each(|(_, q)| pat_binders(q, out)),
+        Pat::Tuple(v) | Pat::Alt(v) => v.iter().for_each(|q| pat_binders(q, out)),
+        _ => {}
+    }
+}
+
+fn param_binders(ps: &[Param], out: &mut Vec<String>) {
+    out.extend(ps.iter().filter_map(|p| if let Param::Named { name, .. } = p { Some(name.clone()) } else { None }));
+}
+
+/// A preorder walk over the names of one definition that keeps the value
+/// names in scope: parameters, `let`, `var` and `for` bindings, pattern
+/// bindings, the fields of a step's state or of an actor, and the module's
+/// constants. `f(e, scope)` is called on every `Expr::Name` (innermost name
+/// last in `scope`) and returns true to stop the walk. Like `Visit`, it never
+/// enters `check`, `requires` or `ensures` statements.
+struct Scoped<'f> {
+    scope: Vec<String>,
+    f: &'f mut dyn FnMut(&mut Expr, &[String]) -> bool,
+}
+
+impl Scoped<'_> {
+    fn with<T>(&mut self, names: Vec<String>, g: impl FnOnce(&mut Self) -> T) -> T {
+        let n = self.scope.len();
+        self.scope.extend(names);
+        let r = g(self);
+        self.scope.truncate(n);
+        r
+    }
+
+    fn expr(&mut self, e: &mut Expr) -> bool {
+        use Expr as E;
+        match e {
+            E::Name(..) => (self.f)(e, &self.scope),
+            E::Tuple(v, _) | E::List(v, _) => v.iter_mut().any(|x| self.expr(x)),
+            E::ListRepeat(a, b, _) => self.expr(a) || self.expr(b),
+            E::ListComp(a, p, s, c, _) => {
+                if self.expr(s) {
+                    return true;
+                }
+                let mut bs = vec![];
+                pat_binders(p, &mut bs);
+                self.with(bs, |w| w.expr(a) || c.as_mut().is_some_and(|c| w.expr(c)))
+            }
+            E::Map(v, _) => v.iter_mut().any(|(k, x)| self.expr(k) || self.expr(x)),
+            E::ChanNew(_, c, _) => c.as_mut().is_some_and(|c| self.expr(c)),
+            E::Call(f, a, _, _) => self.expr(f) || a.iter_mut().any(|x| self.expr(&mut x.e)),
+            E::Index(x, ix, _) => self.expr(x) || ix.iter_mut().any(|i| self.expr(i)),
+            E::Slice(x, lo, hi, _) => {
+                self.expr(x) || lo.as_mut().is_some_and(|l| self.expr(l)) || hi.as_mut().is_some_and(|h| self.expr(h))
+            }
+            E::Member(x, _, _)
+            | E::TupleMember(x, _, _)
+            | E::Neg(x, _)
+            | E::BitNot(x, _)
+            | E::Borrow(_, x, _)
+            | E::Recv(x, _)
+            | E::Comptime(x, _)
+            | E::Cast(x, _, _)
+            | E::Not(x, _) => self.expr(x),
+            E::Bin(_, a, b, _) => self.expr(a) || self.expr(b),
+            E::Catch(a, n, h, _) => self.expr(a) || self.with(n.iter().cloned().collect(), |w| w.expr(h)),
+            E::Try(a, el, _) => self.expr(a) || el.as_mut().is_some_and(|x| self.expr(x)),
+            E::If(c, a, b, _) => self.expr(c) || self.expr(a) || self.expr(b),
+            E::Lambda(ps, b, _) => {
+                let mut bs = vec![];
+                param_binders(ps, &mut bs);
+                self.with(bs, |w| w.expr(b))
+            }
+            _ => false,
+        }
+    }
+
+    fn block(&mut self, b: &mut [Stmt]) -> bool {
+        self.with(vec![], |w| b.iter_mut().any(|s| w.stmt(s)))
+    }
+
+    fn stmt(&mut self, s: &mut Stmt) -> bool {
+        match s {
+            Stmt::Expr(e) | Stmt::Emit(e) | Stmt::Fail(e) | Stmt::Spawn(e) | Stmt::Yield(e, _) => self.expr(e),
+            Stmt::Assign(_, a, b) | Stmt::Send(a, b) => self.expr(a) || self.expr(b),
+            Stmt::Let(p, _, e, _) => {
+                if self.expr(e) {
+                    return true;
+                }
+                pat_binders(p, &mut self.scope);
+                false
+            }
+            Stmt::Var(n, _, e, _) => {
+                if self.expr(e) {
+                    return true;
+                }
+                self.scope.push(n.clone());
+                false
+            }
+            Stmt::If(arms, el) => arms.iter_mut().any(|(c, b)| self.expr(c) || self.block(b)) || el.as_mut().is_some_and(|b| self.block(b)),
+            Stmt::While(c, bd, b) => self.expr(c) || bd.as_mut().is_some_and(|x| self.expr(x)) || self.block(b),
+            Stmt::Loop(bd, b) => bd.as_mut().is_some_and(|x| self.expr(x)) || self.block(b),
+            Stmt::For(p, e, b, _) => {
+                if self.expr(e) {
+                    return true;
+                }
+                let mut bs = vec![];
+                pat_binders(p, &mut bs);
+                self.with(bs, |w| w.block(b))
+            }
+            Stmt::Match(e, arms, _) => {
+                self.expr(e)
+                    || arms.iter_mut().any(|a| {
+                        let mut bs = vec![];
+                        pat_binders(&a.pat, &mut bs);
+                        self.with(bs, |w| a.guard.as_mut().is_some_and(|g| w.expr(g)) || w.block(&mut a.body))
+                    })
+            }
+            Stmt::Return(e, _) => e.as_mut().is_some_and(|e| self.expr(e)),
+            Stmt::Select(arms, _) => arms.iter_mut().any(|a| match a {
+                SelArm::Recv(p, e, b) => {
+                    if self.expr(e) {
+                        return true;
+                    }
+                    let mut bs = vec![];
+                    pat_binders(p, &mut bs);
+                    self.with(bs, |w| w.block(b))
+                }
+                SelArm::After(e, b) => self.expr(e) || self.block(b),
+                SelArm::Send(x, y, b) => self.expr(x) || self.expr(y) || self.block(b),
+                SelArm::Default(b) => self.block(b),
+            }),
+            Stmt::Arena(_, e, b, _) | Stmt::Device(_, e, b, _) => e.as_mut().is_some_and(|x| self.expr(x)) || self.block(b),
+            Stmt::Comptime(b) => self.block(b),
+            // `check`, `requires`, `ensures`: what a candidate is judged by
+            Stmt::Check(_) => false,
+            Stmt::Break(_) | Stmt::Continue(_) | Stmt::Pass => false,
+        }
+    }
+
+    fn body(&mut self, b: &mut Body) -> bool {
+        match b {
+            Body::Arrow(e) => self.expr(e),
+            Body::Block(s) => self.block(s),
+        }
+    }
+}
+
+/// The fields of a state or actor, by name.
+fn region_fields(m: &Module, region: &str) -> Vec<String> {
+    m.items
+        .iter()
+        .find_map(|it| match it {
+            Item::State { name, fields, .. } | Item::Actor { name, fields, .. } if name == region => Some(fields.iter().map(|f| f.name.clone()).collect()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Walk the names of one unit with their scopes (`Scoped`).
+fn walk_names(m: &mut Module, u: &Unit, f: &mut dyn FnMut(&mut Expr, &[String]) -> bool) {
+    let consts: Vec<String> = m.items.iter().filter_map(|it| if let Item::Const { name, .. } = it { Some(name.clone()) } else { None }).collect();
+    let fields = match u {
+        Unit::Step(i) => match &m.items[*i] {
+            Item::Step { region, .. } => region_fields(m, region),
+            _ => vec![],
+        },
+        Unit::Actor(i) => match &m.items[*i] {
+            Item::Actor { fields, .. } => fields.iter().map(|f| f.name.clone()).collect(),
+            _ => vec![],
+        },
+        _ => vec![],
+    };
+    let mut w = Scoped { scope: consts, f };
+    match u {
+        Unit::Fn(_) | Unit::ImplFn(..) => {
+            if let Some(d) = fn_decl_mut(m, u) {
+                let mut bs = vec![];
+                param_binders(&d.sig.params, &mut bs);
+                w.with(bs, |w| w.body(&mut d.body));
+            }
+        }
+        Unit::Step(i) => {
+            if let Item::Step { pat, guard, body, .. } = &mut m.items[*i] {
+                let mut bs = fields;
+                pat_binders(pat, &mut bs);
+                w.with(bs, |w| guard.as_mut().is_some_and(|g| w.expr(g)) || w.body(body));
+            }
+        }
+        Unit::Actor(i) => {
+            if let Item::Actor { handlers, fns, .. } = &mut m.items[*i] {
+                w.with(fields, |w| {
+                    handlers.iter_mut().any(|h| {
+                        let mut bs = vec![];
+                        pat_binders(&h.pat, &mut bs);
+                        w.with(bs, |w| h.guard.as_mut().is_some_and(|g| w.expr(g)) || w.body(&mut h.body))
+                    }) || fns.iter_mut().any(|d| {
+                        let mut bs = vec![];
+                        param_binders(&d.sig.params, &mut bs);
+                        w.with(bs, |w| w.body(&mut d.body))
+                    })
+                });
+            }
+        }
+        Unit::Const(i) => {
+            if let Item::Const { e, .. } = &mut m.items[*i] {
+                w.expr(e);
+            }
+        }
+        Unit::State(i) => {
+            if let Item::State { fields, .. } = &mut m.items[*i] {
+                let _ = fields.iter_mut().any(|f| f.init.as_mut().is_some_and(|x| w.expr(x)));
+            }
+        }
+    }
+}
+
+/// Every name use of a unit: (index, name, line, the value names in scope
+/// there, innermost first, each once).
+fn name_sites(m: &Module, u: &Unit) -> Vec<(usize, String, usize, Vec<String>)> {
+    let mut mm = m.clone();
+    let mut out = vec![];
+    let mut f = |e: &mut Expr, scope: &[String]| {
+        if let Expr::Name(n, l) = e {
+            let mut seen = BTreeSet::new();
+            let s: Vec<String> = scope.iter().rev().filter(|x| seen.insert(x.as_str())).cloned().collect();
+            out.push((out.len(), n.clone(), *l, s));
+        }
+        false
+    };
+    walk_names(&mut mm, u, &mut f);
+    out
+}
+
+/// The module with name use `site` of unit `u` renamed to `to`.
+fn rename_use(m: &Module, u: &Unit, site: usize, to: &str) -> Module {
+    let mut mm = m.clone();
+    let mut k = 0usize;
+    let mut f = |e: &mut Expr, _: &[String]| {
+        if let Expr::Name(n, _) = e {
+            if k == site {
+                *n = to.to_string();
+                return true;
+            }
+            k += 1;
+        }
+        false
+    };
+    walk_names(&mut mm, u, &mut f);
+    mm
+}
+
+/// The declarations of value names in a unit that a rename can change: the
+/// parameters of a function and its `let`, `var` and `for` bindings of one
+/// name, as (name, line), in preorder.
+fn binder_slots(b: &mut [Stmt], f: &mut dyn FnMut(&mut String, usize) -> bool) -> bool {
+    for s in b {
+        let stop = match s {
+            Stmt::Let(Pat::Path(v), _, _, l) if v.len() == 1 => f(&mut v[0], *l),
+            Stmt::Var(n, _, _, l) => f(n, *l),
+            Stmt::For(p, _, body, l) => {
+                (if let Pat::Path(v) = p
+                    && v.len() == 1
+                {
+                    f(&mut v[0], *l)
+                } else {
+                    false
+                }) || binder_slots(body, f)
+            }
+            Stmt::If(arms, el) => arms.iter_mut().any(|(_, b)| binder_slots(b, f)) || el.as_mut().is_some_and(|b| binder_slots(b, f)),
+            Stmt::While(_, _, b) | Stmt::Loop(_, b) | Stmt::Arena(_, _, b, _) | Stmt::Device(_, _, b, _) | Stmt::Comptime(b) => binder_slots(b, f),
+            Stmt::Match(_, arms, _) => arms.iter_mut().any(|a| binder_slots(&mut a.body, f)),
+            _ => false,
+        };
+        if stop {
+            return true;
+        }
+    }
+    false
+}
+
+fn walk_binders(m: &mut Module, u: &Unit, f: &mut dyn FnMut(&mut String, usize) -> bool) {
+    if let Some(d) = fn_decl_mut(m, u) {
+        let line = d.sig.line;
+        for p in d.sig.params.iter_mut() {
+            if let Param::Named { name, .. } = p
+                && f(name, line)
+            {
+                return;
+            }
+        }
+        if let Body::Block(b) = &mut d.body {
+            binder_slots(b, f);
+        }
+    }
+}
+
+/// The identifiers a report names between backquotes, in order, each once.
+fn report_names(err: &str) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for (i, part) in err.split('`').enumerate() {
+        if i % 2 == 1
+            && !part.is_empty()
+            && part.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+            && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && !out.iter().any(|x| x == part)
+        {
+            out.push(part.to_string());
+        }
+    }
+    out
+}
+
+/// The edit distance of two names (Levenshtein, by bytes: names are ASCII).
+fn distance(a: &str, b: &str) -> usize {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for i in 1..=a.len() {
+        let mut prev = row[0];
+        row[0] = i;
+        for j in 1..=b.len() {
+            let t = row[j];
+            row[j] = (row[j] + 1).min(row[j - 1] + 1).min(prev + usize::from(a[i - 1] != b[j - 1]));
+            prev = t;
+        }
+    }
+    row[b.len()]
+}
+
+/// The name-free projection (10.6) of a module's canonical text.
+fn projection(text: &str) -> Option<String> {
+    crate::nameless::nameless(text).ok()
+}
+
+/// What `known GOOD` gives rung e: the canonical text of GOOD and its
+/// name-free projection.
+pub struct Known {
+    pub file: String,
+    pub canon: String,
+    pub proj: String,
+}
+
+/// Read `known GOOD`: its canonical text and projection; an error when GOOD
+/// does not parse.
+pub fn known(file: &str, src: &str) -> Result<Known, String> {
+    let m = crate::parse::parse(src).map_err(|e| format!("{file}: {e}"))?;
+    let canon = unparse(&m);
+    let proj = projection(&canon).ok_or_else(|| format!("{file}: no name-free projection"))?;
+    Ok(Known { file: file.to_string(), canon, proj })
+}
+
+/// The identifiers of a canonical text outside strings and comments, as
+/// byte spans, and the text between them.
+fn ident_spans(t: &str) -> (Vec<(usize, usize)>, Vec<&str>) {
+    let b = t.as_bytes();
+    let (mut spans, mut gaps) = (vec![], vec![]);
+    let (mut i, mut last) = (0, 0);
+    while i < b.len() {
+        let c = b[i];
+        if c == b'"' {
+            i += 1;
+            while i < b.len() && b[i] != b'"' {
+                i += if b[i] == b'\\' { 2 } else { 1 };
+            }
+            i += 1;
+        } else if c == b'#' {
+            while i < b.len() && b[i] != b'\n' {
+                i += 1;
+            }
+        } else if c.is_ascii_digit() {
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || (b[i] == b'.' && b.get(i + 1).is_some_and(u8::is_ascii_digit))) {
+                i += 1;
+            }
+        } else if c.is_ascii_alphabetic() || c == b'_' {
+            let s = i;
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
+                i += 1;
+            }
+            gaps.push(&t[last..s]);
+            spans.push((s, i));
+            last = i;
+        } else {
+            i += 1;
+        }
+    }
+    gaps.push(&t[last.min(t.len())..]);
+    (spans, gaps)
+}
+
+/// The renaming onto GOOD (part of rung e, judged before rung a): when the
+/// canonical texts of FILE and GOOD differ in identifiers only (none of
+/// them a keyword), the renaming is read from the two texts, with no
+/// search. Each name of GOOD becomes the name FILE writes most often in its
+/// place (on a tie, the first); every identifier of FILE that this renaming
+/// does not give is changed to the one it gives, so the first candidate
+/// keeps FILE's names and has GOOD's name-free projection (it is judged only
+/// when it has). The second candidate is the canonical text of GOOD, the
+/// renaming of every name back; it is the one candidate when the
+/// projections of FILE and GOOD are equal.
+fn rung_e_exact(base: &str, k: &Known, cx: &mut Ctx) -> Option<(String, String, String)> {
+    if base == k.canon {
+        return None;
+    }
+    let (fs, fg) = ident_spans(base);
+    let (gs, gg) = ident_spans(&k.canon);
+    if fs.len() != gs.len() || fg != gg {
+        return None;
+    }
+    let reserved = |w: &str| crate::parse::KEYWORDS.contains(&w) || crate::parse::DRAFT06_KEYWORDS.contains(&w);
+    let pairs: Vec<(&str, &str, usize)> =
+        fs.iter().zip(&gs).map(|(f, g)| (&base[f.0..f.1], &k.canon[g.0..g.1], base[..f.0].matches('\n').count() + 1)).collect();
+    if pairs.iter().any(|(f, g, _)| f != g && (reserved(f) || reserved(g))) {
+        return None;
+    }
+    // each name of GOOD: the name FILE writes most often in its place
+    let mut counts: BTreeMap<&str, Vec<(&str, usize, usize)>> = BTreeMap::new(); // g -> (f, count, first)
+    for (i, (f, g, _)) in pairs.iter().enumerate() {
+        let v = counts.entry(g).or_default();
+        match v.iter_mut().find(|x| x.0 == *f) {
+            Some(x) => x.1 += 1,
+            None => v.push((f, 1, i)),
+        }
+    }
+    let to: BTreeMap<&str, &str> = counts.iter().map(|(g, v)| (*g, v.iter().max_by_key(|x| (x.1, std::cmp::Reverse(x.2))).unwrap().0)).collect();
+    let mut text = String::new();
+    let mut changed: Vec<String> = vec![];
+    for (i, (f, g, line)) in pairs.iter().enumerate() {
+        text.push_str(fg[i]);
+        let t = to[g];
+        if t != *f {
+            changed.push(format!("line {line}: `{f}` becomes `{t}`"));
+        }
+        text.push_str(t);
+    }
+    text.push_str(fg[pairs.len()]);
+    let one_to_one = to.values().collect::<BTreeSet<_>>().len() == to.len();
+    if one_to_one && !changed.is_empty() && projection(&text).as_deref() == Some(k.proj.as_str()) {
+        let edit = format!("the renaming onto {} that keeps the names of FILE: {}", k.file, changed.join("; "));
+        if let Some(t) = cx.judge("e", "module (renaming)", &edit, &text) {
+            return Some(("e".into(), edit, t));
+        }
+    }
+    let mut back: Vec<String> = vec![];
+    for (f, g, _) in &pairs {
+        let p = format!("`{f}` becomes `{g}`");
+        if f != g && !back.contains(&p) {
+            back.push(p);
+        }
+    }
+    let edit = format!("the renaming onto {}: {}", k.file, back.join(", "));
+    cx.judge("e", "module (renaming)", &edit, &k.canon).map(|t| ("e".into(), edit, t))
+}
+
+/// Rung e, the search: one name changed to another. For each definition in
+/// the ladder's order, (1) one use of a value name (or of a name the report
+/// names) becomes another value name in scope there, and (2) one binding of
+/// a value name becomes a name the report names. Uses on a line the report
+/// names come first; the replacing names are ordered by whether the report
+/// names them, by edit distance to the name they replace, then innermost
+/// first. A use renamed to another binding changes the name-free projection
+/// (that is how the checker sees it), so no candidate here keeps it; one
+/// with GOOD's projection would differ from GOOD in names only, which the
+/// renaming onto GOOD has already judged.
+fn rung_e(m: &Module, units: &[Unit], err: &str, bound: usize, cx: &mut Ctx) -> Option<(String, String, String)> {
+    let named = report_names(err);
+    let lines = regex_lines(err);
+    let rank = |c: &str, n: &str, i: usize| (!named.iter().any(|x| x == c), distance(c, n), i, c.to_string());
+    // (unit, edit, how to make the candidate), in order; a candidate's text is
+    // made only when it is judged
+    enum How<'u> {
+        Use(&'u Unit, usize, String),
+        Bind(&'u Unit, usize, String),
+    }
+    let make = |h: &How| -> String {
+        match h {
+            How::Use(u, site, to) => unparse(&rename_use(m, u, *site, to)),
+            How::Bind(u, j, to) => {
+                let mut mm = m.clone();
+                let mut k = 0usize;
+                walk_binders(&mut mm, u, &mut |n, _| {
+                    if k == *j {
+                        *n = to.clone();
+                        return true;
+                    }
+                    k += 1;
+                    false
+                });
+                unparse(&mm)
+            }
+        }
+    };
+    let mut cands: Vec<(String, String, How)> = vec![];
+    for u in units {
+        let un = unit_name(m, u);
+        let mut sites = name_sites(m, u);
+        sites.retain(|(_, n, _, s)| s.contains(n) || named.contains(n));
+        sites.sort_by_key(|(k, _, l, _)| (!lines.contains(l), *k));
+        for (site, n, l, scope) in &sites {
+            // which use of `n` on its line, when there is more than one
+            let same: Vec<usize> = sites.iter().filter(|x| x.1 == *n && x.2 == *l).map(|x| x.0).collect();
+            let which = if same.len() > 1 {
+                format!("use {} of `{n}` on the line", same.iter().filter(|k| **k <= *site).count())
+            } else {
+                format!("`{n}`")
+            };
+            let mut tos: Vec<(usize, &String)> = scope.iter().enumerate().filter(|(_, c)| *c != n).collect();
+            tos.sort_by_key(|(i, c)| rank(c, n, *i));
+            for (_, to) in tos {
+                cands.push((un.clone(), format!("in `{un}`, line {l}: {which} becomes `{to}`"), How::Use(u, *site, to.clone())));
+            }
+        }
+        // a binding renamed to a name the report names that the unit does not bind
+        let mut mm = m.clone();
+        let mut binders: Vec<(String, usize)> = vec![];
+        walk_binders(&mut mm, u, &mut |n, l| {
+            binders.push((n.clone(), l));
+            false
+        });
+        for (j, (b, l)) in binders.iter().enumerate() {
+            for to in named.iter().filter(|x| *x != b && !binders.iter().any(|(y, _)| y == *x)) {
+                cands.push((un.clone(), format!("in `{un}`, line {l}: the binding `{b}` becomes `{to}`"), How::Bind(u, j, to.clone())));
+            }
+        }
+    }
+    for (u, edit, how) in cands {
+        if cx.tried.get("e").copied().unwrap_or(0) >= bound {
+            return None;
+        }
+        let text = make(&how);
+        if let Some(t) = cx.judge("e", &u, &edit, &text) {
+            return Some(("e".into(), edit, t));
+        }
+    }
+    None
+}
+
 /// The report `rce repair` prints.
 pub fn report(file: &str, o: &Outcome) -> String {
     let mut s = String::new();
@@ -904,6 +1464,7 @@ pub fn report(file: &str, o: &Outcome) -> String {
         "b" => "b lookup by type",
         "c" => "c altered rules",
         "d" => "d bounded enumeration",
+        "e" => "e renames",
         "none" => "none (nothing to repair)",
         _ => "?",
     };

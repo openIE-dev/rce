@@ -4273,14 +4273,15 @@ the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
 nodes and supervisors, and the tick, its phases and the log written as
 core functions, so that `rce run-core` prints the trace of `fn main`.
 
-### 10.13 `rce repair [json] [bound N] FILE [MODULE...]`: the exact-proposer ladder (informative)
+### 10.13 `rce repair [json] [bound N] [known GOOD] FILE [MODULE...]`: the exact-proposer ladder (informative)
 
 `rce repair` takes a program FILE that requires change (an example or
 check does not hold, or a static rule reports it) and proposes a changed
 program. FILE is checked together with the MODULEs, which are the
-program's other modules (10.2). The command is a ladder of **exact
+program's other modules (10.2); GOOD, when given, is a known-good version
+of FILE, such as the one in the previous commit. The command is a ladder of **exact
 proposers**: each rung builds candidate programs by a fixed rule from the
-program, the MODULEs and the built-in library alone, and the checker, the
+program, the MODULEs, GOOD and the built-in library alone, and the checker, the
 same gate as `rce check` (6.9), judges each candidate. The ladder stops at
 the first candidate the checker admits; since the gate runs every
 example and check, an admitted candidate is one whose examples and checks
@@ -4343,17 +4344,64 @@ The rungs, in order:
   name-free projection. At most N candidates (`bound N`, default 2000)
   are judged in this rung; the bound counts checker calls, not edits
   skipped as duplicates.
+- **e. Renames.** One name changed to another. A rename carries no
+  information about behaviour: the name-free projection (10.6) removes
+  names, so a consistent renaming leaves it unchanged, and the checker
+  sees a renamed use only where it now reaches another binding (often as
+  an unknown or unused name, or a type that does not match). The
+  candidates, for each definition in the order above: (1) one use of a
+  value name, or of a name the report of FILE names between backquotes,
+  becomes another value name in scope at that use (the parameters, the
+  `let`, `var` and `for` bindings and pattern bindings whose block has not
+  closed, the fields of a step's state or of an actor, and the module's
+  constants); uses on a line the report names come first, then the others
+  in preorder, and the names that replace a use are ordered by whether the
+  report names them, then by edit distance to the name they replace, then
+  innermost binding first; (2) one parameter, or `let`, `var` or `for`
+  binding of one name, becomes a name the report names that the
+  definition does not bind. The edit names the line of FILE and, when the
+  line has more than one use of the name, which use. At most N candidates
+  (`bound N`) are judged in this rung.
+- **The renaming onto GOOD.** When GOOD is given and the canonical texts
+  of FILE and GOOD differ in identifiers only (none of them a keyword),
+  the renaming is read from the two texts, with no search. Each name of
+  GOOD becomes the name FILE writes most often in its place (on a tie, the
+  first); every identifier of FILE that this renaming does not give is
+  changed to the one it gives. That text keeps FILE's names, and it is the
+  first candidate when the renaming is one-to-one and the text has GOOD's
+  name-free projection. The second candidate is the canonical text of
+  GOOD, every name renamed back; it is the only one when FILE has GOOD's
+  projection. Both count as candidates of rung e, and they are judged
+  before rung a. A candidate of the search in (1) or (2) that had GOOD's
+  projection would differ from GOOD in names only, so the search needs no
+  preference of its own for GOOD. The edit lists each identifier changed,
+  by line of the canonical text.
+
+The order of rungs c, d and e, the three that edit FILE at one site, is
+the order of how many alternatives one edit chooses among, which is both
+its cost and the information it carries. Rung c judges at most one
+candidate and changes no behaviour. Rung d chooses among a fixed handful
+at each site: the other operators of a class of two to five, four
+literals, one negation. Rung e chooses among the names in scope at a use,
+a number that grows with the definition, so it judges the most
+candidates per site and runs last. On the 83 rename and 27 guard tasks
+of the second registered ladder run, rerun with this checker, both
+orders restore 102 of the 110 programs, and this order judges 6,556
+candidates where e before d judges 10,579. The renaming onto GOOD comes before every rung because it
+judges at most two candidates, needs no search, and uses the most
+information: a known-good version of the program.
 
 Rungs a, b and c are not bounded by `bound`: a and b judge at most one
-candidate per donor or catalog hit, and c at most one candidate.
+candidate per donor or catalog hit, and c at most one candidate. No rung
+edits an intent, example, check or law line.
 
 Output: the rung that closed the program (`a reuse`, `b lookup by type`,
-`c altered rules`, `d bounded enumeration`, or `none` when FILE already
+`c altered rules`, `d bounded enumeration`, `e renames`, or `none` when FILE already
 complies with the Form), the edit (it names the line of FILE), the diff of the canonical
 texts (`-` the old lines and `+` the new, with line numbers of the
 canonical text), the number of candidates each rung judged with
 `0 model calls`, the `skipped` rungs (every rung, when FILE does not
-parse), and the checker's verdict on the
+parse; a GOOD that does not parse is a usage error), and the checker's verdict on the
 result: `ok FILE: admitted; E examples and C checks hold`, or, when no
 candidate is admitted, the report on FILE and `not closed FILE`. With
 `json` the same is one JSON object (format `rce-repair/1`) that also holds

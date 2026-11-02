@@ -851,11 +851,11 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["unform"], words: &[], operands: "FORM.json", min: 1, max: 1, help: "the canonical source of a Form's terms (inverse of `rce emit form`)" },
     Command {
         path: &["repair"],
-        words: &[Word::mode("json"), Word::set("bound", &["N"])],
+        words: &[Word::mode("json"), Word::set("bound", &["N"]), Word::set("known", &["GOOD"])],
         operands: "FILE [MODULE...]",
         min: 1,
         max: MANY,
-        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit (at most N candidates,\ndefault 2000); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
     },
     Command {
         path: &["host", "run"],
@@ -1482,12 +1482,16 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             OK
         }
         ["repair"] => {
-            // rce repair [json] [bound N] FILE [MODULE...]   (10.13): words, then operands (PC-1)
+            // rce repair [json] [bound N] [known GOOD] FILE [MODULE...]   (10.13): words, then operands (PC-1)
             let (json, ops) = (p.has("json"), rest);
             let bound = p.count("bound", crate::repair::DEFAULT_BOUND, "a count of candidates")?;
+            let known = match p.value("known") {
+                Some(g) => Some(crate::repair::known(g, &read_file(g)?)?),
+                None => None,
+            };
             let src = read_file(&ops[0])?;
             let others = load(&ops[1..])?;
-            let o = crate::repair::repair(&ops[0], &src, &others, bound);
+            let o = crate::repair::repair(&ops[0], &src, &others, known.as_ref(), bound);
             if json {
                 writeln!(out, "{}", crate::repair::report_json(&ops[0], &o)).map_err(w)?;
             } else {
