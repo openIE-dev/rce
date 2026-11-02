@@ -1,0 +1,132 @@
+module layout_corpus
+use ui.view
+use ui.layout
+use ui.rules
+
+intent "the corpus of views on which the ui.layout model is compared with a browser: Show(i) emits view i as a frame (HC-29) and, as one Display, the keys of the targets ui.rules finds under 2.5.8 and the boxes ui.layout gives the view in each of the four modes ui.rules uses"
+    example Show(i: 0) -> shown == 1
+    example Show(i: 0), Show(i: 1) -> shown == 2
+
+struct Display
+    data: text
+
+struct Frame
+    view: View
+    ev: text
+
+state Corpus
+    shown: i64 = 0
+
+event Show(i: i64)
+
+step Corpus on Show(i: i)
+    shown += 1
+    let v = corpus(i)
+    emit Frame(view: copy(v), ev: "start")
+    emit Display(data: "view " + i.tostr() + ";target-size " + small_targets(&v) + ";" + modes(&v))
+
+# the keys of the nodes that fail 2.5.8 (target size), comma-separated
+fn small_targets(v: &View) -> text
+    let r = "target_size"
+    var ks: List[text] = []
+    for f in rules.view_findings(&r, v)
+        if f.outcome == "fails"
+            ks.push(copy(v.key[f.at as usize]))
+    return ",".join(ks)
+
+# The boxes of v in the four modes, ";"-separated: the root's viewport,
+# 320 CSS px, text at 200 percent, and the WCAG 1.4.12 text spacing.
+fn modes(v: &View) -> text
+    let k = "vw"
+    let vw = view.attr(v, 0, &k).or("1280").toint()
+    let ms = [layout.Mode(vw: vw, scale: 100, spacing: false), layout.Mode(vw: 320, scale: 100, spacing: false), layout.Mode(vw: vw, scale: 200, spacing: false), layout.Mode(vw: vw, scale: 100, spacing: true)]
+    let names = ["normal", "reflow", "resize", "spacing"]
+    var out: List[text] = []
+    for j in 0..ms.len()
+        let l = layout.layout(v, &ms[j])
+        out.push("mode " + names[j] + ";" + ";".join(layout.boxes_text(v, &l).split("\n")))
+    return ";".join(out)
+
+fn rest(cs: &[text], start: usize) -> text
+    var r = ""
+    for j in start..cs.len()
+        r = r + cs[j]
+    return r
+
+# A view from lines: the first is the root, each further line starts with
+# one dot per level below the root, then "~TEXT" (a text node) or
+# "TAG#KEY|NAME=VALUE|..." (an element). Every view has the root
+# attributes of base() first.
+fn tv(s: text) -> View
+    let ls = s.split("\n")
+    var v = view.view_new("div", "")
+    var stack: List[i64] = [0]
+    for i in 0..ls.len()
+        let cs = ls[i].chars()
+        var d: usize = 0
+        while d < cs.len() and cs[d] == "." bound 64
+            d += 1
+        let body = rest(&cs, d)
+        var n: i64 = 0
+        if i > 0 and body.startswith("~")
+            let bc = body.chars()
+            let _ = view.add_text(&mut v, stack[d - 1], rest(&bc, 1))
+        else
+            let parts = body.split("|")
+            let tk = parts[0].split("#")
+            if i == 0
+                v = view.view_new(copy(tk[0]), if tk.len() > 1 then copy(tk[1]) else "")
+                for kv in [["lang", "en"], ["title", "Corpus"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "25"], ["vw", "400"]]
+                    view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
+            else
+                n = view.add_el(&mut v, stack[d - 1], copy(tk[0]), if tk.len() > 1 then copy(tk[1]) else "")
+            for j in 1..parts.len()
+                let kv = parts[j].split("=")
+                view.set_attr(&mut v, n, copy(kv[0]), copy(kv[1]))
+            while stack.len() > d bound 64
+                let _ = stack.pop()
+            stack.push(n)
+    return v
+
+fn corpus(i: i64) -> View
+    let vs = [
+        "div\n.p\n..~ab cd ef gh ij kl mn op qr st uv wx yz",
+        "div|pad=10|gap=6\n.div|pad=4|border=#000000\n..~one two\n.div\n..~three four five six seven\n.div|h=30",
+        "div|flow=row|gap=8\n.button#a|role=button|tabindex=0|action=A|w=44|h=44\n..~A\n.button#b|role=button|tabindex=0|action=B|w=24|h=24\n..~B\n.button#c|role=button|tabindex=0|action=C|w=60|h=30\n..~CC",
+        "div|flow=row\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=16|h=16|aria-label=B\n.button#c|role=button|tabindex=0|action=C|w=16|h=16|aria-label=C",
+        "div|flow=row|gap=12\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=16|h=16|aria-label=B",
+        "div\n.div#box|clip=true|w=300|h=60\n..~inside the box",
+        "div\n.div#box|clip=true|w=200|h=30\n..~this text is longer than its box",
+        "div\n.p\n..~a verylongwordthatcannotbreak here",
+        "div\n.div#wide|w=500|h=20\n.p\n..~after",
+        "div\n.div#t|role=table|w=600\n..div|role=row\n...div|role=cell\n....~cell",
+        "div\n.div#hdr|layer=1|x=0|y=0|w=400|h=60|bg=#eeeeee\n..~Header\n.button#b|role=button|tabindex=0|action=B|w=44|h=44\n..~Go",
+        "div|pad=20\n.div#ban|layer=2|x=100|y=10|w=100|h=20|bg=#333333\n.button#b|role=button|tabindex=0|action=B|w=120|h=44\n..~Go",
+        "div\n.div#l1|layer=1|x=10|y=10|pad=5|bg=#dddddd\n..~outer\n..div#l2|layer=3|x=20|y=40|bg=#bbbbbb\n...~inner",
+        "div|gap=4\n.p\n..~first para\n.p\n..~second para\n.div|role=paragraph\n..~third",
+        "div|flow=row|gap=4\n.button#a|role=button|tabindex=0|action=A|pad=3|border=#000000\n..~ok\n.button#b|role=button|tabindex=0|action=B|pad=6|border=#000000|h=40\n..~cancel",
+        "div|flow=row|gap=10\n.span\n..~x\n.~some row text here\n.span|w=50\n..~y",
+        "div\n.div#l|layer=1|x=300|y=0\n..~abc defgh",
+        "div\n.~before\n.span\n..~middle\n.~after text",
+        "div|w=600\n.p\n..~root wider than the viewport",
+        "div|pad=8\n.button#b|role=button|tabindex=0|action=B|w=44|h=44|focus-outline=#005fcc\n..~Go",
+        "div\n.p\n..~spaces   and\ttabs\rand  lines ",
+        "div|pad=5\n.div|flow=row|gap=5|pad=5|border=#000000\n..div|w=100|h=20\n..div|w=100|h=30\n..div|w=100|h=10\n..div|w=100|h=40",
+        "div\n.div|h=12\n.div|w=33|h=7\n.div",
+        "div\n.p|font-px=50\n..~big text here",
+        "div\n.div#c|layer=1|x=10|y=10|w=100|h=50|clip=true|bg=#cccccc\n..div#l|layer=1|x=60|y=30|w=80|h=40|bg=#999999",
+        "div\n.div#c|clip=true|w=100|h=40\n..div#l|layer=1|x=150|y=0|w=50|h=50|bg=#999999\n..~clipped text that is long",
+        "div|flow=row|gap=6\n.div|w=150|h=20\n.div|w=150|h=50\n.div|w=150|h=30\n.div|w=380|h=10\n.div|w=10|h=10",
+        "div|flow=row|gap=3\n.div|flow=row|gap=2|pad=2\n..div|w=20|h=20\n..div|w=20|h=25\n.div|w=30|h=10",
+        "div\n.div|clip=true|w=150\n..~no height limit here at all",
+        "div|flow=row\n.~a run that is far too long for one line of the row",
+        "div|pad=4\n.div|layer=1|x=0|y=0|pad=2|border=#000000|bg=#ffffff\n..~tip\n.p\n..~under",
+        "div|vw=320\n.div|flow=row|gap=8\n..button#a|role=button|tabindex=0|action=A|w=100|h=24\n...~One\n..button#b|role=button|tabindex=0|action=B|w=100|h=24\n...~Two\n..button#c|role=button|tabindex=0|action=C|w=100|h=24\n...~Three",
+        "div|flow=row|gap=7\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=16|h=16|aria-label=B",
+        "div|flow=row|gap=8\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=16|h=16|aria-label=B",
+        "div|flow=row|gap=3\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=44|h=44|aria-label=B",
+        "div|flow=row|gap=4\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=44|h=44|aria-label=B",
+        "div|pad=30\n.div|flow=row|gap=20\n..button#a|role=button|tabindex=0|action=A|w=20|h=20|aria-label=A\n..button#b|role=button|tabindex=0|action=B|w=20|h=20|aria-label=B\n.div|h=1\n.button#c|role=button|tabindex=0|action=C|w=20|h=20|aria-label=C"]
+    return tv(copy(vs[i as usize]))
+
+pub fn corpus_size() -> i64 = 37
