@@ -15,6 +15,6 @@ step C on Inc -> n + 1
 #   - ok main.rce
 # output_lacks:
 #   - W-INT-2
-#   - recommended
+#   - recommended main.rce
 # provenance: targeted: 6.9 and 10.2, the control: a module with no example line has no W-INT-2 recommendation
 #---
