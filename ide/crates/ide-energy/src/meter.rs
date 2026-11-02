@@ -30,10 +30,29 @@ pub fn now_ns() -> u64 {
 }
 
 struct Zone {
+    dir: String,
+    domain: String,
     energy: PathBuf,
     max_uj: u64,
     last_uj: u64,
     total_uj: u128,
+    wraps: u64,
+}
+
+/// One package zone a `RaplMeter` reads: what a reading's provenance
+/// names (D.11: the counter and the files read).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RaplZone {
+    /// The powercap directory name, such as `intel-rapl:0`.
+    pub zone: String,
+    /// The RAPL domain name from the zone's `name` file, such as `package-0`.
+    pub domain: String,
+    /// The counter file read, `energy_uj`.
+    pub energy_file: PathBuf,
+    /// The zone's `max_energy_range_uj`: the counter wraps past it.
+    pub max_energy_range_uj: u64,
+    /// Wraparounds seen so far (a read lower than the one before it).
+    pub wraps: u64,
 }
 
 /// Linux powercap RAPL. Reads every top-level `intel-rapl:N` package zone
@@ -71,20 +90,23 @@ impl RaplMeter {
         let mut zones = vec![];
         for n in names {
             let d = root.join(&n);
-            if std::fs::read_to_string(d.join("name"))
-                .map(|s| s.trim() == "psys")
-                .unwrap_or(false)
-            {
+            let domain = std::fs::read_to_string(d.join("name"))
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
+            if domain == "psys" {
                 continue;
             }
             let energy = d.join("energy_uj");
             let last_uj = read_u64(&energy)?;
             let max_uj = read_u64(&d.join("max_energy_range_uj"))?;
             zones.push(Zone {
+                domain: if domain.is_empty() { n.clone() } else { domain },
+                dir: n,
                 energy,
                 max_uj,
                 last_uj,
                 total_uj: 0,
+                wraps: 0,
             });
         }
         if zones.is_empty() {
@@ -94,6 +116,20 @@ impl RaplMeter {
             ));
         }
         Ok(RaplMeter { zones })
+    }
+
+    /// The zones read, in directory-name order, with the wraparounds seen.
+    pub fn zones(&self) -> Vec<RaplZone> {
+        self.zones
+            .iter()
+            .map(|z| RaplZone {
+                zone: z.dir.clone(),
+                domain: z.domain.clone(),
+                energy_file: z.energy.clone(),
+                max_energy_range_uj: z.max_uj,
+                wraps: z.wraps,
+            })
+            .collect()
     }
 }
 
@@ -115,6 +151,9 @@ impl Meter for RaplMeter {
         let mut total = 0u128;
         for z in &mut self.zones {
             let now = read_u64(&z.energy)?;
+            if now < z.last_uj {
+                z.wraps += 1;
+            }
             z.total_uj += wrap_delta(z.last_uj, now, z.max_uj) as u128;
             z.last_uj = now;
             total += z.total_uj;

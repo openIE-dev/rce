@@ -27,6 +27,8 @@ pub mod holes;
 pub mod lsp;
 pub mod model;
 pub mod png;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod reading;
 pub mod scene;
 pub mod view;
 #[cfg(not(target_arch = "wasm32"))]

@@ -1,14 +1,19 @@
 //! `rce test` / `rce-ide test [energy-budget J] [measured J | measure] [strict] FILE...`:
-//! runs `rce test`, then gates on energy (CodeGreen lesson). Without
+//! runs `rce test`, then gates on energy (CodeGreen lesson). `measure`
+//! reads the RAPL package counters around the run and prints the reading as
+//! a D.11 receipt term with basis `reported` and its provenance
+//! (`crate::reading`); with no counter it prints "unmeasured: no counter
+//! available" and the gate has no figure. With neither `measure` nor
 //! `measured`, the gate uses the static E_sim from `cost`, labelled
-//! simulated; a run with neither a measurement nor a parsable program is
-//! `no measurement`, which fails only under `strict`.
+//! simulated; a run with no figure is `no measurement`, which fails only
+//! under `strict`.
 //!
 //! `rce-ide telemetry export [perfetto] out OUT.json FILE...`: static
 //! per-function E_sim as a Perfetto trace, flagged synthetic.
 //!
 //! Both take words, then operands (spec/proposals/positional-cli.md, PC-1).
 use crate::cost::{analyze, e_sim, Table};
+use crate::reading::{Env, Sampling};
 use rce_spec_check::args::{Command, Fate, MANY, Parsed, Removed, Word};
 use ide_energy::budget::{check, Verdict};
 use ide_energy::perfetto::{to_trace, Span};
@@ -74,8 +79,14 @@ pub fn test(program: &str, args: &[String], out: &mut dyn Write) -> i32 {
 
 /// The energy gate on the words and FILEs of `test`.
 pub fn test_words(p: &Parsed, out: &mut dyn Write) -> i32 {
+    gate(p, out, &Env::system())
+}
+
+/// The gate, with the counters read from `env` (`Env::system()` outside
+/// tests; the tests pass a fake powercap tree).
+fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
     let num = |w: &str| p.value(w).and_then(|v| v.parse::<f64>().ok());
-    let (files, budget, mut measured, strict) = (p.operands.clone(), num("energy-budget"), num("measured"), p.has("strict"));
+    let (files, budget, measured, strict) = (p.operands.clone(), num("energy-budget"), num("measured"), p.has("strict"));
     let measure = p.has("measure");
     if measure && p.has("measured") {
         eprintln!("test: measured J and measure are exclusive");
@@ -83,30 +94,28 @@ pub fn test_words(p: &Parsed, out: &mut dyn Write) -> i32 {
     }
     let mut a = vec!["test".to_string()];
     a.extend(files.iter().cloned());
-    // `measure`: read the machine's energy counter (RAPL) around the run.
-    // No readable counter means no measurement, never a guess.
-    let mut meter = if measure { ide_energy::meter::RaplMeter::open().ok() } else { None };
-    let before = meter.as_mut().and_then(|m| ide_energy::meter::Meter::sample(m).ok());
+    // `measure`: read the machine's RAPL package counters around the run
+    // and print the reading as a D.11 receipt term (basis `reported`). No
+    // readable counter means "unmeasured", never an estimate.
+    let sampling = if measure { Some(Sampling::start(env)) } else { None };
     let code = rce_spec_check::cli::main(&a, &mut std::io::empty(), out, &mut std::io::stderr());
-    if measure && measured.is_none() {
-        let after = meter.as_mut().and_then(|m| ide_energy::meter::Meter::sample(m).ok());
-        match (before, after) {
-            (Some(b), Some(a)) => measured = Some((a.joules - b.joules).max(0.0)),
-            _ => {
-                let _ = writeln!(out, "energy: no readable meter (RAPL) for measure");
-                if budget.is_some() {
-                    let v = check(None, budget.unwrap_or(0.0));
-                    let _ = writeln!(out, "energy: no measurement");
-                    return if v.failed(strict) { code.max(1) } else { code };
-                }
+    let (joules, kind) = match sampling.map(|s| s.and_then(Sampling::finish)) {
+        Some(Ok(r)) => {
+            for l in r.lines() {
+                let _ = writeln!(out, "{l}");
             }
+            (Some(r.j), "reported: RAPL package counter, whole package")
         }
-    }
-    let Some(b) = budget else { return code };
-    let (joules, kind) = match measured {
-        Some(m) => (Some(m), "measured"),
-        None => (sim_joules(&files).ok().map(|m| m.values().sum()), "simulated, synthetic prices"),
+        Some(Err(u)) => {
+            let _ = writeln!(out, "{}", u.line());
+            (None, "unmeasured")
+        }
+        None => match measured {
+            Some(m) => (Some(m), "measured"),
+            None => (sim_joules(&files).ok().map(|m| m.values().sum()), "simulated, synthetic prices"),
+        },
     };
+    let Some(b) = budget else { return code };
     let v = check(joules, b);
     let _ = match &v {
         Verdict::Pass { joules, budget } => writeln!(out, "energy ok: {joules:.3e} J <= {budget:.3e} J ({kind})"),
@@ -157,6 +166,45 @@ mod tests {
         let mut o = Vec::new();
         assert_eq!(test("rce", &[p, "--energy-budget".into(), "1".into()], &mut o), 2);
         assert!(o.is_empty());
+    }
+    fn run_at(words: &[&str], env: &Env) -> (i32, String) {
+        let mut a = vec!["test".to_string()];
+        a.extend(words.iter().map(|w| w.to_string()));
+        let (_, w) = rce_spec_check::args::read("rce", &[TEST], REMOVED, &a).unwrap();
+        let mut o = Vec::new();
+        let c = gate(&w, &mut o, env);
+        (c, String::from_utf8(o).unwrap())
+    }
+    // test-only: a fake powercap root and a fixed machine name
+    fn fake(root: &std::path::Path) -> Env {
+        Env { powercap: root.to_path_buf(), machine: Some("test-host; cpu Test CPU; kernel Linux 0.0".into()), period: std::time::Duration::from_secs(3600) }
+    }
+    #[test]
+    fn measure_without_counter_is_unmeasured() {
+        let p = prog();
+        let t = tempfile::tempdir().unwrap();
+        let env = fake(&t.path().join("no-powercap"));
+        let (c, o) = run_at(&["measure", &p], &env);
+        assert_eq!(c, 0, "{o}");
+        assert!(o.contains("energy: unmeasured: no counter available ("), "{o}");
+        assert!(!o.contains("energy receipt") && !o.contains("simulated") && !o.contains("measured)"), "{o}");
+        // with a budget: no figure, never the estimate; fails only under strict
+        let (c, o) = run_at(&["energy-budget", "1", "measure", &p], &env);
+        assert_eq!(c, 0, "{o}");
+        assert!(o.contains("energy: no measurement") && !o.contains("energy ok"), "{o}");
+        let (c, _) = run_at(&["energy-budget", "1", "measure", "strict", &p], &env);
+        assert_eq!(c, 1);
+        // this machine: a reading only where a counter exists
+        let (_, o) = run_at(&["measure", &p], &Env::system());
+        assert!(o.contains("energy receipt: {") != o.contains("energy: unmeasured:"), "{o}");
+    }
+    #[test]
+    fn measure_with_still_counter_is_unmeasured() {
+        let p = prog();
+        let t = tempfile::tempdir().unwrap();
+        crate::reading::tests::zone(t.path(), "intel-rapl:0", "package-0", 5, 1000);
+        let (_, o) = run_at(&["energy-budget", "1", "measure", &p], &fake(t.path()));
+        assert!(o.contains("energy: unmeasured: the counter did not move") && o.contains("energy: no measurement"), "{o}");
     }
     #[test]
     fn perfetto_file() {
