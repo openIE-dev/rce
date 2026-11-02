@@ -47,7 +47,13 @@ the probe `spec/lift/go/lift_go.py`, for one Go pattern, and
 including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
 non-deterministic part of AI coding is taken out of the loop. The aim is
-the lowest cost and lowest energy per correct program.
+the lowest cost and lowest energy per correct program. Energy is not
+measured today. The checker counts work in integer cost units and fuel per
+input, which the specification states are not a measurement of time or
+energy (C.6). A receipt's joule terms are estimates (`est`) or `unpriced`,
+and no receipt in this repository holds a counter or meter reading (D.11).
+A calibrated joules-per-unit model is a proposal
+(`spec/proposals/energy-calibration.md`).
 
 What the language guarantees:
 

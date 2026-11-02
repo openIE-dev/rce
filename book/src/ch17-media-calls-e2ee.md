@@ -186,6 +186,7 @@ address, so the line says "by port" and names the addresses the net
 adapter allows, and it says when the User Datagram Protocol (UDP) is not
 restricted; with `http` alone the listener is opened before the target
 is entered and the line says that no new Internet Protocol (IP) socket
-can be opened. The contract conforms to OpenIE Sandbox v0.1
+can be opened. The contract is planned to conform to OpenIE Sandbox v0.1
 (https://sandbox.transaction.science) and to the Joule Context Protocol
-(JCP) v0.3 (https://jcp.transaction.science).
+(JCP) v0.3 (https://jcp.transaction.science), as HC-5 states; no host in
+this repository writes the energy receipts those standards describe.
