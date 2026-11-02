@@ -1,19 +1,24 @@
-//! `rce test` / `rce-ide test [energy-budget J] [measured J | measure] [strict] FILE...`:
-//! runs `rce test`, then gates on energy (CodeGreen lesson). `measure`
-//! reads the RAPL package counters around the run and prints the reading as
-//! a D.11 receipt term with basis `reported` and its provenance
-//! (`crate::reading`); with no counter it prints "unmeasured: no counter
-//! available" and the gate has no figure. With neither `measure` nor
-//! `measured`, the gate uses the static E_sim from `cost`, labelled
-//! simulated; a run with no figure is `no measurement`, which fails only
-//! under `strict`.
+//! `rce test` / `rce-ide test [energy-budget J] [measured J PROVENANCE.json |
+//! reported J PROVENANCE.json | measure] [strict] FILE...`: runs `rce test`,
+//! then gates on energy (CodeGreen lesson). `measure` reads the RAPL package
+//! counters around the run and prints the reading as a D.11 receipt term
+//! with basis `reported` and its provenance (`crate::reading`); with no
+//! counter it prints "unmeasured: no counter available" and the gate has no
+//! figure. `measured J PROVENANCE.json` (a wall or shunt meter) and
+//! `reported J PROVENANCE.json` (another OS or on-chip counter) take a figure
+//! read elsewhere, with its D.11 provenance from the file; a provenance that
+//! is not valid by D.11 rule 1 is refused (status 2) and nothing runs, since
+//! D.11 gives a figure without one no label: it is neither a reading nor an
+//! estimate. With none of the three, the gate uses the static E_sim from
+//! `cost`, labelled simulated; a run with no figure is `no measurement`,
+//! which fails only under `strict`.
 //!
 //! `rce-ide telemetry export [perfetto] out OUT.json FILE...`: static
 //! per-function E_sim as a Perfetto trace, flagged synthetic.
 //!
 //! Both take words, then operands (spec/proposals/positional-cli.md, PC-1).
 use crate::cost::{analyze, e_sim, Table};
-use crate::reading::{Env, Sampling};
+use crate::reading::{Basis, Env, Provenance, Sampling, Term};
 use rce_spec_check::args::{Command, Fate, MANY, Parsed, Removed, Word};
 use ide_energy::budget::{check, Verdict};
 use ide_energy::perfetto::{to_trace, Span};
@@ -36,11 +41,17 @@ pub fn sim_joules(files: &[String]) -> Result<std::collections::BTreeMap<String,
 /// reader share).
 pub const TEST: Command = Command {
     path: &["test"],
-    words: &[Word::set("energy-budget", &["J"]), Word::set("measured", &["J"]), Word::mode("measure"), Word::mode("strict")],
+    words: &[
+        Word::set("energy-budget", &["J"]),
+        Word::set("measured", &["J", "PROVENANCE.json"]),
+        Word::set("reported", &["J", "PROVENANCE.json"]),
+        Word::mode("measure"),
+        Word::mode("strict"),
+    ],
     operands: "FILE...",
     min: 1,
     max: MANY,
-    help: "run every example and check, then gate on energy (measured and measure are exclusive)",
+    help: "run every example and check, then gate on energy (measured, reported and measure are exclusive;\na typed J needs its D.11 provenance in PROVENANCE.json)",
 };
 
 /// `telemetry export`: static E_sim as a Perfetto trace.
@@ -82,16 +93,47 @@ pub fn test_words(p: &Parsed, out: &mut dyn Write) -> i32 {
     gate(p, out, &Env::system())
 }
 
+/// A figure typed after `measured` or `reported`, with its provenance read
+/// from the file named after it: a D.11 term, or why it is refused.
+pub fn typed(basis: Basis, vals: &[String]) -> Result<Term, String> {
+    let w = basis.word();
+    let (j, file) = match vals {
+        [j, file] => (j, file),
+        _ => return Err(format!("test: `{w}` takes J PROVENANCE.json")),
+    };
+    let refuse = |why: String| format!("test: {w} {j} {file}: {why}; D.11 rule 1: a `{w}` figure carries a valid provenance, and a figure without one is not a reading");
+    let jv = j.parse::<f64>().map_err(|_| refuse(format!("J `{j}` is not a number")))?;
+    let text = std::fs::read_to_string(file).map_err(|e| refuse(format!("the provenance cannot be read ({e})")))?;
+    let prov = Provenance::parse(&text).map_err(|e| refuse(format!("the provenance is not valid: {e}")))?;
+    Term::new(jv, basis, prov).map_err(refuse)
+}
+
 /// The gate, with the counters read from `env` (`Env::system()` outside
 /// tests; the tests pass a fake powercap tree).
 fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
     let num = |w: &str| p.value(w).and_then(|v| v.parse::<f64>().ok());
-    let (files, budget, measured, strict) = (p.operands.clone(), num("energy-budget"), num("measured"), p.has("strict"));
+    let (files, budget, strict) = (p.operands.clone(), num("energy-budget"), p.has("strict"));
     let measure = p.has("measure");
-    if measure && p.has("measured") {
-        eprintln!("test: measured J and measure are exclusive");
+    let given: Vec<&str> = ["measured", "reported", "measure"].into_iter().filter(|w| p.has(w)).collect();
+    if given.len() > 1 {
+        eprintln!("test: {} are exclusive; give one", given.join(" and "));
         return 2;
     }
+    // `measured J PROVENANCE.json`, `reported J PROVENANCE.json`: a figure
+    // read elsewhere is a reading only with its D.11 provenance; without a
+    // valid one it is refused before anything runs.
+    let figure = match given.first().copied() {
+        Some("measured") => Some(typed(Basis::Measured, p.all("measured")[0])),
+        Some("reported") => Some(typed(Basis::Reported, p.all("reported")[0])),
+        _ => None,
+    };
+    let figure = match figure.transpose() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{e}");
+            return 2;
+        }
+    };
     let mut a = vec!["test".to_string()];
     a.extend(files.iter().cloned());
     // `measure`: read the machine's RAPL package counters around the run
@@ -104,14 +146,20 @@ fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
             for l in r.lines() {
                 let _ = writeln!(out, "{l}");
             }
-            (Some(r.j), "reported: RAPL package counter, whole package")
+            (Some(r.term.j()), "reported: RAPL package counter, whole package")
         }
         Some(Err(u)) => {
             let _ = writeln!(out, "{}", u.line());
             (None, "unmeasured")
         }
-        None => match measured {
-            Some(m) => (Some(m), "measured"),
+        None => match &figure {
+            Some(t) => {
+                let _ = writeln!(out, "{}", t.line());
+                (Some(t.j()), match t.basis() {
+                    Basis::Measured => "measured: typed, with its provenance",
+                    Basis::Reported => "reported: typed, with its provenance",
+                })
+            }
             None => (sim_joules(&files).ok().map(|m| m.values().sum()), "simulated, synthetic prices"),
         },
     };
@@ -161,7 +209,8 @@ mod tests {
         let mut o = Vec::new();
         assert_eq!(test("rce", &["energy-budget".into(), "1e-15".into(), p.clone()], &mut o), 1);
         let mut o = Vec::new();
-        assert_eq!(test("rce", &["energy-budget".into(), "1".into(), "measured".into(), "2".into(), p.clone()], &mut o), 1);
+        let pv = provenance_file(&crate::reading::tests::prov().json());
+        assert_eq!(test("rce", &["energy-budget".into(), "1".into(), "measured".into(), "2".into(), pv, p.clone()], &mut o), 1);
         // a removed flag is a usage error and runs nothing (positional-cli.md, decision 2)
         let mut o = Vec::new();
         assert_eq!(test("rce", &[p, "--energy-budget".into(), "1".into()], &mut o), 2);
@@ -197,6 +246,59 @@ mod tests {
         // this machine: a reading only where a counter exists
         let (_, o) = run_at(&["measure", &p], &Env::system());
         assert!(o.contains("energy receipt: {") != o.contains("energy: unmeasured:"), "{o}");
+    }
+    fn provenance_file(text: &str) -> String {
+        let d = tempfile::tempdir().unwrap().keep();
+        let f = d.join("provenance.json");
+        std::fs::write(&f, text).unwrap();
+        f.to_string_lossy().into_owned()
+    }
+    #[test]
+    fn typed_figure_needs_its_provenance() {
+        let p = prog();
+        let env = fake(&tempfile::tempdir().unwrap().path().join("no-powercap"));
+        let good = crate::reading::tests::prov().json();
+        let pv = provenance_file(&good);
+        let receipt = |basis: &str| format!(r#"energy receipt: {{"amortization":{{"kind":"per_call"}},"basis":"{basis}","j":2.0,"provenance":{good}}}"#);
+        // with a valid provenance: a reading, under the label given
+        let (c, o) = run_at(&["energy-budget", "1", "measured", "2", &pv, &p], &env);
+        assert_eq!(c, 1, "{o}");
+        let lines: Vec<&str> = o.lines().filter(|l| l.starts_with("energy")).collect();
+        assert_eq!(lines, [receipt("measured").as_str(), "energy OVER budget: 2.000e0 J > 1.000e0 J (measured: typed, with its provenance)"]);
+        let (c, o) = run_at(&["energy-budget", "3", "reported", "2", &pv, &p], &env);
+        assert_eq!(c, 0, "{o}");
+        let lines: Vec<&str> = o.lines().filter(|l| l.starts_with("energy")).collect();
+        assert_eq!(lines, [receipt("reported").as_str(), "energy ok: 2.000e0 J <= 3.000e0 J (reported: typed, with its provenance)"]);
+        // without a valid one: refused, citing D.11 rule 1, and nothing runs
+        let bad = provenance_file(r#"{"samples":4}"#);
+        let missing = format!("{pv}.absent");
+        for (prov, why) in [(&bad, "the provenance is not valid: unknown field `samples`"), (&missing, "the provenance cannot be read (")] {
+            let w = vec!["test".to_string(), "energy-budget".into(), "1".into(), "measured".into(), "2".into(), prov.clone(), p.clone()];
+            let (_, parsed) = rce_spec_check::args::read("rce", &[TEST], REMOVED, &w).unwrap();
+            let e = typed(Basis::Measured, parsed.all("measured")[0]).unwrap_err();
+            assert!(e.starts_with(&format!("test: measured 2 {prov}: ")) && e.contains(why), "{e}");
+            assert!(e.ends_with("D.11 rule 1: a `measured` figure carries a valid provenance, and a figure without one is not a reading"), "{e}");
+            let mut o = Vec::new();
+            assert_eq!(gate(&parsed, &mut o, &env), 2);
+            assert!(o.is_empty(), "{}", String::from_utf8_lossy(&o));
+        }
+        let e = typed(Basis::Reported, &["x".into(), pv.clone()]).unwrap_err();
+        assert!(e.contains("J `x` is not a number") && e.contains("a `reported` figure"), "{e}");
+        let e = typed(Basis::Measured, &["inf".into(), pv.clone()]).unwrap_err();
+        assert!(e.contains("J inf is not a finite figure >= 0"), "{e}");
+        // the old spelling `measured J FILE` has no provenance: the FILE is
+        // read as one, and with no FILE left it is a usage error
+        let mut o = Vec::new();
+        assert_eq!(test("rce", &["measured".into(), "2".into(), p.clone()], &mut o), 2);
+        assert!(o.is_empty());
+        let mut o = Vec::new();
+        assert_eq!(test("rce", &["measured".into(), "2".into(), p.clone(), p.clone()], &mut o), 2);
+        assert!(o.is_empty());
+        // one source of a figure at a time
+        let (c, o) = run_at(&["measured", "2", &pv, "measure", &p], &env);
+        assert_eq!((c, o.as_str()), (2, ""));
+        let (c, _) = run_at(&["measured", "2", &pv, "reported", "2", &pv, &p], &env);
+        assert_eq!(c, 2);
     }
     #[test]
     fn measure_with_still_counter_is_unmeasured() {

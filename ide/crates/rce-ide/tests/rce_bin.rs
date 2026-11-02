@@ -19,9 +19,20 @@ fn energy_budget_gate() {
     let (c, out) = rce(&["test", "energy-budget", "1e9"], &f);
     assert_eq!(c, 0, "{out}");
     assert!(out.contains("energy ok") && out.contains("simulated"), "{out}");
-    let (c, out) = rce(&["test", "energy-budget", "1", "measured", "2"], &f);
+    // a typed figure is a D.11 reading only with its provenance
+    let prov = d.path().join("provenance.json");
+    std::fs::write(&prov, r#"{"boundary":"rail:VDD","counter":"shunt meter energy register","end_unix_ns":2000000000,"idle_baseline_w":0,"interval_s":1.0,"machine":"bench host","sampler":"bench logger","start_unix_ns":1000000000,"wraps":0}"#).unwrap();
+    let pv = prov.to_str().unwrap();
+    let (c, out) = rce(&["test", "energy-budget", "1", "measured", "2", pv], &f);
     assert_eq!(c, 1, "{out}");
-    assert!(out.contains("energy OVER budget") && out.contains("measured"));
+    assert!(out.contains(r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"measured","j":2.0,"provenance":{"boundary":"rail:VDD","#), "{out}");
+    assert!(out.contains("energy OVER budget: 2.000e0 J > 1.000e0 J (measured: typed, with its provenance)"), "{out}");
+    // without one it is refused (D.11 rule 1): status 2, nothing run
+    std::fs::write(&prov, "{}").unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["test", "energy-budget", "1", "measured", "2", pv]).arg(&f).output().unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert!(o.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("D.11 rule 1"), "{}", String::from_utf8_lossy(&o.stderr));
     let (c, out) = rce(&["test", "energy-budget", "1e-300"], &f);
     assert_eq!(c, 1, "{out}");
     // positional-cli.md decision 2: a removed flag names its new spelling, exits 2, runs nothing

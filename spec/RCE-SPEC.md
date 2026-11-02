@@ -5821,19 +5821,37 @@ tests.
 **Readings: provenance, boundary and amortization (normative; P4, P5,
 P6 of the receipt field proposals of 13 Oct 2026).** These rules apply to every
 term labeled `reported` or `measured`, in every receipt that holds one,
-and are checked where a term is built and where a record is read:
+and to a term that stands alone (a test run's reading, which no receipt
+holds), and are checked where a term is built and where a record is read:
 
 1. A reading carries `provenance` = {`sampler`, `counter`, `interval_s`,
-   `idle_baseline_w`, `machine`, `boundary`}: the four names non-empty,
-   `interval_s` finite and > 0, `idle_baseline_w` finite and >= 0 (0 when
-   no baseline was subtracted). `boundary` says what the joules include
-   (`package`, `package+dram`, `rail:VDD_GPU`). A reading without a valid
-   provenance is reported as invalid, and so is one with unknown fields. Derivation:
-   the label `reported` or `measured` claims that something was read; a
-   reading that cannot be reproduced or compared (which counter, over what
-   interval, against which baseline, on which machine, inside which
-   boundary) does not support that claim, so a term that lacks it is not
-   a reading, and labeling it one would be unsound.
+   `idle_baseline_w`, `machine`, `boundary`, `start_unix_ns`,
+   `end_unix_ns`, `wraps`}: the four names non-empty, `interval_s` finite
+   and > 0, `idle_baseline_w` finite and >= 0 (0 when no baseline was
+   subtracted), `start_unix_ns` and `end_unix_ns` integers >= 0 with
+   `start_unix_ns` < `end_unix_ns`, and `wraps` an integer >= 0.
+   `boundary` says what the joules include (`package`, `package+dram`,
+   `rail:VDD_GPU`). `interval_s` is the duration the joules cover;
+   `start_unix_ns` and `end_unix_ns` place it on the Unix clock, in
+   nanoseconds, so a reading can be set against a log. `wraps` is the
+   number of times the counter passed its maximum and restarted from 0
+   during the interval, counted by the sampler; a source that cannot wrap
+   has 0. All nine fields are required for both labels: every reading
+   covers some interval of time, and a `reported` figure is by
+   definition a counter delta, which cannot be checked when the wraparounds
+   in it are not counted (a delta of d over a range R is d, d + R, d + 2R,
+   ...). A `measured` meter may itself read a counter, and nothing in the
+   term says whether it does, so the field is not optional there either.
+   A reading without a valid provenance is reported as invalid, and so is
+   one with unknown fields. Derivation: the label `reported` or `measured`
+   claims that something was read; a reading that cannot be reproduced or
+   compared (which counter, over what interval and when, against which
+   baseline, on which machine, inside which boundary, with how many
+   wraparounds) does not support that claim, so a term that lacks it is
+   not a reading, and labeling it one would be unsound. A bare figure
+   without a provenance is not a reading under either label, and it is
+   not `est` either (it is not a model of the work): it is refused, as a
+   bare number is refused by the term's type.
 2. A term labeled `est` or `unpriced` carries no `provenance` (nothing was
    read); one that does is reported as invalid.
 3. A reading carries `amortization`, one of {`kind`: `per_call`},
@@ -5848,7 +5866,8 @@ and are checked where a term is built and where a record is read:
    figure subtracted from a per-input one, is arithmetic on different
    units; no result of it is a figure of either kind.
 5. A sum of two readings keeps the weaker label only when both come from
-   the same sampler, counter, machine and boundary (the intervals add);
+   the same sampler, counter, machine and boundary (the intervals and the
+   wraps add, the start is the earlier start and the end the later end);
    otherwise it is reported as invalid. A sum with an `est` term is `est` with no
    provenance (unpriced < est < reported < measured, as for n\*).
 6. A stored break-even receipt is re-derived from its terms when read; a
@@ -5856,7 +5875,11 @@ and are checked where a term is built and where a record is read:
 
 The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
 stored receipt changes meaning; no receipt in the repository holds a
-reading today. Implemented by `Term`, `Provenance` and `Amortization` in
+reading today. A standalone reading is printed by the IDE build's
+`rce test measure` (RAPL, `reported`) and by its `rce test measured J
+PROVENANCE.json` and `reported J PROVENANCE.json` (a figure from another
+meter, refused without a valid provenance), and checked there by
+`Provenance` in `ide/crates/rce-ide/src/reading.rs`. Implemented by `Term`, `Provenance` and `Amortization` in
 `src/runtime/break_even.rs` (no constructor makes a reading without
 provenance and amortization), tested there (`p4_*`, `p6_*`).
 

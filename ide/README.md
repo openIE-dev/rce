@@ -44,7 +44,7 @@ in this repository: the host runtime (`rce host`, Appendix E), RCEdb
 The IDE build adds four programs: `rce-ide` (the desktop IDE, wgpu on
 Vulkan, Metal, DX12 or GL), `rce` (the reference checker CLI with one
 addition of the IDE's own, the energy-budget gate
-`rce test [energy-budget J] [measured J | measure] [strict] FILE...`
+`rce test [energy-budget J] [measured J PROVENANCE.json | reported J PROVENANCE.json | measure] [strict] FILE...`
 in `crates/rce-ide/src/ci.rs`; the `rce` of `../spec/checker` does not have
 it), `rce-lsp` (language server) and `rce-mcp` (MCP server for agents).
 
@@ -55,19 +55,36 @@ receipt term of spec Appendix D, D.11, with basis `reported` (an on-chip
 counter; D.11 keeps `measured` for a wall or shunt meter), its
 `provenance` and `amortization` `per_call`:
 
-    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","idle_baseline_w":0.0,"interval_s":2.25,"machine":"HOST; cpu MODEL; kernel Linux RELEASE","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj"}}
-    energy sampling: start_unix_ns 10 end_unix_ns 2250000010 samples 4 period_s 1.0 wraps 0 (not fields of the D.11 provenance)
+    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":0.0,"interval_s":2.25,"machine":"HOST; cpu MODEL; kernel Linux RELEASE","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}
+    energy sampling: samples 4 period_s 1.0 (not fields of the D.11 provenance)
 
 The joules are the whole package over the interval, everything the machine
 ran, not the share of the tests; no idle baseline is subtracted
-(`idle_baseline_w` 0). D.11's provenance has no field for the sampling start
-and end, the number of reads or the wraparounds counted, so they are on the
-second line. With no readable counter (no `/sys/class/powercap`, or
+(`idle_baseline_w` 0). `start_unix_ns` and `end_unix_ns` are the first and
+last reads on the system clock, `interval_s` the time between them on the
+monotonic clock, and `wraps` the wraparounds counted over all zones. Only
+the number of reads and their period have no field in D.11, so they are on
+the second line. With no readable counter (no `/sys/class/powercap`, or
 `energy_uj` not readable), a failed read, or a counter that did not move,
 `measure` prints `energy: unmeasured: no counter available (...)` (or `counter
 read failed`, `the counter did not move`) and the energy gate has no figure
 (`energy: no measurement`, which fails only under `strict`); it never falls
 back to the simulated figure. The code is `crates/rce-ide/src/reading.rs`.
+
+`measured J PROVENANCE.json` (a wall or shunt meter) and `reported J
+PROVENANCE.json` (another OS or on-chip counter, such as NVML) give the gate
+a figure read elsewhere. PROVENANCE.json is a JSON object with exactly the
+nine provenance fields of D.11 rule 1, for example
+
+    {"boundary":"rail:VDD","counter":"shunt meter energy register","end_unix_ns":2000000000,"idle_baseline_w":0,"interval_s":1.0,"machine":"bench host","sampler":"bench logger","start_unix_ns":1000000000,"wraps":0}
+
+and the gate prints the figure as a receipt term with that label, that
+provenance and `amortization` `per_call`. A provenance that is missing, not
+readable, or not valid by rule 1 (a missing or unknown field, an empty name,
+`start_unix_ns` not before `end_unix_ns`, ...) is refused with status 2,
+the rule cited, and no test runs: D.11 gives a figure without a provenance
+no label, since it is not a reading and not a model of the work either.
+`measured`, `reported` and `measure` are exclusive.
 
 Build from source (Rust 1.98.1, read from `rust-toolchain.toml`):
 
