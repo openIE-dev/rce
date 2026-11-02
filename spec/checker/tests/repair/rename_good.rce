@@ -1,0 +1,11 @@
+# A known-good version of rename.rce with other names (`width`, `height`,
+# `half`). The canonical texts of the two differ in identifiers only, so
+# with `known` this file, the renaming onto it keeps the names of
+# rename.rce and changes the one use that breaks it.
+intent "the perimeter of a rectangle of width w and height h"
+    check perimeter(2, 3) == 10
+    check perimeter(1, 5) == 12
+
+fn perimeter(width: u64, height: u64) -> u64
+    let half = width + height
+    return half * 2
