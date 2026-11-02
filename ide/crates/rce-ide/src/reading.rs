@@ -176,15 +176,11 @@ impl Sampling {
         let worker = std::thread::spawn(move || {
             let mut samples = 1u64;
             let mut error = None;
-            loop {
-                match rx.recv_timeout(period) {
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                        samples += 1;
-                        if let Err(e) = meter.sample() {
-                            error.get_or_insert(e.to_string());
-                        }
-                    }
-                    _ => break,
+            // until `finish` sends or drops the sender
+            while let Err(mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(period) {
+                samples += 1;
+                if let Err(e) = meter.sample() {
+                    error.get_or_insert(e.to_string());
                 }
             }
             let last = meter.sample();
