@@ -9,18 +9,18 @@
    "reason": "wasmtime not on PATH"
   }
  ],
- "date_utc": "2026-11-01T23:32:31Z",
+ "date_utc": "2026-11-02T01:40:07Z",
  "environment": {
   "LC_ALL": "C",
   "SOURCE_DATE_EPOCH": "1735689600",
   "TZ": "UTC"
  },
  "harness": {
-  "e1.py": "6a2e55edcbc0e916b4f183eb55477c076c15efa880d8531728bb9af1688a6d84",
-  "matrix.json": "ffe5761140a335cdea4eaeb9115dbe37d1fa1848a0da0c8bfdc78554c92d7a8f"
+  "e1.py": "20710174c5fb1b93d7418b0be041900a2728363f22fc06dddc518309a2b717cb",
+  "matrix.json": "150eaa3a3cffc5c8cfb2399bd923fb10963ac1f7069c159e4aa40aefa5ce7a65"
  },
  "machine": {
-  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
   "cpus": 4,
   "machine": "x86_64",
   "os": "Ubuntu 24.04.5 LTS",
@@ -80,7 +80,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "3163044d597e63a68eb9c867b1ff0466ba3005f7515f489507331a589fcfa504"
+    "hello": "2765be2e09411a8505a7e22963c98cbf5062255583d73b15a66b16c5fc26be6d"
    },
    "sha256_remapped": {
     "hello": "cc1e2fb1701460b54016df81c67c61f489cb2ba6d40cf13aa13fab9283992348"
@@ -92,7 +92,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 2160,
+      "differing_bytes": 2159,
       "file": "sort",
       "size_a": 18992,
       "size_b": 19008
@@ -138,7 +138,7 @@
     "status": "identical"
    },
    "sha256": {
-    "sort": "f26e2b4c43669a121812f778796ec8c903a52ca76407677d61c5c57a4d0231b7"
+    "sort": "675ea46b3249d6ecb37987fb15928707264d6f5bfd87049664e07673db08d841"
    },
    "sha256_remapped": {
     "sort": "80eed8ea743b118563d5917f8ae3a3988899f600519490a5ef3d950382f8ef68"
@@ -312,7 +312,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "8b95005506ff8aab4558537bf26cd513ff3268cb3f1a5d56d22637e406753140"
+    "hello": "d1e6304cf053e1205fbf557eb7952d453223f188721cd80e91bc4742ef94def4"
    },
    "sha256_remapped": {
     "hello": "280882c0d5e53c493c731424a2baa8c87b4701ea2f2c9ee589e1a7f4b162d5f5"
@@ -370,7 +370,7 @@
     "status": "identical"
    },
    "sha256": {
-    "sort": "903798a3a27a31fbc4352a769302b55600b6767ba90b660ed2fbfcbf89406770"
+    "sort": "00a0cdf029733f8ad6deaea305e40b9f36670e000c1273b3b893e46e2aa575cb"
    },
    "sha256_remapped": {
     "sort": "11a1b0dcf95cbce037b24c020fcc88d4fa706115ef4343d81eb54a60b376b25a"
@@ -382,7 +382,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 2614,
+      "differing_bytes": 2645,
       "file": "hello",
       "size_a": 32688,
       "size_b": 32704
@@ -428,7 +428,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "9e7c6b2cf621fbf271be13bf4cac4a253cba96e766ff5ba2e9d8527695a180c7"
+    "hello": "e326614f3659d55e015fb76cbfc54fdc19a2903ce426e757cf578148366bd501"
    },
    "sha256_remapped": {
     "hello": "d2d6345bcf077bc1ca86f273c31b5ca7367b84f8eee042adcaec6c5184602cbc"
@@ -440,7 +440,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 20600,
+      "differing_bytes": 20635,
       "file": "templates",
       "size_a": 245760,
       "size_b": 245776
@@ -486,7 +486,7 @@
     "status": "identical"
    },
    "sha256": {
-    "templates": "a1c1ad3846b5c520f96f7ab3d08862b23522d1328191459e55dc77b01a9fea4f"
+    "templates": "806cc763d58587d22018b7f2d3dcebfc1abc571867c14370e79a9c5071c04e6f"
    },
    "sha256_remapped": {
     "templates": "3d1787514698c41a10c980b844403aefe815323d4ac8445f2dcba9b9ff00a585"
@@ -544,7 +544,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "e977de6c5ece8fe69a8edda5ae691efcc49ad9a43c802c582cc597f2c00f16a9"
+    "hello": "7fd1a5150cd0bd2f1fccae5ee0f0088524d02031bce648cdb4e7524bac067925"
    },
    "sha256_remapped": {
     "hello": "6772d837fcb44b461a79b6ad4c9714e4983abd109c9bf0b54bb31031f8783519"
@@ -602,7 +602,7 @@
     "status": "identical"
    },
    "sha256": {
-    "templates": "821db34a13045fa5ed05e97f9c8e1164aa6d81a1d57b4f12a0874c2cd161c173"
+    "templates": "7c6ad0128669f5b923e6a7c97f25df87ff019aa701a0a045776025b88047beeb"
    },
    "sha256_remapped": {
     "templates": "40eed3afcdca2c953d20bc49a85fe012d3224b4a35e3cf45cad8987b7d6bfd26"
@@ -614,7 +614,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 825994,
+      "differing_bytes": 2365470,
       "file": "hello",
       "size_a": 4540336,
       "size_b": 4540352
@@ -660,7 +660,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "ee7e6dcb056ac4589b185f7f2210c9cc6b645a532e37bffebff824e0ccab1fad"
+    "hello": "bea5d43ec2459eb15c424de09958fd13ef8064e14b70c22e73e19c6953e5507c"
    },
    "sha256_remapped": {
     "hello": "87152f5691409865a02746a3405d4736ed3b7d7766d757d6fcf27ee52ada5397"
@@ -672,7 +672,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 842267,
+      "differing_bytes": 2449365,
       "file": "generic",
       "size_a": 4759464,
       "size_b": 4759480
@@ -718,7 +718,7 @@
     "status": "identical"
    },
    "sha256": {
-    "generic": "027a257e7ef91c275964413b30759758fcd46e791d66e68f79a5c5e31305dea3"
+    "generic": "1bcaf53eb6270ee5dbf9a082d89914af5f167e0eb7f297718b5717f9c173edcb"
    },
    "sha256_remapped": {
     "generic": "571b2cf92c8e82ccfa54a0d03cddbbe486e5dc06929f5fafdbd06fcc395909c2"
@@ -892,7 +892,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello.wasm": "218c6a6d8f6c8903df23ad897d0d23f7b2d05570bb77b7cf69c1057458f4278a"
+    "hello.wasm": "ad5f4360dda58b6721cc6ce3f3657abc714f5d6e8085bfb691fb0c13004f7b80"
    },
    "sha256_remapped": {
     "hello.wasm": "96a2e2bffe6445716fcc4d4dae039ff369e4ec581042234873beb8bb31c0a53e"
@@ -950,7 +950,7 @@
     "status": "identical"
    },
    "sha256": {
-    "generic.wasm": "417182bb2e907e33ac0c68c65636dfca04de39138ff6af395c885b2b56b646d3"
+    "generic.wasm": "23199a4e32a5e9dd1e7de5b60c680a3cf608c559e27d9719e2cad9a1a23c96ef"
    },
    "sha256_remapped": {
     "generic.wasm": "5e14f3b82378504099c995d6049f1699d830eb1946eb40aa7aed851376e5d410"
@@ -962,7 +962,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1061794,
+      "differing_bytes": 1061816,
       "file": "hello",
       "size_a": 2217583,
       "size_b": 2217591
@@ -1008,19 +1008,26 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "c04e89af57cc66bff7b9de1aa662a75a3759342cfda78056e39442abbcf05175"
+    "hello": "6075b6e9b8386306402f776413ded8ff41cf86a79d0021429ac11135d4d3fd44"
    },
    "sha256_remapped": {
     "hello": "ba1ef4b6ee7d080cb552448c6ae173aaf824497c38eee3d745f0b1581f5fa09b"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build",
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 752378,
+      "differing_bytes": 752420,
       "file": "maps",
       "size_a": 2248939,
       "size_b": 2248947
@@ -1066,19 +1073,26 @@
     "status": "identical"
    },
    "sha256": {
-    "maps": "c4e5185285daab9a5a01008b0bba4150f30e63a5eef376ca8a442edb813c956d"
+    "maps": "b071c16fd3bbc9cbd503dd42366c9d3f31d27db5ee9222502f883ab717bb5550"
    },
    "sha256_remapped": {
     "maps": "91e543ae83a572dd688fdb0546b42b02d3a8b365e38688a686fe20a66c812ba4"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build, GOPATH mode",
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1061847,
+      "differing_bytes": 1061871,
       "file": "hello",
       "size_a": 2217650,
       "size_b": 2217658
@@ -1093,8 +1107,12 @@
    "remapped": {
     "files": [
      {
-      "differing_bytes": 60,
+      "differing_bytes": 59,
       "file": "hello",
+      "sections": {
+       ".note.gnu.build-id": 20,
+       ".note.go.buildid": 39
+      },
       "size_a": 2208802,
       "size_b": 2208802
      }
@@ -1124,19 +1142,29 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "3ed3324b2912501c086674b4807165eef405df55db61e47ad9c50b4ee55a2892"
+    "hello": "11885cb4c3a8a727f6e8a2371f35eb2cf9b6db2544188bc734cb6fde2656d83e"
    },
    "sha256_remapped": {
-    "hello": "9097856e024ae68ee2bf139cc00f00095358419152c995b8ed9709f047e0341e"
+    "hello": "0b9ff9114354fe271259ed593eff8516979d0926a2b8a93dfcee92386ef07576"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
+    ],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build, GOPATH mode",
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 751878,
+      "differing_bytes": 751934,
       "file": "maps",
       "size_a": 2248982,
       "size_b": 2248998
@@ -1153,6 +1181,10 @@
      {
       "differing_bytes": 60,
       "file": "maps",
+      "sections": {
+       ".note.gnu.build-id": 20,
+       ".note.go.buildid": 40
+      },
       "size_a": 2240166,
       "size_b": 2240166
      }
@@ -1182,19 +1214,159 @@
     "status": "identical"
    },
    "sha256": {
-    "maps": "25f19f18fc283653a51850675014db8f398bae1813abb3307398457de55f492c"
+    "maps": "4185de5197e2b9741450f90e48b125e9316dd9dd29643937c3872842f6f4cd01"
    },
    "sha256_remapped": {
-    "maps": "7f94bb90e32a601dc7f321ba2cf40264abd082cf473b89e055cf2db7499c28f1"
+    "maps": "064c9e79d526ed86937e80b4b6fd34da7645e25a6c127a5b182f3d3f7ed1a78f"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
+    ],
+    "same_after_naming": true
+   }
+  },
+  {
+   "config": "go build, GOPATH mode, import path declared",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 742291,
+      "file": "hello",
+      "size_a": 2217690,
+      "size_b": 2217698
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/hello.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2208786,
+      "size_b": 2208786
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2217690,
+      "size_b": 2217690
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2217690,
+      "size_b": 2217690
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "727fd277fe74842dbcf3975b27ec62a8259da037bc3c7fe22f1b58f40d5a994c"
+   },
+   "sha256_remapped": {
+    "hello": "598cf3653da2aa60d9281069007479d440272e55e88e2143d81021c1f5552948"
+   },
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
+  },
+  {
+   "config": "go build, GOPATH mode, import path declared",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 751516,
+      "file": "maps",
+      "size_a": 2248990,
+      "size_b": 2249022
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/maps.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2240174,
+      "size_b": 2240174
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2248990,
+      "size_b": 2248990
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2248990,
+      "size_b": 2248990
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "maps": "1f3c3a9b17119eb6a1023fc13fa647a80fa9486f9eb266b3acf8865a8285e32f"
+   },
+   "sha256_remapped": {
+    "maps": "d975d7461f5cd078f6abc363fd63cfd87daf82099e33a1ff0b30c134f71230e0"
+   },
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "gfortran -O2 -g",
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1997,
+      "differing_bytes": 1998,
       "file": "hello",
       "size_a": 18104,
       "size_b": 18120
@@ -1240,7 +1412,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "0ef994f1ca3292d4d0025dc4112b46726dfb8c8719905f0e5bd8eb24b080a3e8"
+    "hello": "f39feaa47eda66374f13825f1eb96eaff13764043047fab4691deabe169a3c59"
    },
    "sha256_remapped": {
     "hello": "0b39ca7aa3c08292668d93ad27e9a458d1a2c1b17bde93c272fc80b347daeb0c"
@@ -1252,7 +1424,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 2402,
+      "differing_bytes": 2403,
       "file": "kernels",
       "size_a": 19880,
       "size_b": 19896
@@ -1322,7 +1494,7 @@
     "status": "identical"
    },
    "sha256": {
-    "kernels": "7d607d42886ba0e5cf1a7a6612e5e9273ca35056f60858ff012433d150e3a107",
+    "kernels": "a14ec4c021c576ad32a41efac2d27fcc475df26c35d141514b5a9df87ad27a78",
     "kernels.mod": "0d0404431b6689f1f056a5fb90485088aceb830f944f0d580f9f2ca291206bee"
    },
    "sha256_remapped": {
@@ -1478,10 +1650,25 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 3745961,
+      "differing_bytes": 3790312,
       "file": "hello",
-      "size_a": 10460258,
-      "size_b": 10460258
+      "sections": {
+       "(outside sections)": 1403197,
+       ".comment": 10,
+       ".debug_aranges": 2,
+       ".debug_info": 1103874,
+       ".debug_line": 654329,
+       ".debug_line_str": 4801,
+       ".debug_loc": 248495,
+       ".debug_pubnames": 2,
+       ".debug_pubtypes": 2,
+       ".debug_str": 267356,
+       ".shstrtab": 283,
+       ".strtab": 103121,
+       ".symtab": 4840
+      },
+      "size_a": 10447245,
+      "size_b": 10447245
      }
     ],
     "status": "differs"
@@ -1497,10 +1684,25 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 3741293,
+      "differing_bytes": 1488011,
       "file": "hello",
-      "size_a": 10460258,
-      "size_b": 10460258
+      "sections": {
+       "(outside sections)": 136,
+       ".comment": 10,
+       ".debug_aranges": 4,
+       ".debug_info": 436649,
+       ".debug_line": 647872,
+       ".debug_line_str": 8,
+       ".debug_loc": 247062,
+       ".debug_pubnames": 2,
+       ".debug_pubtypes": 2,
+       ".debug_str": 119034,
+       ".shstrtab": 286,
+       ".strtab": 34968,
+       ".symtab": 1978
+      },
+      "size_a": 10447245,
+      "size_b": 10447245
      }
     ],
     "status": "differs"
@@ -1508,16 +1710,28 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 613,
+      "differing_bytes": 1858521,
       "file": "hello",
-      "size_a": 10460258,
-      "size_b": 10460258
+      "sections": {
+       "(outside sections)": 132452,
+       ".debug_aranges": 4,
+       ".debug_info": 646335,
+       ".debug_line": 650036,
+       ".debug_line_str": 8,
+       ".debug_loc": 242724,
+       ".debug_pubnames": 2,
+       ".debug_pubtypes": 2,
+       ".debug_str": 185930,
+       ".strtab": 1028
+      },
+      "size_a": 10447245,
+      "size_b": 10447245
      }
     ],
     "status": "differs"
    },
    "sha256": {
-    "hello": "207e044f438642875b7097c7df14cb3bced370ff69405f067013af48cb673068"
+    "hello": "da24c8692a7e93cc31b196eb05ef09f3f54ce924e23d511d3bb3bad20d278389"
    },
    "sha256_remapped": null,
    "tool": "zig"
@@ -1529,8 +1743,8 @@
      {
       "differing_bytes": 0,
       "file": "hello",
-      "size_a": 135896,
-      "size_b": 135896
+      "size_a": 135568,
+      "size_b": 135568
      }
     ],
     "status": "identical"
@@ -1548,8 +1762,8 @@
      {
       "differing_bytes": 0,
       "file": "hello",
-      "size_a": 135896,
-      "size_b": 135896
+      "size_a": 135568,
+      "size_b": 135568
      }
     ],
     "status": "identical"
@@ -1559,14 +1773,14 @@
      {
       "differing_bytes": 0,
       "file": "hello",
-      "size_a": 135896,
-      "size_b": 135896
+      "size_a": 135568,
+      "size_b": 135568
      }
     ],
     "status": "identical"
    },
    "sha256": {
-    "hello": "39cbb359d4c5c12bdb978eeffd6c62c82df7448228c4cc8b7cc3a8a59dc13096"
+    "hello": "dd6d2195524c4df25e7f2ecc1941744e13f600e4bec059efbe34d541757ff46f"
    },
    "sha256_remapped": null,
    "tool": "zig"
@@ -1681,13 +1895,13 @@
       "size_b": 10630
      },
      {
-      "differing_bytes": 16005,
+      "differing_bytes": 16007,
       "file": "b~hello.o",
       "size_a": 56080,
       "size_b": 56144
      },
      {
-      "differing_bytes": 9330,
+      "differing_bytes": 9328,
       "file": "hello",
       "size_a": 54848,
       "size_b": 54880
@@ -1699,7 +1913,7 @@
       "size_b": 2077
      },
      {
-      "differing_bytes": 1013,
+      "differing_bytes": 1014,
       "file": "hello.o",
       "size_a": 3376,
       "size_b": 3408
@@ -1856,18 +2070,18 @@
     "b~hello.adb": "83248cd0506730f942755a7214e707971e2b1af4ac0864c2b3353e01f56d7adc",
     "b~hello.ads": "0fe15b3a5b0efcbd27c21aa303c339b7654de21b16e21eed0bffefd77e39154d",
     "b~hello.ali": "583a369c075610179dcc58172cdd6db2f710935ef76e555407a5ed6bc2303115",
-    "b~hello.o": "a2def36e87191c6121bb0bf41088773cf18654a73c06213b4d2668b11c9f58d6",
-    "hello": "2a112399833d75c2fd0edd318e84679241e926814358dc2ddcffc14ed9bfceee",
+    "b~hello.o": "d789934da9196e5232f530b3cc6318c30348cbaf17bf52bd96d2d4e88316d05b",
+    "hello": "ff0e0598cc628d520c4bc2abec7910ac7ed96cc94715f7a902f49c39930787cf",
     "hello.ali": "08898d70defce850b8203964e62de6af9fdf44c254777505525278257f0c3986",
-    "hello.o": "2cb21eec16107ce96359825f8097a63051b5d41295d2ad04b7a44045704f5ca4"
+    "hello.o": "e6eea5b51508ccd7619cf4a12505371e16ffb0cb8f4b862ffe3c345449eafb81"
    },
    "sha256_remapped": {
     "b~hello.adb": "83248cd0506730f942755a7214e707971e2b1af4ac0864c2b3353e01f56d7adc",
     "b~hello.ads": "0fe15b3a5b0efcbd27c21aa303c339b7654de21b16e21eed0bffefd77e39154d",
-    "b~hello.ali": "eafe28ca02b57ba049b0ea404246aa33928dc03d4da71409edbae7ae79468b05",
+    "b~hello.ali": "723b5efb6d69f80fd0aa384509e8bc80132be1c33a434d2c8b42c0ddf8fdd7d3",
     "b~hello.o": "231482ed64f74141ae3740153a1310f37a125ee54c783ebdeeba2e70279f12be",
     "hello": "2b7282e9708c7bbb425597e7050223472ffae5f5751438dc5b3d13b50677052e",
-    "hello.ali": "064c2687b1254bd80db8a8b265ede15015ac87baf4ef53f920d7717f14699120",
+    "hello.ali": "f7f50ed45a5492845442c4e3159277884a456a308a418fded8ae10ed13b27dd2",
     "hello.o": "6cf683d4b129f6e782f7725f032d9c87871b69ac2cc2efb5bb4af62dbb45a7db"
    },
    "tool": "gnatmake"
@@ -1877,7 +2091,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 11895,
+      "differing_bytes": 11891,
       "file": "hello",
       "size_a": 77672,
       "size_b": 77688
@@ -1896,8 +2110,13 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 32,
+      "differing_bytes": 28,
       "file": "hello",
+      "sections": {
+       ".debug_line_str": 6,
+       ".note.gnu.build-id": 20,
+       ".strtab": 2
+      },
       "size_a": 77672,
       "size_b": 77672
      }
@@ -1907,8 +2126,18 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 2467,
+      "differing_bytes": 25886,
       "file": "hello",
+      "sections": {
+       ".debug_info": 136,
+       ".debug_line_str": 6,
+       ".debug_macro": 892,
+       ".debug_str": 24828,
+       ".note.gnu.build-id": 20,
+       ".rodata": 1,
+       ".strtab": 2,
+       ".text": 1
+      },
       "size_a": 77672,
       "size_b": 77672
      }
@@ -1916,7 +2145,7 @@
     "status": "differs"
    },
    "sha256": {
-    "hello": "f559b9725f58a3df865ed0a01969d5e97556ac7f129145067f964e5adc1b0a37"
+    "hello": "ee5ab8cf461eaafb7db93bad0d3937efb69a4c7664bac8837d3ffa2762dfd6ac"
    },
    "sha256_remapped": null,
    "tool": "cobc"
@@ -1926,7 +2155,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 162918,
+      "differing_bytes": 162917,
       "file": "hello",
       "size_a": 1131384,
       "size_b": 1131400
@@ -2044,10 +2273,10 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "961d6edcb2986b5f7e5f766bfb68936478cf8a99d9968f82f3757f1c505799a1",
+    "hello": "4311db80eedd169fbc825ea6e783d45ed5ea88ae6136eb189a0db5c8890315b8",
     "hello.cmi": "deaddb2ca0ee5bc3d659c500abaeea16be39b57429e8169c48b6ea739bc96793",
     "hello.cmx": "e5bfbe757b766cb1e69125175c2b775446f5d9a38909e2e85b6f31cbeafd5a41",
-    "hello.o": "3bff8e33435d2f30c8ec88a79413e7f0e2c0c28ddd5c81ccf4f5a2cf51d9a90b"
+    "hello.o": "03a4546424a351206157198b08a35628d67593fb2f0b95c6e7bd9e111123db15"
    },
    "sha256_remapped": {
     "hello": "3336750b7092e080cc8e2429f39b65a188a3dd469725ebbb37b9cc4d9cf5d4e5",
@@ -2062,7 +2291,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 198,
+      "differing_bytes": 197,
       "file": "hello.beam",
       "size_a": 884,
       "size_b": 916
@@ -2108,7 +2337,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello.beam": "f16b5943d65c106c900dfb19c21448174fadf846c909a224f05430623d58882c"
+    "hello.beam": "6079e256b470dd5d0da2735c5c2a1790d24dc28fa60b85617010c09985cba1c0"
    },
    "sha256_remapped": {
     "hello.beam": "deccf2e59dfc9d7a35f37517afbc89d0b3cbdf7ccd8a6d0d3766cfe628955e6a"
@@ -2120,10 +2349,10 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 138478,
+      "differing_bytes": 139141,
       "file": "saxpy.ll",
-      "size_a": 145299,
-      "size_b": 145315
+      "size_a": 145974,
+      "size_b": 145990
      },
      {
       "differing_bytes": 3321,
@@ -2132,10 +2361,10 @@
       "size_b": 3712
      },
      {
-      "differing_bytes": 2490,
+      "differing_bytes": 2483,
       "file": "sumsq.s",
-      "size_a": 2952,
-      "size_b": 2968
+      "size_a": 2942,
+      "size_b": 2958
      }
     ],
     "status": "differs"
@@ -2147,10 +2376,10 @@
    "remapped": {
     "files": [
      {
-      "differing_bytes": 118,
+      "differing_bytes": 146,
       "file": "saxpy.ll",
-      "size_a": 58710,
-      "size_b": 58710
+      "size_a": 59369,
+      "size_b": 59369
      },
      {
       "differing_bytes": 0,
@@ -2161,8 +2390,8 @@
      {
       "differing_bytes": 0,
       "file": "sumsq.s",
-      "size_a": 1153,
-      "size_b": 1153
+      "size_a": 1143,
+      "size_b": 1143
      }
     ],
     "status": "differs"
@@ -2170,10 +2399,10 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 120,
+      "differing_bytes": 168,
       "file": "saxpy.ll",
-      "size_a": 145299,
-      "size_b": 145299
+      "size_a": 145974,
+      "size_b": 145974
      },
      {
       "differing_bytes": 0,
@@ -2184,8 +2413,8 @@
      {
       "differing_bytes": 0,
       "file": "sumsq.s",
-      "size_a": 2952,
-      "size_b": 2952
+      "size_a": 2942,
+      "size_b": 2942
      }
     ],
     "status": "differs"
@@ -2193,10 +2422,10 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 116,
+      "differing_bytes": 168,
       "file": "saxpy.ll",
-      "size_a": 145299,
-      "size_b": 145299
+      "size_a": 145974,
+      "size_b": 145974
      },
      {
       "differing_bytes": 0,
@@ -2207,21 +2436,21 @@
      {
       "differing_bytes": 0,
       "file": "sumsq.s",
-      "size_a": 2952,
-      "size_b": 2952
+      "size_a": 2942,
+      "size_b": 2942
      }
     ],
     "status": "differs"
    },
    "sha256": {
-    "saxpy.ll": "b687ace4ad56772a4ddac55f0f427e35f276644c3d455b28558c9dd9b4cd103d",
-    "sumsq.ll": "168b16ec86c4d192b8875f5f4a4199635194934bb1b2c517dcfaebc28555bd72",
-    "sumsq.s": "223b8517bd4777403a048a03b8b17eb1914701d9776d1a7e3cbb0aecae700e45"
+    "saxpy.ll": "19c421feac1eb0557b33173365ae938c8cda16cd86a8fff36c8c579e0f36b6be",
+    "sumsq.ll": "50fa6c6c4030b65ba929f720cd7a82416a9862a0c15eeeea94339488fb64c2a9",
+    "sumsq.s": "6a9edb503ad62ee66b8c4b0967a78c044b9889af12283bb14e62b262aac4f374"
    },
    "sha256_remapped": {
-    "saxpy.ll": "0ad865a4fe3c1da91affa5528dfe8cc1879e639a879096db9d2fdf38f447daaa",
+    "saxpy.ll": "5398571e9727b48add1bd5910678d8d1e90295d11a3405a84db23acb61378715",
     "sumsq.ll": "ddf3d04ca94106f2d1c9e6833acdf368da1ffd25f23bf270df47917deeed3da3",
-    "sumsq.s": "5c159e01dd55d5fde3c69f6153db33d7ab067b03278b16d19c97cdbf350d6f0a"
+    "sumsq.s": "f9cb54332e6864d9dc1d50e9f0a60b182f249cb40bc005ff7ae3778db4a281c8"
    },
    "tool": "julia"
   }
