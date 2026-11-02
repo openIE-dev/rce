@@ -1,0 +1,72 @@
+name: compile-e1
+
+# RCE Compile, experiment E1 (compile/experiments/e1-determinism/PROTOCOL.md):
+# build each declared program twice in one directory, once in a second
+# directory, and in both with the toolchain's documented path remapping, and
+# record byte equality and the differing byte count per output file. This
+# job runs the harness on a second machine with more toolchains than the
+# machine of the committed results: the runner's own gcc, clang, rustc, go
+# and gfortran; ghc, gnat, gnucobol, ocaml, erlang and julia from apt where
+# the runner's release has them; and Zig from its official tarball, checked
+# against the SHA-256 that ziglang.org/download/index.json publishes for
+# that release. A toolchain that does not install is recorded as absent.
+# The job does not build or use the RCE checker. It also checks that the
+# committed RESULTS.md is generated from the committed results files.
+
+on:
+  push:
+    paths:
+      - "compile/experiments/e1-determinism/**"
+      - ".github/workflows/compile-e1.yml"
+  pull_request:
+    paths:
+      - "compile/experiments/e1-determinism/**"
+      - ".github/workflows/compile-e1.yml"
+
+permissions:
+  contents: read
+
+env:
+  # Zig 0.17.0, x86_64-linux; SHA-256 as published in
+  # https://ziglang.org/download/index.json (read 2026-11-01).
+  ZIG_URL: https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
+  ZIG_SHA256: 1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026
+
+jobs:
+  e1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: compile/experiments/e1-determinism
+    steps:
+      - uses: actions/checkout@v4
+      - name: The committed write-up is generated from the committed results
+        run: python3 report.py check
+      - name: Install toolchains from apt where available
+        run: |
+          sudo apt-get update
+          for p in gcc g++ clang gfortran ghc gnat gnucobol ocaml-nox erlang-base julia; do
+            sudo apt-get install -y --no-install-recommends "$p" || echo "apt: $p is not available on this runner"
+          done
+      - name: Install Zig from the pinned official tarball
+        run: |
+          d="$RUNNER_TEMP/zig"
+          mkdir -p "$d"
+          curl -fsSL "$ZIG_URL" -o "$d/zig.tar.xz"
+          echo "$ZIG_SHA256  $d/zig.tar.xz" | sha256sum -c -
+          tar -xJf "$d/zig.tar.xz" -C "$d" --strip-components=1
+          echo "$d" >> "$GITHUB_PATH"
+      - name: Add the Rust WebAssembly target
+        run: rustup target add wasm32-wasip1
+      - name: Run E1
+        run: python3 e1.py run "$RUNNER_TEMP/e1/ci-ubuntu-24.04-x86_64.json"
+      - name: Write the CI write-up from the CI results
+        run: |
+          python3 report.py write "$RUNNER_TEMP/e1/RESULTS-ci.md" "$RUNNER_TEMP/e1/ci-ubuntu-24.04-x86_64.json"
+          cat "$RUNNER_TEMP/e1/RESULTS-ci.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compile-e1-results
+          path: ${{ runner.temp }}/e1/
+          if-no-files-found: error
