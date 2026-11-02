@@ -1,6 +1,6 @@
 {
   "schema": "rce-compile-e1-matrix/1",
-  "note": "Each build runs in its own directory with the source copied in. {src} is the source file name, {stem} the name without its extension, {dir} the absolute build directory. remap is the same build with the toolchain's documented path remapping; null means no remapping is tested for that toolchain. env adds variables to the declared environment; fresh names variables that get a new empty directory, outside the build directory, for every build. source_dir is the subdirectory of the build directory that receives the source. trace_env names variables for one more remapped build in each directory whose standard error is searched for the build directory.",
+  "note": "Each build runs in its own directory with the source copied in. {src} is the source file name, {stem} the name without its extension, {dir} the absolute build directory. remap is the same build with the toolchain's documented path remapping; null means no remapping is tested for that toolchain. env adds variables to the declared environment; fresh names variables that get a new empty directory, outside the build directory, for every build. source_dir is the subdirectory of the build directory that receives the source. trace_env names variables for one more remapped build in each directory whose standard error is searched for the build directory. probe is a command that must succeed for the configuration to run; a configuration marked (macOS) has a probe that succeeds only where uname -s prints Darwin.",
   "configs": [
     {
       "id": "gcc -O2 -g",
@@ -31,6 +31,29 @@
       "build": ["clang", "-O2", "-g", "{src}", "-o", "{stem}"],
       "remap": ["clang", "-O2", "-g", "-ffile-prefix-map={dir}=.", "{src}", "-o", "{stem}"],
       "remap_source": "Clang command-line reference, -ffile-prefix-map"
+    },
+    {
+      "id": "clang -O2 -g, compile and link split (macOS)",
+      "language": "C",
+      "tool": "clang",
+      "version": ["clang", "--version"],
+      "probe": ["sh", "-c", "test \"$(uname -s)\" = Darwin"],
+      "programs": ["c/hello.c", "c/sort.c"],
+      "build": ["sh", "-c", "clang -O2 -g -c {src} -o {stem}.o && clang {stem}.o -o {stem}"],
+      "remap": ["sh", "-c", "clang -O2 -g -ffile-prefix-map={dir}=. -c {src} -o {stem}.o && clang -Wl,-oso_prefix,{dir}/ {stem}.o -o {stem}"],
+      "remap_source": "Clang command-line reference, -ffile-prefix-map; Apple ld, -oso_prefix (ld(1) on macOS)"
+    },
+    {
+      "id": "clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)",
+      "language": "C",
+      "tool": "clang",
+      "version": ["clang", "--version"],
+      "probe": ["sh", "-c", "test \"$(uname -s)\" = Darwin"],
+      "programs": ["c/hello.c", "c/sort.c"],
+      "env": {"ZERO_AR_DATE": "1"},
+      "build": ["sh", "-c", "clang -O2 -g -c {src} -o {stem}.o && clang {stem}.o -o {stem}"],
+      "remap": ["sh", "-c", "clang -O2 -g -ffile-prefix-map={dir}=. -c {src} -o {stem}.o && clang -Wl,-oso_prefix,{dir}/ {stem}.o -o {stem}"],
+      "remap_source": "Clang command-line reference, -ffile-prefix-map; Apple ld, -oso_prefix (ld(1) on macOS); ZERO_AR_DATE (Apple ld)"
     },
     {
       "id": "g++ -O2 -g",
@@ -71,6 +94,17 @@
       "build": ["rustc", "-O", "{src}", "-o", "{stem}"],
       "remap": ["rustc", "-O", "--remap-path-prefix={dir}=.", "{src}", "-o", "{stem}"],
       "remap_source": "The rustc book, --remap-path-prefix"
+    },
+    {
+      "id": "rustc -O -g, oso_prefix (macOS)",
+      "language": "Rust",
+      "tool": "rustc",
+      "version": ["rustc", "--version"],
+      "probe": ["sh", "-c", "test \"$(uname -s)\" = Darwin"],
+      "programs": ["rust/hello.rs", "rust/generic.rs"],
+      "build": ["rustc", "-O", "-g", "{src}", "-o", "{stem}"],
+      "remap": ["rustc", "-O", "-g", "--remap-path-prefix={dir}=.", "-C", "link-arg=-Wl,-oso_prefix,{dir}/", "{src}", "-o", "{stem}"],
+      "remap_source": "The rustc book, --remap-path-prefix and -C link-arg; Apple ld, -oso_prefix (ld(1) on macOS)"
     },
     {
       "id": "rustc wasm32-wasip1 -O -g",
