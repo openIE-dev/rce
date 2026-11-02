@@ -1,3 +1,6 @@
+intent "negating a zero state field gives the zero of the other sign (F6)"
+    example Neg -> x.tostr() == "-0"
+
 state S
     x: f64 = 0.0
 event Neg
@@ -16,5 +19,5 @@ step S on Neg -> x * -1.0
 #   - trace 5aca37fb97cfaedc3b9cd206cec6e1f47ca94ae6c57391760066e98505876f66
 #   - fuel 5
 # provenance: targeted.py: expected result read off the clause
-# note: law F6: the head differs from the same program with x * 1.0 (92e4ec2875cac39dae65db1c0d8e5badc693e4b5db6d4af3bf31d32d18269970)
+# note: law F6: the head differs from the same program with x * 1.0 (6f120e559e3356c6b5026ac08a7dd35d92b599f9fae8f7298b5974b4a37bf670)
 #---

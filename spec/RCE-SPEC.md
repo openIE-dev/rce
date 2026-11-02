@@ -4135,7 +4135,7 @@ also for a run in which an lvar passes from one task to another (10.3).
 file per top-level example (the package `26_use_module/` has no state
 machine), plus two event-list traces, `01_counter.events.json` (the
 counter on a longer list) and `16_multi_region.events.json` (two regions
-stepped by one event, which has no `example` lines). Five examples
+stepped by one event, on the event list of its first example). Five examples
 declare `fn main()`: 02, 13 and 37 run to `done`, and 40 and 48 stop at
 their first foreign call, which the reference evaluator does not execute
 (10.3). Examples without a state machine or `fn main()` have an empty

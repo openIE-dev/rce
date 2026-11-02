@@ -214,6 +214,18 @@ Measured on this branch on one machine (two processes at a time), with
 | `stdlib`, `math` checks shards | 5,659 | 2,303 s → 2,653 s on every tenth shard | 0 | 0 |
 | checker test fixtures | | | 3 | 3 |
 
+The conformance row counts `rce check` on the tests' own text. The emitter
+adapter (`conformance/adapters/emit_adapter.py`) runs a test's events by
+reading the block of an `example` line, and `rce emit` admits what it
+translates, W-MUT-1 included. It used to append `example EVENTS -> true`,
+which states only that the events apply, and W-MUT-1 refused it in 63 tests
+whose steps no single edit makes keep or trap. The adapter now reads the
+module's own example for those events where it has one (61 tests); the
+two tests without one gained an example that states the state:
+`spec/examples/16_multi_region.rce`, whose event-list trace had no example
+(two examples now, which kill its 8 non-equivalent mutants), and the
+targeted test `f6-signed-zero-state` (`Neg -> x.tostr() == "-0"`).
+
 The stdlib row was measured before the vacuous checks were removed; most
 of its cost is the full scans that end in a W-MUT-1 report
 (`tests/os/path_checks.rce`, 3.4 s → 43.8 s with 38 of them). After the

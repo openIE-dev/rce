@@ -14,7 +14,8 @@ fn spec() -> PathBuf {
 }
 
 /// Event lists traced in addition to the examples: the counter on a
-/// longer list, and example 16 (two regions, no `example` lines).
+/// longer list, and example 16 (two regions, the events of its first
+/// example).
 const EVENT_TRACES: &[(&str, &str)] = &[
     ("01_counter", "Inc, Inc, Dec, Inc, Dec, Dec, Dec"),
     ("16_multi_region", "AddItem(name: \"milk\"), AddItem(name: \"eggs\"), RemoveItem(name: \"milk\"), AddItem(name: \"tea\"), Reset, AddItem(name: \"jam\")"),

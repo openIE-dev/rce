@@ -152,6 +152,9 @@ fn main()
     emit a * 10.0 - a * 10.0
 """, "run", outcome="trap:non-finite float")
 t("f6-signed-zero-state", "numbers", ["F6", "N1"], """
+intent "negating a zero state field gives the zero of the other sign (F6)"
+    example Neg -> x.tostr() == "-0"
+
 state S
     x: f64 = 0.0
 event Neg
@@ -504,7 +507,8 @@ for x in T:
             findings.append({"test": m["id"], "law": [x.get("outputs"), x.get("outcome")], "reference": got})
     elif x["expect"] == "trace":
         r = ref.trace(src, x["events"])
-        pos = ref.trace(src.replace("x * -1.0", "x * 1.0"), x["events"])
+        # the same program with x * 1.0, its example stating that zero's sign
+        pos = ref.trace(src.replace("x * -1.0", "x * 1.0").replace('"-0"', '"0"'), x["events"])
         h, hp = (r.get("trace") or {}).get("head"), (pos.get("trace") or {}).get("head")
         if not h or h == hp:
             findings.append({"test": m["id"], "law": "state with -0.0 hashes differently from +0.0", "reference": [h, hp, r.get("error")]})
