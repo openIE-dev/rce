@@ -1,0 +1,57 @@
+name: compile-e4
+
+# RCE Compile, experiment E4 (compile/experiments/e4-energy/PROTOCOL.md):
+# erasure count ε and description-length proxy λ against energy. This job
+# runs the harness's unit tests, checks that the committed RESULTS.md is
+# generated from the committed results files, and runs the harness on a
+# GitHub-hosted runner so that the build, equivalence, ε and λ code paths
+# are exercised. GitHub-hosted runners expose no RAPL counter
+# (/sys/class/powercap), so the CI results contain no energy: every energy
+# field is "unmeasured". clang, lld and the Rust wasm32 target come from the
+# runner's package manager and rustup. The job does not build or use the RCE
+# checker.
+
+on:
+  push:
+    paths:
+      - "compile/experiments/e4-energy/**"
+      - ".github/workflows/compile-e4.yml"
+  pull_request:
+    paths:
+      - "compile/experiments/e4-energy/**"
+      - ".github/workflows/compile-e4.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: compile/experiments/e4-energy
+    steps:
+      - uses: actions/checkout@v4
+      - name: The committed write-up is generated from the committed results
+        run: python3 report.py check
+      - name: Install clang and lld from apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang lld
+      - name: Add the Rust WebAssembly target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Unit tests
+        run: python3 test_e4.py
+      - name: Run E4 (ε and λ only; the runner has no energy counter)
+        run: python3 e4.py run "$RUNNER_TEMP/e4/ci-ubuntu-24.04-x86_64-no-energy.json"
+      - name: Write the CI write-up from the CI results
+        run: |
+          python3 report.py write "$RUNNER_TEMP/e4/RESULTS-ci.md" "$RUNNER_TEMP/e4/ci-ubuntu-24.04-x86_64-no-energy.json"
+          grep -q '\*\*Energy: unmeasured.\*\*' "$RUNNER_TEMP/e4/RESULTS-ci.md"
+          cat "$RUNNER_TEMP/e4/RESULTS-ci.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compile-e4-results
+          path: ${{ runner.temp }}/e4/
+          if-no-files-found: error
