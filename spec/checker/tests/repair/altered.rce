@@ -2,7 +2,7 @@
 # `side` is never read (W-UNUSED-1) and the value of `doubled(&r)` is
 # dropped (W-DROP-1). Rungs a and b can give `area` only the body of
 # `perimeter`, the one other definition of its type, which the check on
-# `area` refutes; rung d never names a binding or drops a value.
+# `area` refutes; rungs d and e never name a binding or drop a value.
 struct Rect
     w: i64
     h: i64

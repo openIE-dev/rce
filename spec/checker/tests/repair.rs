@@ -1,6 +1,7 @@
 //! `rce repair` (spec 10.13): one fixture per rung of the exact-proposer
-//! ladder, a program the ladder does not close, a program that already
-//! complies, the bound of rung d, and the positional words.
+//! ladder, the renaming onto a known-good version, a program the ladder
+//! does not close, a program that already complies, the bounds of rungs d
+//! and e, and the positional words.
 use rce_spec_check::cli;
 
 fn rce(args: &[&str]) -> (i32, String) {
@@ -49,10 +50,11 @@ fn altered_rules_close_with_the_rewrites_of_rce_fmt() {
     assert_eq!(code, 0, "{r}");
     assert_eq!(r["rung"], "c");
     assert_eq!(r["model_calls"], 0);
-    // rungs a and b ran first and closed nothing; rung d was not reached
+    // rungs a and b ran first and closed nothing; rungs d and e were not reached
     assert!(r["tried"]["a"].as_u64().unwrap() + r["tried"]["b"].as_u64().unwrap() > 0, "{r}");
     assert_eq!(r["tried"]["c"], 1, "{r}");
     assert_eq!(r["tried"]["d"], 0, "{r}");
+    assert_eq!(r["tried"]["e"], 0, "{r}");
     let edit = r["edit"].as_str().unwrap();
     assert!(edit.contains("W-UNUSED-1 `side` is named `_side`"), "{r}");
     assert!(edit.contains("W-DROP-1"), "{r}");
@@ -96,6 +98,115 @@ fn enumeration_respects_its_bound() {
     assert_eq!(code, 1, "{r}");
     assert_eq!(r["closed"], false);
     assert_eq!(r["tried"]["d"], 0);
+    assert_eq!(r["tried"]["e"], 0);
+}
+
+/// The original of tests/repair/rename.rce: one use of `h` was renamed to `w`.
+const RENAME_ORIGINAL: &str = "intent \"the perimeter of a rectangle of width w and height h\"\n    check perimeter(2, 3) == 10\n    check perimeter(1, 5) == 12\n\nfn perimeter(w: u64, h: u64) -> u64\n    let side = w + h\n    return side * 2\n";
+
+fn canonical(text: &str) -> String {
+    rce_spec_check::unparse::unparse(&rce_spec_check::parse::parse(text).unwrap())
+}
+
+#[test]
+fn renames_close_what_no_other_rung_closes() {
+    let (code, r) = repair(&["tests/repair/rename.rce"]);
+    assert_eq!(code, 0, "{r}");
+    assert_eq!(r["rung"], "e");
+    assert_eq!(r["model_calls"], 0);
+    // the report names `h` (W-UNUSED-1), so `h` replaces a use of `w` first
+    assert!(r["edit"].as_str().unwrap().contains("use 1 of `w` on the line becomes `h`"), "{r}");
+    assert_eq!(r["tried"]["e"], 1, "{r}");
+    // rung c ran first (it names `h` as `_h`, and the checks still fail),
+    // and no single edit of rung d holds
+    assert_eq!(r["tried"]["c"], 1, "{r}");
+    assert!(r["tried"]["d"].as_u64().unwrap() > 0, "{r}");
+    let attempts = r["attempts"].as_array().unwrap();
+    assert!(attempts.iter().filter(|a| a["rung"] != "e").all(|a| a["verdict"].as_str().unwrap().starts_with("requires change")), "{r}");
+    let fixed = r["repaired"].as_str().unwrap();
+    assert!(fixed.contains("let side = h + w"), "{fixed}");
+    admitted(fixed);
+    // the same run gives the same answer, candidate for candidate
+    let (_, r2) = repair(&["tests/repair/rename.rce"]);
+    assert_eq!(r, r2);
+    let (code, out) = rce(&["repair", "tests/repair/rename.rce"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.starts_with("rung      e renames\n"), "{out}");
+    assert!(out.contains(", e 1 (candidates judged by the checker; 0 model calls)"), "{out}");
+}
+
+#[test]
+fn renames_stay_within_their_bound() {
+    let (code, r) = repair(&["bound", "0", "tests/repair/rename.rce"]);
+    assert_eq!(code, 1, "{r}");
+    assert_eq!(r["tried"]["d"], 0);
+    assert_eq!(r["tried"]["e"], 0);
+}
+
+#[test]
+fn renames_never_touch_what_a_candidate_is_judged_by() {
+    // the check names values the body could be renamed to, and no rename of
+    // the body closes it; every candidate of rung e edits the body only
+    let dir = std::env::temp_dir().join(format!("rce-repair-spec-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("greet.rce");
+    std::fs::write(&file, "intent \"a greeting\"\n    check greet(\"a\", \"b\") == \"hello\"\n\nfn greet(x: text, y: text) -> text\n    let z = x + y\n    return z + y\n").unwrap();
+    let (code, r) = repair(&[file.to_str().unwrap()]);
+    assert_eq!(code, 1, "{r}");
+    let d: Vec<&str> = r["attempts"].as_array().unwrap().iter().filter(|a| a["rung"] == "e").map(|a| a["edit"].as_str().unwrap()).collect();
+    assert!(d.len() >= 4, "{r}");
+    for e in &d {
+        assert!(e.contains("line 5:") || e.contains("line 6:"), "{e}");
+    }
+    assert_eq!(r["tried"]["e"].as_u64().unwrap() as usize, d.len());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn the_renaming_onto_a_known_good_version_restores_the_original() {
+    // rename_good.rce has other names (`width`, `height`, `half`) and the
+    // original's name-free projection: the renaming onto it keeps the names
+    // of rename.rce and changes the one use that breaks it
+    let (code, r) = repair(&["known", "tests/repair/rename_good.rce", "tests/repair/rename.rce"]);
+    assert_eq!(code, 0, "{r}");
+    assert_eq!(r["rung"], "e");
+    let edit = r["edit"].as_str().unwrap();
+    assert!(edit.contains("keeps the names of FILE: line 7: `w` becomes `h`"), "{r}");
+    // judged before rung a, with no search
+    assert_eq!(r["tried"]["a"], 0, "{r}");
+    assert_eq!(r["tried"]["c"], 0, "{r}");
+    assert_eq!(r["tried"]["d"], 0, "{r}");
+    assert_eq!(r["tried"]["e"], 1, "{r}");
+    let fixed = r["repaired"].as_str().unwrap();
+    assert_eq!(fixed, canonical(RENAME_ORIGINAL), "restored, names and all");
+    admitted(fixed);
+    let (_, r2) = repair(&["known", "tests/repair/rename_good.rce", "tests/repair/rename.rce"]);
+    assert_eq!(r, r2);
+    // a GOOD that does not exist or does not parse is a usage error
+    let (code, out) = rce(&["repair", "known", "tests/repair/none.rce", "tests/repair/rename.rce"]);
+    assert_eq!(code, 2, "{out}");
+}
+
+#[test]
+fn a_renaming_that_is_not_one_to_one_falls_back_to_the_known_good_text() {
+    // FILE writes `x` where GOOD writes `a` and where it writes `b`, so no
+    // one-to-one renaming keeps FILE's names: the candidate is GOOD's text
+    let dir = std::env::temp_dir().join(format!("rce-repair-known-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let good = dir.join("good.rce");
+    let file = dir.join("file.rce");
+    std::fs::write(&good, "intent \"the sum\"\n    check add(2, 3) == 5\n\nfn add(a: u64, b: u64) -> u64\n    return a + b\n").unwrap();
+    std::fs::write(&file, "intent \"the sum\"\n    check add(2, 3) == 5\n\nfn add(x: u64, x: u64) -> u64\n    return x + x\n").unwrap();
+    let (g, f) = (good.to_str().unwrap(), file.to_str().unwrap());
+    let (code, r) = repair(&["known", g, f]);
+    assert_eq!(code, 0, "{r}");
+    assert_eq!(r["rung"], "e");
+    let edit = r["edit"].as_str().unwrap();
+    assert!(edit.contains("`x` becomes `a`, `x` becomes `b`") && !edit.contains("keeps the names"), "{r}");
+    assert_eq!(r["tried"]["a"], 0, "{r}");
+    assert_eq!(r["tried"]["e"], 1, "{r}");
+    assert_eq!(r["repaired"].as_str().unwrap(), canonical(&std::fs::read_to_string(&good).unwrap()));
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
