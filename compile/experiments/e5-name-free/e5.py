@@ -45,7 +45,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 E4 = os.path.join(HERE, "..", "e4-energy")
 E1 = os.path.join(HERE, "..", "e1-determinism")
 sys.path.insert(0, HERE)
-sys.path.insert(0, E4)
+sys.path.append(E4)
 
 import irhash  # noqa: E402
 import machine  # noqa: E402
@@ -60,8 +60,9 @@ KEYS = {
     "native-object": ("output-bytes", "source-key", "machine-module", "machine-run"),
     "macho-arm64-object": ("output-bytes", "source-key", "machine-module", "machine-run"),
     "wasm-object": ("output-bytes", "source-key", "machine-module", "machine-run"),
-    "wasm-module": ("output-bytes", "source-key", "ir-module", "ir-run"),
+    "wasm-module": ("output-bytes", "source-key", "ir-module", "ir-run", "ir-module-path-removed"),
 }
+DIAGNOSTIC = ("ir-module-path-removed",)  # added after the first run; not used for H5's verdict
 
 
 def sha256_bytes(b):
@@ -132,8 +133,8 @@ def execute(argv, cwd):
 
 # -- one output -------------------------------------------------------------------------
 
-def keys_of(kind, data, src_bytes, shown):
-    """The keys of one built output."""
+def keys_of(kind, data, src_bytes, shown, d):
+    """The keys of one built output; d is its build directory."""
     k = {"output-bytes": sha256_bytes(data),
          "source-key": sha256_bytes(src_bytes + b"\0" + "\0".join(shown).encode())}
     info = {}
@@ -141,12 +142,14 @@ def keys_of(kind, data, src_bytes, shown):
         try:
             m = irhash.Module(data)
             k["ir-module"], im = irhash.r_hash(m)
+            k["ir-module-path-removed"] = irhash.r_hash(irhash.path_removed(m, d.encode()))[0]
             try:
                 k["ir-run"], ir = irhash.r_hash(m, "run")
             except irhash.Unsupported as e:
                 k["ir-run"], ir = None, {"error": str(e)}
             info = {"status": "hashed", "rounds": im["rounds"], "tied_functions": im["tied_functions"],
-                    "functions": im["functions"], "run_functions": ir.get("functions"), "ir_nodes": m.ir_nodes()}
+                    "functions": im["functions"], "run_functions": ir.get("functions"), "ir_nodes": m.ir_nodes(),
+                    "parts": irhash.part_hashes(m), "run_parts": irhash.part_hashes(m, "run") if k["ir-run"] else None}
         except irhash.Unsupported as e:
             k["ir-module"] = k["ir-run"] = None
             info = {"status": "not hashed: %s" % e}
@@ -285,7 +288,8 @@ def build_all(matrix, progs, tools, work):
                     data = open(out, "rb").read()
                     row["status"] = "built"
                     row["bytes"] = len(data)
-                    row["keys"], row["hash_info"] = keys_of(kind, data, srcs[variant], shown)
+                    row["keys"], row["hash_info"] = keys_of(kind, data, srcs[variant], shown, d)
+                    row["dir_copies"] = data.count(d.encode())
                     if kind == "native-object" and variant == "A":
                         row["decoder_check"] = objdump_agreement(out, data)
                     if kind == "wasm-module" and prog["inputs"]:
@@ -350,9 +354,27 @@ def compare(rows, matrix):
                 declared_equal = matrix["comparisons"][name]["declared"] == "equal"
                 for k, v in p.items():
                     if v is not None and v != declared_equal and k not in ("output-bytes", "source-key"):
-                        ex.append({"key": k, "a": "%s %s %s" % (a["program"], a["config"], a["variant"]),
-                                   "b": "%s %s %s" % (b["program"], b["config"], b["variant"])})
+                        e = {"key": k, "a": "%s %s %s" % (a["program"], a["config"], a["variant"]),
+                             "b": "%s %s %s" % (b["program"], b["config"], b["variant"]),
+                             "dir_copies": [a.get("dir_copies"), b.get("dir_copies")]}
+                        pa, pb = (a["hash_info"].get("run_parts" if k == "ir-run" else "parts"),
+                                  b["hash_info"].get("run_parts" if k == "ir-run" else "parts"))
+                        if pa and pb:
+                            e["parts_differing"] = [x for x in irhash.PARTS if pa[x] != pb[x]]
+                        ex.append(e)
             comp[name]["examples"].setdefault(out, {})[label] = ex[:200]
+            if out == "wasm-module":
+                pe = {}
+                for a, b in ps:
+                    for which in ("parts", "run_parts"):
+                        pa, pb = a.get("hash_info", {}).get(which), b.get("hash_info", {}).get(which)
+                        if not pa or not pb:
+                            continue
+                        for x in irhash.PARTS:
+                            t = pe.setdefault(which, {}).setdefault(x, {"pairs": 0, "equal": 0})
+                            t["pairs"] += 1
+                            t["equal"] += pa[x] == pb[x]
+                comp[name].setdefault("parts_equal", {})[label] = pe
 
     progs = sorted(set(r["program"] for r in rows))
     levels = {}

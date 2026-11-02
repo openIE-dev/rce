@@ -44,7 +44,7 @@ RUST_LIBRARY = """u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize f32 f64 bo
 Ok Err Result Box BTreeMap HashMap""".split()
 KEEP_RUST = set(RUST_KEYWORDS) | set(RUST_LIBRARY) | {"run", "main", "_"}
 
-TOKEN = re.compile(r"""
+ITEM = re.compile(r"""
     (?P<comment>//[^\n]*|/\*.*?\*/)
   | (?P<pre>^[ \t]*\#[ \t]*include[^\n]*)
   | (?P<attr>\#!?\[(?:[^\[\]]|\[[^\[\]]*\])*\])
@@ -57,7 +57,7 @@ TOKEN = re.compile(r"""
 
 
 def lex(text):
-    return [(m.lastgroup, m.group()) for m in TOKEN.finditer(text)]
+    return [(m.lastgroup, m.group()) for m in ITEM.finditer(text)]
 
 
 def library_names(lang, items):

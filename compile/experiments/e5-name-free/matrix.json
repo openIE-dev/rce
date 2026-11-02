@@ -48,7 +48,8 @@
   "machine-module": "R at the machine-code level: SHA-256 of the sorted WARP-style IDs of every function of the object (machine.py)",
   "machine-run": "R at the machine-code level: the WARP-style ID of the function run (machine.py)",
   "ir-module": "R at the IR level: the alpha-equivalence hash of the linked WebAssembly module (irhash.py)",
-  "ir-run": "R at the IR level: the alpha-equivalence hash of the part of the module that the export run reaches (irhash.py)"
+  "ir-run": "R at the IR level: the alpha-equivalence hash of the part of the module that the export run reaches (irhash.py)",
+  "ir-module-path-removed": "diagnostic added after the first run, not used for H5's verdict: ir-module with every copy of the build directory in the data segments replaced by {dir} (irhash.path_removed)"
  },
  "comparisons": {
   "two_dir": {"declared": "equal", "what": "the same source bytes built in directories A and B"},

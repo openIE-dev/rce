@@ -33,7 +33,7 @@ import sys
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "e1-determinism"))
+sys.path.append(os.path.join(HERE, "..", "e1-determinism"))
 
 import e1  # noqa: E402  (Mach-O load commands)
 import irhash  # noqa: E402  (WebAssembly decoding)

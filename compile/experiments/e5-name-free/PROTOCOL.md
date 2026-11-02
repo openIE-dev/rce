@@ -270,6 +270,37 @@ the charter requires (section 4.4) is:
   over SHA-1), and the WebAssembly specification as the semantics; the
   engine that later runs the module is outside what the hash decides.
 
+## Changes after the first run (2026-11-02)
+
+The first run, with the harness as registered, found the linked modules of
+some Rust rows unequal at the IR level across directories and across
+renaming. Diagnostics were added to the harness, none of which changes a
+registered key, a comparison or a condition, and the corpus was run again;
+the committed results file is the second run's. Every key of the first run
+is reproduced by the second except the keys of outputs that contain their
+build directory's path, which differs between runs because each run has its
+own work directory.
+
+- **`dir_copies`**: for every output, the number of times it contains its
+  build directory's path.
+- **Parts of the canonical form**: for every linked module, the SHA-256 of
+  each part of the `ir-module` and `ir-run` forms (imports, tables,
+  memories, globals, functions, elements, data, exports, start), so that
+  RESULTS.md names the parts in which two unequal forms differ, and counts
+  per part the equal `c_vs_rust` pairs.
+- **`ir-module-path-removed`**: `ir-module` with every copy of the build
+  directory's path in the data segments replaced by `{dir}`
+  (`irhash.path_removed`). The charter's R removes the build path before
+  hashing; the registered `ir-module` treats every data byte as a constant
+  and does not. The diagnostic shows what that removal changes. It is
+  reported next to the registered keys and is not used for H5's verdict.
+
+A check outside the harness, on `rust/fib` at `opt-level=0` built from the
+original and the renamed source in one directory, found the two data
+segments differing in the column numbers of the location records that
+Rust's overflow messages carry: the renamed identifiers are longer, so the
+same expression starts at a later column.
+
 ## Files and running it
 
 | File | Contents |

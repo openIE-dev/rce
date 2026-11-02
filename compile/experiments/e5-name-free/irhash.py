@@ -49,7 +49,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "e4-energy"))
+sys.path.append(os.path.join(HERE, "..", "e4-energy"))
 
 import wasm_eps  # noqa: E402  (its Reader, LEB128 decoding and MEMOPS table)
 
@@ -566,6 +566,27 @@ def canonical(m, entry=None):
 def r_hash(m, entry=None):
     form, info = canonical(m, entry)
     return sha(form), info
+
+
+PARTS = ("schema", "scope", "imports", "tables", "memories", "globals", "functions", "elements", "data", "exports",
+         "start")
+
+
+def part_hashes(m, entry=None):
+    """SHA-256 of each part of the canonical form, to say which parts two unequal forms differ in."""
+    form, _info = canonical(m, entry)
+    return {k: sha(v) for k, v in zip(PARTS, form)}
+
+
+def path_removed(m, path):
+    """A copy of m whose data segments have every occurrence of the bytes path replaced by {dir}.
+
+    Added after E5's first run, as a diagnostic (PROTOCOL.md, "Changes after the first run").
+    """
+    c = Module.__new__(Module)
+    c.__dict__.update(m.__dict__)
+    c.datas = [(k, mem, off, b.replace(path, b"{dir}")) for k, mem, off, b in m.datas]
+    return c
 
 
 # -- mutations: the property that any change of an opcode or a constant changes the hash ----------
