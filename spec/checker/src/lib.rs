@@ -37,6 +37,7 @@ pub mod manifest;
 pub mod index08;
 pub mod interp;
 pub mod lalr;
+pub mod lift_authority;
 pub mod law;
 pub mod link;
 pub mod lsp;

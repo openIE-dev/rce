@@ -1,7 +1,7 @@
 {
  "format": "rce-clauses/1",
  "book": "spec/book",
- "id_set_sha256": "cf87ea723c1a7a4b2544824d11154dedb1a7d4031a3f7d9bba4ee1df4a2a0526",
+ "id_set_sha256": "d2972436a64579491a853c4b00d9cf7e2a6031f502bd5bc47495c031cb878d2e",
  "clauses": [
   {
    "id": "CH00-M-61b6ac06",
@@ -2051,9 +2051,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 280,
+   "line": 297,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L1 Labeled: every relation, region, event and transition carries a label that starts with \"unproven\"; a lifted element is never presented as checked.",
+   "text": "- L1 Labeled: a lifted element is never presented as checked. In the engine's lift (proposal-only) every relation, region, event and transition carries a label that starts with \"unproven\". In the probes, what a lift establishes is a claim of its lift report, defined below, and a claim whose verdict is not `closed` is not established.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2062,9 +2062,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 290,
+   "line": 302,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L2 Fail closed: a guard the lift cannot read is opaque, and `Lifted::step` does not step through it, rather than choose a branch it cannot read.",
+   "text": "- L2 Fail closed: a construct the lift cannot read exactly is never given a meaning it may not have. The probes print no Form for such a program and report each construct, with its rule and line, as requiring change. In the engine's lift (proposal-only), a guard it cannot read is opaque, and `Lifted::step` does not step through it, rather than choose a branch it cannot read.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2073,9 +2073,9 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 292,
+   "line": 308,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L3 Generated code agrees with the lift: code emitted from a lifted machine (`--emit-machine`) steps as `Lifted::step`.",
+   "text": "- L3 Generated code agrees with the lift (proposal-only): code emitted from a lifted machine steps as `Lifted::step`. The probes emit no code.",
    "restated": [],
    "profile": "handler-spec"
   },
@@ -2084,9 +2084,31 @@
    "kind": "rule",
    "normative": true,
    "chapter": "15-handler-spec-profile.md",
-   "line": 294,
+   "line": 310,
    "section": "D.8 Lift guarantees (normative)",
-   "text": "- L4 Evidence, not proof: agreement of the lift with the original program is tested on seeded runs of the original; its level is tested (8). A lift is an input to a gate, never an authority: what it proposes is admitted only through the checker and the gate, like any other proposal.",
+   "text": "- L4 Evidence, not proof: agreement of the lift with the original program is tested on recorded or live runs of the original; its level is tested (8). A lift is an input to a gate, never an authority: what it proposes is admitted only through the checker and the gate, like any other proposal.",
+   "restated": [],
+   "profile": "handler-spec"
+  },
+  {
+   "id": "L5",
+   "kind": "rule",
+   "normative": true,
+   "chapter": "15-handler-spec-profile.md",
+   "line": 315,
+   "section": "D.8 Lift guarantees (normative)",
+   "text": "- L5 Authority: a *claim* of a lift is a statement with an id, a revision, the authority level it requires, and the names of the digests it is bound to; an *evidence record* answers one claim by its id and revision, and states the verifier that made it, its authority, its kind, its result (`holds`, `differs` or `undecided`) and its digests. A digest is the SHA-256 of a file's bytes as 64 lowercase hex digits. The *kind* says what the evidence is: *observed* (a run of a pinned implementation), *derived* (computed from definitions) or *inferred* (proposed by a model or a heuristic). The levels, ",
+   "restated": [],
+   "profile": "handler-spec"
+  },
+  {
+   "id": "L6",
+   "kind": "rule",
+   "normative": true,
+   "chapter": "15-handler-spec-profile.md",
+   "line": 336,
+   "section": "D.8 Lift guarantees (normative)",
+   "text": "- L6 Closure: a claim's verdict is `closed` only when an evidence record answers its id and revision, holds, names an authority that closes the level the claim requires, has the kind of that authority, and is bound to every digest the claim states: those of the source, the lift table and the lifter, the lifted text, the checker that made the evidence, and, where the claim names them, the recording, the oracle's executable or the counterpart. Integrity fails closed: a record that names an unknown authority, kind or result, or carries a digest that is malformed or differs from the one the report",
    "restated": [],
    "profile": "handler-spec"
   },

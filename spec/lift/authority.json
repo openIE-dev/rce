@@ -1,0 +1,94 @@
+{
+ "format": "rce-lift-authority/1",
+ "note": "The authority of a lift's evidence, as data (Appendix D.8, L5 and L6; spec/proposals/evidence-authority.md). Read by spec/lift/authority.py, which the lift probes call, and by spec/checker/src/lift_authority.rs, which checks the committed reports.",
+ "kinds": {
+  "observed": "the record of a run of a pinned implementation, made now or recorded earlier and bound by digest",
+  "derived": "computed from definitions: a table row with its clause, or an exploration of both programs that reached no bound",
+  "inferred": "proposed by a model or a heuristic: no run, definition or exhaustive computation stands behind it"
+ },
+ "levels": [
+  {
+   "authority": "pinned",
+   "kind": "observed",
+   "closes": ["pinned", "replay"],
+   "evidence": "the pinned implementation, its executable bound by the SHA-256 that its oracle record names, is run on the case now, and its observation equals the lifted program's byte for byte",
+   "rea": "shipped-artifact"
+  },
+  {
+   "authority": "replay",
+   "kind": "observed",
+   "closes": ["replay"],
+   "evidence": "an observation recorded earlier from the pinned implementation, bound by its SHA-256, equals the lifted program's observation byte for byte",
+   "rea": "controlled-replay"
+  },
+  {
+   "authority": "bisimilar",
+   "kind": "derived",
+   "closes": ["bisimilar"],
+   "evidence": "rce equiv gives `equivalent` and neither exploration reached its bound (`exact`): the lifted program and its counterpart are bisimilar on the explored alphabet (T58)",
+   "rea": null
+  },
+  {
+   "authority": "derived",
+   "kind": "derived",
+   "closes": ["derived"],
+   "evidence": "every construct of the lifted program comes from a row of the lift table, and every row used cites its clause of the language's defining reference",
+   "rea": "derived (a confidence of REA's Evidence)"
+  },
+  {
+   "authority": "inferred",
+   "kind": "inferred",
+   "closes": [],
+   "evidence": "a model's or a heuristic's statement, a summary of a verifier that does not cite a qualifying record, or any record whose kind is inferred",
+   "rea": "inferred (a confidence of REA's Evidence)"
+  }
+ ],
+ "results": ["holds", "differs", "undecided"],
+ "verdicts": {
+  "closed": "a record answers the claim's id and revision, holds, is bound to every digest the claim states, and has an authority that closes the claim's level and the kind of that authority",
+  "open": "no applicable record, a record of a lower authority, a stale revision, two records of one verifier, or a dependency that is not closed",
+  "undecided": "the holding evidence is inferred or of a kind below its stated authority, or a verifier was undecided: a passing summary never promotes inferred evidence into an observation",
+  "failed": "an applicable record differs, or a record is malformed or bound to another digest (fail closed)"
+ },
+ "claims": {
+  "go": [
+   {
+    "id": "GO-ROWS",
+    "revision": 1,
+    "requires": "derived",
+    "binds": ["source", "table", "lifter", "form", "checker"],
+    "statement": "every construct of the lifted Form comes from a row of spec/lift/go/table.json, and every row used cites its clause of the Go specification"
+   },
+   {
+    "id": "GO-AGREE",
+    "revision": 1,
+    "requires": "replay",
+    "binds": ["source", "table", "lifter", "form", "checker", "recording"],
+    "statement": "the lifted Form and the Go program give equal observations on every case of a pinned corpus, run by the pinned Go toolchain"
+   },
+   {
+    "id": "GO-EQUIV",
+    "revision": 1,
+    "requires": "bisimilar",
+    "binds": ["source", "table", "lifter", "form", "checker", "counterpart"],
+    "statement": "the lifted Form is bisimilar to the hand-written RCE program named as its counterpart"
+   }
+  ],
+  "python": [
+   {
+    "id": "PY-RECORDED",
+    "revision": 1,
+    "requires": "replay",
+    "binds": ["source", "table", "lifter", "form", "checker", "recording"],
+    "statement": "the lifted program's standard output under `rce run` equals, byte for byte, the standard output recorded from CPython 3.13.16 under its oracle record"
+   },
+   {
+    "id": "PY-PINNED",
+    "revision": 1,
+    "requires": "pinned",
+    "binds": ["source", "table", "lifter", "form", "checker", "oracle"],
+    "statement": "the lifted program's standard output under `rce run` equals, byte for byte, that of the interpreter of lang/python3.13/oracle/cpython-3.13.16.toml run on the source now, which exits 0 with no standard error"
+   }
+  ]
+ }
+}
