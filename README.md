@@ -180,6 +180,7 @@ file would require change under W-INT-1.
 | `rce fmt [check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
 | `rce dim [control] [json] [fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce repair [json] [bound N] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, one small edit) judged by the checker, with no model call (spec 10.13) |
+| `rce mutants [json] [bound N] FILE` | make every single edit of a program and run its examples, checks and laws on each: the score, what each obligation kills, the vacuous ones (W-MUT-1) and each surviving edit with its diff (spec 6.12, 10.14) |
 | `rce host run [GRANT...] FILE D [EVENTS]`, `rce host serve [GRANT...] [http HOST:PORT] FILE D` | run a program under the host contract (Appendix E): admitter, log D, adapters, sandbox |
 | `rce lsp` | language server on standard input and output |
 | `rce help`, `rce version` | every command with its words; the commit `rce` was built from |

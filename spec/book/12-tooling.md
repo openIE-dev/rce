@@ -62,7 +62,9 @@ and reads nothing outside it (the multi-module example is the package
 `spec/examples/26_use_module/`, so `rce check spec/examples/26_use_module`
 checks it alone). Each file is
 parsed, type checked (section 5) and admitted (6.9: every `const`,
-`comptime` block, `check` and `example` is evaluated). For each file, in
+`comptime` block, `check` and `example` is evaluated; 6.11: every law is
+decided; 6.12: once these hold, the obligations are judged on the mutants
+of the program, W-MUT-1). For each file, in
 the order given, one line is printed:
 
 ```
@@ -1086,6 +1088,56 @@ it the program that was meant. `rce equiv` (10.11) and the program hash of
 definitions of a known original; `scripts/ladder-run.py` reports that
 split for the task sets that `scripts/ladder-tasks.py` writes.
 
+### 10.14 `rce mutants [json] [bound N] FILE [MODULE...]`: mutation adequacy (informative)
+
+`rce mutants` judges the mutant set of FILE (6.12), checked with the
+MODULEs as in 10.2, on its obligations: the first N mutants (`bound N`,
+default MUTANT_BOUND, 2,000), each on every obligation whose reach holds
+its definition. FILE must be admitted by every rule but W-MUT-1; otherwise
+the command prints `rce check`'s report and exits 1.
+
+Output, one line each: `mutants` (judged, single edits, the bound, the
+definitions), the counts of mutants not in Form, equivalent and undecided,
+`score` (killed of non-equivalent, with the share rounded down to a tenth
+of a percent), one `obligation` line per example, check and law in text
+order (its line, the mutants it kills of the in-Form mutants of its reach,
+its text, and why it is not measured when it is not), one `vacuous` line
+per W-MUT-1 report, then one `survivor` block per survivor: the edit as
+`rce repair` prints it, the diff of the canonical texts (`-` and `+` lines
+with line numbers of the canonical text, as in 10.13), and either `after
+EVENTS: the program OUTPUT, the mutant OUTPUT` from `rce equiv` (10.11,
+with a state bound of 20,000) or `not compared: REASON` (a definition no
+step reaches, one `fn main` reaches, or a program with no step: `rce equiv`
+compares the behaviour of the steps); last, `verdict`. For the fixture
+`spec/checker/tests/mutants/vacuous.rce`:
+
+```
+score       19 killed of 23 non-equivalent (82.6%)
+obligation  line 7     kills    0 of   23  example Reset -> n >= (0)
+survivor    W-MUT-2 in `step Counter on Inc`, line 26: `6` becomes `7`
+            -  25 step Counter on Inc -> (n + (1)) % (6)
+            +  25 step Counter on Inc -> (n + (1)) % (7)
+            after Inc(), Inc(), Inc(), Inc(), Inc(), Inc(), Show(): the program emits Shown(value: 0), the mutant emits Shown(value: 12)
+```
+
+With `json` the same is one JSON object (format `rce-mutants/1`) that also
+lists every mutant judged with its definition, edit, line and fate (`not
+in Form` with the report, `killed` with the lines of the obligations that
+kill it, `equivalent`, `undecided`, or `survives` with the witness or the
+reason it was not compared, and its diff), and per obligation its cost
+(fuel, or a law's steps) and whether W-MUT-1 measures it. Exit status 1
+when an obligation is vacuous (W-MUT-1) or FILE requires change, else 0;
+survivors do not change it. The command is deterministic: equal inputs give
+equal output bytes.
+
+`rce check` decides W-MUT-1 without judging the whole set: for each
+measured obligation not yet killed it judges first the mutants at
+expressions its run on the program evaluated, stops at the first kill,
+and on a kill runs that mutant on the other obligations whose runs
+evaluated the edited expression. An obligation is reported only after it
+has been run on every in-Form mutant of its reach, so `rce check` and
+`rce mutants` report the same W-MUT-1 lines.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: ece85238fb2f1d22383de9a33a2195e09e30dfcdba9aeb8611a8330c885c9880 -->
+<!-- body-sha256: fa086eb08146c59d79cbd37c60e5d0f493a1e3122d1808c94d3fae28933d399f -->

@@ -1,0 +1,17 @@
+# Not measured: `SetVolume` is `-> p`, which no single edit changes, and
+# `pct` overwrites the initial value; the example is not refused (6.12).
+# `check 1 + 1 == 2` reads no definition: a statement about the language,
+# not measured either.
+intent "a volume set from its event"
+    example SetVolume(pct: 40) -> level == 40
+    example Up, Up -> level == 2
+    check 1 + 1 == 2
+
+state Volume
+    level: u8 = 0
+
+event SetVolume(pct: u8)
+event Up
+
+step Volume on SetVolume(pct: p) -> p
+step Volume on Up if level < 100 -> level + 1
