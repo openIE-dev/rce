@@ -19,9 +19,8 @@
 //! - [`anomaly`]: flag |delta| > k sigma.
 pub mod anomaly;
 pub mod apportion;
-pub mod budget;
-pub mod perfetto;
 pub mod attrib;
+pub mod budget;
 pub mod calib;
 pub mod cli;
 pub mod discover;
@@ -29,6 +28,7 @@ pub mod gpu_launch;
 pub mod hwmon;
 pub mod ioreport;
 pub mod meter;
+pub mod perfetto;
 pub mod power;
 pub mod powermetrics;
 pub mod setup;

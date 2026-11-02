@@ -9,7 +9,7 @@
 //! `rce_ide::gpu_launch` (GPU timestamp queries when the adapter has them,
 //! else host-timed submit-to-done). Launches from other processes (CUDA,
 //! ROCm, Metal outside wgpu) need vendor profilers and are not collected.
-use crate::apportion::{apportion, Activity, Apportioned};
+use crate::apportion::{Activity, Apportioned, apportion};
 use crate::attrib::Sample;
 use std::collections::BTreeMap;
 
@@ -36,11 +36,21 @@ pub struct GpuAttribution {
 }
 
 pub fn attribute(samples: &[Sample], launches: &[Launch]) -> GpuAttribution {
-    let acts: Vec<Activity> = launches.iter().enumerate().map(|(i, l)| Activity {
-        process: format!("{i}"), start_ns: l.start_ns, end_ns: l.end_ns, weight: 1.0,
-    }).collect();
+    let acts: Vec<Activity> = launches
+        .iter()
+        .enumerate()
+        .map(|(i, l)| Activity {
+            process: format!("{i}"),
+            start_ns: l.start_ns,
+            end_ns: l.end_ns,
+            weight: 1.0,
+        })
+        .collect();
     let Apportioned { per_process, idle } = apportion(samples, &acts);
-    let mut out = GpuAttribution { idle, ..Default::default() };
+    let mut out = GpuAttribution {
+        idle,
+        ..Default::default()
+    };
     for (k, j) in per_process {
         let l = &launches[k.parse::<usize>().unwrap_or(0)];
         *out.per_kernel.entry(l.kernel.clone()).or_default() += j;
@@ -54,9 +64,34 @@ mod tests {
     use super::*;
     #[test]
     fn kernels_split_overlap_and_roll_up_to_callers() {
-        let s = [Sample { t_ns: 0, joules: 0.0 }, Sample { t_ns: 10, joules: 10.0 }, Sample { t_ns: 20, joules: 30.0 }];
-        let l = |k: &str, c: &str, a, b| Launch { kernel: k.into(), caller: c.into(), start_ns: a, end_ns: b };
-        let r = attribute(&s, &[l("gemm", "train", 0, 10), l("gemm", "train", 10, 20), l("relu", "infer", 10, 20)]);
+        let s = [
+            Sample {
+                t_ns: 0,
+                joules: 0.0,
+            },
+            Sample {
+                t_ns: 10,
+                joules: 10.0,
+            },
+            Sample {
+                t_ns: 20,
+                joules: 30.0,
+            },
+        ];
+        let l = |k: &str, c: &str, a, b| Launch {
+            kernel: k.into(),
+            caller: c.into(),
+            start_ns: a,
+            end_ns: b,
+        };
+        let r = attribute(
+            &s,
+            &[
+                l("gemm", "train", 0, 10),
+                l("gemm", "train", 10, 20),
+                l("relu", "infer", 10, 20),
+            ],
+        );
         assert!((r.per_kernel["gemm"] - 20.0).abs() < 1e-9);
         assert!((r.per_kernel["relu"] - 10.0).abs() < 1e-9);
         assert!((r.per_caller["train"] - 20.0).abs() < 1e-9);
