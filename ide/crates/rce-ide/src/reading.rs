@@ -1,10 +1,10 @@
-//! A package RAPL reading as a receipt term of spec Appendix D, D.11.
+//! A package counter reading as a receipt term of spec Appendix D, D.11.
 //!
-//! `rce test measure` reads the machine's RAPL package counters around a
-//! test run. RAPL is an on-chip energy counter, so the term's basis is
-//! `reported` (D.11: "an OS or on-chip energy counter: RAPL, NVML,
-//! IOReport"), never `measured`, which D.11 keeps for a wall or shunt meter
-//! on a named rail. The term carries D.11's `provenance` = {`sampler`,
+//! `rce test measure` reads the machine's package energy counters around a
+//! test run: RAPL on Linux, IOReport on macOS (Apple silicon). Both are
+//! on-chip energy counters, so the term's basis is `reported` (D.11: "an
+//! OS or on-chip energy counter: RAPL, NVML, IOReport"), never `measured`,
+//! which D.11 keeps for a wall or shunt meter on a named rail. The term carries D.11's `provenance` = {`sampler`,
 //! `counter`, `interval_s`, `idle_baseline_w`, `machine`, `boundary`,
 //! `start_unix_ns`, `end_unix_ns`, `wraps`} and an `amortization`, and
 //! nothing else, since D.11 reports a provenance with unknown fields as
@@ -15,15 +15,24 @@
 //! rule 1: `rce test measured J PROVENANCE.json` and `reported J
 //! PROVENANCE.json` take a figure from another meter only with one.
 //!
-//! The joules are the whole package (every top-level powercap zone except
-//! `psys`), not the test run's own share: everything else the machine ran in
-//! the interval is in them. No idle baseline is subtracted, so
-//! `idle_baseline_w` is 0 (D.11: "0 when no baseline was subtracted").
+//! On Linux the joules are the whole package (every top-level powercap zone
+//! except `psys`). On macOS they are the sum of the CPU, GPU and ANE
+//! domains (`ide_energy::ioreport::PACKAGE`; DRAM is outside, as it is
+//! outside a RAPL package zone), each read from the AppleCLPC energy
+//! counter where it moves, else from the `Energy Model` group, in the unit
+//! each channel's label gives; the provenance's `counter` names every
+//! channel summed. IOReport values are 64-bit deltas that do not reach
+//! their maximum, and a negative one is refused as a failed read, so
+//! `wraps` is 0 there. Either way the figure is not the test run's own
+//! share: everything else the machine ran in the interval is in it. No idle
+//! baseline is subtracted, so `idle_baseline_w` is 0 (D.11: "0 when no
+//! baseline was subtracted").
 //!
 //! No counter, a failed read or a counter that did not move gives no figure:
 //! the result says "unmeasured", never an estimate.
+use ide_energy::ioreport::Channel;
 use ide_energy::meter::{Meter, MeterError, RaplMeter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -33,7 +42,12 @@ use std::time::{Duration, Instant};
 /// one second.
 pub const PERIOD: Duration = Duration::from_secs(1);
 
+/// The powercap root of this machine.
+pub const POWERCAP: &str = "/sys/class/powercap";
+
 /// Where a reading comes from: the powercap root and the machine's name.
+/// On macOS, [`Env::system`] reads IOReport in place of the powercap root;
+/// any other root (the tests' fake trees) is read as powercap everywhere.
 pub struct Env {
     pub powercap: PathBuf,
     /// The machine as the provenance names it; `None` reads it from /proc.
@@ -44,7 +58,12 @@ pub struct Env {
 impl Env {
     /// This machine: `/sys/class/powercap`, the name read from /proc.
     pub fn system() -> Env {
-        Env { powercap: PathBuf::from("/sys/class/powercap"), machine: None, period: PERIOD }
+        Env { powercap: PathBuf::from(POWERCAP), machine: None, period: PERIOD }
+    }
+
+    /// The counters of this machine, not a fake tree.
+    pub fn is_system(&self) -> bool {
+        self.powercap == Path::new(POWERCAP)
     }
 
     fn machine(&self) -> String {
@@ -52,7 +71,9 @@ impl Env {
     }
 }
 
-/// Host name, CPU model and kernel release, from /proc.
+/// Host name, CPU model and kernel release, from /proc (Linux), or host
+/// name, chip, model and OS from `sysctl` (macOS, [`apple_machine`]).
+#[cfg(not(target_os = "macos"))]
 pub fn machine() -> String {
     let read = |p: &str| std::fs::read_to_string(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
     let host = read("/proc/sys/kernel/hostname").unwrap_or_else(|| "unknown host".into());
@@ -70,10 +91,71 @@ pub fn machine() -> String {
     format!("{host}; cpu {cpu}; kernel Linux {kernel}")
 }
 
+/// Host name, chip, model and OS from `sysctl` (macOS).
+#[cfg(target_os = "macos")]
+pub fn machine() -> String {
+    apple_machine(ide_energy::ioreport::sysctl)
+}
+
+/// The machine of a macOS reading, from the sysctl strings `kern.hostname`,
+/// `machdep.cpu.brand_string` (such as "Apple M5 Max"), `hw.model` (such as
+/// "MacBookPro18,2"), `kern.osproductversion` (the version `sw_vers` prints) and
+/// `kern.osrelease` (the Darwin kernel); `get` reads one by name.
+pub fn apple_machine(get: impl Fn(&str) -> Option<String>) -> String {
+    let or = |k: &str, d: &str| get(k).filter(|s| !s.is_empty()).unwrap_or_else(|| d.to_string());
+    format!(
+        "{}; cpu {}; model {}; macOS {}; kernel Darwin {}",
+        or("kern.hostname", "unknown host"),
+        or("machdep.cpu.brand_string", "unknown CPU"),
+        or("hw.model", "unknown model"),
+        or("kern.osproductversion", "unknown"),
+        or("kern.osrelease", "unknown"),
+    )
+}
+
+/// The sampler of a Linux reading.
+pub const RAPL_SAMPLER: &str = "rce test measure (IDE build): Linux powercap RAPL energy_uj";
+
+/// The start of the sampler of a macOS reading.
+pub const IOREPORT_SAMPLER: &str = "rce test measure (IDE build): macOS IOReport";
+
+/// The provenance fields that name the counter, not the interval: what a
+/// counter reading's `sampler`, `counter`, `boundary` and `wraps` say, and
+/// the words a "did not move" line uses for it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Source {
+    pub sampler: String,
+    pub counter: String,
+    pub boundary: String,
+    pub wraps: u64,
+    pub still: String,
+}
+
+/// The source of a macOS reading over `channels` (the ones
+/// `ide_energy::ioreport::select_package` chose): the `Energy Model` group,
+/// with the AppleCLPC counters when a channel comes from them; boundary
+/// `package` (CPU + GPU + ANE); each channel with its unit label; wraps 0,
+/// with the reason in the sampler.
+pub fn ioreport_source(channels: &[Channel]) -> Source {
+    let clpc = channels.iter().any(|c| c.group == "CLPC");
+    let counter = channels.iter().map(Channel::describe).collect::<Vec<_>>().join("; ");
+    Source {
+        sampler: format!(
+            "{IOREPORT_SAMPLER} Energy Model group{} via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)",
+            if clpc { " and AppleCLPC Energy Counters" } else { "" }
+        ),
+        still: counter.clone(),
+        counter: format!("IOReport package = cpu + gpu + ane: {counter}"),
+        boundary: "package".into(),
+        wraps: 0,
+    }
+}
+
 /// Why there is no figure.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Unmeasured {
-    /// No RAPL package zone could be opened.
+    /// No package counter could be opened (no RAPL zone; on macOS, no
+    /// IOReport library, group or channel).
     NoCounter(String),
     /// A read failed during the run.
     ReadFailed(String),
@@ -263,6 +345,15 @@ pub struct Reading {
 }
 
 impl Reading {
+    /// The source named after a budget verdict.
+    pub fn kind(&self) -> &'static str {
+        if self.term.provenance.sampler.starts_with(IOREPORT_SAMPLER) {
+            "reported: IOReport package counters, cpu + gpu + ane"
+        } else {
+            "reported: RAPL package counter, whole package"
+        }
+    }
+
     /// The lines `rce test measure` prints: the receipt, then the number of
     /// reads and their period.
     pub fn lines(&self) -> [String; 2] {
@@ -273,11 +364,68 @@ impl Reading {
     }
 }
 
+/// The package counter read: RAPL, or IOReport on macOS.
+enum Counter {
+    Rapl(RaplMeter),
+    #[cfg(target_os = "macos")]
+    IoReport(ide_energy::ioreport::IoReportPackageMeter),
+}
+
+impl Counter {
+    fn open(env: &Env) -> Result<Counter, MeterError> {
+        #[cfg(target_os = "macos")]
+        if env.is_system() {
+            return ide_energy::ioreport::IoReportPackageMeter::open().map(Counter::IoReport);
+        }
+        RaplMeter::open_at(&env.powercap).map(Counter::Rapl)
+    }
+
+    fn sample(&mut self) -> Result<ide_energy::attrib::Sample, MeterError> {
+        match self {
+            Counter::Rapl(m) => m.sample(),
+            #[cfg(target_os = "macos")]
+            Counter::IoReport(m) => m.sample(),
+        }
+    }
+
+    fn source(&self) -> Source {
+        match self {
+            Counter::Rapl(m) => {
+                let zones = m.zones();
+                Source {
+                    sampler: RAPL_SAMPLER.into(),
+                    counter: zones
+                        .iter()
+                        .map(|z| format!("powercap {} {} ({}, max_energy_range_uj {})", z.zone, z.domain, z.energy_file.display(), z.max_energy_range_uj))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                    boundary: "package".into(),
+                    wraps: zones.iter().map(|z| z.wraps).sum(),
+                    still: zones.iter().map(|z| z.zone.as_str()).collect::<Vec<_>>().join(", "),
+                }
+            }
+            #[cfg(target_os = "macos")]
+            Counter::IoReport(m) => {
+                let mut s = ioreport_source(m.channels());
+                s.wraps = m.wraps();
+                s
+            }
+        }
+    }
+}
+
+fn unmeasured(e: MeterError) -> Unmeasured {
+    match e {
+        MeterError::Stale(..) => Unmeasured::Stale(e.to_string()),
+        _ => Unmeasured::ReadFailed(e.to_string()),
+    }
+}
+
 struct Done {
-    meter: RaplMeter,
+    meter: Counter,
     last: Result<ide_energy::attrib::Sample, MeterError>,
     samples: u64,
-    error: Option<String>,
+    error: Option<MeterError>,
 }
 
 /// The counters being read around a run.
@@ -291,10 +439,10 @@ pub struct Sampling {
 }
 
 impl Sampling {
-    /// Open the package zones and take the first read.
+    /// Open the package counters and take the first read.
     pub fn start(env: &Env) -> Result<Sampling, Unmeasured> {
-        let mut meter = RaplMeter::open_at(&env.powercap).map_err(|e| Unmeasured::NoCounter(e.to_string()))?;
-        let first = meter.sample().map_err(|e| Unmeasured::ReadFailed(e.to_string()))?;
+        let mut meter = Counter::open(env).map_err(|e| Unmeasured::NoCounter(e.to_string()))?;
+        let first = meter.sample().map_err(unmeasured)?;
         let started = Instant::now();
         let (stop, rx) = mpsc::channel::<()>();
         let period = env.period;
@@ -305,7 +453,7 @@ impl Sampling {
             while let Err(mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(period) {
                 samples += 1;
                 if let Err(e) = meter.sample() {
-                    error.get_or_insert(e.to_string());
+                    error.get_or_insert(e);
                 }
             }
             let last = meter.sample();
@@ -322,35 +470,30 @@ impl Sampling {
         // from the first read to the last, on the monotonic clock
         let elapsed = self.started.elapsed().as_secs_f64();
         if let Some(e) = d.error {
-            return Err(Unmeasured::ReadFailed(e));
+            return Err(unmeasured(e));
         }
-        let last = d.last.map_err(|e| Unmeasured::ReadFailed(e.to_string()))?;
-        let zones = d.meter.zones();
+        let last = d.last.map_err(unmeasured)?;
+        let src = d.meter.source();
         let j = last.joules - self.first.joules;
         if j <= 0.0 || !j.is_finite() {
-            return Err(Unmeasured::Stale(format!("{} over {elapsed:.3} s", zones.iter().map(|z| z.zone.as_str()).collect::<Vec<_>>().join(", "))));
+            return Err(Unmeasured::Stale(format!("{} over {elapsed:.3} s", src.still)));
         }
         if elapsed <= 0.0 {
             return Err(Unmeasured::ReadFailed("zero sampling interval".into()));
         }
-        let counter = zones
-            .iter()
-            .map(|z| format!("powercap {} {} ({}, max_energy_range_uj {})", z.zone, z.domain, z.energy_file.display(), z.max_energy_range_uj))
-            .collect::<Vec<_>>()
-            .join("; ");
         if last.t_ns <= self.first.t_ns {
             return Err(Unmeasured::ReadFailed(format!("the system clock did not advance over the run ({} ns to {} ns)", self.first.t_ns, last.t_ns)));
         }
         let provenance = Provenance {
-            sampler: "rce test measure (IDE build): Linux powercap RAPL energy_uj".into(),
-            counter,
+            sampler: src.sampler,
+            counter: src.counter,
             interval_s: elapsed,
             idle_baseline_w: 0.0,
             machine: self.machine,
-            boundary: "package".into(),
+            boundary: src.boundary,
             start_unix_ns: self.first.t_ns,
             end_unix_ns: last.t_ns,
-            wraps: zones.iter().map(|z| z.wraps).sum(),
+            wraps: src.wraps,
         };
         let term = Term::new(j, Basis::Reported, provenance).map_err(Unmeasured::ReadFailed)?;
         Ok(Reading { term, samples: d.samples, period_s: self.period.as_secs_f64() })
@@ -447,6 +590,72 @@ pub(crate) mod tests {
         assert_eq!(g.clone().lines(), g.lines());
         let m = Term::new(3.0, Basis::Measured, prov()).unwrap();
         assert!(m.line().starts_with(r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"measured","j":3.0,"provenance":{"boundary":"package","#), "{}", m.line());
+    }
+
+    #[test]
+    fn apple_machine_from_sysctl() {
+        let mac = |k: &str| {
+            Some(
+                match k {
+                    "kern.hostname" => "studio",
+                    "machdep.cpu.brand_string" => "Apple M1 Max",
+                    "hw.model" => "MacBookPro18,2",
+                    "kern.osproductversion" => "15.1",
+                    "kern.osrelease" => "24.1.0",
+                    _ => return None,
+                }
+                .to_string(),
+            )
+        };
+        assert_eq!(apple_machine(mac), "studio; cpu Apple M1 Max; model MacBookPro18,2; macOS 15.1; kernel Darwin 24.1.0");
+        assert_eq!(apple_machine(|_| None), "unknown host; cpu unknown CPU; model unknown model; macOS unknown; kernel Darwin unknown");
+    }
+
+    /// The receipt of a macOS reading, from the channels the M5 Max gives
+    /// (`ide-energy` tests `m5max_reads_clpc_and_sums_cpu_gpu_ane`).
+    #[test]
+    fn ioreport_receipt_is_deterministic() {
+        use ide_energy::ioreport::{Row, select_package};
+        let rows = [
+            Row::new("Energy Model", "CPU Energy", 0, "mJ"),
+            Row::new("Energy Model", "GPU Energy", 39_224_054_504, "nJ"),
+            Row::new("Energy Model", "ANE0", 0, "mJ"),
+            Row::new("CLPC", "CPU Energy", 30_992_368_044, "nJ"),
+            Row::new("CLPC", "GPU Energy", 39_201_512_326, "nJ"),
+            Row::new("CLPC", "ANE", 0, "nJ"),
+        ];
+        let src = ioreport_source(&select_package(&rows).unwrap());
+        assert_eq!(src.wraps, 0);
+        assert_eq!(src.boundary, "package");
+        let p = Provenance {
+            sampler: src.sampler,
+            counter: src.counter,
+            interval_s: 4.0,
+            idle_baseline_w: 0.0,
+            machine: "HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE".into(),
+            boundary: src.boundary,
+            start_unix_ns: 1_000_000_000,
+            end_unix_ns: 5_000_000_000,
+            wraps: src.wraps,
+        };
+        let g = Reading { term: Term::new(70.19388037, Basis::Reported, p).unwrap(), samples: 5, period_s: 1.0 };
+        assert_eq!(
+            g.lines()[0],
+            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":0.0,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}"#
+        );
+        assert_eq!(g.kind(), "reported: IOReport package counters, cpu + gpu + ane");
+        // all nine fields, read back as the same provenance
+        let v: serde_json::Value = serde_json::from_str(&g.term.json()).unwrap();
+        let keys: Vec<&str> = v["provenance"].as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        assert_eq!(keys, FIELDS);
+        assert_eq!(&Provenance::parse(&v["provenance"].to_string()).unwrap(), g.term.provenance());
+        // Energy Model only (no CLPC driver known): the sampler says so
+        let em: Vec<Row> = rows.iter().filter(|r| r.group == "Energy Model").cloned().map(|r| Row { raw: r.raw.max(1), ..r }).collect();
+        let src = ioreport_source(&select_package(&em).unwrap());
+        assert_eq!(src.sampler, "rce test measure (IDE build): macOS IOReport Energy Model group via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)");
+        assert_eq!(src.counter, r#"IOReport package = cpu + gpu + ane: cpu: Energy Model "CPU Energy" mJ; gpu: Energy Model "GPU Energy" nJ; ane: Energy Model "ANE0" mJ"#);
+        // a Linux reading keeps its own label
+        assert_eq!(Reading { term: Term::new(1.0, Basis::Reported, prov()).unwrap(), samples: 2, period_s: 1.0 }.kind(), "reported: RAPL package counter, whole package");
     }
 
     #[test]

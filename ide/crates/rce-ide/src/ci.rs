@@ -1,7 +1,8 @@
 //! `rce test` / `rce-ide test [energy-budget J] [measured J PROVENANCE.json |
 //! reported J PROVENANCE.json | measure] [strict] FILE...`: runs `rce test`,
-//! then gates on energy (CodeGreen lesson). `measure` reads the RAPL package
-//! counters around the run and prints the reading as a D.11 receipt term
+//! then gates on energy (CodeGreen lesson). `measure` reads the package
+//! energy counters around the run (RAPL on Linux, IOReport on macOS) and
+//! prints the reading as a D.11 receipt term
 //! with basis `reported` and its provenance (`crate::reading`); with no
 //! counter it prints "unmeasured: no counter available" and the gate has no
 //! figure. `measured J PROVENANCE.json` (a wall or shunt meter) and
@@ -136,8 +137,9 @@ fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
     };
     let mut a = vec!["test".to_string()];
     a.extend(files.iter().cloned());
-    // `measure`: read the machine's RAPL package counters around the run
-    // and print the reading as a D.11 receipt term (basis `reported`). No
+    // `measure`: read the machine's package counters around the run (RAPL;
+    // IOReport on macOS) and print the reading as a D.11 receipt term
+    // (basis `reported`). No
     // readable counter means "unmeasured", never an estimate.
     let sampling = if measure { Some(Sampling::start(env)) } else { None };
     let code = rce_spec_check::cli::main(&a, &mut std::io::empty(), out, &mut std::io::stderr());
@@ -146,7 +148,7 @@ fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
             for l in r.lines() {
                 let _ = writeln!(out, "{l}");
             }
-            (Some(r.term.j()), "reported: RAPL package counter, whole package")
+            (Some(r.term.j()), r.kind())
         }
         Some(Err(u)) => {
             let _ = writeln!(out, "{}", u.line());
