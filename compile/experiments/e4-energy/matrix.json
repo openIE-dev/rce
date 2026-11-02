@@ -1,0 +1,192 @@
+{
+ "schema": "rce-compile-e4-matrix/1",
+ "declared": "2026-11-02, before any measurement",
+ "note": "Each program is built under every level of its toolchain, once as a native program (with the native driver) and once as a WebAssembly module of its kernel. {tool} is the chosen compiler, {opt} the level, {src} the source, {driver} the C driver, {out} the output file. A C compiler is chosen from candidates: the first whose wasm build of a probe kernel succeeds is used for both builds; when none can build wasm, the first that builds natively is used and ε is not counted for C. eps_input is the n of the kernel call whose ε is counted and whose energy is measured; inputs are the declared inputs of the equivalence evidence.",
+ "toolchains": {
+  "c": {
+   "candidates": ["clang", "/opt/homebrew/opt/llvm/bin/clang", "/usr/local/opt/llvm/bin/clang"],
+   "version": ["{tool}", "--version"],
+   "native": ["{tool}", "{opt}", "{src}", "{driver}", "-o", "{out}"],
+   "wasm": ["{tool}", "--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export=run", "{opt}", "{src}", "-o", "{out}"],
+   "levels": ["-O0", "-O1", "-O2", "-O3", "-Os", "-Oz"],
+   "config": "clang {opt}"
+  },
+  "rust": {
+   "candidates": ["rustc"],
+   "version": ["{tool}", "--version"],
+   "native": ["{tool}", "--edition=2021", "-C", "opt-level={opt}", "{src}", "-o", "{out}"],
+   "wasm": ["{tool}", "--edition=2021", "--target", "wasm32-unknown-unknown", "--crate-type", "cdylib", "-C", "opt-level={opt}", "{src}", "-o", "{out}"],
+   "levels": ["0", "1", "2", "3", "s", "z"],
+   "config": "rustc opt-level={opt}"
+  }
+ },
+ "programs": [
+  {
+   "id": "c/sumsq",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/sumsq.c",
+   "kernel": "sumsq",
+   "eps_input": 20000,
+   "inputs": [0, 1, 2, 10, 20000]
+  },
+  {
+   "id": "c/collatz",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/collatz.c",
+   "kernel": "collatz",
+   "eps_input": 200,
+   "inputs": [0, 1, 2, 10, 200]
+  },
+  {
+   "id": "c/sieve",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/sieve.c",
+   "kernel": "sieve",
+   "eps_input": 4096,
+   "inputs": [0, 1, 2, 10, 4096]
+  },
+  {
+   "id": "c/sort",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/sort.c",
+   "kernel": "sort",
+   "eps_input": 200,
+   "inputs": [0, 1, 2, 10, 200]
+  },
+  {
+   "id": "c/crc32",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/crc32.c",
+   "kernel": "crc32",
+   "eps_input": 2000,
+   "inputs": [0, 1, 2, 10, 2000]
+  },
+  {
+   "id": "c/matmul",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/matmul.c",
+   "kernel": "matmul",
+   "eps_input": 20,
+   "inputs": [0, 1, 2, 10, 20]
+  },
+  {
+   "id": "c/fib",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/fib.c",
+   "kernel": "fib",
+   "eps_input": 18,
+   "inputs": [0, 1, 2, 10, 18]
+  },
+  {
+   "id": "c/popcount",
+   "language": "C",
+   "toolchain": "c",
+   "source": "c/popcount.c",
+   "kernel": "popcount",
+   "eps_input": 2000,
+   "inputs": [0, 1, 2, 10, 2000]
+  },
+  {
+   "id": "rust/sumsq",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/sumsq.rs",
+   "kernel": "sumsq",
+   "eps_input": 20000,
+   "inputs": [0, 1, 2, 10, 20000]
+  },
+  {
+   "id": "rust/collatz",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/collatz.rs",
+   "kernel": "collatz",
+   "eps_input": 200,
+   "inputs": [0, 1, 2, 10, 200]
+  },
+  {
+   "id": "rust/sieve",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/sieve.rs",
+   "kernel": "sieve",
+   "eps_input": 4096,
+   "inputs": [0, 1, 2, 10, 4096]
+  },
+  {
+   "id": "rust/sort",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/sort.rs",
+   "kernel": "sort",
+   "eps_input": 200,
+   "inputs": [0, 1, 2, 10, 200]
+  },
+  {
+   "id": "rust/crc32",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/crc32.rs",
+   "kernel": "crc32",
+   "eps_input": 2000,
+   "inputs": [0, 1, 2, 10, 2000]
+  },
+  {
+   "id": "rust/matmul",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/matmul.rs",
+   "kernel": "matmul",
+   "eps_input": 20,
+   "inputs": [0, 1, 2, 10, 20]
+  },
+  {
+   "id": "rust/fib",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/fib.rs",
+   "kernel": "fib",
+   "eps_input": 18,
+   "inputs": [0, 1, 2, 10, 18]
+  },
+  {
+   "id": "rust/popcount",
+   "language": "Rust",
+   "toolchain": "rust",
+   "source": "rust/popcount.rs",
+   "kernel": "popcount",
+   "eps_input": 2000,
+   "inputs": [0, 1, 2, 10, 2000]
+  }
+ ],
+ "lambda": {
+  "primary": "ir_nodes",
+  "compressor": "zlib",
+  "compress_level": 9
+ },
+ "energy": {
+  "regime": "B",
+  "repeats": 5,
+  "target_seconds": 2.0,
+  "idle_seconds": 10,
+  "compile_repeats": 3,
+  "powermetrics_interval_ms": 100,
+  "order_seed": 4
+ },
+ "landauer": {
+  "temperature_k": 300,
+  "temperature_kind": "modelled (declared, no ambient sensor read)"
+ },
+ "analysis": {
+  "resamples": 2000,
+  "seed": 4,
+  "level": 0.95
+ }
+}
