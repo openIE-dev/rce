@@ -400,8 +400,10 @@ mod power {
         std::thread::sleep(Duration::from_millis(120));
         let s = m.sample().unwrap();
         // 5 W over at most the time that really passed: a loaded machine
-        // sleeps longer than asked, so the bound is the elapsed time, not 120 ms
-        let most = 5.0 * t0.elapsed().as_secs_f64();
+        // sleeps longer than asked, so the bound is the elapsed time, not 120 ms.
+        // The meter stamps its polls with SystemTime and this test reads an
+        // Instant, so the two intervals can differ by up to one poll period (10 ms)
+        let most = 5.0 * (t0.elapsed().as_secs_f64() + 0.01);
         assert!(s.joules > 0.3 && s.joules <= most + 1e-9, "{} J, at most {most} J", s.joules);
         assert!(
             PolledMeter::start("test", Duration::from_millis(10), || {
