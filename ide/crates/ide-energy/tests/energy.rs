@@ -119,6 +119,13 @@ fn rapl_reads_fake_powercap_tree() {
     fs::write(r.join("intel-rapl:1/energy_uj"), "7000000").unwrap();
     let j = m.sample().unwrap().joules;
     assert!((j - (2.000001 + 2.0)).abs() < 1e-9, "{j}");
+    // the zones a reading's provenance names, with the wraparound counted
+    let z = m.zones();
+    assert_eq!(z.len(), 2);
+    assert_eq!((z[0].zone.as_str(), z[0].domain.as_str(), z[0].wraps), ("intel-rapl:0", "package-0", 1));
+    assert_eq!((z[1].zone.as_str(), z[1].domain.as_str(), z[1].wraps), ("intel-rapl:1", "package-1", 0));
+    assert_eq!(z[0].energy_file, r.join("intel-rapl:0/energy_uj"));
+    assert_eq!(z[0].max_energy_range_uj, 1_000_000_000);
 }
 
 #[test]

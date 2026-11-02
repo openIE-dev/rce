@@ -22,13 +22,17 @@ Each closed repair is then compared with the original program:
 OUTDIR/runs.jsonl holds one row per task (with every attempt the ladder
 logged); OUTDIR/summary.json and OUTDIR/REPORT.md hold the totals: tasks
 closed per rung, the share closed with zero model calls, candidates tried,
-wall time, and the equivalence split. No model is called by this script or
+wall time, and the equivalence split (also per mutation operator: tasks,
+closed, restored). No model is called by this script or
 by `rce repair`.
 """
 import hashlib, json, subprocess, sys, tempfile, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# the rungs of 10.13, in order: a reuse, b lookup by type, c altered rules,
+# d bounded enumeration, e renames
+RUNGS = ("a", "b", "c", "d", "e")
 
 
 def program_hash(rce, f):
@@ -91,16 +95,17 @@ def main(argv):
     wall_all = time.time() - t_all
     n = len(rows)
     closed = [r for r in rows if r["closed"]]
-    per_rung = {k: sum(1 for r in closed if r["rung"] == k) for k in ("a", "b", "c", "d")}
+    per_rung = {k: sum(1 for r in closed if r["rung"] == k) for k in RUNGS}
     eq = {}
     for r in closed:
         eq[r["equivalence"]] = eq.get(r["equivalence"], 0) + 1
     by_op = {}
     for r in rows:
-        o = by_op.setdefault(r["operator"], {"tasks": 0, "closed": 0})
+        o = by_op.setdefault(r["operator"], {"tasks": 0, "closed": 0, "restored": 0})
         o["tasks"] += 1
         o["closed"] += r["closed"]
-    tried = {k: sum(r["tried"].get(k, 0) for r in rows) for k in ("a", "b", "c", "d")}
+        o["restored"] += r.get("equivalence") == "restored"
+    tried = {k: sum(r["tried"].get(k, 0) for r in rows) for k in RUNGS}
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     rce_sha = hashlib.sha256(Path(rce).read_bytes()).hexdigest()
     summary = {
@@ -118,19 +123,19 @@ def main(argv):
             fh.write(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n")
     (outdir / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
     rep = [f"# Ladder run: {n} tasks", "",
-           f"Checker commit `{commit}`, `rce` SHA-256 `{rce_sha}`, bound {summary['bound']} candidates for rung d, task set SHA-256 `{summary['tasks_sha256']}`.", "",
+           f"Checker commit `{commit}`, `rce` SHA-256 `{rce_sha}`, bound {summary['bound']} candidates for each of rungs d and e, task set SHA-256 `{summary['tasks_sha256']}`.", "",
            "| Rung | Closed |", "|---|---:|"]
-    names = {"a": "a reuse", "b": "b lookup by type", "c": "c altered rules", "d": "d bounded enumeration"}
-    for k in ("a", "b", "c", "d"):
+    names = {"a": "a reuse", "b": "b lookup by type", "c": "c altered rules", "d": "d bounded enumeration", "e": "e renames"}
+    for k in RUNGS:
         rep.append(f"| {names[k]} | {per_rung[k]} |")
     rep += [f"| not closed | {n - len(closed)} |", "",
             f"Closed with zero model calls: {len(closed)} of {n} ({100 * len(closed) / n:.1f}%)." if n else "", "",
             "| Closed repair compared with the original | Tasks |", "|---|---:|"]
     for k in ("restored", "behaviour-equal", "examples only", "undecided", "not compared"):
         rep.append(f"| {k} | {eq.get(k, 0)} |")
-    rep += ["", "| Mutation operator | Tasks | Closed |", "|---|---:|---:|"]
+    rep += ["", "| Mutation operator | Tasks | Closed | Restored |", "|---|---:|---:|---:|"]
     for k, v in sorted(by_op.items()):
-        rep.append(f"| {k} | {v['tasks']} | {v['closed']} |")
+        rep.append(f"| {k} | {v['tasks']} | {v['closed']} | {v['restored']} |")
     rep += ["", f"Candidates judged by the checker: {', '.join(f'{k} {v}' for k, v in tried.items())} (total {sum(tried.values())}).",
             f"Wall time: {summary['wall_s_total']} s in all, median {summary['wall_s_median']} s per task.", ""]
     (outdir / "REPORT.md").write_text("\n".join(rep))

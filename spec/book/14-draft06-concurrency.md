@@ -241,9 +241,8 @@ Python and JavaScript runtimes charge the same costs
 
 **Method work (normative).** A standard library method costs
 `c_call` plus work(m, n, k); draft 0.6 charged `c_call` alone, which is not
-the language of this text. A budget is a proxy for energy, and energy
-scales with the operations performed, so a method's cost must track its
-work. Sizes: text is its UTF-8 byte length, a list its length, a set its number of
+the language of this text. A budget counts work, so a method's cost must
+track its work; the count is not a measurement of energy (C.6.1). Sizes: text is its UTF-8 byte length, a list its length, a set its number of
 elements, a map its number of entries, any other value 0. n is the receiver's size and k the
 first argument's (0 when there is none). work(m, n, k) is fixed by the
 method's complexity class in the reference evaluator:
@@ -833,4 +832,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: c047897b174656666713681488870268cbfe06b134331bc56900cb39ae6c2c95 -->
+<!-- body-sha256: cbf255393d0ebb75e6883a0dcba027fa9680e9a25235d3cffa785e9b1bfb27d9 -->

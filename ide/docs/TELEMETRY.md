@@ -7,6 +7,12 @@ that cannot measure returns an error (`Unsupported`, `Read`, or `Stale` for
 a counter that did not move while the hardware certainly drew power). No
 source returns 0 J in place of a measurement.
 
+`rce test measure` (the IDE build of `rce`) reads `rapl` around a test run
+and prints the reading as a receipt term of spec Appendix D, D.11: basis
+`reported` (an on-chip counter, not a wall or shunt meter), boundary
+`package`, with the zones, files, interval and machine in its provenance
+(`crates/rce-ide/src/reading.rs`; `ide/README.md` shows the output).
+
 `rce-ide telemetry probe` (or `ide_energy::discover::probe_all`) opens every
 source this build knows, reads it once, and prints what works, what needs a
 permission, what is unsupported and why, plus the tracked sources below.

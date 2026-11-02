@@ -47,7 +47,13 @@ the probe `spec/lift/go/lift_go.py`, for one Go pattern, and
 including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
 non-deterministic part of AI coding is taken out of the loop. The aim is
-the lowest cost and lowest energy per correct program.
+the lowest cost and lowest energy per correct program. Energy is not
+measured today. The checker counts work in integer cost units and fuel per
+input, which the specification states are not a measurement of time or
+energy (C.6). A receipt's joule terms are estimates (`est`) or `unpriced`,
+and no receipt in this repository holds a counter or meter reading (D.11).
+A calibrated joules-per-unit model is a proposal
+(`spec/proposals/energy-calibration.md`).
 
 What the language guarantees:
 
@@ -179,7 +185,7 @@ file would require change under W-INT-1.
 | `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
 | `rce fmt [check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
 | `rce dim [control] [json] [fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
-| `rce repair [json] [bound N] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, one small edit) judged by the checker, with no model call (spec 10.13) |
+| `rce repair [json] [bound N] [known GOOD] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, the rewrites of `rce fmt`, one small edit, renames; with a known-good version GOOD, the renaming onto it first) judged by the checker, with no model call (spec 10.13) |
 | `rce mutants [json] [bound N] FILE` | make every single edit of a program and run its examples, checks and laws on each: the score, what each obligation kills, the vacuous ones (W-MUT-1) and each surviving edit with its diff (spec 6.12, 10.14) |
 | `rce host run [GRANT...] FILE D [EVENTS]`, `rce host serve [GRANT...] [http HOST:PORT] FILE D` | run a program under the host contract (Appendix E): admitter, log D, adapters, sandbox |
 | `rce lsp` | language server on standard input and output |
@@ -216,9 +222,10 @@ spelling, for example `--json was removed; write: rce dim json door.rce`.
 | `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports |
 | `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; the Python lift `spec/lift/python` carries 6 of the 92 Python cases (`lang/README.md`) |
 | `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` |
+| `compile/` | RCE Compile: a research project, independent of RCE's checker and Form, that tests whether one Law of Compilation holds for every compiler; its charter, registered hypotheses and experiments, starting with E1, the determinism of lowering (`compile/README.md`) |
 | `docs/figures/` | figures with captions, scripts and data |
 | `scripts/` | repository scripts: proofs and Lean audit, cross-architecture hashes and determinism streams, the Form corpus generator, claim counts, demos |
-| `.github/workflows/` | one workflow per directory; each builds the checker from the current commit and runs that directory's checks against it |
+| `.github/workflows/` | one workflow per directory; each builds the checker from the current commit and runs that directory's checks against it, except `compile-e1.yml`, which runs RCE Compile's experiment E1 and does not use the checker |
 
 ## Checking the specification
 

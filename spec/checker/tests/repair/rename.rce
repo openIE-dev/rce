@@ -1,0 +1,15 @@
+# Rung e of `rce repair` closes this program and no other rung does: one
+# use of `h` was renamed to `w`, so `h` is never read (W-UNUSED-1) and the
+# checks do not hold. Rung c names `h` as `_h`, which leaves the checks
+# failing; rung d cannot reach 10 from `side = 4` by one operator or one
+# literal; rungs a and b find no function of this type that the checks
+# admit. Rung e renames one use to `h`, the name the report names: its
+# first admitted candidate is `h + w`. With `known rename_good.rce`, the
+# renaming onto that file gives `w + h`, and the repair is the original.
+intent "the perimeter of a rectangle of width w and height h"
+    check perimeter(2, 3) == 10
+    check perimeter(1, 5) == 12
+
+fn perimeter(w: u64, h: u64) -> u64
+    let side = w + w
+    return side * 2
