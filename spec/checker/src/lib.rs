@@ -42,6 +42,7 @@ pub mod link;
 pub mod lsp;
 pub mod parse;
 pub mod raft;
+pub mod rap;
 pub mod rcedb;
 pub mod refine;
 pub mod repair;

@@ -34,8 +34,14 @@
 //! lines (the input stream of `rce host run`/`serve`) and as sourced inputs
 //! with (source, seq) (HC-15, HC-16); `programs/network/notes_http.rce` on
 //! the HTTP event host (HC-24); `tests/host/notes_net.rce` on the net
-//! adapter with Tick polling (HC-23); and `tests/host/faults/ratelimit.rce`,
-//! a token bucket over `WallTime`.
+//! adapter with Tick polling (HC-23); `tests/host/faults/ratelimit.rce`,
+//! a token bucket over `WallTime`; and `account` served as a RAP tool
+//! (HC-34 to HC-36), where an invocation copy can be dropped, duplicated
+//! or delayed, the host killed between the acknowledgement and the step or
+//! before a result is delivered, and a result's POST lost. For it, (c) also
+//! requires that no invocation is stepped twice, that every result the
+//! runtime received is the result replay derives for its call, byte for
+//! byte, and that two results for one id never differ.
 //!
 //! RCE_FAULT_SEEDS (default 3), RCE_FAULT_SEED (one seed), RCE_FAULT_MIXES
 //! (comma list of `all`, `none`, or one class: default `all`),
@@ -897,6 +903,219 @@ fn run_notes_http(mx: &Mix, seed: u64, dir: &Path) -> Run {
     run
 }
 
+// ---------------------------------------------------------------- RAP tool
+
+/// The callback address of the simulated RAP runtime, as granted.
+const RAP_CALLBACK: &str = "runtime.test:80";
+
+/// `account` served as a RAP tool (HC-34 to HC-36), driven by the calls the
+/// host loop of `rce host serve rap` makes: each round appends the copies
+/// that arrived (`rap_invoke`), makes them durable (`rap_commit`), at which
+/// point each is acknowledged, steps them and appends their results
+/// (`rap_steps`), makes the round durable (`settle`), and POSTs the results,
+/// recording each settled one (`rap_sent`). The client is an agent runtime:
+/// it sends each operation with its own id, retransmits one that has no
+/// result after TIMEOUT rounds, and keeps the first result per id. A kill
+/// falls before the acknowledgements, between them and the steps, before
+/// the round is durable, or before its results are sent; the next process
+/// steps what D holds unstepped and sends again every result whose
+/// delivery D does not hold as settled.
+fn run_rap(mx: &Mix, seed: u64, dir: &Path) -> Run {
+    let src = read("../../programs/money/account.rce");
+    let m = rce_spec_check::program(&src).unwrap();
+    let mut run = Run::default();
+    let ops = gen_account(&mut Rng(seed ^ 0xa5a5_0005));
+    let invocations: Vec<Vec<u8>> = ops
+        .iter()
+        .enumerate()
+        .map(|(i, o)| {
+            let (op, rest) = o.split_once('(').unwrap();
+            let cents: i64 = rest.trim_start_matches("cents: ").trim_end_matches(')').parse().unwrap();
+            json!({"operation": op, "arguments": {"cents": cents}, "id": format!("op{i}"), "call_id": null, "callback_url": format!("http://{RAP_CALLBACK}/cb"), "group_id": "thread"}).to_string().into_bytes()
+        })
+        .collect();
+    let granted = [RAP_CALLBACK.to_string()];
+    let mut rng = Rng(seed ^ 0x7777_0006);
+    let log = dir.join("account_rap.d");
+    let _ = std::fs::remove_file(&log);
+    let mut life = Life { m: &m, path: log.clone(), h: None };
+    life.open(vec![]);
+    // results D holds whose POST has not settled in this process
+    let mut pending: Vec<rce_spec_check::host::RapOut> = vec![];
+    let mut next = 0usize;
+    let mut outstanding: BTreeMap<usize, u64> = BTreeMap::new();
+    let mut done: Vec<bool> = vec![false; ops.len()];
+    // every result body the client received, by call
+    let mut received: Vec<(u64, String)> = vec![];
+    let mut wire: Vec<Copy_> = vec![];
+    let mut copies = 0u64;
+    let mut round = 0;
+    // a restart: what the next process does on the D the last one left
+    let restart = |life: &mut Life, rng: &mut Rng, run: &mut Run, pending: &mut Vec<rce_spec_check::host::RapOut>| {
+        life.kill(rng, run);
+        life.open(vec![]);
+        life.h().rap_steps().unwrap();
+        life.h().settle().unwrap();
+        *pending = life.h().rap_unsent();
+    };
+    while round < MAX_ROUNDS {
+        round += 1;
+        while outstanding.len() < 3 && next < ops.len() {
+            outstanding.insert(next, 0);
+            next += 1;
+        }
+        for (&op, sent) in outstanding.iter_mut() {
+            if *sent != 0 && round - *sent < TIMEOUT {
+                continue;
+            }
+            *sent = round;
+            let k = if rng.chance(mx.dup) {
+                run.fault("dup");
+                2
+            } else {
+                1
+            };
+            for _ in 0..k {
+                if rng.chance(mx.drop) {
+                    run.fault("drop");
+                    continue;
+                }
+                let d = rng.below(mx.delay + 1);
+                if d > 0 {
+                    run.fault("reorder");
+                }
+                copies += 1;
+                wire.push(Copy_ { at: round + d, n: copies, op, sent: round });
+            }
+        }
+        wire.sort_by_key(|c| (c.at, c.n));
+        let k = wire.iter().take_while(|c| c.at <= round).count();
+        let arrived: Vec<Copy_> = wire.drain(..k).collect();
+        // a kill in this round: 0 among the arrivals, 1 between the
+        // acknowledgements and the steps, 2 before the round is durable,
+        // 3 before its results are sent
+        let kill = rng.chance(mx.restart).then(|| (rng.below(4), rng.below(arrived.len() as u64 + 1) as usize));
+        let mut killed = false;
+        for (i, c) in arrived.iter().enumerate() {
+            if kill == Some((0, i)) {
+                killed = true;
+                break;
+            }
+            let p = rce_spec_check::rap::envelope(&invocations[c.op], &granted).unwrap();
+            life.h().rap_invoke(p).unwrap();
+        }
+        if !killed && kill.is_some_and(|k| k.0 == 0) {
+            killed = true;
+        }
+        if !killed {
+            life.h().rap_commit().unwrap();
+            if kill.is_some_and(|k| k.0 == 1) {
+                run.fault("restart_after_ack");
+                killed = true;
+            }
+        }
+        if !killed {
+            let (_, outs) = life.h().rap_steps().unwrap();
+            if kill.is_some_and(|k| k.0 == 2) {
+                killed = true;
+            } else {
+                life.h().settle().unwrap();
+                pending.extend(outs);
+                if kill.is_some_and(|k| k.0 == 3) {
+                    run.fault("restart_before_send");
+                    killed = true;
+                }
+            }
+        }
+        if killed {
+            restart(&mut life, &mut rng, &mut run, &mut pending);
+        }
+        // the results' POSTs: lost (sent again next round), or delivered
+        let mut keep = vec![];
+        for o in pending.drain(..) {
+            if rng.chance(mx.lose) {
+                run.fault("lose");
+                keep.push(o);
+                continue;
+            }
+            let r: Value = serde_json::from_str(&o.body).unwrap();
+            let op: usize = r["id"].as_str().unwrap().trim_start_matches("op").parse().unwrap();
+            received.push((o.call, o.body.clone()));
+            if !done[op] {
+                done[op] = true;
+                outstanding.remove(&op);
+            }
+            life.h().rap_sent(o.call, 200).unwrap();
+        }
+        pending = keep;
+        life.h().rap_commit().unwrap();
+        if next == ops.len() && outstanding.is_empty() && wire.is_empty() && pending.is_empty() {
+            run.live = true;
+            break;
+        }
+    }
+    run.rounds = round;
+    let h = life.h.take().unwrap();
+    let (live_hash, live_state) = (h.state_hash().to_string(), format!("{:?}", h.state()));
+    drop(h);
+    let text = std::fs::read_to_string(&log).unwrap();
+    check_d(&m, &text, &live_hash, &live_state, &mut run);
+    // (c) for RAP: no invocation is stepped twice, every result received is
+    // the one replay derives for its call, and one id has one result text
+    let entries: Vec<Entry> = text.lines().filter_map(Entry::parse_line).collect();
+    let id_of: BTreeMap<u64, String> = entries
+        .iter()
+        .filter(|e| e.kind() == "host.RapInvoke" || e.kind() == "host.RapDuplicate")
+        .map(|e| (e.seq, serde_json::from_str::<Value>(&e.event).unwrap()["payload"]["id"].as_str().unwrap().to_string()))
+        .collect();
+    let mut steps: BTreeMap<String, u64> = BTreeMap::new();
+    for e in entries.iter().filter(|e| e.kind() == "host.RapStep") {
+        let c = serde_json::from_str::<Value>(&e.event).unwrap()["payload"]["call"].as_u64().unwrap();
+        *steps.entry(id_of[&c].clone()).or_default() += 1;
+    }
+    for (id, n) in &steps {
+        if *n > 1 {
+            run.c.push(format!("rap: invocation {id} stepped {n} times"));
+        }
+    }
+    run.host_dups += entries.iter().filter(|e| e.kind() == "host.RapDuplicate").count() as u64;
+    match rce_spec_check::host::replay_rap(&m, &text) {
+        Ok(rep) => {
+            let by: BTreeMap<u64, &str> = rep.iter().map(|o| (o.call, o.body.as_str())).collect();
+            let mut text_of: BTreeMap<String, String> = BTreeMap::new();
+            for (c, b) in &received {
+                // a result whose call a power cut took out of D was never
+                // made durable, so it was never sent: every received call is in D
+                match by.get(c) {
+                    Some(x) if x == b => {}
+                    Some(_) => run.c.push(format!("rap: the result received for call {c} differs from the one replay derives")),
+                    None => run.c.push(format!("rap: a result for call {c} was received, and D holds no such result")),
+                }
+                let r: Value = serde_json::from_str(b).unwrap();
+                let (id, t) = (r["id"].as_str().unwrap().to_string(), r["text"].as_str().unwrap().to_string());
+                if let Some(old) = text_of.insert(id.clone(), t.clone())
+                    && old != t
+                {
+                    run.c.push(format!("rap: two results for {id} differ: {old} / {t}"));
+                }
+            }
+            let resent = received.len() as u64 - text_of.len() as u64;
+            if resent > 0 {
+                // at least once: the runtime keeps one result per id (RAP)
+                *run.gap.entry("result_received_again").or_default() += resent;
+            }
+        }
+        Err(e) => run.a.push(format!("replay of the RAP results failed: {e}")),
+    }
+    for (op, d) in done.iter().enumerate() {
+        if !d {
+            run.mishandled("unanswered", format!("op {op} `{}` has no result", ops[op]));
+        }
+    }
+    run.d_text = text;
+    run
+}
+
 // ---------------------------------------------------------------- net adapter
 
 /// One simulated TCP connection from a client.
@@ -1146,7 +1365,7 @@ fn run_notes_net(mx: &Mix, seed: u64, dir: &Path) -> Run {
 
 // ---------------------------------------------------------------- driver
 
-const PROGRAMS: [&str; 9] = ["account/typed", "account/sourced", "ledger/typed", "ledger/sourced", "handshake/typed", "handshake/sourced", "ratelimit/typed", "notes_http/http", "notes_net/net"];
+const PROGRAMS: [&str; 10] = ["account/typed", "account/sourced", "ledger/typed", "ledger/sourced", "handshake/typed", "handshake/sourced", "ratelimit/typed", "notes_http/http", "notes_net/net", "account/rap"];
 
 fn run_one(program: &str, mix_name: &str, seed: u64) -> Run {
     let mx = mix(mix_name);
@@ -1156,6 +1375,7 @@ fn run_one(program: &str, mix_name: &str, seed: u64) -> Run {
     std::fs::create_dir_all(&dir).unwrap();
     let (name, path) = program.split_once('/').unwrap();
     let run = match (name, path) {
+        ("account", "rap") => run_rap(&mx, seed, &dir),
         ("notes_http", _) => run_notes_http(&mx, seed, &dir),
         ("notes_net", _) => run_notes_net(&mx, seed, &dir),
         (s, p) => {
@@ -1251,7 +1471,7 @@ fn host_contract_holds_under_seeded_faults() {
 /// kind of program.
 #[test]
 fn a_fault_seed_reruns_to_the_same_d() {
-    for p in ["account/typed", "notes_http/http", "notes_net/net"] {
+    for p in ["account/typed", "notes_http/http", "notes_net/net", "account/rap"] {
         let a = run_one(p, "all", 7);
         let b = run_one(p, "all", 7);
         assert!(a.d_text == b.d_text, "{p} seed 7: two runs wrote different D files");

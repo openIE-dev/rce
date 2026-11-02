@@ -2207,6 +2207,10 @@ pub mod http {
         pub fn bound(&self) -> bool {
             self.error.is_none()
         }
+        /// Why the address could not be bound, when it could not.
+        pub fn bind_error(&self) -> Option<&str> {
+            self.error.as_deref()
+        }
         /// The local address actually bound (for a grant of port 0).
         pub fn local_addr(&self) -> Option<std::net::SocketAddr> {
             self.l.as_ref().and_then(|l| l.local_addr().ok())

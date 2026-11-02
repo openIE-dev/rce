@@ -182,6 +182,91 @@ after the entry in progress; a new process on the same log continues where
 the last one stopped. To back up, stop the service, copy the log directory
 and check the copy with `rce host replay`.
 
+## Serving a program as a RAP tool: `rce host serve rap HOST:PORT`
+
+RAP, the Reactive Agent Protocol of the Infinity project
+(github.com/hydro-project/infinity), connects agent runtimes to tools over
+HTTP without holding a connection open: the runtime POSTs an invocation,
+the tool answers 200 at once, and later POSTs the result to a callback URL
+the invocation named. `rce host serve rap HOST:PORT` serves any program as
+such a tool, unchanged (Appendix E, HC-34 to HC-36):
+
+- The toolset, at `GET /.well-known/rap-toolset`, has one operation per
+  event the program accepts from outside, and the JSON Schema of the
+  event's fields as its `inputSchema`. Events the host delivers itself,
+  such as `Tick` or `StepKept`, are not operations.
+- Each invocation, POSTed to `/invoke`, is appended to D and made durable
+  before the host answers 200, and is stepped after. One whose operation
+  or arguments do not conform is answered 200 too, and its result is an
+  error. A second invocation with the same `group_id` and `id` is answered
+  from D and not stepped again.
+- The result's text is the step's outputs as JSON, or an error that starts
+  with `Error: ` and names the cause of a kept step. Its digest is in D, so
+  `rce host replay rap` prints every result byte for byte. The host POSTs it
+  to the callback URL until the runtime answers, and a host started on the
+  same D sends again a result whose delivery did not complete.
+
+A result goes only to an address granted with `callback HOST:PORT`, since
+the host opens no connection it was not granted. The bank account of
+`spec/examples/04_bank_account.rce` serves as a tool with two operations,
+`Deposit` and `Withdraw`. To try it by hand, start a receiver for the
+results on port 3002 in one terminal:
+
+```sh
+python3 -c 'import http.server as h
+class R(h.BaseHTTPRequestHandler):
+    def do_POST(s):
+        print(s.rfile.read(int(s.headers["Content-Length"])).decode(), flush=True)
+        s.send_response(200); s.end_headers()
+h.HTTPServer(("127.0.0.1", 3002), R).serve_forever()'
+```
+
+serve the program in a second one:
+
+```sh
+rce host serve rap 127.0.0.1:3001 callback 127.0.0.1:3002 spec/examples/04_bank_account.rce bank.log
+```
+
+and in a third, read the toolset and invoke `Withdraw` before any deposit:
+
+```sh
+curl -s http://127.0.0.1:3001/.well-known/rap-toolset
+curl -s -w '%{http_code}\n' -H 'Content-Type: application/json' \
+  -d '{"operation":"Withdraw","arguments":{"amount":5},"id":"call_1","group_id":"thread_1","callback_url":"http://127.0.0.1:3002/cb"}' \
+  http://127.0.0.1:3001/invoke
+```
+
+The second `curl` prints `200`, and the receiver prints the result, an
+error since the step was kept:
+
+```text
+{"call_id":null,"group_id":"thread_1","id":"call_1","text":"Error: the step of Withdraw at seq 8 was kept (cause fail): Insufficient; the state is unchanged","type":"tool_result"}
+```
+
+After the host is stopped (Ctrl-C), `rce host replay rap
+spec/examples/04_bank_account.rce bank.log` prints the same bytes on a
+line that starts with `rap`.
+
+An agent runtime of the Infinity project reads the tool servers it uses
+from `~/.infinity/rap.json` (or `.infinity/rap.json` in a project). To
+point it at the program, add:
+
+```json
+{
+  "tool_sets": [
+    { "type": "toolset_server", "server_url": "http://127.0.0.1:3001" }
+  ]
+}
+```
+
+The runtime chooses its own callback address. Start the host without a
+`callback` word once: it refuses the first invocation with 400 and says on
+its standard error which address the callback URL named, for example
+`callback_url http://127.0.0.1:41234/... names 127.0.0.1:41234, which is
+not granted`. Start it again on the same log with `callback
+127.0.0.1:41234`. The Infinity side of this section was not run for this
+book; the RCE side is checked by `spec/checker/tests/host_rap.rs`.
+
 ## The net adapter: `net HOST:PORT`
 
 `net HOST:PORT` grants connections of the Transmission Control
