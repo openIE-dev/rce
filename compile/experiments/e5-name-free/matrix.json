@@ -1,0 +1,61 @@
+{
+ "schema": "rce-compile-e5-matrix/1",
+ "declared": "2026-11-02, before the first run",
+ "note": "{tool} is the toolchain's compiler, {opt} the level, {src} the absolute path of the source in its build directory, {out} the output file. Every build runs in its own directory with the build directory's real path. Variant A builds the source in directory A, variant B the same bytes in directory B, variant N the renamed source (rename.py) in directory N; the three directories have paths of equal length that differ in one character. The E4 kernels come from ../e4-energy/programs and their declared inputs and levels from ../e4-energy/matrix.json; E1's programs come from ../e1-determinism/programs.",
+ "toolchains": {
+  "c": {
+   "tool": "clang",
+   "version": ["{tool}", "--version"],
+   "levels": ["-O0", "-O1", "-O2", "-O3", "-Os", "-Oz"],
+   "config": "clang {opt}",
+   "outputs": {
+    "native-object": ["{tool}", "-c", "{opt}", "{src}", "-o", "{out}"],
+    "macho-arm64-object": ["{tool}", "--target=arm64-apple-macos11", "-ffreestanding", "-c", "{opt}", "{src}", "-o", "{out}"],
+    "wasm-object": ["{tool}", "--target=wasm32", "-c", "{opt}", "{src}", "-o", "{out}"],
+    "wasm-module": ["{tool}", "--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export=run", "{opt}", "{src}", "-o", "{out}"]
+   },
+   "e1_outputs": {
+    "native-object": ["{tool}", "-c", "{opt}", "{src}", "-o", "{out}"]
+   },
+   "executable": ["{tool}", "-O0", "{src}", "-o", "{out}"]
+  },
+  "rust": {
+   "tool": "rustc",
+   "version": ["{tool}", "--version"],
+   "levels": ["0", "1", "2", "3", "s", "z"],
+   "config": "rustc opt-level={opt}",
+   "outputs": {
+    "native-object": ["{tool}", "--edition=2021", "--crate-type", "lib", "--emit=obj", "-C", "opt-level={opt}", "{src}", "-o", "{out}"],
+    "wasm-object": ["{tool}", "--edition=2021", "--target", "wasm32-unknown-unknown", "--crate-type", "lib", "--emit=obj", "-C", "opt-level={opt}", "{src}", "-o", "{out}"],
+    "wasm-module": ["{tool}", "--edition=2021", "--target", "wasm32-unknown-unknown", "--crate-type", "cdylib", "-C", "opt-level={opt}", "{src}", "-o", "{out}"]
+   },
+   "e1_outputs": {
+    "native-object": ["{tool}", "--edition=2021", "--crate-type", "bin", "--emit=obj", "-C", "opt-level={opt}", "{src}", "-o", "{out}"]
+   },
+   "executable": ["{tool}", "--edition=2021", "-C", "opt-level=0", "{src}", "-o", "{out}"]
+  }
+ },
+ "e1_programs": [
+  {"id": "e1/c/hello", "language": "C", "toolchain": "c", "source": "c/hello.c"},
+  {"id": "e1/c/sort", "language": "C", "toolchain": "c", "source": "c/sort.c"},
+  {"id": "e1/rust/hello", "language": "Rust", "toolchain": "rust", "source": "rust/hello.rs"},
+  {"id": "e1/rust/generic", "language": "Rust", "toolchain": "rust", "source": "rust/generic.rs"}
+ ],
+ "e1_note": "E1's other programs are in languages with no renamer here (C++, Go, Fortran and the rest), or need a toolchain this harness does not pick; E1's C and Rust programs use the C and Rust libraries, so they have no wasm32 build and are measured at the machine-code level only.",
+ "hashes": {
+  "output-bytes": "baseline: SHA-256 of the output file, the key of a cache that stores outputs by their bytes",
+  "source-key": "baseline: SHA-256 of the source bytes and the build command with the build directory written as {dir}, the key of a cache keyed by source text and flags with the path remapped",
+  "machine-module": "R at the machine-code level: SHA-256 of the sorted WARP-style IDs of every function of the object (machine.py)",
+  "machine-run": "R at the machine-code level: the WARP-style ID of the function run (machine.py)",
+  "ir-module": "R at the IR level: the alpha-equivalence hash of the linked WebAssembly module (irhash.py)",
+  "ir-run": "R at the IR level: the alpha-equivalence hash of the part of the module that the export run reaches (irhash.py)"
+ },
+ "comparisons": {
+  "two_dir": {"declared": "equal", "what": "the same source bytes built in directories A and B"},
+  "renamed": {"declared": "equal", "what": "the source built in A against its renamed copy built in N"},
+  "opt_levels": {"declared": "not equal", "what": "the same source at two optimisation levels of one toolchain, every pair of levels"},
+  "c_vs_rust": {"declared": "not equal", "what": "the C and the Rust kernel of one E4 algorithm at the same position in the list of levels"},
+  "different_kernels": {"declared": "not equal", "what": "every pair of builds of two different E4 kernels, any language and level"},
+  "mutations": {"declared": "not equal", "what": "each A module against itself with one opcode changed within its class, one constant changed, or one memory offset changed (irhash.mutations)"}
+ }
+}
