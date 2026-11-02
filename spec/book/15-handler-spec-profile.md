@@ -289,8 +289,8 @@ in this repository are the two probes of `spec/lift/`: the Go probe
 `spec/lift/go/table.json`, and the lift of a subset of Python 3.13,
 `spec/lift/python/lift_py.py`. The engine command `rce scan DIR --form`,
 its source file `brownfield/lift.rs` and the `Lifted::step` and
-emitted-machine code that L2 and L3 name are in neither this repository nor
-its tests; they are proposal-only, as the implementation status above says
+emitted-machine code named below are in neither this repository nor its
+tests; they are proposal-only, as the implementation status above says
 of the engine. A lift gives exactly these guarantees, and no other is
 claimed:
 
@@ -522,4 +522,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 90f3be775adba798a16bc648d5211429ceb3dd65c35211697ab636e5b32b2b38 -->
+<!-- body-sha256: ffe2dfa4730d866160b6fe25fdd4b8437490fd871080a348cbf352c51bca1e52 -->

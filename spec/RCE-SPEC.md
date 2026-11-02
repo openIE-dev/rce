@@ -5721,8 +5721,8 @@ in this repository are the two probes of `spec/lift/`: the Go probe
 `spec/lift/go/table.json`, and the lift of a subset of Python 3.13,
 `spec/lift/python/lift_py.py`. The engine command `rce scan DIR --form`,
 its source file `brownfield/lift.rs` and the `Lifted::step` and
-emitted-machine code that L2 and L3 name are in neither this repository nor
-its tests; they are proposal-only, as the implementation status above says
+emitted-machine code named below are in neither this repository nor its
+tests; they are proposal-only, as the implementation status above says
 of the engine. A lift gives exactly these guarantees, and no other is
 claimed:
 
