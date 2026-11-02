@@ -819,7 +819,7 @@ checked at one boundary has one outcome (determinism), and the
 refinement reuses the one boundary the language already has, the range
 check, rather than a second mechanism (one meaning per construct). The
 fragment is decidable in time linear in p and in the value, so the check
-has a fixed cost class (energy observability); full dependent types are
+has a fixed cost class (its work is bounded before it runs); full dependent types are
 excluded by the same derivation, since an undecidable obligation would
 make acceptance itself unbounded. Example: `type Pct = u8 where self <=
 100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` keeps the state with
@@ -4660,9 +4660,8 @@ Python and JavaScript runtimes charge the same costs
 
 **Method work (normative).** A standard library method costs
 `c_call` plus work(m, n, k); draft 0.6 charged `c_call` alone, which is not
-the language of this text. A budget is a proxy for energy, and energy
-scales with the operations performed, so a method's cost must track its
-work. Sizes: text is its UTF-8 byte length, a list its length, a set its number of
+the language of this text. A budget counts work, so a method's cost must
+track its work; the count is not a measurement of energy (C.6.1). Sizes: text is its UTF-8 byte length, a list its length, a set its number of
 elements, a map its number of entries, any other value 0. n is the receiver's size and k the
 first argument's (0 when there is none). work(m, n, k) is fixed by the
 method's complexity class in the reference evaluator:
@@ -6754,6 +6753,13 @@ A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
 the program declares, with the same payload, delivered as the program
 declares it (E.4c). δ itself never reads a host entry.
+
+**Implementation status of the energy entries (informative).** No host or
+checker code in this repository writes `host.Energy`, so no D holds an
+energy reading. `host.Calibrated` records a fabric's overhead and
+throughput for placement (HC-12), not joules, and the reference host
+writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
+joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
 
 ### E.6 Fabrics and placement (HC-11 to HC-14)
 

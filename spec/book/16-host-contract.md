@@ -1060,6 +1060,13 @@ A program receives the content of a host entry only through a binding
 the program declares, with the same payload, delivered as the program
 declares it (E.4c). δ itself never reads a host entry.
 
+**Implementation status of the energy entries (informative).** No host or
+checker code in this repository writes `host.Energy`, so no D holds an
+energy reading. `host.Calibrated` records a fabric's overhead and
+throughput for placement (HC-12), not joules, and the reference host
+writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
+joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
+
 ### E.6 Fabrics and placement (HC-11 to HC-14)
 
 - **HC-11 Fabric discovery as events.** At start and on hot-plug the host
@@ -1369,4 +1376,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 657e63da98492403c4e783b7e0067c2a56016c8d5f70609c43035cef877441d7 -->
+<!-- body-sha256: a2d5fd7d202d210fbf6a4e090f34dc8391d52a2eecb9f5c4538da07816a6dc1f -->
