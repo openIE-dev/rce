@@ -26,11 +26,22 @@ program change).
    once at the end; the declared program is the `-O0` build with strict
    IEEE 754 semantics.
 4. **Differential testing.** Run every build on every input and record its
-   output bits.
+   output bits. Each record is evidence of authority *pinned*
+   ([CHARTER.md](../../CHARTER.md) section 4.4), bound to the SHA-256 of the
+   kernel's source, of the compiler's executable, of the built binary and of
+   the input, with the flag set. It shows the level held, or failed, on
+   those inputs only: an observed change beyond the assigned level is a
+   counterexample, and agreement on every input certifies nothing.
 5. **Check the declared level** with a static tool where one exists for the
    kernel: an SMT solver for bitwise equality on loop-free code, or an
    interval or error-analysis tool for a stated bound. Which tools are
-   available is not yet established.
+   available is not yet established. A level is *certified* only by
+   evidence of authority *proved*: the tool's verdict, bound to the SHA-256
+   of the binary or IR it checked, of the tool's executable and of the
+   stated level. A verdict bound to other bytes than the build of step 4
+   fails closed: the level is not certified. A level that only a heuristic
+   or a model assigns is inferred evidence and is recorded as not
+   certified (undecided), never as certified.
 
 Results are written by the harness as JSON with the machine and toolchain
 versions, and the write-up is generated from them, as in E1.
@@ -43,8 +54,9 @@ Per pass or flag and kernel:
 - bits differing from the declared program's output;
 - the largest ULP distance from the declared program's output, and the
   largest absolute and relative error against the exact reference;
-- whether a static check certified the level, failed to, or was not
-  available;
+- whether a static check certified the level (evidence of authority
+  proved, bound to the build's digests), failed to, was undecided, or was
+  not available, with the digests its verdict is bound to;
 - the number of cases whose observed change exceeds the assigned level
   (the falsifier of H3).
 

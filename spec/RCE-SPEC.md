@@ -5455,8 +5455,11 @@ is not in this repository. The reference checker in `spec/checker` has no
 `src/spec` or `src/form`, `rce-spec-check` does not read handler specs, and
 no file under `spec/checker/src`, `spec/checker/tests`,
 `spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
-in this appendix is checked by the tools published here; the rules below are
-a specification of the engine, and its tests are not published.
+in this appendix is checked by the tools published here, except the
+authority and closure of a lift's evidence, below, which the lift probes of
+`spec/lift/` apply and `spec/checker/tests/lift_authority.rs` checks; the
+rules below are a
+specification of the engine, and its tests are not published.
 
 ### D.1 Lexical rules
 
@@ -5712,22 +5715,83 @@ vectors (`spec/checker/tests/brick.rs`), not proved.
 
 ### D.8 Lift guarantees (normative)
 
-A brownfield lift (`rce scan DIR --form`, `brownfield/lift.rs`) reads
-existing Rust, Python, TypeScript or Go into a Form schema. A lift gives
-exactly these guarantees, and no other is claimed:
+A *lift* reads a program of another language into a Form. The lifts built
+in this repository are the two probes of `spec/lift/`: the Go probe
+`spec/lift/go/lift_go.py`, whose table of rows and rules is the data file
+`spec/lift/go/table.json`, and the lift of a subset of Python 3.13,
+`spec/lift/python/lift_py.py`. The engine command `rce scan DIR --form`,
+its source file `brownfield/lift.rs` and the `Lifted::step` and
+emitted-machine code named below are in neither this repository nor its
+tests; they are proposal-only, as the implementation status above says
+of the engine. A lift gives exactly these guarantees, and no other is
+claimed:
 
-- L1 Labeled: every relation, region, event and transition carries a
-  label that starts with "unproven"; a lifted element is never presented
-  as checked.
-- L2 Fail closed: a guard the lift cannot read is opaque, and
-  `Lifted::step` does not step through it, rather than choose a branch it cannot read.
-- L3 Generated code agrees with the lift: code emitted from a lifted
-  machine (`--emit-machine`) steps as `Lifted::step`.
-- L4 Evidence, not proof: agreement of the lift with the original
-  program is tested on seeded runs of the original; its level is
-  tested (8). A lift is an
-  input to a gate, never an authority: what it proposes is admitted only
-  through the checker and the gate, like any other proposal.
+- L1 Labeled: a lifted element is never presented as checked. In the
+  engine's lift (proposal-only) every relation, region, event and
+  transition carries a label that starts with "unproven". In the probes,
+  what a lift establishes is a claim of its lift report, defined below,
+  and a claim whose verdict is not `closed` is not established.
+- L2 Fail closed: a construct the lift cannot read exactly is never given
+  a meaning it may not have. The probes print no Form for such a program
+  and report each construct, with its rule and line, as requiring change.
+  In the engine's lift (proposal-only), a guard it cannot read is opaque,
+  and `Lifted::step` does not step through it, rather than choose a branch
+  it cannot read.
+- L3 Generated code agrees with the lift (proposal-only): code emitted from
+  a lifted machine steps as `Lifted::step`. The probes emit no code.
+- L4 Evidence, not proof: agreement of the lift with the original program
+  is tested on recorded or live runs of the original; its level is tested
+  (8). A lift is an input to a gate, never an authority: what it proposes
+  is admitted only through the checker and the gate, like any other
+  proposal.
+- L5 Authority: a *claim* of a lift is a statement with an id, a revision,
+  the authority level it requires, and the names of the digests it is bound
+  to; an *evidence record* answers one claim by its id and revision, and
+  states the verifier that made it, its authority, its kind, its result
+  (`holds`, `differs` or `undecided`) and its digests. A digest is the
+  SHA-256 of a file's bytes as 64 lowercase hex digits. The *kind* says what
+  the evidence is: *observed* (a run of a pinned implementation), *derived*
+  (computed from definitions) or *inferred* (proposed by a model or a
+  heuristic). The levels, their kinds and the levels each one closes are
+  data (`spec/lift/authority.json`, format `rce-lift-authority/1`); the last
+  column names the level of REA (Reverse Engineer Anything,
+  `spec/proposals/evidence-authority.md`) that each level corresponds to:
+
+| Authority | Kind | Evidence | Closes a claim that requires | REA |
+|---|---|---|---|---|
+| `pinned` | observed | the pinned implementation, its executable bound by the digest its oracle record names, is run on the case now, and its observation equals the lifted program's byte for byte | `pinned`, `replay` | `shipped-artifact` |
+| `replay` | observed | an observation recorded earlier from the pinned implementation, bound by its digest, equals the lifted program's byte for byte | `replay` | `controlled-replay` |
+| `bisimilar` | derived | `rce equiv` (12) says `equivalent` and neither exploration reached its bound: the lifted program and its counterpart are bisimilar on the explored alphabet (T58) | `bisimilar` | none |
+| `derived` | derived | every construct of the lifted program comes from a lift-table row that cites its clause of the language's defining reference | `derived` | `derived` |
+| `inferred` | inferred | a model's or a heuristic's statement, or a verifier's summary that cites no qualifying record | nothing | `inferred` |
+
+- L6 Closure: a claim's verdict is `closed` only when an evidence record
+  answers its id and revision, holds, names an authority that closes the
+  level the claim requires, has the kind of that authority, and is bound to
+  every digest the claim states: those of the source, the lift table and
+  the lifter, the lifted text, the checker that made the evidence, and,
+  where the claim names them, the recording, the oracle's executable or the
+  counterpart. Integrity fails closed: a record that names an unknown
+  authority, kind or result, or carries a digest that is malformed or
+  differs from the one the report states, makes the claim `failed`, as does
+  an applicable record that differs, which no holding record hides.
+  Inferred evidence never closes a claim: a holding record whose kind is
+  inferred, or whose kind is below the authority it names, leaves the claim
+  `undecided`, the word `rce equiv` gives, and so does an undecided
+  verifier; a passing summary never promotes inferred evidence into an
+  observation. Every other claim is `open`: no applicable record, evidence
+  of a lower authority, a stale revision, two records from one verifier, or
+  a dependency that is not closed. `lift_go.py report FILE [RCE HAND]` and
+  `lift_py.py report FILE [RCE [RECORDED]]` print the lift report (format
+  `rce-lift-report/1`), which states every claim of the probe with its
+  authority, its digests, its evidence and its verdict, and exit 4 when a
+  claim failed. The rule is applied by `spec/lift/authority.py` in the
+  probes and by `spec/checker/src/lift_authority.rs`, which checks the
+  committed report of the Go probe (`spec/lift/go/door.report.json`) and
+  the vectors of `spec/lift/authority-vectors.json`
+  (`spec/checker/tests/lift_authority.rs`). No admission reads a lift
+  report, so no W- rule enforces L5 or L6; a lift reaches the checker only
+  as a proposal (L4).
 
 ### D.9 Rules (normative)
 

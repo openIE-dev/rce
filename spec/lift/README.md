@@ -31,7 +31,9 @@ canonical control form on this project (2026-10-23). The probe needs
 `pip install tree-sitter tree-sitter-go`; `test_lift_go.py` checks, with
 Python, that the probe still gives both committed files byte for byte, and
 `tests/lift_go.rs` checks the committed lifted file against the hand-written
-one, and the committed report's rules and lines, without Python.
+one, and the committed report's rules and lines, without Python. The
+probe's rows and rules are data, `go/table.json`: each row cites its clause
+of the Go specification and states its derivation.
 
 `python/`: `lift_py.py` lifts a subset of Python 3.13 (read by Python's own
 `ast`) into RCE text, route T of `spec/proposals/rce-form.md` section 16:
@@ -62,3 +64,18 @@ recorded output and one negative fixture per rule family;
 `test_lift_py.py` (Python 3.13) and `tests/lift_py.rs` (no Python) check
 them. Measured results: `openIE-dev/openie-research-experiments`,
 `rce/bench/lift-python/`.
+
+**Lift reports** (Appendix D.8, L5 and L6;
+`spec/proposals/evidence-authority.md`): `lift_go.py report FILE [RCE HAND]`
+and `lift_py.py report FILE [RCE [RECORDED]]` print a report (format
+`rce-lift-report/1`) that states every claim of the probe, the authority
+its evidence must have (`pinned`, `replay`, `bisimilar` or `derived`; an
+`inferred` record never closes a claim), the SHA-256 digests it is bound to
+(source, table, lifter, lifted text, checker, and the recording, oracle or
+counterpart where the claim names one), its evidence and its verdict
+(`closed`, `open`, `undecided` or `failed`); a claim that failed makes the
+exit status 4. The levels and claims are data, `authority.json`; the rule
+is `authority.py`, with the vectors of `authority-vectors.json`
+(`test_authority.py`). `go/door.report.json` is the Go probe's report on
+`door.go`; `spec/checker/tests/lift_authority.rs` checks it, the vectors
+and D.8's table without Python.

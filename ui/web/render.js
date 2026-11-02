@@ -20,8 +20,23 @@
 // - the presentation attributes of rce.ui.attrs/1 become inline style:
 //   fg color, bg background-color, font-px font-size, font-weight
 //   font-weight, w min-width, h min-height, border a 1px solid border;
+//   and the layout attributes of the ui.layout model (rce.ui.layout/1,
+//   stdlib/lib/ui/layout.rce) the CSS that lays out the same boxes: pad
+//   padding, gap gap, flow="row" a wrapping flex row, clip="true"
+//   overflow hidden (with w and h the exact width and height), layer above
+//   0 (on any node but the root) an absolutely positioned box at x, y with
+//   that z-index,
+//   focus-outline (and focus-outline-px, default 2) the outline shown on
+//   focus;
+// - a style sheet (LAYOUT_CSS) makes every element a flex column of
+//   border-box sizing with no default margin, padding or border, sets the
+//   text in the cell font "RCE Cell" (ui/web/rce-cell.ttf, which the page
+//   loads) at line-height 1, and positions the root, so the browser lays
+//   out the boxes ui.layout computes;
 // - with {document: true}, the root's lang and title are also the
-//   document's language and title;
+//   document's language and title, and its bg the page background;
+// - with {textScale: s}, every font size is s times its value (WCAG
+//   1.4.4 resizes text to 2);
 // - the node with focused="true" receives focus after the frame.
 //
 // Live ids follow ui.view.diff: before a frame, node i of the previous view
@@ -29,18 +44,59 @@
 // the operations the DOM has the new view's shape, which the renderer
 // checks, and node i of the new view has id i for the next frame.
 
+const int = (v) => /^[0-9]{1,9}$/.test(String(v).trim());
+
+// One function per attribute: (style, value, all attributes, options).
 const STYLE = {
   fg: (s, v) => { s.color = v; },
   bg: (s, v) => { s.backgroundColor = v; },
-  "font-px": (s, v) => { s.fontSize = v + "px"; },
+  "font-px": (s, v, a, o) => { if (int(v)) s.fontSize = Number(v) * o.textScale + "px"; },
   "font-weight": (s, v) => { s.fontWeight = v; },
-  w: (s, v) => { s.minWidth = v + "px"; },
-  h: (s, v) => { s.minHeight = v + "px"; },
+  w: (s, v, a) => { if (int(v)) s[clipped(a) ? "width" : "minWidth"] = Number(v) + "px"; },
+  h: (s, v, a) => { if (int(v)) s[clipped(a) ? "height" : "minHeight"] = Number(v) + "px"; },
   border: (s, v) => { s.border = "1px solid " + v; },
+  pad: (s, v) => { if (int(v)) s.padding = Number(v) + "px"; },
+  gap: (s, v) => { if (int(v)) s.gap = Number(v) + "px"; },
+  flow: (s, v) => { if (v.trim() === "row") { s.flexDirection = "row"; s.flexWrap = "wrap"; s.alignItems = "flex-start"; } },
+  clip: (s, v) => { if (v.trim() === "true") s.overflow = "hidden"; },
+  layer: (s, v, a) => {
+    if (!int(v) || Number(v) === 0) return;
+    const at = (n) => (a.has(n) && int(a.get(n)) ? Number(a.get(n)) : 0);
+    s.position = "absolute";
+    s.zIndex = String(Number(v));
+    s.left = at("x") + "px";
+    s.top = at("y") + "px";
+  },
+  "focus-outline": (s, v, a) => {
+    const c = v.trim();
+    if (c === "" || c === "none") return;
+    const w = a.has("focus-outline-px") && int(a.get("focus-outline-px")) ? Number(a.get("focus-outline-px")) : 2;
+    s.setProperty("--rce-focus-outline", `${w}px solid ${c}`);
+  },
 };
 
-/** Presentation attributes the renderer maps to inline style. */
+function clipped(a) {
+  return a.has("clip") && a.get("clip").trim() === "true";
+}
+
+/** Presentation and layout attributes the renderer maps to inline style. */
 export const PRESENTATION = Object.keys(STYLE);
+
+/**
+ * The style sheet of the ui.layout model for the element matched by `host`
+ * (a CSS selector): every element under it a flex column of border-box
+ * sizing with no style of its own, text in the cell font at line-height 1,
+ * the root positioned (the containing block of layers), and the outline
+ * a node declares shown on focus.
+ */
+export function LAYOUT_CSS(host, textScale = 1) {
+  return [
+    `${host} { margin: 0; padding: 0; font-family: "RCE Cell"; font-size: ${16 * textScale}px; line-height: 1; }`,
+    `${host} * { all: unset; display: flex; flex-direction: column; flex: none; box-sizing: border-box; font-family: inherit; }`,
+    `${host} > * { position: relative; }`,
+    `${host} *:focus { outline: var(--rce-focus-outline, none); outline-offset: 0; }`,
+  ].join("\n");
+}
 
 /** The ui.view operation of each op name the sink writes. */
 export const OPS = ["remove", "create", "move", "set", "unset", "text"];
@@ -51,22 +107,23 @@ function attrsOf(view, i) {
   return m;
 }
 
-/** The style text one node's attributes give (empty when none apply). */
-export function styleOf(attrs) {
-  const probe = { style: {} };
-  for (const [n, v] of attrs) if (STYLE[n]) STYLE[n](probe.style, v);
-  return probe.style;
-}
-
 export class Renderer {
   /**
    * @param {Element} host the element the view's root is placed in
-   * @param {{document?: boolean}} opts
+   * @param {{document?: boolean, layout?: boolean, textScale?: number}} opts
+   *   layout (default true) installs LAYOUT_CSS for the host
    */
   constructor(host, opts = {}) {
     this.host = host;
     this.doc = host.ownerDocument;
     this.asDocument = !!opts.document;
+    this.opts = { textScale: opts.textScale || 1 };
+    if (opts.layout !== false) {
+      if (!host.id) host.id = "rce-ui-host";
+      const st = this.doc.createElement("style");
+      st.textContent = LAYOUT_CSS("#" + host.id, this.opts.textScale);
+      this.doc.head.appendChild(st);
+    }
     this.view = null; // the view the DOM shows
     this.live = []; // live id -> DOM node
     this.frames = 0;
@@ -108,7 +165,9 @@ export class Renderer {
 
   restyle(e, attrs) {
     e.removeAttribute("style");
-    for (const [n, v] of attrs) if (STYLE[n]) STYLE[n](e.style, v);
+    for (const [n, v] of attrs) if (STYLE[n]) STYLE[n](e.style, v, attrs, this.opts);
+    // the root is never a layer (ui.layout places it at the host's origin)
+    if (e.parentNode === this.host) for (const p of ["position", "z-index", "left", "top"]) e.style.removeProperty(p);
   }
 
   /** The operations of ui.view.diff(a, b), in order. */
@@ -191,6 +250,7 @@ export class Renderer {
       const r = attrsOf(b, 0);
       if (r.has("lang")) this.doc.documentElement.lang = r.get("lang");
       if (r.has("title")) this.doc.title = r.get("title");
+      this.doc.body.style.backgroundColor = r.has("bg") ? r.get("bg") : "";
     }
     if (focus && typeof focus.focus === "function") focus.focus();
   }

@@ -86,10 +86,12 @@ fn ford(s: text) -> List[i64]
     return focus_order(&v)
 fn iok(s: text) -> bool = int_ok(&s)
 fn lok(s: text) -> bool = lang_ok(&s)
-fn und(s: text) -> i64
+# the boxes of a view as text (ui.layout at the root's viewport)
+fn bx(s: text) -> text
+    let v = tv(copy(s))
     let st0 = sp("start", 0, s)
     let x = frame_of(&st0)
-    return undersized(&x)
+    return layout.boxes_text(&v, &x.lay)
 fn um(t: List[Step]) -> List[Verdict] = unmet(&t)
 fn umt(t: List[Step]) -> text
     let u = unmet(&t)
@@ -218,19 +220,54 @@ check fx("contrast_minimum", "div|fg=#000000|bg=#ffffff\n.p|fg=#777777\n..~Grey"
 check fx("resize_text", "div|max-scale=500") == ""
 check fx("resize_text", "div|user-scale=no") == "fails@0"
 check fx("resize_text", "div|max-scale=150") == "fails@0"
+# geometry: text inside its clipping box at 16 px and not at 32 px
+check fx("resize_text", "div\n.c|clip=true|w=200|h=30\n..~Hi") == "fails@2"
+check fx("resize_text", "div\n.c|clip=true|w=200|h=32\n..~Hi") == ""
+check fx("resize_text", "div\n.c|h=30\n..~Hi") == ""
+# images of text are excepted
+check fx("resize_text", "div\n.c|clip=true|w=200|h=30|role=img|aria-label=Hi\n..~Hi") == ""
+# a target its clipping box hides at 200 percent
+check fx("resize_text", "div\n.c|clip=true|h=20\n..~Hi\n..b|action=go|w=24|h=24") == "fails@2,fails@3"
 # ---- 1.4.10 reflow
 check fx("reflow", "div\n.p|w=320") == ""
 check fx("reflow", "div\n.p|w=640") == "fails@1"
 check fx("reflow", "div\n.t|role=table|w=900\n..r|w=900") == ""
+# a word of 21 characters at 16 px is 336 px wide
+check fx("reflow", "div\n.~abcdefghijklmnopqrstu") == "fails@1"
+check fx("reflow", "div\n.~abcdefghijklmnopqrst") == ""
+# text that wraps at 320 px into a box one line high
+check fx("reflow", "div\n.c|clip=true|h=16\n..~aaaa bbbb cccc dddd eeee ffff") == "fails@2"
+check fx("reflow", "div\n.c|clip=true|h=32\n..~aaaa bbbb cccc dddd eeee ffff") == ""
+# a layer placed past 320 px
+check fx("reflow", "div\n.l|layer=1|x=300|w=40|h=10") == "fails@1"
+# a malformed layout attribute leaves the geometry undecided
+check fx("reflow", "div\n.p|w=wide") == "undecided@1"
 # ---- 1.4.11 non_text_contrast
 check fx("non_text_contrast", "div|bg=#ffffff\n.b|action=go|border=#767676") == ""
 check fx("non_text_contrast", "div|bg=#ffffff\n.b|action=go|border=#cccccc") == "fails@1"
 check fx("non_text_contrast", "div\n.b|action=go|border=#000000") == "undecided@1"
 check fx("non_text_contrast", "div|bg=#ffffff\n.g|graphic=true|fg=#ffff00") == "fails@1"
 check fx("non_text_contrast", "div|bg=#ffffff\n.g|graphic=true|fg=#000000") == ""
+# the focus outline against the colours next to it
+check fx("non_text_contrast", "div|bg=#ffffff\n.a|tabindex=0|h=20|focus-outline=#005fcc") == ""
+check fx("non_text_contrast", "div|bg=#ffffff\n.a|tabindex=0|h=20|focus-outline=#dddddd") == "fails@1"
+check fx("non_text_contrast", "div\n.a|tabindex=0|h=20|focus-outline=#005fcc") == "undecided@1"
+check fx("non_text_contrast", "div|bg=#ffffff\n.a|tabindex=0|h=20|focus-outline=blue") == "undecided@1"
+# a dark panel around the node: the outline meets the panel, not the page
+check fx("non_text_contrast", "div|bg=#ffffff\n.p|pad=10|bg=#000000\n..a|tabindex=0|h=20|focus-outline=#333333") == "fails@2"
+check fx("non_text_contrast", "div|bg=#ffffff\n.p|pad=10|bg=#000000\n..a|tabindex=0|h=20|focus-outline=#ffff00") == ""
+# a panel 1 px wider than the outline: the band is half panel, half page
+check fx("non_text_contrast", "div|bg=#ffffff\n.p|pad=2|bg=#000000\n..a|tabindex=0|h=20|focus-outline=#ffff00") == "fails@2"
 # ---- 1.4.12 text_spacing
 check fx("text_spacing", "div\n.~Hi") == ""
 check fx("text_spacing", "div|user-spacing=no\n.~Hi") == "fails@0"
+# geometry: line height 1.5 puts the glyphs of one 16 px line at 4 to 20 px
+check fx("text_spacing", "div\n.c|clip=true|h=16\n..~Hi") == "fails@2"
+check fx("text_spacing", "div\n.c|clip=true|h=20\n..~Hi") == ""
+check fx("text_spacing", "div\n.c|h=16\n..~Hi") == ""
+# letter spacing widens two words of 5 characters past 168 px (10 * 17.92 + 20.48 = 199.68)
+check fx("text_spacing", "div\n.c|clip=true|w=190|h=24\n..~abcde fghij") == "fails@2"
+check fx("text_spacing", "div\n.c|clip=true|w=200|h=24\n..~abcde fghij") == ""
 # ---- 2.1.1 keyboard
 check fx("keyboard", "div\n.b|role=button|action=go|tabindex=0\n..~Go") == ""
 check fx("keyboard", "div\n.b|role=button|action=go\n..~Go") == "fails@1"
@@ -262,12 +299,31 @@ check fx("link_purpose", "div\n.a|role=link\n..~Home") == ""
 check fx("link_purpose", "div\n.a|role=link") == "fails@1"
 # ---- 2.4.7 focus_visible
 check fx("focus_visible", "div|fg=#000000\n.a|tabindex=0|focus-outline=#005fcc") == ""
-check fx("focus_visible", "div\n.a|tabindex=0|bg=#ffffff|focus-bg=#000000") == ""
+check fx("focus_visible", "div\n.a|tabindex=0|bg=#ffffff|focus-bg=#000000|h=20") == ""
+# geometry: a box with no area and no outline shows no indicator
+check fx("focus_visible", "div\n.a|tabindex=0|bg=#ffffff|focus-bg=#000000") == "fails@1"
+# a node its clipping box hides; with an outline, 2 px of it still shows
+check fx("focus_visible", "div\n.c|clip=true|h=10\n..s|h=10\n..a|tabindex=0|bg=#ffffff|focus-bg=#000000|h=20") == "fails@3"
+check fx("focus_visible", "div\n.c|clip=true|h=10\n..s|h=10\n..a|tabindex=0|focus-outline=#005fcc|h=20") == ""
+# a node hidden only when not focused is checked where it is focused
+fn skip(f: bool) -> text = "div\n.c|clip=true|h=10\n..s|h=10\n..a#a|tabindex=0|bg=#ffffff|focus-bg=#000000|h=20" + (if f then "|focused=true\n.n|h=30" else "")
+check tfx("focus_visible", [sp("start", 0, skip(false)), sp("focus a", 16, skip(true))]) == "fails@3"
 check fx("focus_visible", "div\n.a|tabindex=0") == "fails@1"
 check fx("focus_visible", "div|bg=#ffffff\n.a|tabindex=0|focus-bg=#ffffff") == "fails@1"
 # ---- 2.4.11 focus_not_obscured
 check fx("focus_not_obscured", "div\n.h|layer=1") == ""
-check fx("focus_not_obscured", "div\n.h|layer=top") == "fails@1"
+check fx("focus_not_obscured", "div\n.h|layer=top\n.a|tabindex=0|h=20") == "undecided@1"
+# a header layer with a background over the whole of a focusable node
+check fx("focus_not_obscured", "div\n.h|layer=1|w=1280|h=50|bg=#eeeeee\n.a|tabindex=0|h=20") == "fails@2"
+# over part of it, or with no background, or inside the layer: not hidden
+check fx("focus_not_obscured", "div\n.h|layer=1|w=1280|h=10|bg=#eeeeee\n.a|tabindex=0|h=20") == ""
+check fx("focus_not_obscured", "div\n.h|layer=1|w=1280|h=50\n.a|tabindex=0|h=20") == ""
+check fx("focus_not_obscured", "div\n.h|layer=1|w=1280|h=50|bg=#eeeeee\n..a|tabindex=0|h=20") == ""
+# two layers that together cover it
+check fx("focus_not_obscured", "div\n.h|layer=1|w=1280|h=10|bg=#eeeeee\n.k|layer=2|y=10|w=1280|h=10|bg=#eeeeee\n.a|tabindex=0|h=20") == "fails@3"
+# a layer above a layered node, and one below it
+check fx("focus_not_obscured", "div\n.d|layer=1|w=100|h=40|bg=#ffffff\n..a|tabindex=0|h=20\n.h|layer=2|w=100|h=40|bg=#eeeeee") == "fails@2"
+check fx("focus_not_obscured", "div\n.d|layer=2|w=100|h=40|bg=#ffffff\n..a|tabindex=0|h=20\n.h|layer=1|w=100|h=40|bg=#eeeeee") == ""
 # ---- 2.5.1 pointer_gestures
 check fx("pointer_gestures", "div\n.m|gesture=path|alt-action=zoom") == ""
 check fx("pointer_gestures", "div\n.m|gesture=path") == "fails@1"
@@ -289,8 +345,22 @@ check fx("dragging", "div\n.s|drag=true") == "fails@1"
 # ---- 2.5.8 target_size
 check fx("target_size", "div\n.b|action=go|w=24|h=24") == ""
 check fx("target_size", "div\n.b|action=go|inline=true") == ""
-check fx("target_size", "div\n.b|action=go") == "undecided@1"
-check und("div\n.b|action=go|w=20|h=24") == 1
+# a target with no other target near it meets by the spacing exception
+check fx("target_size", "div\n.b|action=go") == ""
+check fx("target_size", "div|flow=row\n.a|action=a|w=16|h=16\n.b|action=b|w=16|h=16") == "fails@1,fails@2"
+# centres 24 px apart: the circles touch and do not intersect
+check fx("target_size", "div|flow=row|gap=8\n.a|action=a|w=16|h=16\n.b|action=b|w=16|h=16") == ""
+check fx("target_size", "div|flow=row|gap=7\n.a|action=a|w=16|h=16\n.b|action=b|w=16|h=16") == "fails@1,fails@2"
+# next to a large target, a small one needs 12 px from its centre to it
+check fx("target_size", "div|flow=row|gap=4\n.a|action=a|w=16|h=16\n.b|action=b|w=44|h=44") == ""
+check fx("target_size", "div|flow=row|gap=3\n.a|action=a|w=16|h=16\n.b|action=b|w=44|h=44") == "fails@1"
+# inline targets are excepted, but other targets keep their distance from them
+check fx("target_size", "div|flow=row\n.a|action=a|w=16|h=16|inline=true\n.b|action=b|w=16|h=16") == "fails@2"
+check fx("target_size", "div|flow=row\n.a|action=a|w=16|h=16|inline=true\n.b|action=b|w=16|h=16|inline=true") == ""
+# a target inside another is not its neighbour
+check fx("target_size", "div\n.a|action=a|w=16|h=16\n..b|action=b|w=8|h=8") == ""
+check fx("target_size", "div|flow=row\n.a|action=a|w=16|h=16|exempt=2.5.8\n.b|action=b|w=16|h=16") == "fails@1,fails@2"
+check vdv("2.5.8", "div|flow=row\n.a|action=a|w=16|h=16|exempt=2.5.8\n.b|action=b|w=44|h=44") == "undecided"
 # ---- 3.1.1 language_of_page
 check fx("language_of_page", "div|lang=en-GB") == ""
 check fx("language_of_page", "div") == "fails@0"
@@ -365,13 +435,15 @@ fn flash(a: text, b: text, ms: i64, n: i64, sizes: text) -> List[Step]
     var t: List[Step] = []
     for i in 0..n
         let c = if i % 2 == 0 then copy(a) else copy(b)
-        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else ms, "div\n.f#f|bg=" + c + sizes))
+        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else ms, "div|flow=row\n.f#f|bg=" + c + sizes))
     return t
 check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=400|h=400")) == "fails@-1"
 check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=100|h=100")) == ""
 check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=1000|h=30")) == ""
 check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=1000|h=80")) == "fails@-1"
-check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "")) == "undecided@-1"
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "")) == ""
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=148|h=147")) == ""
+check tfx("three_flashes", flash("#000000", "#ffffff", 100, 10, "|w=148|h=148")) == "fails@-1"
 check tfx("three_flashes", flash("#000000", "#ffffff", 300, 10, "|w=400|h=400")) == ""
 check tfx("three_flashes", flash("#ff0000", "#cc0000", 100, 10, "|w=400|h=400")) == "undecided@-1"
 check tfx("three_flashes", flash("#202020", "#303030", 100, 10, "|w=400|h=400")) == ""
@@ -430,8 +502,12 @@ fn outcomes(t: List[Step], k: text) -> i64
             n += 1
     return n
 check um(door_trace(door_attest())).len() == 0
-check outcomes(door_trace(door_attest()), "attested") == 14
-check outcomes(door_trace(door_attest()), "meets") + outcomes(door_trace(door_attest()), "not applicable") == 41
+check outcomes(door_trace(door_attest()), "attested") == 11
+check outcomes(door_trace(door_attest()), "meets") + outcomes(door_trace(door_attest()), "not applicable") == 44
+# 1.4.4, 1.4.10 and 1.4.12 have no human part: the layout decides them
+check vd("1.4.10", door_trace(door_attest())) == "meets"
+check vd("1.4.10", door_trace(att("1.3.1 1.3.2 1.3.3 1.4.1 1.4.11 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4"))) == "meets"
+check um(door_trace(att("1.3.1 1.3.2 1.3.3 1.4.1 1.4.11 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4"))).len() == 0
 check vd("2.1.1", door_trace(door_attest())) == "meets"
 check vd("1.2.2", door_trace(door_attest())) == "not applicable"
 check vd("2.4.6", door_trace(door_attest())) == "attested"
@@ -451,11 +527,20 @@ check vdv("1.4.3", "div|fg=#cccccc|bg=#ffffff\n.~Logo") == "fails"
 check vdv("1.2.1", "div") == "not applicable"
 check vdv("2.4.5", "div") == "undecided"
 
-# two flashing nodes whose parts in one field sum past the threshold: undecided without positions
-fn flash2(n: i64) -> List[Step]
+# two flashing nodes, each under the threshold: together in one field they
+# exceed it; 300 px apart no 341 by 256 field holds both
+fn flash2(n: i64, gap: text) -> List[Step]
     var t: List[Step] = []
     for i in 0..n
         let c = if i % 2 == 0 then "#000000" else "#ffffff"
-        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else 100, "div\n.f#f|w=341|h=40|bg=" + c + "\n.g#g|w=341|h=40|bg=" + c))
+        t.push(sp(if i == 0 then "start" else "tick", if i == 0 then 0 else 100, "div\n.f#f|w=341|h=40|bg=" + c + "\n.s|h=" + gap + "\n.g#g|w=341|h=40|bg=" + c))
     return t
-check tfx("three_flashes", flash2(10)) == "undecided@-1"
+check tfx("three_flashes", flash2(10, "0")) == "fails@-1"
+check tfx("three_flashes", flash2(10, "300")) == ""
+
+# ---- ui.layout: boxes in centi-px ("N x y w h", runs with their lines)
+check bx("div|vw=100\n.~ab cd ef") == "0 0 0 10000 3200\n1 0 0 8000 3200 lines 8000,3200 lh 1600"
+check bx("div|vw=100|pad=5|border=#000000\n.p|h=10\n.q|w=200") == "0 0 0 10000 2200\n1 600 600 8800 1000\n2 600 1600 20000 0"
+check bx("div|flow=row|gap=4|vw=100\n.a|w=30|h=24\n.b|w=40|h=10\n.c|w=30|h=5") == "0 0 0 10000 3300\n1 0 0 3000 2400\n2 3400 0 4000 1000\n3 0 2800 3000 500"
+check bx("div|vw=300\n.l|layer=1|x=250\n..~abc defgh") == "0 0 0 30000 0\n1 25000 0 8000 3200\n2 25000 0 8000 3200 lines 4800,8000 lh 1600"
+
