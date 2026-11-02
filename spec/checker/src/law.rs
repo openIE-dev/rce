@@ -601,8 +601,14 @@ fn alpha_text(d: &Decided) -> String {
 /// law's report ends with the counterexample on its own line, indented to
 /// paste into an `intent`.
 pub fn gate(m: &Module) -> Vec<String> {
+    gate_decided(m).0
+}
+
+/// `gate`, with the decided laws.
+pub fn gate_decided(m: &Module) -> (Vec<String>, Vec<Decided>) {
     let mut errs = vec![];
-    for d in decide(m) {
+    let ds = decide(m);
+    for d in ds.iter().cloned() {
         for a in &d.malformed {
             errs.push(format!("line {}: W-LAW-1 law {}: the attestation {} is not WHO;YYYY-MM-DD;COVER", d.line, d.name, crate::unparse::text(a)));
         }
@@ -625,7 +631,7 @@ pub fn gate(m: &Module) -> Vec<String> {
             )),
         }
     }
-    errs
+    (errs, ds)
 }
 
 /// The report of `rce law FILE` (6.11): one line per law, with the verdict,

@@ -49,6 +49,7 @@ pub mod repl;
 pub mod sandbox;
 pub mod specdata;
 pub mod mpst;
+pub mod mutants;
 pub mod mpst_async;
 pub mod session_prio;
 pub mod specread;
@@ -71,6 +72,17 @@ pub fn check_program(
     files: &[(String, String)],
     parse_only: bool,
 ) -> Vec<(String, Result<(), String>)> {
+    check_program_with(files, parse_only, true)
+}
+
+/// `check_program`, with the mutation gate (W-MUT-1, 6.12) run on each
+/// admitted file when `mutation` is true; `rce mutants` reads the scores of
+/// a program the gate would refuse, so it checks without it.
+pub fn check_program_with(
+    files: &[(String, String)],
+    parse_only: bool,
+    mutation: bool,
+) -> Vec<(String, Result<(), String>)> {
     let mut out = vec![];
     let mut parsed = vec![];
     for (p, src) in files {
@@ -90,16 +102,16 @@ pub fn check_program(
             continue;
         }
         // imported library items are linked in (4.1, src/link.rs)
-        let lk = link::link(m, &mods);
+        let mut lk = link::link(m, &mods);
         let mut c = check::Checker::new();
-        c.imported_fns = lk.imported_fns;
-        c.imported_types = lk.imported_types;
-        for e in lk.errs {
+        c.imported_fns = lk.imported_fns.clone();
+        c.imported_types = lk.imported_types.clone();
+        for e in std::mem::take(&mut lk.errs) {
             c.e(e);
         }
         c.check_module(&lk.module, &known);
         if c.errs.is_empty() {
-            c.errs = interp::admit(&lk.module);
+            c.errs = admit_gated(&mut lk, m.items.len(), &known, mutation);
         }
         out.push((
             p.clone(),
@@ -114,6 +126,19 @@ pub fn check_program(
     let pos = |n: &String| files.iter().position(|(p, _)| p == n).unwrap_or(usize::MAX);
     out.sort_by_key(|(n, _)| pos(n));
     out
+}
+
+/// Admission (6.9, 6.11) of a linked program that type-checks, and then,
+/// when `mutation` is true and every obligation holds, the mutation gate
+/// (6.12, W-MUT-1) on its first `own` items.
+pub fn admit_gated(lk: &mut link::Linked, own: usize, known: &HashSet<String>, mutation: bool) -> Vec<String> {
+    let sites = if mutation { mutants::site_addresses(&mut lk.module, own) } else { mutants::Sites { addrs: vec![], emitted: Default::default() } };
+    let (errs, measure) = interp::admit_measured(&lk.module);
+    if !mutation || !errs.is_empty() {
+        return errs;
+    }
+    let p = mutants::Program { linked: &lk.module, own, imported_fns: &lk.imported_fns, imported_types: &lk.imported_types, known };
+    mutants::gate(&p, &sites, &measure)
 }
 
 /// One source text as the program the tools run: parsed, and its `use`

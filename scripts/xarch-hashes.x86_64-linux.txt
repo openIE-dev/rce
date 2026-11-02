@@ -1,4 +1,4 @@
-# scripts/xarch-hashes.sh on the x86_64 Linux reference (rce 42e69a44), 2026-10-23; the 01_counter trace and the stream lines of the five programs with kept steps regenerated 2026-10-31, when traces went on past a kept step; the trace lines of the five examples with fn main() regenerated 2026-10-31, when the trace gained the run of fn main
+# scripts/xarch-hashes.sh on the x86_64 Linux reference (rce 42e69a44), 2026-10-23; the 01_counter trace and the stream lines of the five programs with kept steps regenerated 2026-10-31, when traces went on past a kept step; the trace lines of the five examples with fn main() regenerated 2026-10-31, when the trace gained the run of fn main; the trace of 16_multi_region and every stream line regenerated 2026-11-02, when 16_multi_region gained example lines and so joined the stream programs (the streams share one seeded sequence)
 f5c1422e48da4ceb4a19ffd7443d89e5170b9ebf22e72778bfbb0280960e662e trace 01_counter.rce
 9e801f77e5923833971ebf9c96d475e36ba5d18bb3587920817ae134a2c11256 trace 02_hello_main.rce
 f8ba31d8ba572ce11331a55caf2fadbee8a383d160a89b2b8fa71cd66e1488fe trace 03_fib_loop.rce
@@ -14,7 +14,7 @@ f46d1ee94eb6ad331ce2b81439533ee9d11f66aef62eab3cd7fadaf504c8edf4 trace 12_borrow
 c6417792b5313c2acb0df9cedc38058394a966bc2e9f20b130337c15ed0d5711 trace 13_spawn_chan.rce
 b376c5948d160d2d8db57b24b95b08635c797aee66db1e56d95814515a95f14e trace 14_select.rce
 f45697e292858ccdf1f32601769f05d3daeaf4894f3b74da91d7bf8e58736923 trace 15_actor.rce
-56a838061af1c0af0275bef9ca467fef7b957f364cf7e7cc5027e498ef1f530a trace 16_multi_region.rce
+5e8d1325a6d29b6b7ebd59944c39cb71ce9bf7d8a49612cc94842504d0fae08a trace 16_multi_region.rce
 606947fb8705eb39c102e7a88ff982545dfb611b788318048c4f690639c5d703 trace 17_traffic_light.rce
 64ac382589aacb9a362507ba1d408621e3a243424b705f2896fc4f13f84ae4fb trace 18_while_bound.rce
 305e728f21857843e46f67a7798765efabaf534b7e379f5869e54d1cc181e84a trace 19_floats.rce
@@ -54,26 +54,27 @@ d1e9663b0fcfec5c726a63d7ca6131d47ee0495b24b8429402404d8a1cb78a12 trace 53_capabi
 4cd22a15df77776800721c8c3b8ff421e052adc8a30ccff7193a95a88a7a93c1 trace 54_secret.rce
 2395e6db1726d838978f81101f7584a2fa5dee8ca2b367f40e9e2792c25453d7 trace 55_rcedb.rce
 2c9a0854738392e11ea2022250e4858aea2a8143273fb1b76f461038f2072826 trace 56_utf8.rce
-149a1505743c2e44921c9812a4c8af27fbbfce8d1b2a7d7adce4f044f66d5b74 trace 57_float_vectors.rce
+f639fa83ca1e81007ee9deb31c833eda6b04a68959dbfe8b66ddebc7f7ad089a trace 57_float_vectors.rce
 83939d2e117e9196604fcf0c128bfccfc7b1ed175ca5973cd08205e35bdeb9b1 trace 58_float_keys.rce
 229766936f66975a190759c1ecd4e4b88497e579b437b2c4edfe546bac5e0bc1 trace 59_dim_redundant_field.rce
 a1b2b2504a4e25990529aa3488b313fa2adf9da008476632f91672c575df1de3 trace 60_dim_hidden_period.rce
 041b498f22fdd61030c3ecdb7514649b9cb3707c318b73500942dacfba770975 trace 61_dim_minimal.rce
 075aa25a3caa45662d8a541a136f5086bfe82bca413c6f3997d77ae66f98c63f streams 01_counter.rce (700 traces of 700 streams, status 0)
 ccf517a7aef7c04f1d0eb84fd61c9f011952ca65c712199f3d2363d208d709b5 streams 04_bank_account.rce (700 traces of 700 streams, status 0)
-80bba066c3ccdb95df8dce5e98fe11b466a4d9f35c6cccdcd677db6db69ca89b streams 17_traffic_light.rce (700 traces of 700 streams, status 0)
-b4cbe18f5623fb6c377bc6eea9bb147027b6c0898125566ead2cadb716a0a7ae streams 30_state_machine_guarded.rce (700 traces of 700 streams, status 0)
-7df783e69a9c5ff0ba0cb31ec7a5f55291f77d7705d887e1a89a7732dfc22eb5 streams 51_refined_input.rce (700 traces of 700 streams, status 0)
-611303d341158ab61feda63945aaae2a83df750a7b21e7868a2f257c35075a79 streams 52_context_text.rce (700 traces of 700 streams, status 0)
-f4db0660a3e7945c997d17bd69c5bc98899b587b6265def4172edd023693390e streams 53_capability.rce (700 traces of 700 streams, status 0)
-c773fa118aceb4f09d16630a27118b4a193d9396ba95effbd6cb20d961c5157d streams 54_secret.rce (700 traces of 700 streams, status 0)
-7a616d432b2de4f74a22391e67312ccdcda6424e9d77981dfad3f07eb84e1c11 streams 55_rcedb.rce (700 traces of 700 streams, status 0)
-92ea857819b48a7748f02ee95b57b3c672add95ad250f0a7221fe219ae2bac0b streams 56_utf8.rce (700 traces of 700 streams, status 0)
-ed092f49a854cf3d71b188c21f77df8887eb90ae0ef7194f70f3dc758f8c9029 streams 57_float_vectors.rce (700 traces of 700 streams, status 0)
-87baedd9bb22ce16a4ff5905baec1c984c9756c29edfad5e4f6b537dfb670203 streams 58_float_keys.rce (700 traces of 700 streams, status 0)
-a4761e3247cb448b444ad2a4e1849d9b9a7e34b2911837c9660cd4dd2486b50e streams 59_dim_redundant_field.rce (700 traces of 700 streams, status 0)
-2c0fc99a5de13bcd7b6ccbf0c6ebb800313eb50a552110fa9fd905cec8a70ce8 streams 60_dim_hidden_period.rce (700 traces of 700 streams, status 0)
-b7148f5f8727c22bc79d5d8f31033e6734709c84f4d64389ee3c7234ab5efc98 streams 61_dim_minimal.rce (700 traces of 700 streams, status 0)
+2c5f6c3c708bb8465760cc71a1b209cfd33bf120b00b1e13d13d798f7896b41e streams 16_multi_region.rce (700 traces of 700 streams, status 0)
+d62d760ed4bc7c1112d955b2a88b783bd4f4d90b8b7ef7bf47f15b28fc9a3a54 streams 17_traffic_light.rce (700 traces of 700 streams, status 0)
+3d7fc8522fab18987e09faf15cbd5ff2b725723f0e6e6b3095a69ad9529bd888 streams 30_state_machine_guarded.rce (700 traces of 700 streams, status 0)
+57af9104180153b1d5547865bc832e3caa06032cdae67d3ff2548b53d2c4a3a5 streams 51_refined_input.rce (700 traces of 700 streams, status 0)
+6e9b9cb1e933ddd653b2abbb91df3347f082910c60deb2874990d7a09cf1a618 streams 52_context_text.rce (700 traces of 700 streams, status 0)
+6bb9c15435f87a7e0ac0ef8b7e6b1502c8436df5cb61ffe9902ea248f7b02228 streams 53_capability.rce (700 traces of 700 streams, status 0)
+60af6173642228b8c1460791d6f0a2bbc770d598cb233d2af4aa785fbe385ae9 streams 54_secret.rce (700 traces of 700 streams, status 0)
+cb9e8009e78ab88365f6ededc926022c82abcb6f560d80d1f8ffc271aa9fbe09 streams 55_rcedb.rce (700 traces of 700 streams, status 0)
+be6593dfdc00843f90fab60d15b14155a16e733ee49ba2df20fcdacc6cc8e1bb streams 56_utf8.rce (700 traces of 700 streams, status 0)
+fcce405937430c0dd9a53cdea10760b97ff45a2d0acadb3d106e01663e337d8b streams 57_float_vectors.rce (700 traces of 700 streams, status 0)
+013493e00051068b60ddd72138d7a456480b421e537e7d42b0f7ded812410414 streams 58_float_keys.rce (700 traces of 700 streams, status 0)
+48fef26d0bdf02d8d54c80a9aa95a45ea39ddb051529b3e0cdb3b928aedd9eb0 streams 59_dim_redundant_field.rce (700 traces of 700 streams, status 0)
+134af4be46d9ef7d3aad54306f1140f3f7ce190611bd5710491abcfa7eaff9f8 streams 60_dim_hidden_period.rce (700 traces of 700 streams, status 0)
+20e60a8d884f77f46eba099be2f4ab37446f26ea43cfd76ff982fda5733281b1 streams 61_dim_minimal.rce (700 traces of 700 streams, status 0)
 host-rcedb state_hash 6f0c8943d261b0ddc324476747ac45466cfdb83d80a4b84209c89648fd5371e3
 05979d8e11d02d1057078f3bf963fff72d7fd0773871d6eb3ce48888322c36a6 trace apps/chat.rce (keygen, post, react, dm)
 crypto ok /stdlib/lib/crypto.rce (0 examples, 8 checks)

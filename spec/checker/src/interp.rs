@@ -6,7 +6,7 @@
 //! keeps the whole state (atomically).
 use crate::ast::*;
 use crate::types::{INTS, int_range};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// A shared, copy-on-write value: cloning a text or list value (reading a
 /// variable, passing an argument) is O(1); a write copies only when the
@@ -388,7 +388,15 @@ pub struct Interp<'a> {
     pub(crate) depth: HashMap<usize, u64>,
     /// nested `eval` calls in progress (bounded by EVAL_DEPTH)
     pub(crate) eval_depth: u32,
+    /// the addresses of the expressions evaluated, when admission records
+    /// them for the mutation gate (6.12); `None` otherwise
+    pub(crate) cover: Option<HashSet<usize>>,
 }
+
+/// The most expressions one obligation's coverage records (6.12): beyond
+/// it the record is incomplete, which only changes the order in which the
+/// gate judges mutants, never its verdict.
+pub const COVER_MAX: usize = 1 << 16;
 
 fn int_name(t: &Ty) -> Option<&'static str> {
     if let Ty::Path(p, a) = t
@@ -424,6 +432,7 @@ impl<'a> Interp<'a> {
             cx: Default::default(),
             depth: HashMap::new(),
             eval_depth: 0,
+            cover: None,
         };
         for i in &m.items {
             match i {
@@ -1018,6 +1027,11 @@ impl<'a> Interp<'a> {
             return trap("evaluation depth");
         }
         self.eval_depth += 1;
+        if let Some(c) = &mut self.cover
+            && c.len() < COVER_MAX
+        {
+            c.insert(e as *const Expr as usize);
+        }
         let r = stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || self.eval_inner(e));
         self.eval_depth -= 1;
         r.and_then(size_ok)
@@ -2706,6 +2720,24 @@ pub fn why(f: Flow) -> String {
 
 /// Admission gate (W-CT-1, W-INT-1, W-LAW-1). Called only on modules that type-check.
 pub fn admit(m: &Module) -> Vec<String> {
+    admit_measured(m).0
+}
+
+/// What admission measured of each obligation (6.12): the fuel each
+/// `check` and `example` took, by line, and the states and steps each law's
+/// exploration took, by line.
+#[derive(Debug, Clone, Default)]
+pub struct Measure {
+    pub fuel: HashMap<usize, u64>,
+    pub laws: HashMap<usize, (usize, usize)>,
+    /// the addresses of the expressions each `check` and `example` evaluated,
+    /// by line (at most COVER_MAX each)
+    pub cover: HashMap<usize, HashSet<usize>>,
+}
+
+/// `admit`, and what it measured.
+pub fn admit_measured(m: &Module) -> (Vec<String>, Measure) {
+    let mut ms = Measure::default();
     let mut errs = vec![];
     let mut it = Interp::new(m);
     for i in &m.items {
@@ -2723,12 +2755,13 @@ pub fn admit(m: &Module) -> Vec<String> {
         }
     };
     let mut run_check = |it: &mut Interp, e: &Expr, rule: &str, errs: &mut Vec<String>| {
-        it.scopes = vec![HashMap::new()];
-        match it.eval(e).and_then(|v| it.truthy(v)) {
-            Ok(true) => {}
-            Ok(false) => errs.push(format!("line {}: {rule} check is false", e.line())),
-            Err(f) => errs.push(format!("line {}: {rule} check: {}", e.line(), why(f))),
+        let before = it.fuel;
+        it.cover = Some(HashSet::new());
+        if let Some(f) = check_fault(it, e) {
+            errs.push(format!("line {}: {rule} check{f}", e.line()));
         }
+        ms.fuel.insert(e.line(), before.saturating_sub(it.fuel));
+        ms.cover.insert(e.line(), it.cover.take().unwrap_or_default());
     };
     for i in &m.items {
         match i {
@@ -2778,79 +2811,11 @@ pub fn admit(m: &Module) -> Vec<String> {
     }
     if let Some(s0) = s0 {
         for x in exs {
-            let mut s = s0.clone();
-            let n = x.events.len();
-            let mut bad = None;
-            for (k, (evn, args)) in x.events.iter().enumerate() {
-                it.scopes = vec![HashMap::new()];
-                let ev = match it.construct(evn, args) {
-                    Ok(Some(v)) => v,
-                    Ok(None) => {
-                        bad = Some(format!("`{evn}` is not an event"));
-                        break;
-                    }
-                    Err(f) => {
-                        bad = Some(why(f));
-                        break;
-                    }
-                };
-                match it.delta(&s, &ev) {
-                    Ok((s2, _)) => {
-                        if k + 1 == n && x.kept.is_some() {
-                            bad = Some(format!(
-                                "expected kept: {}, but {evn} was applied",
-                                x.kept.clone().unwrap()
-                            ));
-                        }
-                        s = s2;
-                    }
-                    // 6.9: the example states the outcome of its last step;
-                    // an earlier kept step keeps the state (T8) and the next
-                    // event is applied to it
-                    Err(r) => {
-                        if k + 1 == n && x.kept.as_deref() != Some(r.as_str()) {
-                            bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
-                        }
-                    }
-                }
-            }
-            if bad.is_none()
-                && let Some(v) = &x.value
-            {
-                it.scopes = vec![
-                    s.iter()
-                        .flat_map(|r| r.1.iter().map(|(n, v, _)| (n.clone(), v.clone())))
-                        .collect(),
-                ];
-                match it.eval(v) {
-                    Ok(want) => {
-                        let single = if s.len() == 1 && s[0].1.len() == 1 {
-                            Some(s[0].1[0].1.clone())
-                        } else {
-                            None
-                        };
-                        let ok = match (&single, &want) {
-                            (Some(got), w)
-                                if !matches!(w, V::Bool(_)) || matches!(got, V::Bool(_)) =>
-                            {
-                                // state identity (6.1, N3 F6): floats by bits,
-                                // so `-0.0` and `0.0` are different results
-                                got == w && key_eq(got, w)
-                            }
-                            _ => want == V::Bool(true),
-                        };
-                        if !ok {
-                            bad = Some(match single {
-                                Some(g) => {
-                                    format!("final value is {}, expected {}", g.show(), want.show())
-                                }
-                                None => "final-state condition is false".into(),
-                            });
-                        }
-                    }
-                    Err(f) => bad = Some(why(f)),
-                }
-            }
+            let before = it.fuel;
+            it.cover = Some(HashSet::new());
+            let bad = example_fault(&mut it, &s0, x);
+            ms.fuel.insert(x.line, before.saturating_sub(it.fuel));
+            ms.cover.insert(x.line, it.cover.take().unwrap_or_default());
             if let Some(b) = bad {
                 errs.push(format!(
                     "line {}: W-INT-1 example does not hold: {b}",
@@ -2862,9 +2827,105 @@ pub fn admit(m: &Module) -> Vec<String> {
     errs.extend(crate::conc::crdt_gate(m));
     // laws (6.11, W-LAW-1): decided once the examples and checks hold
     if errs.is_empty() {
-        errs.extend(crate::law::gate(m));
+        let (le, ds) = crate::law::gate_decided(m);
+        errs.extend(le);
+        for d in ds {
+            if let crate::law::Verdict::Holds { states, steps } = d.verdict {
+                ms.laws.insert(d.line, (states, steps));
+            }
+        }
     }
-    errs
+    (errs, ms)
+}
+
+/// Whether a `check` holds (6.9): `None`, or the suffix of its W-INT-1
+/// report (` is false`, or `: ` and the trap).
+pub(crate) fn check_fault(it: &mut Interp, e: &Expr) -> Option<String> {
+    it.scopes = vec![HashMap::new()];
+    match it.eval(e).and_then(|v| it.truthy(v)) {
+        Ok(true) => None,
+        Ok(false) => Some(" is false".into()),
+        Err(f) => Some(format!(": {}", why(f))),
+    }
+}
+
+/// Whether an `example` holds from the initial state `s0` (6.9): `None`,
+/// or why it does not.
+pub(crate) fn example_fault(it: &mut Interp, s0: &[Region], x: &Example) -> Option<String> {
+    let mut s = s0.to_vec();
+    let n = x.events.len();
+    let mut bad = None;
+    for (k, (evn, args)) in x.events.iter().enumerate() {
+        it.scopes = vec![HashMap::new()];
+        let ev = match it.construct(evn, args) {
+            Ok(Some(v)) => v,
+            Ok(None) => {
+                bad = Some(format!("`{evn}` is not an event"));
+                break;
+            }
+            Err(f) => {
+                bad = Some(why(f));
+                break;
+            }
+        };
+        match it.delta(&s, &ev) {
+            Ok((s2, _)) => {
+                if k + 1 == n && x.kept.is_some() {
+                    bad = Some(format!(
+                        "expected kept: {}, but {evn} was applied",
+                        x.kept.clone().unwrap()
+                    ));
+                }
+                s = s2;
+            }
+            // 6.9: the example states the outcome of its last step;
+            // an earlier kept step keeps the state (T8) and the next
+            // event is applied to it
+            Err(r) => {
+                if k + 1 == n && x.kept.as_deref() != Some(r.as_str()) {
+                    bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
+                }
+            }
+        }
+    }
+    if bad.is_none()
+        && let Some(v) = &x.value
+    {
+        it.scopes = vec![
+            s.iter()
+                .flat_map(|r| r.1.iter().map(|(n, v, _)| (n.clone(), v.clone())))
+                .collect(),
+        ];
+        match it.eval(v) {
+            Ok(want) => {
+                let single = if s.len() == 1 && s[0].1.len() == 1 {
+                    Some(s[0].1[0].1.clone())
+                } else {
+                    None
+                };
+                let ok = match (&single, &want) {
+                    (Some(got), w)
+                        if !matches!(w, V::Bool(_)) || matches!(got, V::Bool(_)) =>
+                    {
+                        // state identity (6.1, N3 F6): floats by bits,
+                        // so `-0.0` and `0.0` are different results
+                        got == w && key_eq(got, w)
+                    }
+                    _ => want == V::Bool(true),
+                };
+                if !ok {
+                    bad = Some(match single {
+                        Some(g) => {
+                            format!("final value is {}, expected {}", g.show(), want.show())
+                        }
+                        None => "final-state condition is false".into(),
+                    });
+                }
+            }
+            Err(f) => bad = Some(why(f)),
+        }
+    }
+    bad
 }
 
 /// Size in bytes of a value's canonical JSON encoding (R3 arena accounting).

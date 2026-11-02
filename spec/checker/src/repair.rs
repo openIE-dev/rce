@@ -61,7 +61,7 @@ pub const DEFAULT_BOUND: usize = 2000;
 
 /// One definition of the module: the unit a rung edits.
 #[derive(Clone, Debug, PartialEq)]
-enum Unit {
+pub(crate) enum Unit {
     Fn(usize),
     ImplFn(usize, usize),
     Step(usize),
@@ -211,7 +211,7 @@ pub fn diff(a: &str, b: &str) -> Vec<String> {
 
 // ---------- definitions and their order ----------
 
-fn units(m: &Module) -> Vec<Unit> {
+pub(crate) fn units(m: &Module) -> Vec<Unit> {
     let mut v = vec![];
     for (i, it) in m.items.iter().enumerate() {
         match it {
@@ -227,7 +227,7 @@ fn units(m: &Module) -> Vec<Unit> {
     v
 }
 
-fn unit_name(m: &Module, u: &Unit) -> String {
+pub(crate) fn unit_name(m: &Module, u: &Unit) -> String {
     match u {
         Unit::Fn(i) => match &m.items[*i] {
             Item::Fn(f) => f.sig.name.clone(),
@@ -246,7 +246,7 @@ fn unit_name(m: &Module, u: &Unit) -> String {
 }
 
 /// The name a call reaches this unit by (functions, methods, constants).
-fn callable_name(m: &Module, u: &Unit) -> Option<String> {
+pub(crate) fn callable_name(m: &Module, u: &Unit) -> Option<String> {
     match u {
         Unit::Fn(i) | Unit::Const(i) => crate::link::item_name(&m.items[*i]),
         Unit::ImplFn(i, j) => match &m.items[*i] {
@@ -257,7 +257,7 @@ fn callable_name(m: &Module, u: &Unit) -> Option<String> {
     }
 }
 
-fn unit_line(m: &Module, u: &Unit) -> usize {
+pub(crate) fn unit_line(m: &Module, u: &Unit) -> usize {
     match u {
         Unit::Fn(i) => match &m.items[*i] {
             Item::Fn(f) => f.sig.line,
@@ -275,7 +275,7 @@ fn unit_line(m: &Module, u: &Unit) -> usize {
 }
 
 /// Names (bare and member) an expression tree mentions.
-fn mentions(u: &Unit, m: &Module) -> BTreeSet<String> {
+pub(crate) fn mentions(u: &Unit, m: &Module) -> BTreeSet<String> {
     let mut mm = m.clone();
     let mut names = BTreeSet::new();
     let mut f = |e: &mut Expr, _: bool| {
@@ -294,7 +294,7 @@ fn mentions(u: &Unit, m: &Module) -> BTreeSet<String> {
     names
 }
 
-fn expr_names(e: &Expr) -> BTreeSet<String> {
+pub(crate) fn expr_names(e: &Expr) -> BTreeSet<String> {
     let mut e = e.clone();
     let mut names = BTreeSet::new();
     let mut f = |e: &mut Expr, _: bool| {
@@ -517,7 +517,13 @@ impl Visit<'_> {
     }
 }
 
-fn visit_unit(m: &mut Module, u: &Unit, f: &mut dyn FnMut(&mut Expr, bool) -> bool) {
+/// Visit every editable expression of `e`, in the order of `visit_unit`.
+pub(crate) fn visit_expr(e: &mut Expr, f: &mut dyn FnMut(&mut Expr, bool) -> bool) {
+    let mut v = Visit { f };
+    v.expr(e, false);
+}
+
+pub(crate) fn visit_unit(m: &mut Module, u: &Unit, f: &mut dyn FnMut(&mut Expr, bool) -> bool) {
     let mut v = Visit { f };
     match u {
         Unit::Fn(i) => {
@@ -556,9 +562,9 @@ fn visit_unit(m: &mut Module, u: &Unit, f: &mut dyn FnMut(&mut Expr, bool) -> bo
 
 /// Every (site, description, replacement) the generator `g` proposes in a
 /// unit, in preorder.
-type Gen<'g> = &'g dyn Fn(&Expr, bool) -> Vec<(String, Expr)>;
+pub(crate) type Gen<'g> = &'g dyn Fn(&Expr, bool) -> Vec<(String, Expr)>;
 
-fn sites(m: &Module, u: &Unit, g: Gen) -> Vec<(usize, String, Expr)> {
+pub(crate) fn sites(m: &Module, u: &Unit, g: Gen) -> Vec<(usize, String, Expr)> {
     let mut mm = m.clone();
     let mut k = 0usize;
     let mut out = vec![];
@@ -574,7 +580,7 @@ fn sites(m: &Module, u: &Unit, g: Gen) -> Vec<(usize, String, Expr)> {
 }
 
 /// The module with site `site` of unit `u` replaced by `r`.
-fn apply(m: &Module, u: &Unit, site: usize, r: &Expr) -> Module {
+pub(crate) fn apply(m: &Module, u: &Unit, site: usize, r: &Expr) -> Module {
     let mut mm = m.clone();
     let mut k = 0usize;
     let mut f = |e: &mut Expr, _: bool| {

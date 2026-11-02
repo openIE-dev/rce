@@ -133,25 +133,19 @@ check sk("timedout") == false
 check rok("delivered", some("x"), "") == true
 check rget("delivered", some("x"), "") == some("x")
 check rok("delivered", none, "") == false
-check rget("delivered", none, "") == none
 check rok("delivered", some("x"), "e") == false
 check rget("delivered", some("x"), "e") == none
 check rok("delivered", some(""), "") == true
 check rget("delivered", some(""), "") == some("")
 check rok("failed", none, "no such file") == true
-check rget("failed", none, "no such file") == none
 check rok("failed", some("x"), "e") == false
 check rget("failed", some("x"), "e") == none
 check rok("failed", none, "") == true
-check rget("failed", none, "") == none
 check rok("timed_out", none, "") == true
-check rget("timed_out", none, "") == none
 check rok("unreachable", none, "no adapter") == true
-check rget("unreachable", none, "no adapter") == none
 check rok("unreachable", some("x"), "") == false
 check rget("unreachable", some("x"), "") == none
 check rok("bogus", none, "") == false
-check rget("bogus", none, "") == none
 check rok("bogus", some("x"), "") == false
 check rget("bogus", some("x"), "") == none
 # request table

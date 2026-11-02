@@ -1,3 +1,7 @@
+intent "two regions step on one event: the cart holds the items, the stats count the adds and removes"
+    example AddItem(name: "milk"), AddItem(name: "eggs"), RemoveItem(name: "milk"), AddItem(name: "tea"), Reset, AddItem(name: "jam") -> items == ["jam"] and adds == 4 and removes == 1
+    example AddItem(name: "milk"), AddItem(name: "eggs"), RemoveItem(name: "milk") -> items == ["eggs"] and removes == 1
+
 state Cart
     items: List[text] = []
 

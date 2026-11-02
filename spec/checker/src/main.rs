@@ -45,8 +45,10 @@ fn main() {
         }
         let mut c = rce_spec_check::check::Checker::new();
         c.check_module(m, &known);
+        // admission and the mutation gate (6.12, W-MUT-1), as `rce check`
         if c.errs.is_empty() {
-            c.errs = rce_spec_check::interp::admit(m);
+            let mut lk = rce_spec_check::link::Linked { module: m.clone(), imported_fns: HashSet::new(), imported_types: HashSet::new(), errs: vec![] };
+            c.errs = rce_spec_check::admit_gated(&mut lk, m.items.len(), &known, true);
         }
         if c.errs.is_empty() {
             println!("ok {p}");

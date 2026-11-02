@@ -2,6 +2,8 @@
 # fixed and seeded-random inputs, printed as rce checks.
 # Usage: python3 scripts/gen/io_gen.py > generated section of tests/io/io_checks.rce
 import random
+from _vacuous import printer
+print = printer('io_gen')  # W-MUT-1 (spec 6.12): scripts/gen/vacuous.tsv
 R = random.Random(18)
 
 def q(s):

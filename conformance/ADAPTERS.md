@@ -30,7 +30,8 @@ Any response may be `{"unsupported": reason}` or `{"error": message}`.
 Shipped adapters: `reference` (the `rce-conform` binary from
 `spec/checker`), `emit-rust`, `emit-python`, `emit-js`,
 `emit-scala` (via `adapters/emit_adapter.py TARGET`: emit, compile, run
-with the words `run fuel N`, events as appended `example` blocks, traces
+with the words `run fuel N`, events as the block of the module's own
+`example` line for them, or else of an appended one, traces
 with `trace fuel-trace`; an emitted program takes words, never flags, and
 exits 2 on a removed flag such as `--run`), `wasm-playground`
 (check only, via node), `lean-core` (`rce-conform-lean` from

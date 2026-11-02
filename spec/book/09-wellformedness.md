@@ -80,6 +80,12 @@ The Form
   `attest` line that is not `WHO;YYYY-MM-DD;COVER`. The report of a failing
   law ends with its counterexample as an `example` line. The trait laws of
   F.6.6 fall under the same rule once they are implemented.
+- W-MUT-1 An example, check or law that is measured and holds on every
+  in-Form mutant of its reach (6.12): no single edit of the program makes
+  it fail.
+- W-MUT-2 (recommended; never requires change) A mutant of the program
+  that no obligation kills and that `rce equiv` does not judge equivalent
+  (6.12): `rce mutants` reports it with its diff and a witness (10.14).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -141,7 +147,9 @@ that does not meet it into Form by exactly one of three methods:
   that would add or change another report is not written; `rce fmt` then
   prints the report as requiring change.
 - **Recommended.** The program is admitted, and `rce check` prints a
-  `recommended` line that names the rule and the change (10.2).
+  `recommended` line that names the rule and the change (10.2); for
+  W-MUT-2, which needs every mutant judged, `rce mutants` prints it
+  (10.14).
 - **Requires change.** The program is not admitted until its author changes
   it, because the change has more than one reading or states something only
   the author can state (a type, a declaration, a bound, an authority).
@@ -194,6 +202,8 @@ section 8) is the ground of a rewrite that renames.
 | W-INT-1 | requires change | An example or check that does not hold states another behaviour than the program has; which of the two is meant is the author's statement. |
 | W-INT-2 | recommended | The module is admitted; the report recommends obligations beyond the listed examples (6.9). |
 | W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
+| W-MUT-1 | requires change | An obligation that no single edit makes fail carries zero bits about the program within the edits; whether it is strengthened or removed is the author's statement. |
+| W-MUT-2 | recommended | The program is admitted; which of the two behaviours is meant is a choice of intent only the author can make, so `rce mutants` recommends an obligation that tells the survivor apart (it judges the whole mutant set, which `rce check` does not). |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
@@ -270,4 +280,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: 10f9c2f732f6b8e7109738a22a8f6a50812d46f7f834244549ed10c26d5e9a81 -->
+<!-- body-sha256: fed1ccec29b97f92048cd2a4439f67a1a90ffc31f346bc1c9beb558d00706e54 -->

@@ -7,12 +7,19 @@ front end's job and is certified through the reference adapter.
 
   run, no events   emit TARGET, run the program with the words `run [fuel N]`
                    (fn main on the emitted tick runtime)
-  run, events      add the line `example EVENTS -> true` (or `-> kept: E`
-                   when the step of the last event keeps the state) so the module has an
-                   observation for exactly these events, emit, run, and read
-                   that example's block. The example's expected value is used
-                   only to admit the module; the lines compared are printed
-                   by the emitted program.
+  run, events      when an `example` line of the module has exactly these
+                   events, emit the module as it is and read that example's
+                   block; otherwise add the line `example EVENTS -> true` (or
+                   `-> kept: E` when the step of the last event keeps the
+                   state) so the module has an observation for exactly these
+                   events, emit, run, and read that example's block. The
+                   example's expected value is used only to admit the module;
+                   the lines compared are printed by the emitted program. The
+                   module's own example is used first because the added one
+                   states only the outcome, and admission refuses it under
+                   W-MUT-1 (6.12) when no single edit of the steps it runs
+                   changes that outcome; the module's own example was
+                   admitted with the module.
   trace            the same example, run with the words `trace fuel-trace`: the
                    answer is the whole trace, the example's block without
                    its `example LINE` header (every entry of D as
@@ -171,11 +178,27 @@ def run_main(src, fuel):
         return {"error": f"exit {rc}: {e[-500:]}"}
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
+def own_example(src, events):
+    """The line of the module's first `example` whose events are EVENTS, as
+    written (spaces aside), or None."""
+    want = " ".join(events.split())
+    for i, l in enumerate(src.splitlines(), 1):
+        t = " ".join(l.split())
+        if t.startswith("example ") and t[8:].startswith(want + " ->"):
+            return i
+    return None
+
 def run_events(src, events, extra=()):
     base = src if src.endswith("\n") else src + "\n"
-    n = base.count("\n") + 1
-    cand = [base + f"example {events} -> true\n"]
-    cmd, err = emit(cand[0])
+    own = own_example(base, events)
+    if own is not None:
+        n = own
+        cmd, err = emit(base)
+        if cmd is None:
+            return {"error": f"emit: {err}"}
+    else:
+        n = base.count("\n") + 1
+        cmd, err = emit(base + f"example {events} -> true\n")
     if cmd is None:
         m = re.search(r"kept[:(]\s*([A-Za-z_][\w]*)", err or "")
         trap = re.search(r"kept: trap\(([^)]*)\)", err or "")

@@ -51,6 +51,12 @@ every rule of this proposal is vacuous for it.
   information the author needs, not an error. (Spectests follow SpecRL's
   executed-mutant construction, 2026; they cost a run each, not a solver
   call.)
+- **Mutating the program instead of the output.** W-MUT-1 and the scores
+  of [mutation-adequacy.md](mutation-adequacy.md) (6.12 of the
+  specification, implemented) judge every obligation of an admitted
+  program, with or without holes, on single edits of the program rather
+  than on spectests; an obligation that no edit makes fail requires
+  change there.
 - **W-HOLE-3 (no `assume`).** An obligation is never assumed; there is no
   construct that admits a predicate without a check. A program with an obligation the
   fragment cannot decide requires change, as outside T35; it is not

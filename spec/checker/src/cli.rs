@@ -31,16 +31,17 @@ pub fn diagnostics(src: &str, known: &HashSet<String>) -> Vec<(usize, String)> {
         Ok(m) => {
             // the program as the tools run it: `use` imports linked in from
             // the built-in library (4.1)
-            let lk = crate::link::link(&m, &[]);
+            let mut lk = crate::link::link(&m, &[]);
             let mut c = check::Checker::new();
-            c.imported_fns = lk.imported_fns;
-            c.imported_types = lk.imported_types;
-            for e in lk.errs {
+            c.imported_fns = lk.imported_fns.clone();
+            c.imported_types = lk.imported_types.clone();
+            for e in std::mem::take(&mut lk.errs) {
                 c.e(e);
             }
             c.check_module(&lk.module, known);
             if c.errs.is_empty() {
-                interp::admit(&lk.module)
+                // admission and the mutation gate (6.12, W-MUT-1), as `rce check`
+                crate::admit_gated(&mut lk, m.items.len(), known, true)
             } else {
                 c.errs
             }
@@ -858,6 +859,14 @@ pub const COMMANDS: &[Command] = &[
         help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
     },
     Command {
+        path: &["mutants"],
+        words: &[Word::mode("json"), Word::set("bound", &["N"])],
+        operands: "FILE [MODULE...]",
+        min: 1,
+        max: MANY,
+        help: "mutation adequacy (6.12): judge the single edits of rce repair's rung d on every definition of FILE (at most N,\ndefault 2000) against its examples, checks and laws; prints the score (killed of non-equivalent mutants), what\neach obligation kills, the vacuous obligations (W-MUT-1) and each surviving mutant (W-MUT-2) with its diff and a witness",
+    },
+    Command {
         path: &["host", "run"],
         words: &GRANTS,
         operands: "FILE D [EVENTS]",
@@ -1498,6 +1507,27 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 write!(out, "{}", crate::repair::report(&ops[0], &o)).map_err(w)?;
             }
             if o.closed { OK } else { REQUIRES_CHANGE }
+        }
+        ["mutants"] => {
+            // rce mutants [json] [bound N] FILE [MODULE...]   (6.12): words, then operands (PC-1)
+            let (json, ops) = (p.has("json"), rest);
+            let bound = p.count("bound", crate::mutants::MUTANT_BOUND, "a count of mutants")?;
+            let src = read_file(&ops[0])?;
+            let others = load(&ops[1..])?;
+            match crate::mutants::mutants(&ops[0], &src, &others, bound) {
+                Ok(r) => {
+                    if json {
+                        writeln!(out, "{}", crate::mutants::report_json(&r)).map_err(w)?;
+                    } else {
+                        write!(out, "{}", crate::mutants::report(&r)).map_err(w)?;
+                    }
+                    if r.vacuous.is_empty() { OK } else { REQUIRES_CHANGE }
+                }
+                Err(e) => {
+                    writeln!(out, "requires change {}: {}", ops[0], with_methods(&e)).map_err(w)?;
+                    REQUIRES_CHANGE
+                }
+            }
         }
         ["lsp"] => serve_dyn(input, out),
         ["help"] => {

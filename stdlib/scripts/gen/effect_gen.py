@@ -6,6 +6,8 @@
 import hashlib, json, random, subprocess, sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../scripts'))
 from positional import read  # noqa: E402  (positional-cli.md PC-1)
+from _vacuous import printer  # noqa: E402
+print = printer('effect_gen')  # W-MUT-1 (spec 6.12): scripts/gen/vacuous.tsv
 R = random.Random(19)
 def q(s):
     # an rce string literal: \" \\ \n \r \t, \u{X} for other controls

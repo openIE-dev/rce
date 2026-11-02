@@ -478,6 +478,73 @@ Laws are part of the canonical text, so they are in the program hash
 proof) are not part of the language; a law that states liveness
 ("eventually") or a property of `fn main` and its tasks is not expressible.
 
+### 6.12 Mutation adequacy
+
+An example, a check or a law carries information about a program only to
+the extent that it can fail when the program changes. If no single edit of
+the program makes an obligation fail, the obligation tells the program
+apart from none of its edits, and within them it carries zero bits about
+the program's behaviour (proposal `spec/proposals/mutation-adequacy.md`).
+Example: in the fixture `spec/checker/tests/mutants/vacuous.rce`,
+`example Reset -> n >= 0` holds whatever `Reset` sets `n` to, since `n` is
+a `u8`, and `rce check` refuses it under W-MUT-1.
+
+In plain words: (1) the checker makes every single edit of the program and
+runs the obligations on each; (2) an obligation that fails on none of them
+requires change; (3) an edit that no obligation catches is reported with
+its diff, as a recommendation.
+
+**Obligations, definitions and edits.** An *obligation* is an `example`, a
+`check` or a `law` item of the program's own text; a *definition* is a
+function, a method, a step, an actor, a constant or a state declaration of
+it (10.13), not of an imported module. A *single edit* is one edit of rung d
+of `rce repair` (10.13) at one expression of a definition. A *mutant* is
+the program with one single edit; the *mutant set* is every mutant in the
+order of rung d (definitions in source order, expressions in preorder,
+edits in rung d's order), of which the first **MUTANT_BOUND** = 2,000 are
+judged. MUTANT_BOUND is a constant of the language, like LAW_FUEL (6.11),
+so admission depends only on the program text. Obligations and the
+`check`, `requires` and `ensures` statements of a body are never edited.
+
+**Judging a mutant.** A mutant is *in Form* when the checker gives it the
+reports of the program and its constants and initial state evaluate; one
+that is not is counted apart. An obligation *kills* an in-Form mutant when
+it fails on it. An obligation runs on a mutant only when the mutant's
+definition is in its *reach*: for a check, the functions and constants it
+names and what they name; for an example or a law, every step, actor and
+state declaration and what they name. A run has the fuel the obligation
+took on the program, twice, plus 100,000 (at most the fuel of 6.7); a law
+has four times the states it explored (at least 10,000, at most LAW_FUEL).
+A run that ends by exhausting that budget below the fuel of 6.7 is
+*undecided* and is neither a kill nor a hold. A mutant that no obligation
+kills is *equivalent* when `rce equiv` (10.11) judges it equivalent to the
+program with both explorations closed, and a *survivor* otherwise; a killed
+mutant is never equivalent, since the obligation that fails on it has
+observed a difference. The *score* of a program is its killed mutants
+divided by its killed mutants and survivors.
+
+**W-MUT-1 (vacuous obligation, requires change).** A *measured* obligation
+that holds, decided, on every in-Form mutant of its reach. An obligation is
+measured when it names a definition of the program or of a module it
+imports; when its reach is within MUTANT_BOUND; when at least
+one in-Form mutant edits an expression that its run on the program
+evaluated, in a definition of its *core* (for a check its reach, for an
+example the steps its events can select and what they name, without
+constants and state declarations, and for an example not inside an `emit`,
+since an example states the outcome and the state, never an output), or
+for a law any mutant of a step or of
+what the steps and the claim name; and when its reach's mutants times its
+fuel on the program plus 10,000 are at most the fuel of 6.7 (for a law, its
+reach's mutants times the steps of its exploration at most 1,000,000). An
+obligation that is not measured is not refused: the edits cannot see what
+it runs (`check 1 + 1 == 2` is a statement about the language, not about
+the program), or deciding it would cost more than the bound.
+
+**W-MUT-2 (surviving mutant, recommended).** A survivor. `rce mutants`
+(10.14) prints each one with its edit, its diff on the canonical text and,
+where `rce equiv` finds one, the shortest event sequence after which the
+program and the mutant give different outputs.
+
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: a8873dad6351fd96dba942fa8c55c0ac04c7a0e914e5666ebc5ad552ddbd6153 -->
+<!-- body-sha256: 07582f5160406efca8eb6265ec7805d5da3327237bb4b9c126cf4790fe990f31 -->
