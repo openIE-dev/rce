@@ -92,10 +92,7 @@ impl SharedMeter {
         }
         // One clock throughout; never let time go backwards in the log.
         let s = match i.samples.last() {
-            Some(l) if s.t_ns <= l.t_ns => Sample {
-                t_ns: l.t_ns + 1,
-                joules: s.joules.max(l.joules),
-            },
+            Some(l) if s.t_ns <= l.t_ns => Sample { t_ns: l.t_ns + 1, joules: s.joules.max(l.joules) },
             _ => s,
         };
         i.samples.push(s);
@@ -108,10 +105,7 @@ impl SharedMeter {
         let s = Self::take(&mut i).ok()?;
         let id = i.next_id;
         i.next_id += 1;
-        i.open.push(Open {
-            id,
-            start_ns: s.t_ns,
-        });
+        i.open.push(Open { id, start_ns: s.t_ns });
         Some(Span { id })
     }
 
@@ -128,34 +122,15 @@ impl SharedMeter {
             Err(_) => return None,
         };
         let me = format!("#{}", o.id);
-        i.closed.push(Activity {
-            process: me.clone(),
-            start_ns: o.start_ns,
-            end_ns: s.t_ns,
-            weight: 1.0,
-        });
+        i.closed.push(Activity { process: me.clone(), start_ns: o.start_ns, end_ns: s.t_ns, weight: 1.0 });
         // Joules of this action: its share of every interval in its window,
         // given everyone open in it (open ones run at least to now).
         let mut acts = i.closed.clone();
         for x in &i.open {
-            acts.push(Activity {
-                process: format!("#{}", x.id),
-                start_ns: x.start_ns,
-                end_ns: s.t_ns,
-                weight: 1.0,
-            });
+            acts.push(Activity { process: format!("#{}", x.id), start_ns: x.start_ns, end_ns: s.t_ns, weight: 1.0 });
         }
-        let win: Vec<Sample> = i
-            .samples
-            .iter()
-            .copied()
-            .filter(|x| x.t_ns >= o.start_ns && x.t_ns <= s.t_ns)
-            .collect();
-        let mine = apportion(&win, &acts)
-            .per_process
-            .get(&me)
-            .copied()
-            .unwrap_or(0.0);
+        let win: Vec<Sample> = i.samples.iter().copied().filter(|x| x.t_ns >= o.start_ns && x.t_ns <= s.t_ns).collect();
+        let mine = apportion(&win, &acts).per_process.get(&me).copied().unwrap_or(0.0);
         i.booked += mine;
         if i.open.is_empty() {
             // Settle idle for the retained history and drop it.
@@ -176,19 +151,12 @@ impl SharedMeter {
             (Some(o), Some(l)) => l.joules - o,
             _ => 0.0,
         };
-        Books {
-            booked: i.booked,
-            idle: i.idle,
-            total,
-        }
+        Books { booked: i.booked, idle: i.idle, total }
     }
 
     /// Record an idle-only sample (moves the books forward with no action).
     pub fn tick(&self) -> Result<(), MeterError> {
-        let mut i = self
-            .inner
-            .lock()
-            .map_err(|e| MeterError::Read("shared", e.to_string()))?;
+        let mut i = self.inner.lock().map_err(|e| MeterError::Read("shared", e.to_string()))?;
         Self::take(&mut i)?;
         if i.open.is_empty() {
             let all = apportion(&i.samples, &i.closed);

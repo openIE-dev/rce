@@ -69,24 +69,14 @@ pub fn apportion(samples: &[Sample], acts: &[Activity]) -> Apportioned {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn s(t: u64, j: f64) -> Sample {
-        Sample { t_ns: t, joules: j }
-    }
+    fn s(t: u64, j: f64) -> Sample { Sample { t_ns: t, joules: j } }
     fn act(p: &str, a: u64, b: u64, w: f64) -> Activity {
-        Activity {
-            process: p.into(),
-            start_ns: a,
-            end_ns: b,
-            weight: w,
-        }
+        Activity { process: p.into(), start_ns: a, end_ns: b, weight: w }
     }
 
     #[test]
     fn two_ranks_share_one_gpu_equally() {
-        let r = apportion(
-            &[s(0, 0.0), s(10, 20.0)],
-            &[act("a", 0, 10, 1.0), act("b", 0, 10, 1.0)],
-        );
+        let r = apportion(&[s(0, 0.0), s(10, 20.0)], &[act("a", 0, 10, 1.0), act("b", 0, 10, 1.0)]);
         assert_eq!(r.per_process["a"], 10.0);
         assert_eq!(r.per_process["b"], 10.0);
         assert_eq!(r.idle, 0.0);

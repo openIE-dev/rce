@@ -7,14 +7,10 @@ use std::sync::{Arc, Mutex};
 /// A scripted counter: each sample() returns the next (t, joules).
 struct Script(Arc<Mutex<Vec<(u64, f64)>>>);
 impl Meter for Script {
-    fn source(&self) -> &'static str {
-        "rapl"
-    }
+    fn source(&self) -> &'static str { "rapl" }
     fn sample(&mut self) -> Result<Sample, MeterError> {
         let mut v = self.0.lock().unwrap();
-        if v.is_empty() {
-            return Err(MeterError::Read("script", "exhausted".into()));
-        }
+        if v.is_empty() { return Err(MeterError::Read("script", "exhausted".into())); }
         let (t, j) = v.remove(0);
         Ok(Sample { t_ns: t, joules: j })
     }
@@ -46,35 +42,21 @@ fn overlapping_actions_are_not_double_counted() {
 fn many_random_overlaps_balance() {
     // Deterministic LCG; 200 begin/end/tick operations, monotone counter.
     let mut x: u64 = 12345;
-    let mut next = || {
-        x = x
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        x >> 33
-    };
+    let mut next = || { x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); x >> 33 };
     let mut pts = vec![];
     let (mut t, mut j) = (0u64, 0.0f64);
-    for _ in 0..400 {
-        t += 1 + next() % 50;
-        j += (next() % 1000) as f64 / 10.0;
-        pts.push((t, j));
-    }
+    for _ in 0..400 { t += 1 + next() % 50; j += (next() % 1000) as f64 / 10.0; pts.push((t, j)); }
     let m = meter(&pts);
     let mut open = vec![];
     let mut sum = 0.0;
     for _ in 0..200 {
         match next() % 3 {
             0 => open.push(m.begin().unwrap()),
-            1 if !open.is_empty() => {
-                let k = (next() as usize) % open.len();
-                sum += m.end(open.remove(k)).unwrap();
-            }
+            1 if !open.is_empty() => { let k = (next() as usize) % open.len(); sum += m.end(open.remove(k)).unwrap(); }
             _ => m.tick().unwrap(),
         }
     }
-    for s in open.drain(..) {
-        sum += m.end(s).unwrap();
-    }
+    for s in open.drain(..) { sum += m.end(s).unwrap(); }
     let bk = m.books();
     assert!((bk.booked - sum).abs() < 1e-6);
     assert!((bk.booked + bk.idle - bk.total).abs() < 1e-6, "{bk:?}");
