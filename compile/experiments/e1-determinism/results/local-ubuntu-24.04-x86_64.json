@@ -33,15 +33,15 @@
    "reason": "julia not on PATH"
   }
  ],
- "date_utc": "2026-11-01T23:24:31Z",
+ "date_utc": "2026-11-02T01:32:51Z",
  "environment": {
   "LC_ALL": "C",
   "SOURCE_DATE_EPOCH": "1735689600",
   "TZ": "UTC"
  },
  "harness": {
-  "e1.py": "6a2e55edcbc0e916b4f183eb55477c076c15efa880d8531728bb9af1688a6d84",
-  "matrix.json": "ffe5761140a335cdea4eaeb9115dbe37d1fa1848a0da0c8bfdc78554c92d7a8f"
+  "e1.py": "20710174c5fb1b93d7418b0be041900a2728363f22fc06dddc518309a2b717cb",
+  "matrix.json": "150eaa3a3cffc5c8cfb2399bd923fb10963ac1f7069c159e4aa40aefa5ce7a65"
  },
  "machine": {
   "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
@@ -1037,7 +1037,14 @@
    "sha256_remapped": {
     "hello": "cae59b302704fea56e6e6fbd19c0fcf737b933c9a9efd67a17cab21539a0491f"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build",
@@ -1095,7 +1102,14 @@
    "sha256_remapped": {
     "maps": "57821504e2256ab26b2f774f05a42b60c16a450adb6cb5623493377b199ce1a7"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build, GOPATH mode",
@@ -1119,6 +1133,10 @@
      {
       "differing_bytes": 58,
       "file": "hello",
+      "sections": {
+       ".note.gnu.build-id": 20,
+       ".note.go.buildid": 38
+      },
       "size_a": 2208730,
       "size_b": 2208730
      }
@@ -1153,7 +1171,17 @@
    "sha256_remapped": {
     "hello": "1a8282232d48183a0059d5d2d550068fcc0c563466e462b8e2b944409f300d29"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
+    ],
+    "same_after_naming": true
+   }
   },
   {
    "config": "go build, GOPATH mode",
@@ -1177,6 +1205,10 @@
      {
       "differing_bytes": 59,
       "file": "maps",
+      "sections": {
+       ".note.gnu.build-id": 19,
+       ".note.go.buildid": 40
+      },
       "size_a": 2240334,
       "size_b": 2240334
      }
@@ -1211,7 +1243,147 @@
    "sha256_remapped": {
     "maps": "d9dd262c3a5f3dd63206caa2cc3ba5fae17d61eea3fdd37244b249073236aebc"
    },
-   "tool": "go"
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
+    ],
+    "same_after_naming": true
+   }
+  },
+  {
+   "config": "go build, GOPATH mode, import path declared",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 1058112,
+      "file": "hello",
+      "size_a": 2213458,
+      "size_b": 2213474
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/hello.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2208746,
+      "size_b": 2208746
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2213458,
+      "size_b": 2213458
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 2213458,
+      "size_b": 2213458
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "846af09d92c51d9bd10fdc675ba68fbd83a4ead6a7e8b9102934a6fcb6d5b5d2"
+   },
+   "sha256_remapped": {
+    "hello": "1c5dae85e7e7f450ba0dd3721c0987abccb5210646f39c7d11448865a0dfd1c2"
+   },
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
+  },
+  {
+   "config": "go build, GOPATH mode, import path declared",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 742882,
+      "file": "maps",
+      "size_a": 2244998,
+      "size_b": 2245006
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Go",
+   "path_copies_cross": 1,
+   "path_copies_remapped": 0,
+   "program": "go/maps.go",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2240342,
+      "size_b": 2240342
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244998,
+      "size_b": 2244998
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "maps",
+      "size_a": 2244998,
+      "size_b": 2244998
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "maps": "b357ba4929fba702c773c83eda2f777216af7c3588a4133454065664a6877bc3"
+   },
+   "sha256_remapped": {
+    "maps": "01de3019b897966d226b5faba4dd5be58bb95da41ac804d43b4fd877db77ec20"
+   },
+   "tool": "go",
+   "trace": {
+    "env": {
+     "GODEBUG": "gocachehash=1"
+    },
+    "lines_naming_dir": [],
+    "same_after_naming": true
+   }
   },
   {
    "config": "gfortran -O2 -g",

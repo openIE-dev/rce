@@ -55,9 +55,37 @@ found, the remapped comparison is "not tested".
 | julia | none; the remapped run writes the code without source lines (`debuginfo = :none`) | Julia documentation of `code_llvm` [K, unverified] |
 | lean, wasmtime compile, zig, ghc, cobc | none found | |
 
-`go build` is measured twice: in module mode (Go's default) and in GOPATH
-mode (`GO111MODULE=off`), because a trial run of this harness found that
-the build differs across directories after `-trimpath` in GOPATH mode.
+`go build` is measured three times: in module mode (Go's default); in
+GOPATH mode (`GO111MODULE=off`) with the source file named on the command
+line; and in GOPATH mode with the source placed at `gopath/src/e1` under
+the build directory, `GOPATH` set to that `gopath`, and the package built
+by its import path `e1`. A trial run of this harness found the second
+differing across directories after `-trimpath`; the third tests the cause
+(below).
+
+For a differing ELF file, `e1.py` also counts the differing bytes per
+section, from the file's own section headers. For the Go configurations it
+runs the remapped build once more in each directory with
+`GODEBUG=gocachehash=1`, which makes `go build` print every input it
+hashes into each action ID, and records the lines that name the build
+directory.
+
+## The Go GOPATH-mode difference
+
+In GOPATH mode, a package named by a file outside every `GOPATH` is a
+*local* package, and Go gives it the import path `_` followed by its
+absolute directory. The `gocachehash` trace shows that path among the
+inputs of the compile and link action IDs
+(`local true prefix "_/…/build"`), and `-trimpath` does not remove it.
+The Go build ID that `go tool buildid` prints is built from those hashes;
+of its four parts, the first two differ between the directories and the
+last two are equal. The linker writes the build ID into the
+`.note.go.buildid` section, and the 20-byte GNU build ID in
+`.note.gnu.build-id` differs with it. These two notes are the only
+sections that differ: code and data are identical. With the package given a declared
+import path in a `GOPATH`, the lines naming the directory disappear and the
+remapped builds are identical across directories. `RESULTS.md` shows both
+from the harness's own records.
 
 ## Toolchains
 

@@ -54,50 +54,50 @@ Not run on this machine: `lean -c` (lean not on PATH); `wasmtime compile` (wasmt
 
 Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):
 
-| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes |
-|---|---|---|---|---|---|---|
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,744 | 17,760 | 1,843 |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,992 | 19,008 | 2,160 |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,016 | 17,048 | 1,833 |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,240 | 18,272 | 2,129 |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 32,688 | 32,704 | 2,614 |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 245,760 | 245,776 | 20,600 |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 30,296 | 30,328 | 6,314 |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 170,688 | 170,720 | 91,003 |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 4,540,336 | 4,540,352 | 825,994 |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 4,759,464 | 4,759,480 | 842,267 |
-| `rustc wasm32-wasip1 -O -g` | `rust/hello.rs` | Two directories | `hello.wasm` | 2,177,147 | 2,177,163 | 1,167,860 |
-| `rustc wasm32-wasip1 -O -g` | `rust/generic.rs` | Two directories | `generic.wasm` | 2,353,687 | 2,353,703 | 1,249,142 |
-| `go build` | `go/hello.go` | Two directories | `hello` | 2,217,583 | 2,217,591 | 1,061,794 |
-| `go build` | `go/maps.go` | Two directories | `maps` | 2,248,939 | 2,248,947 | 752,378 |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,217,650 | 2,217,658 | 1,061,847 |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,208,802 | 2,208,802 | 60 |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,248,982 | 2,248,998 | 751,878 |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,240,166 | 2,240,166 | 60 |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 18,104 | 18,120 | 1,997 |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 19,880 | 19,896 | 2,402 |
-| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 10,460,258 | 10,460,258 | 3,741,293 |
-| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 10,460,258 | 10,460,258 | 3,745,961 |
-| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 10,460,258 | 10,460,258 | 613 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `b~hello.o` | 56,080 | 56,144 | 16,005 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `hello` | 54,848 | 54,880 | 9,330 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `hello.o` | 3,376 | 3,408 | 1,013 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories, remapped | `b~hello.ali` | 10,677 | 10,693 | 10,121 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories, remapped | `hello.ali` | 2,124 | 2,140 | 2,008 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Same directory, clock free | `b~hello.ali` | 10,630 | 10,630 | 2 |
-| `gnatmake -O2 -g` | `ada/hello.adb` | Same directory, clock free | `hello.ali` | 2,077 | 2,077 | 1 |
-| `cobc -x` | `cobol/hello.cob` | Same directory twice | `hello` | 77,672 | 77,672 | 32 |
-| `cobc -x` | `cobol/hello.cob` | Two directories | `hello` | 77,672 | 77,688 | 11,895 |
-| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 77,672 | 77,672 | 2,467 |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello` | 1,131,384 | 1,131,400 | 162,918 |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 5,008 | 5,024 | 1,519 |
-| `erlc` | `erlang/hello.erl` | Two directories | `hello.beam` | 884 | 916 | 198 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 145,299 | 145,299 | 120 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 145,299 | 145,315 | 138,478 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,696 | 3,712 | 3,321 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 2,952 | 2,968 | 2,490 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 58,710 | 58,710 | 118 |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 145,299 | 145,299 | 116 |
+| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |
+|---|---|---|---|---|---|---|---|
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,744 | 17,760 | 1,843 |  |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,992 | 19,008 | 2,160 |  |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,016 | 17,048 | 1,833 |  |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,240 | 18,272 | 2,129 |  |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 32,688 | 32,704 | 2,614 |  |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 245,760 | 245,776 | 20,600 |  |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 30,296 | 30,328 | 6,314 |  |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 170,688 | 170,720 | 91,003 |  |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 4,540,336 | 4,540,352 | 825,994 |  |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 4,759,464 | 4,759,480 | 842,267 |  |
+| `rustc wasm32-wasip1 -O -g` | `rust/hello.rs` | Two directories | `hello.wasm` | 2,177,147 | 2,177,163 | 1,167,860 |  |
+| `rustc wasm32-wasip1 -O -g` | `rust/generic.rs` | Two directories | `generic.wasm` | 2,353,687 | 2,353,703 | 1,249,142 |  |
+| `go build` | `go/hello.go` | Two directories | `hello` | 2,217,583 | 2,217,591 | 1,061,794 |  |
+| `go build` | `go/maps.go` | Two directories | `maps` | 2,248,939 | 2,248,947 | 752,378 |  |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,217,650 | 2,217,658 | 1,061,847 |  |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,208,802 | 2,208,802 | 60 |  |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,248,982 | 2,248,998 | 751,878 |  |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,240,166 | 2,240,166 | 60 |  |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 18,104 | 18,120 | 1,997 |  |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 19,880 | 19,896 | 2,402 |  |
+| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 10,460,258 | 10,460,258 | 3,741,293 |  |
+| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 10,460,258 | 10,460,258 | 3,745,961 |  |
+| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 10,460,258 | 10,460,258 | 613 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `b~hello.o` | 56,080 | 56,144 | 16,005 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `hello` | 54,848 | 54,880 | 9,330 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories | `hello.o` | 3,376 | 3,408 | 1,013 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories, remapped | `b~hello.ali` | 10,677 | 10,693 | 10,121 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Two directories, remapped | `hello.ali` | 2,124 | 2,140 | 2,008 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Same directory, clock free | `b~hello.ali` | 10,630 | 10,630 | 2 |  |
+| `gnatmake -O2 -g` | `ada/hello.adb` | Same directory, clock free | `hello.ali` | 2,077 | 2,077 | 1 |  |
+| `cobc -x` | `cobol/hello.cob` | Same directory twice | `hello` | 77,672 | 77,672 | 32 |  |
+| `cobc -x` | `cobol/hello.cob` | Two directories | `hello` | 77,672 | 77,688 | 11,895 |  |
+| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 77,672 | 77,672 | 2,467 |  |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello` | 1,131,384 | 1,131,400 | 162,918 |  |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 5,008 | 5,024 | 1,519 |  |
+| `erlc` | `erlang/hello.erl` | Two directories | `hello.beam` | 884 | 916 | 198 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 145,299 | 145,299 | 120 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 145,299 | 145,315 | 138,478 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,696 | 3,712 | 3,321 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 2,952 | 2,968 | 2,490 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 58,710 | 58,710 | 118 |  |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 145,299 | 145,299 | 116 |  |
 
 Computed from the rows above:
 
@@ -108,8 +108,8 @@ Computed from the rows above:
 
 ## local-ubuntu-24.04-x86_64
 
-Run of 2026-11-01T23:24:31Z (UTC). Machine: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.80GHz, 4 CPUs, Ubuntu 24.04.5 LTS; Python 3.13.16.
-Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `e1.py` sha256 `6a2e55edcbc0e916`, `matrix.json` sha256 `ffe5761140a335cd`.
+Run of 2026-11-02T01:32:51Z (UTC). Machine: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.80GHz, 4 CPUs, Ubuntu 24.04.5 LTS; Python 3.13.16.
+Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `e1.py` sha256 `20710174c5fb1b93`, `matrix.json` sha256 `150eaa3a3cffc5c8`.
 
 | Tool | Version |
 |---|---|
@@ -135,6 +135,7 @@ Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `
 | `rustc wasm32-wasip1 -O -g` | Rust to WebAssembly | 2 | identical (2 of 2) | differs (2 of 2; up to 1,213,811 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
 | `go build` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 741,728 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
 | `go build, GOPATH mode` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 743,688 bytes) | differs (2 of 2; up to 59 bytes) | identical (2 of 2) | 1/1 / 0/0 |
+| `go build, GOPATH mode, import path declared` | Go | 2 | identical (2 of 2) | differs (2 of 2; up to 1,058,112 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
 | `gfortran -O2 -g` | Fortran | 2 | identical (2 of 2) | differs (2 of 2; up to 2,368 bytes) | identical (2 of 2) | identical (2 of 2) | 1/1 / 0/0 |
 | `gfortran -O2` | Fortran | 2 | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | identical (2 of 2) | 0/0 / 0/0 |
 | `lean -c` | Lean 4 | 1 | identical (1 of 1) | identical (1 of 1) | not tested | identical (1 of 1) | 0 / - |
@@ -144,33 +145,46 @@ Not run on this machine: `zig build-exe` (zig not on PATH); `zig build-exe -O Re
 
 Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):
 
-| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes |
-|---|---|---|---|---|---|---|
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,808 | 17,824 | 1,812 |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 19,056 | 19,072 | 2,131 |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,144 | 17,176 | 1,895 |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,368 | 18,400 | 2,191 |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 32,752 | 32,768 | 2,615 |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 245,824 | 245,840 | 20,602 |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 30,424 | 30,456 | 6,400 |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 170,760 | 170,792 | 91,041 |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 4,362,096 | 4,362,112 | 2,354,077 |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 4,582,408 | 4,582,424 | 2,441,330 |
-| `rustc wasm32-wasip1 -O -g` | `rust/hello.rs` | Two directories | `hello.wasm` | 2,105,755 | 2,105,771 | 1,133,038 |
-| `rustc wasm32-wasip1 -O -g` | `rust/generic.rs` | Two directories | `generic.wasm` | 2,280,882 | 2,280,898 | 1,213,811 |
-| `go build` | `go/hello.go` | Two directories | `hello` | 2,209,295 | 2,209,303 | 741,728 |
-| `go build` | `go/maps.go` | Two directories | `maps` | 2,244,899 | 2,244,923 | 724,739 |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,213,466 | 2,213,474 | 741,660 |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,208,730 | 2,208,730 | 58 |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,244,966 | 2,244,982 | 743,688 |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,240,334 | 2,240,334 | 59 |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 18,168 | 18,184 | 2,059 |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 19,944 | 19,960 | 2,368 |
+| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |
+|---|---|---|---|---|---|---|---|
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,808 | 17,824 | 1,812 |  |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 19,056 | 19,072 | 2,131 |  |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,144 | 17,176 | 1,895 |  |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,368 | 18,400 | 2,191 |  |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 32,752 | 32,768 | 2,615 |  |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 245,824 | 245,840 | 20,602 |  |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 30,424 | 30,456 | 6,400 |  |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 170,760 | 170,792 | 91,041 |  |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 4,362,096 | 4,362,112 | 2,354,077 |  |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 4,582,408 | 4,582,424 | 2,441,330 |  |
+| `rustc wasm32-wasip1 -O -g` | `rust/hello.rs` | Two directories | `hello.wasm` | 2,105,755 | 2,105,771 | 1,133,038 |  |
+| `rustc wasm32-wasip1 -O -g` | `rust/generic.rs` | Two directories | `generic.wasm` | 2,280,882 | 2,280,898 | 1,213,811 |  |
+| `go build` | `go/hello.go` | Two directories | `hello` | 2,209,295 | 2,209,303 | 741,728 |  |
+| `go build` | `go/maps.go` | Two directories | `maps` | 2,244,899 | 2,244,923 | 724,739 |  |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,213,466 | 2,213,474 | 741,660 |  |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,208,730 | 2,208,730 | 58 | `.note.go.buildid` 38, `.note.gnu.build-id` 20 |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,244,966 | 2,244,982 | 743,688 |  |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,240,334 | 2,240,334 | 59 | `.note.go.buildid` 40, `.note.gnu.build-id` 19 |
+| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | 2,213,458 | 2,213,474 | 1,058,112 |  |
+| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | 2,244,998 | 2,245,006 | 742,882 |  |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 18,168 | 18,184 | 2,059 |  |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 19,944 | 19,960 | 2,368 |  |
+
+Inputs of the remapped build that name the build directory, as the tool's own trace prints them (`{dir}` is the build directory):
+
+| Configuration | Program | Trace | Lines naming the directory | Same in both directories once named |
+|---|---|---|---|---|
+| `go build` | `go/hello.go` | `GODEBUG=gocachehash=1` | none | yes |
+| `go build` | `go/maps.go` | `GODEBUG=gocachehash=1` | none | yes |
+| `go build, GOPATH mode` | `go/hello.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"` | yes |
+| `go build, GOPATH mode` | `go/maps.go` | `GODEBUG=gocachehash=1` | `HASH[build command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"`<br>`HASH[link command-line-arguments]: "omitdebug false standard false local true prefix \"_{dir}\"\n"` | yes |
+| `go build, GOPATH mode, import path declared` | `go/hello.go` | `GODEBUG=gocachehash=1` | none | yes |
+| `go build, GOPATH mode, import path declared` | `go/maps.go` | `GODEBUG=gocachehash=1` | none | yes |
 
 Computed from the rows above:
 
 - configurations with any difference between two builds in the same directory: none;
-- configurations whose two-directory difference comes with the build directory in the output: `clang -O2 -g`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build`, `go build, GOPATH mode`, `rustc -O -g`, `rustc wasm32-wasip1 -O -g`;
+- configurations whose two-directory difference comes with the build directory in the output: `clang -O2 -g`, `clang++ -O2 -g`, `g++ -O2 -g`, `gcc -O2 -g`, `gfortran -O2 -g`, `go build`, `go build, GOPATH mode`, `go build, GOPATH mode, import path declared`, `rustc -O -g`, `rustc wasm32-wasip1 -O -g`;
 - configurations with a difference that survives the remapped build: `go build, GOPATH mode`;
 - configurations identical in the same directory with SOURCE_DATE_EPOCH set but not with it unset (the clock is an input): none.
 

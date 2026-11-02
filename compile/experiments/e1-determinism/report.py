@@ -99,20 +99,36 @@ def section(name, res):
         for k, label in COMPARISONS:
             cmpn = r[k]
             if cmpn["status"] == "build failed":
-                detail.append("| `%s` | `%s` | %s | | | | build failed: %s |" % (esc(r["config"]), r["program"], label, esc(cmpn["error"])))
+                detail.append("| `%s` | `%s` | %s | | | | build failed: %s | |" % (esc(r["config"]), r["program"], label, esc(cmpn["error"])))
             for f in cmpn.get("files", []):
                 if f["differing_bytes"] or "missing_in" in f:
-                    detail.append("| `%s` | `%s` | %s | `%s` | %s | %s | %s |" % (
+                    secs = f.get("sections")
+                    detail.append("| `%s` | `%s` | %s | `%s` | %s | %s | %s | %s |" % (
                         esc(r["config"]), r["program"], label, esc(f["file"]),
                         "-" if f["size_a"] is None else format(f["size_a"], ","),
                         "-" if f["size_b"] is None else format(f["size_b"], ","),
-                        format(f["differing_bytes"], ",")))
+                        format(f["differing_bytes"], ","),
+                        ", ".join("`%s` %s" % (k, format(v, ",")) for k, v in sorted(secs.items(), key=lambda kv: (-kv[1], kv[0]))) if secs else ""))
     if detail:
         out.append("Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):")
         out.append("")
-        out.append("| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes |")
-        out.append("|---|---|---|---|---|---|---|")
+        out.append("| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |")
+        out.append("|---|---|---|---|---|---|---|---|")
         out.extend(detail)
+        out.append("")
+    traced = [r for r in res["rows"] if r.get("trace")]
+    if traced:
+        out.append("Inputs of the remapped build that name the build directory, as the tool's own trace prints them (`{dir}` is the build directory):")
+        out.append("")
+        out.append("| Configuration | Program | Trace | Lines naming the directory | Same in both directories once named |")
+        out.append("|---|---|---|---|---|")
+        for r in traced:
+            t = r["trace"]
+            ls = t["lines_naming_dir"]
+            out.append("| `%s` | `%s` | %s | %s | %s |" % (
+                esc(r["config"]), r["program"], ", ".join("`%s=%s`" % kv for kv in sorted(t["env"].items())),
+                "build failed" if ls is None else ("<br>".join("`%s`" % esc(x) for x in ls) or "none"),
+                "yes" if t["same_after_naming"] else "no"))
         out.append("")
     survive = sorted({r["config"] for r in res["rows"] if r["remapped"]["status"] == "differs"})
     same = sorted({r["config"] for r in res["rows"] if r["same_dir"]["status"] != "identical"})

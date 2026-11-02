@@ -19,6 +19,11 @@ records, per output file, the two sizes and the number of differing bytes
 file has ended). It also counts how many times the absolute build directory
 appears in the outputs of B1 and of Br, and keeps the SHA-256 of every output
 of A1 and of Ar, so that results files from two machines can be compared.
+For a differing ELF file it also counts the differing bytes per section.
+A configuration with trace_env runs its remapped build once more in A and
+in B with those variables (Go's GODEBUG=gocachehash=1 prints the inputs of
+each action ID) and records the lines of that output which name the build
+directory, the directory written as {dir}.
 
 The results file is JSON and holds the machine, the toolchain versions and
 one row per configuration and program. RESULTS.md is generated from it by
@@ -96,21 +101,23 @@ def snapshot(d, src):
         for name in files:
             p = os.path.join(root, name)
             rel = os.path.relpath(p, d)
-            if rel == src or os.path.islink(p):
+            if rel == os.path.normpath(src) or os.path.islink(p):
                 continue
             with open(p, "rb") as f:
                 out[rel] = f.read()
     return out
 
 
-def build(cfg, argv, program, d, work, epoch=True, extra_env=None):
+def build(cfg, argv, program, d, work, epoch=True, extra_env=None, want_stderr=False):
     """Build program in directory d with argv; return (outputs, error)."""
     if os.path.exists(d):
         shutil.rmtree(d)
     os.makedirs(d)
     src = os.path.basename(program)
     stem = os.path.splitext(src)[0]
-    shutil.copyfile(os.path.join(HERE, "programs", program), os.path.join(d, src))
+    sub = cfg.get("source_dir", "")
+    os.makedirs(os.path.join(d, sub), exist_ok=True)
+    shutil.copyfile(os.path.join(HERE, "programs", program), os.path.join(d, sub, src))
     env = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "/"), "LC_ALL": "C", "TZ": "UTC"}
     for k in ("RUSTUP_HOME", "CARGO_HOME"):
         if k in os.environ:
@@ -129,7 +136,9 @@ def build(cfg, argv, program, d, work, epoch=True, extra_env=None):
         if p.returncode != 0:
             msg = (p.stderr or p.stdout).decode("utf-8", "replace").strip().splitlines()
             return None, "exit %d: %s" % (p.returncode, msg[-1] if msg else "")
-        return snapshot(d, src), None
+        if want_stderr:
+            return snapshot(d, os.path.join(sub, src)), p.stderr.decode("utf-8", "replace")
+        return snapshot(d, os.path.join(sub, src)), None
     except subprocess.TimeoutExpired:
         return None, "timeout after %d s" % TIMEOUT
     finally:
@@ -153,6 +162,46 @@ def differing_bytes(a, b):
     return diff
 
 
+def elf_sections(data):
+    """(name, file offset, size) of each section of a 64-bit little-endian ELF file, else []."""
+    if len(data) < 64 or data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+        return []
+    shoff = int.from_bytes(data[0x28:0x30], "little")
+    shentsize = int.from_bytes(data[0x3A:0x3C], "little")
+    shnum = int.from_bytes(data[0x3C:0x3E], "little")
+    shstrndx = int.from_bytes(data[0x3E:0x40], "little")
+    if shoff == 0 or shoff + shnum * shentsize > len(data) or shstrndx >= shnum:
+        return []
+    hdrs = []
+    for i in range(shnum):
+        h = data[shoff + i * shentsize: shoff + (i + 1) * shentsize]
+        hdrs.append((int.from_bytes(h[0:4], "little"), int.from_bytes(h[4:8], "little"),
+                     int.from_bytes(h[0x18:0x20], "little"), int.from_bytes(h[0x20:0x28], "little")))
+    stroff = hdrs[shstrndx][2]
+    out = []
+    for name, typ, off, size in hdrs:
+        if typ == 8:  # SHT_NOBITS occupies no file bytes
+            continue
+        end = data.find(b"\0", stroff + name)
+        out.append((data[stroff + name:end].decode("ascii", "replace"), off, size))
+    return out
+
+
+def diff_sections(a, b):
+    """Count the differing byte positions of two equal-length ELF files per section of the first."""
+    if len(a) != len(b):
+        return None
+    secs = elf_sections(a)
+    if not secs:
+        return None
+    counts = {}
+    for i, (p, q) in enumerate(zip(a, b)):
+        if p != q:
+            name = next((n for n, off, size in secs if off <= i < off + size), "(outside sections)")
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
 def compare(x, y):
     if x[1] or y[1]:
         return {"status": "build failed", "error": x[1] or y[1]}
@@ -170,6 +219,10 @@ def compare(x, y):
             row["missing_in"] = "a" if fa is None else "b"
         else:
             row["differing_bytes"] = differing_bytes(fa, fb)
+            if row["differing_bytes"]:
+                secs = diff_sections(fa, fb)
+                if secs is not None:
+                    row["sections"] = secs
         files.append(row)
     same = all(r["differing_bytes"] == 0 and "missing_in" not in r for r in files)
     return {"status": "identical" if same else "differs", "files": files}
@@ -215,6 +268,17 @@ def run_row(cfg, program, work):
         row["remapped"] = {"status": "not tested", "error": cfg.get("remap_source", "")}
         row["path_copies_remapped"] = None
         row["sha256_remapped"] = None
+    if cfg.get("trace_env"):
+        argv_t = cfg["remap"] or argv
+        lines = {}
+        for name, d in (("a", a), ("b", b)):
+            res = build(cfg, argv_t, program, d, work, extra_env=dict(cfg.get("remap_env", {}), **cfg["trace_env"]), want_stderr=True)
+            if res[0] is None:
+                lines[name] = None
+                continue
+            lines[name] = sorted({ln.replace(d, "{dir}") for ln in res[1].splitlines() if d in ln and not ln.startswith("HASH /")})
+        row["trace"] = {"env": cfg["trace_env"], "lines_naming_dir": lines.get("a"),
+                        "same_after_naming": lines.get("a") == lines.get("b")}
     t0 = time.monotonic()
     c1 = build(cfg, argv, program, a, work, epoch=False)
     wait = 1.1 - (time.monotonic() - t0)

@@ -1,6 +1,6 @@
 {
   "schema": "rce-compile-e1-matrix/1",
-  "note": "Each build runs in its own directory with the source copied in. {src} is the source file name, {stem} the name without its extension, {dir} the absolute build directory. remap is the same build with the toolchain's documented path remapping; null means no remapping is tested for that toolchain. env adds variables to the declared environment; fresh names variables that get a new empty directory, outside the build directory, for every build.",
+  "note": "Each build runs in its own directory with the source copied in. {src} is the source file name, {stem} the name without its extension, {dir} the absolute build directory. remap is the same build with the toolchain's documented path remapping; null means no remapping is tested for that toolchain. env adds variables to the declared environment; fresh names variables that get a new empty directory, outside the build directory, for every build. source_dir is the subdirectory of the build directory that receives the source. trace_env names variables for one more remapped build in each directory whose standard error is searched for the build directory.",
   "configs": [
     {
       "id": "gcc -O2 -g",
@@ -93,7 +93,8 @@
       "fresh": ["GOCACHE"],
       "build": ["go", "build", "-o", "{stem}", "{src}"],
       "remap": ["go", "build", "-trimpath", "-o", "{stem}", "{src}"],
-      "remap_source": "go help build, -trimpath"
+      "remap_source": "go help build, -trimpath",
+      "trace_env": {"GODEBUG": "gocachehash=1"}
     },
     {
       "id": "go build, GOPATH mode",
@@ -105,7 +106,22 @@
       "fresh": ["GOCACHE"],
       "build": ["go", "build", "-o", "{stem}", "{src}"],
       "remap": ["go", "build", "-trimpath", "-o", "{stem}", "{src}"],
-      "remap_source": "go help build, -trimpath"
+      "remap_source": "go help build, -trimpath",
+      "trace_env": {"GODEBUG": "gocachehash=1"}
+    },
+    {
+      "id": "go build, GOPATH mode, import path declared",
+      "language": "Go",
+      "tool": "go",
+      "version": ["go", "version"],
+      "programs": ["go/hello.go", "go/maps.go"],
+      "source_dir": "gopath/src/e1",
+      "env": {"GOTOOLCHAIN": "local", "GOFLAGS": "", "GO111MODULE": "off", "CGO_ENABLED": "0", "GOPATH": "{dir}/gopath"},
+      "fresh": ["GOCACHE"],
+      "build": ["go", "build", "-o", "{stem}", "e1"],
+      "remap": ["go", "build", "-trimpath", "-o", "{stem}", "e1"],
+      "remap_source": "go help build, -trimpath; the package has the GOPATH import path e1",
+      "trace_env": {"GODEBUG": "gocachehash=1"}
     },
     {
       "id": "gfortran -O2 -g",
