@@ -395,10 +395,14 @@ mod power {
 
     #[test]
     fn polled_meter_integrates_and_reports_errors() {
+        let t0 = std::time::Instant::now();
         let mut m = PolledMeter::start("test", Duration::from_millis(10), || Ok(5.0)).unwrap();
         std::thread::sleep(Duration::from_millis(120));
         let s = m.sample().unwrap();
-        assert!(s.joules > 0.3 && s.joules < 1.0, "{}", s.joules);
+        // 5 W over at most the time that really passed: a loaded machine
+        // sleeps longer than asked, so the bound is the elapsed time, not 120 ms
+        let most = 5.0 * t0.elapsed().as_secs_f64();
+        assert!(s.joules > 0.3 && s.joules <= most + 1e-9, "{} J, at most {most} J", s.joules);
         assert!(
             PolledMeter::start("test", Duration::from_millis(10), || {
                 Err(MeterError::Unsupported("test", "x".into()))
