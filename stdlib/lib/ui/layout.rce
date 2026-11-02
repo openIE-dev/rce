@@ -241,11 +241,11 @@ pub fn layout(v: &View, m: &Mode) -> Layout
                     elif a == "font-px"
                         fp = x
             elif a == "flow"
-                let fl = v.values[k][j].strip()
-                if fl == "row"
+                let flv = v.values[k][j].strip()
+                if flv == "row"
                     row[k] = true
-                elif fl != "" and fl != "column"
-                    probs.push("flow \"" + fl + "\"")
+                elif flv != "" and flv != "column"
+                    probs.push("flow \"" + flv + "\"")
             elif a == "clip"
                 let c = v.values[k][j].strip()
                 if c == "true"
