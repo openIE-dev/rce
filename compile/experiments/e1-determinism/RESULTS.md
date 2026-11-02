@@ -55,7 +55,7 @@ Not run on this machine: `lean -c` (lean not on PATH); `wasmtime compile` (wasmt
 
 Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):
 
-| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |
+| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section or Mach-O region |
 |---|---|---|---|---|---|---|---|
 | `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,744 | 17,760 | 1,843 |  |
 | `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 18,992 | 19,008 | 2,159 |  |
@@ -159,7 +159,7 @@ Not run on this machine: `zig build-exe` (zig not on PATH); `zig build-exe -O Re
 
 Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):
 
-| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |
+| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section or Mach-O region |
 |---|---|---|---|---|---|---|---|
 | `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 17,808 | 17,824 | 1,812 |  |
 | `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 19,056 | 19,072 | 2,131 |  |
@@ -206,6 +206,7 @@ Computed from the rows above:
 
 Run of 2026-11-02T09:50:01Z (UTC). Machine: Darwin arm64, CPU model not reported, 18 CPUs, OS release not reported; Python 3.15.2.
 Declared environment: LC_ALL=C, SOURCE_DATE_EPOCH=1735689600, TZ=UTC. Harness: `e1.py` sha256 `20710174c5fb1b93`, `matrix.json` sha256 `150eaa3a3cffc5c8`.
+This file was written without Mach-O attribution (results schema 1): its differing Mach-O files have no per-region byte counts and no LC_UUID or debug map.
 
 | Tool | Version |
 |---|---|
@@ -251,109 +252,109 @@ Not run on this machine: `rustc wasm32-wasip1 -O -g` (probe failed: sh -c test -
 
 Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):
 
-| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |
+| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section or Mach-O region |
 |---|---|---|---|---|---|---|---|
-| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 85 |  |
-| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 |  |
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 469 |  |
-| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 |  |
-| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 |  |
-| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 |  |
-| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 86 |  |
-| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 |  |
-| `gcc -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 37 |  |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 |  |
-| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 |  |
-| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 471 |  |
-| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 |  |
-| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 87 |  |
-| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 |  |
-| `clang -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 38 |  |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 468 |  |
-| `clang -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 |  |
-| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 |  |
-| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 |  |
-| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 85 |  |
-| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 14 |  |
-| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 38 |  |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 |  |
-| `clang -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 |  |
-| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 473 |  |
-| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 |  |
-| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 85 |  |
-| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 578 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 577 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 87 |  |
-| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 37 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 608 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 609 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 118 |  |
-| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 576 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 575 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 85 |  |
-| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 15 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 38 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 609 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 608 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 119 |  |
-| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 |  |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 436,120 | 436,152 | 3,683 |  |
-| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 |  |
-| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello` | 436,120 | 436,152 | 3,683 |  |
-| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 |  |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 456,024 | 456,056 | 3,872 |  |
-| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 |  |
-| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic` | 456,024 | 456,056 | 3,872 |  |
-| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 |  |
-| `go build` | `go/hello.go` | Two directories | `hello` | 2,429,714 | 2,429,714 | 1,075,534 |  |
-| `go build` | `go/maps.go` | Two directories | `maps` | 2,448,274 | 2,448,274 | 1,089,596 |  |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,124 |  |
-| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,396,690 | 2,396,690 | 120 |  |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,588 |  |
-| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,431,762 | 2,431,762 | 119 |  |
-| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,375 |  |
-| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,997 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello` | 34,168 | 34,168 | 38 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 34,168 | 34,184 | 436 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello` | 34,168 | 34,184 | 436 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello` | 34,168 | 34,168 | 87 |  |
-| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,741 | 16 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory twice | `kernels` | 34,376 | 34,376 | 38 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 34,376 | 34,392 | 440 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels` | 34,376 | 34,392 | 439 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels` | 34,376 | 34,376 | 86 |  |
-| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,675 | 16 |  |
-| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 2,001,576 | 2,001,576 | 402 |  |
-| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 2,001,576 | 2,001,592 | 28,099 |  |
-| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 2,001,576 | 2,001,576 | 396 |  |
-| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 34,456 | 34,456 | 50 |  |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 2,864 | 2,880 | 669 |  |
-| `ocamlopt -g` | `ocaml/hello.ml` | Two directories, remapped | `hello.o` | 2,864 | 2,880 | 669 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 58,262 | 58,262 | 127 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.ll` | 3,748 | 3,748 | 6 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.s` | 3,342 | 3,342 | 15 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 58,262 | 58,278 | 54,459 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,748 | 3,764 | 3,321 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 3,342 | 3,358 | 2,814 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 30,605 | 30,605 | 114 |  |
-| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 58,262 | 58,262 | 100 |  |
+| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 85 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Same directory twice | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 469 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 86 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 16 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 37 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 471 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 845 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 87 | without Mach-O attribution |
+| `gcc -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Same directory twice | `hello` | 33,720 | 33,720 | 38 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello` | 33,720 | 33,736 | 468 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello` | 33,720 | 33,736 | 467 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,088 | 313 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello` | 33,720 | 33,720 | 85 | without Mach-O attribution |
+| `clang -O2 -g` | `c/hello.c` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 9,056 | 9,056 | 14 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Same directory twice | `sort` | 33,976 | 33,976 | 38 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort` | 33,976 | 33,992 | 472 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Two directories | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort` | 33,976 | 33,992 | 473 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Two directories, remapped | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,604 | 846 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort` | 33,976 | 33,976 | 85 | without Mach-O attribution |
+| `clang -O2 -g` | `c/sort.c` | Same directory, clock free | `sort.dSYM/Contents/Resources/DWARF/sort` | 10,572 | 10,572 | 16 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 578 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 577 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,030 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 87 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 16 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 37 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 608 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 609 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 118 | without Mach-O attribution |
+| `g++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory twice | `hello` | 36,696 | 36,696 | 38 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello` | 36,696 | 36,712 | 576 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello` | 36,696 | 36,712 | 575 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,220 | 59,029 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello` | 36,696 | 36,696 | 85 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/hello.cpp` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 113,188 | 113,188 | 15 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory twice | `templates` | 37,560 | 37,560 | 38 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates` | 37,560 | 37,576 | 609 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates` | 37,560 | 37,576 | 608 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Two directories, remapped | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,972 | 125,556 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates` | 37,560 | 37,560 | 119 | without Mach-O attribution |
+| `clang++ -O2 -g` | `cpp/templates.cpp` | Same directory, clock free | `templates.dSYM/Contents/Resources/DWARF/templates` | 207,940 | 207,940 | 16 | without Mach-O attribution |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello` | 436,120 | 436,152 | 3,683 | without Mach-O attribution |
+| `rustc -O -g` | `rust/hello.rs` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | without Mach-O attribution |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello` | 436,120 | 436,152 | 3,683 | without Mach-O attribution |
+| `rustc -O -g` | `rust/hello.rs` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 130,967 | 130,983 | 1,588 | without Mach-O attribution |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic` | 456,024 | 456,056 | 3,872 | without Mach-O attribution |
+| `rustc -O -g` | `rust/generic.rs` | Two directories | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | without Mach-O attribution |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic` | 456,024 | 456,056 | 3,872 | without Mach-O attribution |
+| `rustc -O -g` | `rust/generic.rs` | Two directories, remapped | `generic.dSYM/Contents/Resources/DWARF/generic` | 340,577 | 340,593 | 101,634 | without Mach-O attribution |
+| `go build` | `go/hello.go` | Two directories | `hello` | 2,429,714 | 2,429,714 | 1,075,534 | without Mach-O attribution |
+| `go build` | `go/maps.go` | Two directories | `maps` | 2,448,274 | 2,448,274 | 1,089,596 | without Mach-O attribution |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,124 | without Mach-O attribution |
+| `go build, GOPATH mode` | `go/hello.go` | Two directories, remapped | `hello` | 2,396,690 | 2,396,690 | 120 | without Mach-O attribution |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,588 | without Mach-O attribution |
+| `go build, GOPATH mode` | `go/maps.go` | Two directories, remapped | `maps` | 2,431,762 | 2,431,762 | 119 | without Mach-O attribution |
+| `go build, GOPATH mode, import path declared` | `go/hello.go` | Two directories | `hello` | 2,429,746 | 2,429,746 | 1,075,375 | without Mach-O attribution |
+| `go build, GOPATH mode, import path declared` | `go/maps.go` | Two directories | `maps` | 2,448,322 | 2,448,322 | 1,089,997 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory twice | `hello` | 34,168 | 34,168 | 38 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello` | 34,168 | 34,184 | 436 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello` | 34,168 | 34,184 | 436 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Two directories, remapped | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,773 | 378 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello` | 34,168 | 34,168 | 87 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/hello.f90` | Same directory, clock free | `hello.dSYM/Contents/Resources/DWARF/hello` | 13,741 | 13,741 | 16 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory twice | `kernels` | 34,376 | 34,376 | 38 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels` | 34,376 | 34,392 | 440 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels` | 34,376 | 34,392 | 439 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Two directories, remapped | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,707 | 575 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels` | 34,376 | 34,376 | 86 | without Mach-O attribution |
+| `gfortran -O2 -g` | `fortran/kernels.f90` | Same directory, clock free | `kernels.dSYM/Contents/Resources/DWARF/kernels` | 15,675 | 15,675 | 16 | without Mach-O attribution |
+| `zig build-exe` | `zig/hello.zig` | Same directory twice | `hello` | 2,001,576 | 2,001,576 | 402 | without Mach-O attribution |
+| `zig build-exe` | `zig/hello.zig` | Two directories | `hello` | 2,001,576 | 2,001,592 | 28,099 | without Mach-O attribution |
+| `zig build-exe` | `zig/hello.zig` | Same directory, clock free | `hello` | 2,001,576 | 2,001,576 | 396 | without Mach-O attribution |
+| `cobc -x` | `cobol/hello.cob` | Same directory, clock free | `hello` | 34,456 | 34,456 | 50 | without Mach-O attribution |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories | `hello.o` | 2,864 | 2,880 | 669 | without Mach-O attribution |
+| `ocamlopt -g` | `ocaml/hello.ml` | Two directories, remapped | `hello.o` | 2,864 | 2,880 | 669 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `saxpy.ll` | 58,262 | 58,262 | 127 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.ll` | 3,748 | 3,748 | 6 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory twice | `sumsq.s` | 3,342 | 3,342 | 15 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `saxpy.ll` | 58,262 | 58,278 | 54,459 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.ll` | 3,748 | 3,764 | 3,321 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories | `sumsq.s` | 3,342 | 3,358 | 2,814 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Two directories, remapped | `saxpy.ll` | 30,605 | 30,605 | 114 | without Mach-O attribution |
+| `julia code_llvm and code_native` | `julia/hello.jl` | Same directory, clock free | `saxpy.ll` | 58,262 | 58,262 | 100 | without Mach-O attribution |
 
 Inputs of the remapped build that name the build directory, as the tool's own trace prints them (`{dir}` is the build directory):
 

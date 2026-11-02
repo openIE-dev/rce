@@ -14,6 +14,8 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SCHEMAS = ("rce-compile-e1-results/1", "rce-compile-e1-results/2")
+NO_MACHO = "without Mach-O attribution"
 COMPARISONS = (
     ("same_dir", "Same directory twice"),
     ("cross_dir", "Two directories"),
@@ -59,18 +61,60 @@ def esc(s):
     return str(s).replace("|", "\\|")
 
 
+def without_macho(res):
+    """True for a macOS results file written before the harness attributed Mach-O bytes."""
+    return res["schema"] == SCHEMAS[0] and res["machine"]["system"] == "Darwin"
+
+
+def stab_cell(xs, ys, show):
+    """The entries of two debug-map lists that differ, and how many are in both."""
+    if xs is None or ys is None:
+        return "-"
+    common = [x for x in xs if x in ys]
+    only_a = [x for x in xs if x not in ys]
+    only_b = [y for y in ys if y not in xs]
+    parts = []
+    if only_a:
+        parts.append("a only: " + "<br>".join(show(x) for x in only_a))
+    if only_b:
+        parts.append("b only: " + "<br>".join(show(y) for y in only_b))
+    parts.append("%d in both" % len(common))
+    return "<br>".join(parts)
+
+
+def debug_map_rows(res):
+    out = []
+    for r in res["rows"]:
+        for k, label in COMPARISONS:
+            for f in r[k].get("files", []):
+                dm = f.get("macho_debug_map")
+                if not dm:
+                    continue
+                a, b = dm["a"] or {}, dm["b"] or {}
+                ua, ub = a.get("uuid"), b.get("uuid")
+                uuid = "same: `%s`" % ua if ua == ub else "a `%s`<br>b `%s`" % (ua or "none", ub or "none")
+                out.append("| `%s` | `%s` | %s | `%s` | %s | %s | %s |" % (
+                    esc(r["config"]), r["program"], label, esc(f["file"]), uuid,
+                    stab_cell(a.get("so"), b.get("so"), lambda x: "`%s`" % esc(x)),
+                    stab_cell(a.get("oso"), b.get("oso"), lambda x: "`%s` mtime %d" % (esc(x[0]), x[1]))))
+    return out
+
+
 def section(name, res):
     out = []
     m = res["machine"]
     out.append("## %s" % name)
     out.append("")
-    out.append("Run of %s (UTC). Machine: %s %s, %s, %s CPUs, %s; Python %s." % (
-        res["date_utc"], m["system"], m["machine"], m["cpu"] or "CPU model not reported", m["cpus"],
+    out.append("Run of %s (UTC). Machine: %s %s, %s%s, %s CPUs, %s; Python %s." % (
+        res["date_utc"], m["system"], m["machine"], m["cpu"] or "CPU model not reported",
+        ", model %s" % m["model"] if m.get("model") else "", m["cpus"],
         m["os"] or "OS release not reported", m["python"]))
     env = res["environment"]
     out.append("Declared environment: %s. Harness: `e1.py` sha256 `%s`, `matrix.json` sha256 `%s`." % (
         ", ".join("%s=%s" % (k, env[k]) for k in sorted(env)),
         res["harness"]["e1.py"][:16], res["harness"]["matrix.json"][:16]))
+    if without_macho(res):
+        out.append("This file was written %s (results schema 1): its differing Mach-O files have no per-region byte counts and no LC_UUID or debug map." % NO_MACHO)
     out.append("")
     out.append("| Tool | Version |")
     out.append("|---|---|")
@@ -95,6 +139,7 @@ def section(name, res):
         out.append("Not run on this machine: " + "; ".join("`%s` (%s)" % (esc(a["config"]), a["reason"]) for a in res["absent"]) + ".")
         out.append("")
     detail = []
+    attribution_missing = NO_MACHO if without_macho(res) else ""
     for r in res["rows"]:
         for k, label in COMPARISONS:
             cmpn = r[k]
@@ -102,19 +147,29 @@ def section(name, res):
                 detail.append("| `%s` | `%s` | %s | | | | build failed: %s | |" % (esc(r["config"]), r["program"], label, esc(cmpn["error"])))
             for f in cmpn.get("files", []):
                 if f["differing_bytes"] or "missing_in" in f:
-                    secs = f.get("sections")
+                    secs = f.get("sections") or f.get("macho_regions")
                     detail.append("| `%s` | `%s` | %s | `%s` | %s | %s | %s | %s |" % (
                         esc(r["config"]), r["program"], label, esc(f["file"]),
                         "-" if f["size_a"] is None else format(f["size_a"], ","),
                         "-" if f["size_b"] is None else format(f["size_b"], ","),
                         format(f["differing_bytes"], ","),
-                        ", ".join("`%s` %s" % (k, format(v, ",")) for k, v in sorted(secs.items(), key=lambda kv: (-kv[1], kv[0]))) if secs else ""))
+                        ", ".join("`%s` %s" % (esc(k), format(v, ",")) for k, v in sorted(secs.items(), key=lambda kv: (-kv[1], kv[0]))) if secs else attribution_missing))
     if detail:
         out.append("Files that differ, per build pair (sizes in bytes; the first build of the pair is a, the second b):")
         out.append("")
-        out.append("| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section |")
+        out.append("| Configuration | Program | Comparison | File | Size a | Size b | Differing bytes | Differing bytes per ELF section or Mach-O region |")
         out.append("|---|---|---|---|---|---|---|---|")
         out.extend(detail)
+        out.append("")
+    dmap = debug_map_rows(res)
+    if dmap:
+        out.append("LC_UUID and debug map (N_SO and N_OSO stab entries) of each differing Mach-O file, per build pair. "
+                   "An N_OSO entry is an object file path and that file's modification time; "
+                   "`{dir}` is the build directory and `{tmpdir}` the system temporary directory:")
+        out.append("")
+        out.append("| Configuration | Program | Comparison | File | LC_UUID | N_SO entries | N_OSO entries |")
+        out.append("|---|---|---|---|---|---|---|")
+        out.extend(dmap)
         out.append("")
     traced = [r for r in res["rows"] if r.get("trace")]
     if traced:
@@ -203,7 +258,7 @@ def render(paths):
     loaded = []
     for p in paths:
         res = json.load(open(p, encoding="utf-8"))
-        if res.get("schema") != "rce-compile-e1-results/1":
+        if res.get("schema") not in SCHEMAS:
             sys.exit("%s: unknown schema %r" % (p, res.get("schema")))
         out.extend(section(os.path.splitext(os.path.basename(p))[0], res))
         loaded.append((p, res))
