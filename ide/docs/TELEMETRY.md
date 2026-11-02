@@ -7,11 +7,12 @@ that cannot measure returns an error (`Unsupported`, `Read`, or `Stale` for
 a counter that did not move while the hardware certainly drew power). No
 source returns 0 J in place of a measurement.
 
-`rce test measure` (the IDE build of `rce`) reads `rapl` around a test run
-and prints the reading as a receipt term of spec Appendix D, D.11: basis
-`reported` (an on-chip counter, not a wall or shunt meter), boundary
-`package`, with the zones, files, interval, start and end times, machine and
-wraparounds counted in its provenance (`crates/rce-ide/src/reading.rs`;
+`rce test measure` (the IDE build of `rce`) reads `rapl` on Linux, or the
+IOReport package counters on macOS (below), around a test run and prints
+the reading as a receipt term of spec Appendix D, D.11: basis `reported`
+(an on-chip counter, not a wall or shunt meter), boundary `package`, with
+the counters, interval, start and end times, machine and wraparounds
+counted in its provenance (`crates/rce-ide/src/reading.rs`;
 `ide/README.md` shows the output). A figure from a meter this crate does not
 read enters the gate as `rce test measured J PROVENANCE.json` or `reported J
 PROVENANCE.json`, and only with a provenance valid by D.11 rule 1.
@@ -30,7 +31,7 @@ terminal it asks nothing and changes nothing.
 | Tag | Platform | Domain | How | Resolution | Accuracy |
 |---|---|---|---|---|---|
 | `rapl` | Linux (Intel, AMD Zen) | CPU package (and DRAM on servers) | powercap `intel-rapl:N/energy_uj`, wrap handled, `psys` skipped | energy counter, ~1 ms update | measured on Haswell+ and Zen; model-based before |
-| `ioreport` | macOS, Apple silicon | CPU, GPU, ANE (DRAM where it moves) | IOReport `CLPC/Energy Counters` (macOS 27) or `Energy Model` | nJ/mJ counter, on demand | Apple's on-chip energy model, not a shunt |
+| `ioreport` | macOS, Apple silicon | CPU, GPU, ANE (DRAM where it moves); `package` = CPU + GPU + ANE for `rce test measure` | IOReport `CLPC/Energy Counters` (macOS 27) or `Energy Model`, `libIOReport.dylib` opened with `dlopen` | nJ/mJ counter, on demand | Apple's on-chip energy model, not a shunt |
 | `smc` | macOS | whole system | SMC key `PSTR` (W), polled every 100 ms, trapezoid integrated | 100 ms | SMC sensor reading; faster changes smoothed |
 | `powermetrics` | macOS | CPU, GPU, ANE, combined | `sudo -n powermetrics`, only after setup | 200 ms average power | Apple's tool, same counters as IOReport |
 | `nvml` | Linux, Windows (NVIDIA) | GPU board | `nvmlDeviceGetTotalEnergyConsumption` (feature `nvml`) | mJ counter (Volta+) | about +/-5 W on datacenter boards |
@@ -56,8 +57,71 @@ terminal it asks nothing and changes nothing.
   2024 vladkens; `src/clpc.rs`, `src/sources.rs`, `src/shared.rs`,
   `src/metrics.rs`). macmon is pure Rust (core-foundation, libc). ide-energy
   does not depend on it; the reads are re-implemented over raw FFI.
+- IOReport is a private framework with no SDK stub, so
+  `/usr/lib/libIOReport.dylib` is opened with `dlopen` and its functions
+  resolved with `dlsym` at run time. A Mac (or a virtual machine) without
+  the library, a symbol, the `Energy Model` group or a working subscription
+  makes the meter `Unsupported` with that reason; nothing is linked against
+  it, so the binary still starts.
 - SMC: 81 `P*` keys exist on this Mac. Apple does not document which rail
   each is, so only `PSTR` (system total, as macmon uses it) is read.
+
+### `rce test measure` on macOS
+
+`rce test measure` on macOS reads `IoReportPackageMeter`
+(`crates/ide-energy/src/ioreport.rs`), with no root and no setup:
+
+- Counter kind: `reported`, an on-chip counter (D.11 names IOReport).
+- Domains: the `package` boundary is CPU + GPU + ANE (`PACKAGE`), the sum
+  asitop and macmon print as package power. DRAM is outside it, as it is
+  outside a RAPL package zone (and has no moving counter on the M5 Max).
+- Channels: chosen once, from a 100 ms delta taken when the meter opens
+  (`select_package`). For each domain, the AppleCLPC `Energy Counters`
+  channel (`CPU Energy`, `GPU Energy`, `ANE`) when it moved, else the
+  `Energy Model` channels (the `CPU Energy` or `GPU Energy` total when
+  present, the `DIE_n_CPU Energy` channels on an Ultra, else every channel
+  of the domain) when they moved; when neither moved, CLPC if it exists,
+  else the Energy Model (an idle GPU or ANE is 0 J). A CPU whose counters
+  did not move, or a domain with no channel of a known unit, gives no
+  reading. On an Ultra every die's channel of the same name is summed.
+  The provenance's `counter` names each channel with its group and unit,
+  for example `IOReport package = cpu + gpu + ane: cpu: CLPC "CPU Energy"
+  nJ; gpu: CLPC "GPU Energy" nJ; ane: CLPC "ANE" nJ`.
+- Units: read from each channel's unit label
+  (`IOReportChannelGetUnitLabel`) in every delta, and converted from J,
+  mJ, uJ (µJ) or nJ; any other label is never chosen and, if it appears
+  later, is a failed read. No unit is assumed.
+- Wraparound: IOReport gives 64-bit integer deltas
+  (`IOReportCreateSamplesDelta`); 2^63 nJ is about 9.2 GJ, 2.9 years at
+  100 W, so a delta does not wrap. A negative delta (a counter that went
+  back) is a failed read, never counted as a wrap, so `wraps` is 0, and
+  the sampler says why.
+- Sampling: the counters are read when the run starts, once a second
+  during it and when it ends; a read over 20 ms or more in which the CPU
+  did not move is a stale counter, never 0 J.
+- Machine: `kern.hostname`, `machdep.cpu.brand_string`, `hw.model`,
+  `kern.osproductversion` (the version `sw_vers` prints) and
+  `kern.osrelease`, read with `sysctlbyname`, for example
+  `HOST; cpu Apple M1 Max; model MacBookPro18,2; macOS 15.1; kernel Darwin
+  24.1.0`.
+- No reading: with no library, group or channel, `measure` prints
+  `energy: unmeasured: no counter available (REASON)`; a failed read and a
+  counter that did not move have their own lines. None of them is an
+  estimate.
+
+On a Mac (Apple silicon), from `ide/` of a checkout:
+
+```sh
+cargo build --release -p rce-ide --bin rce
+target/release/rce test measure FILE
+```
+
+`scripts/measure-check.sh target/release/rce` runs the same command on a
+small program and checks the line: a receipt with the nine provenance
+fields, or the no-counter line. The `macos` job of
+`.github/workflows/ide.yml` runs it on GitHub's Apple silicon runner, which
+is a virtual machine and may not expose the counters; the job prints which
+outcome it saw.
 
 ### Permissions
 
@@ -124,7 +188,9 @@ BatteryManager backend is tracked with `qualcomm`.
 
 `crates/ide-energy/tests/energy.rs`: unit handling and rail selection with
 the channel values recorded on the M5 Max (CLPC preferred, a stuck CPU or
-DRAM counter is never 0 J, an idle ANE is), CLPC ids, trapezoid
+DRAM counter is never 0 J, an idle ANE is), CLPC ids, the package channels
+and sum (`ioreport::package`: units per channel, Ultra dies, a counter that
+went back or a lost channel is an error, no reading without a moving CPU), trapezoid
 integration and polled-meter error propagation, SMC decoding, hwmon and
 power_supply on fake sysfs trees (Jetson VDD_IN skipped, counter reset is an
 error, no reading from a charging battery), powermetrics line parsing and
