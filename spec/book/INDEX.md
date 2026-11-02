@@ -20,10 +20,10 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `12-tooling.md` | `0018113c68de5c9a3ad0350e37cca20f16eb79f6757fa0b0588f910166b74fa2` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `cbf255393d0ebb75e6883a0dcba027fa9680e9a25235d3cffa785e9b1bfb27d9` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
-| `15-handler-spec-profile.md` | `905d40c63b33478544c31533f8f41725f7e19de03544997683235a3e997213f7` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
+| `15-handler-spec-profile.md` | `ffe2dfa4730d866160b6fe25fdd4b8437490fd871080a348cbf352c51bca1e52` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `a2d5fd7d202d210fbf6a4e090f34dc8391d52a2eecb9f5c4538da07816a6dc1f` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 | `17-draft09.md` | `c27e706210376d17948c166a34a4756ca035a91227d5d415ceb87bc29a2073ce` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 03d428a59bd4cfd55b754e417a2e0570badf63539826193e22f3aed92d877bf7 -->
+<!-- body-sha256: 6f2c9544d1c8a0b4d2d8c4594a9271d01cd7f9388033358c5fd5397909d94331 -->

@@ -6,8 +6,10 @@ Status: open. The owner decided its first two questions on 2026-10-31
 (ledger row of 2026-10-31). H1 (4.3), the frame sink and replay of
 frames, is implemented by the change on branch `claude/frame-replay`
 as HC-29, which also decides Q4 (ledger row of 2026-11-01). H6's fixes
-of the 1.4 findings are done (4.5); every other later item is a plan. Sections 1
-to 3 describe `main` at a5df5be7, before that change.
+of the 1.4 findings are done (4.5). The layout geometry that 4.2 left to
+attestation is implemented by the change on branch `claude/ui-geometry`
+(4.2, "Layout geometry"; ledger row of 2026-11-02). Every other later item
+is a plan. Sections 1 to 3 describe `main` at a5df5be7, before that change.
 
 The RCE owner wrote, after reading the Raven GUI library: "this is the
 lens RCE must also start looking at: UI/UX, HMI, HCI." This proposal
@@ -69,6 +71,10 @@ can check exactly.
   the European accessibility requirements for ICT products; **BCP 47**,
   the IETF format of language tags (`en`, `en-GB`); **CSS px**, the CSS
   reference pixel, 1/96 inch.
+- **Layout model**: the rule that gives every node of a view tree a box (a
+  rectangle in CSS px) from its attributes alone. RCE's is
+  `rce.ui.layout/1`, the module `ui.layout` (4.2, "Layout geometry").
+  **Viewport**: the width the boxes are laid out in.
 
 In plain words:
 
@@ -348,16 +354,21 @@ Counts: **E 16, L 10, P 22, H 7** (55).
   3.3.4, 3.3.8.
 - H: 1.3.2, 1.3.3, 1.4.1, 1.4.5, 2.4.5, 2.4.6, 3.3.3.
 
-Five E criteria need layout geometry, which RCE does not have: 1.4.4
-(resize text), 1.4.10 (reflow), 1.4.12 (text spacing), 2.4.11 (focus not
-obscured) and the spacing exception of 2.5.8 (target size). For each,
-`ui.rules` implements the part that is exact on declared attributes (a
-refused zoom, a declared width over 320 CSS px, refused text spacing, a
-malformed layer, a target without a declared size) and reports the part
-that needs geometry like a human part: undecided until attested, until a
-renderer reports geometry (4.3, H1 and H4). For 2.4.11 and 2.5.8 that
-part applies only when a view declares a layer above the flow, or a target
-under 24 by 24.
+Five E criteria need layout geometry: 1.4.4 (resize text), 1.4.10
+(reflow), 1.4.12 (text spacing), 2.4.11 (focus not obscured) and the
+spacing exception of 2.5.8 (target size). Until the change of 2026-11-02,
+`ui.rules` decided only their parts that are exact on declared attributes
+(a refused zoom, a declared width over 320 CSS px, refused text spacing, a
+malformed layer, a target without a declared size) and left the part that
+needs geometry to an attestation, so in effect they were partly exact. The
+layout model `ui.layout` (below, "Layout geometry") now gives every frame
+its boxes, and the rules decide those parts exactly; none of the five
+leaves anything to a person. The same boxes make three more parts exact:
+the focus indicator of 2.4.7 (whether any of it is visible), the focus
+outline of 1.4.11 (its contrast with the colours next to it) and the flash
+area of 2.3.1 (whether flashing boxes cover more than a quarter of a
+341 by 256 field). 1.4.11 and 2.3.1 stay P, since their human parts are
+not geometry.
 
 #### The table
 
@@ -384,11 +395,11 @@ attests; "nothing" means the rule decides the whole SC.
 | 1.4.1 | Use of Color | A | H | - | whether colour is the only visual means of conveying information |
 | 1.4.2 | Audio Control | A | E | `audio_control` | nothing |
 | 1.4.3 | Contrast (Minimum) | AA | E | `contrast_minimum` | nothing |
-| 1.4.4 | Resize Text | AA | E | `resize_text` | layout geometry, which RCE does not have yet: text resized to 200 percent without loss of content |
+| 1.4.4 | Resize Text | AA | E | `resize_text` | nothing |
 | 1.4.5 | Images of Text | AA | H | - | whether images of text are essential or customisable |
-| 1.4.10 | Reflow | AA | E | `reflow` | layout geometry, which RCE does not have yet: content at 320 CSS px without two-dimensional scrolling |
+| 1.4.10 | Reflow | AA | E | `reflow` | nothing |
 | 1.4.11 | Non-text Contrast | AA | P | `non_text_contrast` | which boundaries and graphics are required to identify components and understand content |
-| 1.4.12 | Text Spacing | AA | E | `text_spacing` | layout geometry, which RCE does not have yet: no loss of content under the stated text spacing |
+| 1.4.12 | Text Spacing | AA | E | `text_spacing` | nothing |
 | 1.4.13 | Content on Hover or Focus | AA | L | `hover_focus_content` | nothing |
 | 2.1.1 | Keyboard | A | E | `keyboard` | nothing |
 | 2.1.2 | No Keyboard Trap | A | E | `no_keyboard_trap` | nothing |
@@ -403,13 +414,13 @@ attests; "nothing" means the rule decides the whole SC.
 | 2.4.5 | Multiple Ways | AA | H | - | whether more than one way locates this view within its set |
 | 2.4.6 | Headings and Labels | AA | H | - | whether headings and labels describe topic or purpose |
 | 2.4.7 | Focus Visible | AA | E | `focus_visible` | nothing |
-| 2.4.11 | Focus Not Obscured (Minimum) | AA | E | `focus_not_obscured` | layout geometry, which RCE does not have yet: whether a declared layer hides the focused component |
+| 2.4.11 | Focus Not Obscured (Minimum) | AA | E | `focus_not_obscured` | nothing |
 | 2.5.1 | Pointer Gestures | A | E | `pointer_gestures` | nothing |
 | 2.5.2 | Pointer Cancellation | A | E | `pointer_cancellation` | nothing |
 | 2.5.3 | Label in Name | A | P | `label_in_name` | labels shown outside the component or as images of text |
 | 2.5.4 | Motion Actuation | A | E | `motion_actuation` | nothing |
 | 2.5.7 | Dragging Movements | AA | E | `dragging` | nothing |
-| 2.5.8 | Target Size (Minimum) | AA | E | `target_size` | layout geometry, which RCE does not have yet: the spacing exception for targets under 24 by 24 |
+| 2.5.8 | Target Size (Minimum) | AA | E | `target_size` | nothing |
 | 3.1.1 | Language of Page | A | P | `language_of_page` | whether lang names the language of the content |
 | 3.1.2 | Language of Parts | AA | P | `language_of_parts` | whether every passage in another language declares lang |
 | 3.2.1 | On Focus | A | L | `on_focus` | nothing |
@@ -478,8 +489,9 @@ HTML's where HTML has one, and RCE's own otherwise.
 | `autocomplete`, `value`, `href` | an input purpose of WCAG 2.2 section 7; the current value; `#K` for the node with key K | 1.3.5, 2.4.1, 3.3.7, 3.3.8 |
 | `fg`, `bg`, `border`, `bg-image`, `graphic` | colours, inherited from the nearest ancestor for `fg` and `bg`; `bg-image` makes text contrast undecided; `graphic` marks a graphic needed to understand content | 1.4.3, 1.4.11, 2.3.1 |
 | `font-px`, `font-weight` | integers, inherited; large text is 24 px, or 19 px at weight 700 (18 pt and 14 pt bold at 96 px per inch, rounded as axe-core rounds) | 1.4.3 |
-| `focus-fg`, `focus-bg`, `focus-border`, `focus-outline` | the style when focused | 2.4.7 |
-| `w`, `h`, `inline`, `layer` | declared minimum size in CSS px; a target inside a sentence; `layer` above 0 draws a node above the flow | 1.4.10, 2.3.1, 2.4.11, 2.5.8 |
+| `focus-fg`, `focus-bg`, `focus-border`, `focus-outline`, `focus-outline-px` | the style when focused; the outline's width (2 by default) | 1.4.11, 2.4.7 |
+| `w`, `h`, `pad`, `gap`, `flow`, `clip`, `layer`, `x`, `y`; the root's `vw` | the layout model `rce.ui.layout/1` ("Layout geometry" below): least size (exact with `clip`), padding, gap, `row` or `column`, overflow hidden, a layer above the flow at `x`, `y`; the viewport width (1280 by default) | 1.4.4, 1.4.10, 1.4.11, 1.4.12, 2.3.1, 2.4.7, 2.4.11, 2.5.8 |
+| `inline` | a target inside a sentence | 2.5.8 |
 | `orientation`, `user-scale`, `max-scale`, `user-spacing` | root: `any`, `portrait` or `landscape`; `no` refuses zoom; percent; `no` refuses user text spacing | 1.3.4, 1.4.4, 1.4.12 |
 | `action`, `focused`, `context` | the event a node raises when activated (a node with `action` is interactive); the node with focus; the root's context id (a change of it is a change of context) | 2.1.1, 3.2.x, 4.1.3 and others |
 | `dismiss-key`, `dismisses`, `captures-tab` | how focus leaves a modal or Tab-capturing node | 2.1.2 |
@@ -552,6 +564,92 @@ and 3 : 1 decisions agree; no pair is undecided (957 checks). axe-core
 decides with `>`, WCAG with `>=`; no pair lies within 10^-9 of a
 threshold, so the two never differ on these vectors.
 
+#### Layout geometry (`ui.layout`, `rce.ui.layout/1`)
+
+A pure module `stdlib/lib/ui/layout.rce` (`ui.layout`) gives every node of
+a view tree a box, from the tree's attributes alone; its header states the
+whole model. In brief:
+
+- **Unit.** Every length is an integer number of hundredths of a CSS px;
+  attributes are whole CSS px. Every value the rules need is then an
+  integer, including the text spacing of 1.4.12 (0.12, 0.16, 1.5 and 2
+  times a font size of whole px). No floating point is used.
+- **Boxes.** An element is a border box. Its children stack top to bottom,
+  each as wide as its content box (`flow` `column`, the default), or sit
+  left to right at the width of their content on one line, wrapping when
+  the next one has no room left (`flow` `row`). `w` and `h` are the least width
+  and height, `pad` the padding, `gap` the space between children, and a
+  `border` adds 1 CSS px. With `clip` `true` the node hides what lies
+  outside its padding box, and `w` and `h` are its exact size. A node with
+  `layer` above 0 leaves the flow and is placed at `x`, `y` in its
+  containing block (the nearest layered ancestor, else the root), as wide
+  as its content allows, and is drawn above the flow; of two layers the
+  higher is drawn above, and of two equal ones the later in tree order.
+- **Text.** The text children that stand next to each other form one run.
+  Text is set in a cell font: every Unicode scalar value advances one em
+  (the font size), and a line is one em high. White space collapses as in
+  CSS, a line breaks only at a space, and lines are filled greedily; a word
+  longer than its line stands alone and overflows.
+- **Modes.** The viewport is the root's `vw` (1280 CSS px by default),
+  or 320 CSS px for 1.4.10; every font size can be doubled (1.4.4); and
+  the text spacing of 1.4.12 can be applied.
+- **Malformed attributes.** A layout attribute that is not a whole number
+  of CSS px (or a value the model reads) makes each geometric rule
+  undecided on that frame: a rule never decides on a layout it does not
+  know.
+
+The **frames that show a node's focus** are the frames in which it is
+focused and, for a focusable node that no frame of the trace focuses,
+every frame: the focus styles of `rce.ui.attrs/1` change no box, so any
+frame shows where its focus would be. A link that is hidden until it is
+focused (a skip link) is therefore judged where it has focus.
+
+Each rule below takes the WCAG 2.2 text as read at w3c/wcag 9b94e18a
+(section 5) and states the exact rule `ui.rules` applies to the boxes.
+
+| SC | WCAG 2.2 text | Exact rule |
+|---|---|---|
+| 1.4.4 | "Except for captions and images of text, text can be resized without assistive technology up to 200 percent without loss of content or functionality." | At the view's viewport with every font size doubled, no line of text outside images and media lies partly outside the region its clipping ancestors show, and no interactive node's box lies wholly outside it; besides, the root does not refuse zoom. |
+| 1.4.10 | "Content can be presented without loss of information or functionality, and without requiring scrolling in two dimensions for: Vertical scrolling content at a width equivalent to 320 CSS pixels; Horizontal scrolling content at a height equivalent to 256 CSS pixels. Except for parts of the content which require two-dimensional layout for usage or meaning." | At a viewport of 320 CSS px, nothing outside two-dimensional content (the roles `img`, `table`, `grid` and the others of `two_d`, and media) reaches past 320 CSS px with the part its clipping ancestors show, and nothing is lost as under 1.4.4; the outermost node that reaches past is reported. Content that scrolls horizontally does not arise: the model sets text in horizontal lines only. |
+| 1.4.11, the focus outline | "The visual presentation of the following have a contrast ratio of at least 3:1 against adjacent color(s): User Interface Components: Visual information required to identify user interface components and states" | Where a frame shows a node's focus, its `focus-outline` colour has contrast 3 : 1 with every colour painted in the 1 CSS px band around the outline (in each cell of that band, the `bg` of the box drawn last there, or the root's `bg`, which the renderer also paints on the page); a colour that is not declared is undecided. |
+| 1.4.12 | "no loss of content or functionality occurs by setting all of the following and by changing no other style property: Line height (line spacing) to at least 1.5 times the font size; Spacing following paragraphs to at least 2 times the font size; Letter spacing (tracking) to at least 0.12 times the font size; Word spacing to at least 0.16 times the font size." | At the view's viewport with exactly those values (paragraphs: tag `p` or role `paragraph`), nothing is lost as under 1.4.4; besides, the root does not refuse text spacing. The exception for scripts that do not use a property is claimed with `exempt` and attested. |
+| 2.3.1, the flash area | the general flash threshold: flashes whose "combined area ... occupies no more than a total of .006 steradians within any 10 degree visual field on the screen (25% of any 10 degree visual field on the screen)", with the W3C's estimate of that field as a 341 by 256 pixel rectangle | The union of the flashing nodes' boxes inside a 341 by 256 CSS px window covers more than 21,824 CSS px squared for some position of the window. The area is bilinear between positions where a window edge meets a box edge, so its largest value is found by trying those positions. |
+| 2.4.7 | "Any keyboard operable user interface has a mode of operation where the keyboard focus indicator is visible." | Besides a declared focus style, where a frame shows a node's focus its border box, grown by the width of its focus outline, has some area inside the region its clipping ancestors show. |
+| 2.4.11 | "When a user interface component receives keyboard focus, the component is not entirely hidden due to author-created content." | Where a frame shows a node's focus, the part of its box that its clipping ancestors show is not wholly covered by the opaque backgrounds (`bg`) of nodes drawn above it and not inside it. Boxes of one flow do not cover one another. Content the user opened or moved (the notes of the SC) is claimed with `exempt` and attested. |
+| 2.5.8 | "The size of the target for pointer inputs is at least 24 by 24 CSS pixels, except when: Spacing: Undersized targets (those less than 24 by 24 CSS pixels) are positioned so that if a 24 CSS pixel diameter circle is centered on the bounding box of each, the circles do not intersect another target or the circle for another undersized target; Equivalent ...; Inline ...; User Agent Control ...; Essential ..." | A target (an enabled interactive node, its area the part of its box its clipping ancestors show) is at least 24 by 24 CSS px, or is `inline`, or its circle of 24 CSS px diameter on the centre of its box meets no other target's box (the distance from the centre to the box is under 12 CSS px) and no other undersized target's circle (the centres are under 24 CSS px apart); touching is not intersecting. Distances are compared squared, with doubled coordinates, so every comparison is between integers. A target inside or around another is not its neighbour. Equivalent, user agent control and essential are claimed with `exempt` and attested. |
+
+These rules are functions of `ui.rules`, used through `example` and
+`check` lines, so a view that fails one makes its program require change
+under W-INT-1, whose method in 7.1 is *requires change*: where boxes go is
+a choice of design with more than one answer. No rule of section 7 is
+added; a rule that held every module emitting `Frame` to `ui.rules`
+without an example line would be the admission rule of Q3, which stays
+open.
+
+**The browser agrees.** The DOM renderer (H4) lays out the same boxes: it
+sets every element as a flex column of border-box sizing with no style of
+its own, maps the layout attributes to CSS (`LAYOUT_CSS` in
+`ui/web/render.js`), and sets text in `ui/web/rce-cell.ttf`, a cell font
+of 1,024 units per em that `ui/web/gen-font.py` writes, so that a font size
+of F CSS px advances every character exactly F px. The test
+`ui/web/test/layout.test.cjs` draws the 37 views of `ui/web/test/layout.rce`
+in Chromium 141.0.7390.37 (Playwright 1.56.1) in each of the four modes,
+measures every element with `getBoundingClientRect` and every text run
+with its Range's client rects, and requires exact agreement: all 468
+element boxes and all 293 lines of 160 text runs agree. On the same views
+axe-core 4.14.0's rule `target-size` (2.5.8 with its spacing exception)
+reports exactly the targets on which `ui.rules` finds 2.5.8 failing: all
+27 targets agree, 8 of them failing. The fixture (each view's frame line,
+its boxes and its failing targets) is the reference checker's output, and
+`spec/checker/tests/host_frames.rs` (`ui_web_layout_fixture_is_current`)
+requires it current. The views use font sizes of 25 and 50 CSS px, where
+the text spacing of 1.4.12 is a whole number of 1/64 px, the unit Chromium
+lays out in; at other sizes the model is still exact and the browser rounds.
+A real page differs where its fonts differ from the cell font and where a
+browser breaks lines at places other than spaces (after a hyphen, by
+UAX #14); there the model, not the browser, is the reference, as the view
+tree is.
+
 #### How a program uses it
 
 Through ordinary `example` and `check` lines, so a view that fails a rule
@@ -593,7 +691,7 @@ fn panel(is_open: bool, focused: bool) -> View
     var v = view.view_new("div", "")
     for kv in [["lang", "en"], ["title", "Door"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"]]
         view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
-    attest(&mut v, "1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
+    attest(&mut v, "1.3.1 1.3.2 1.3.3 1.4.1 1.4.11 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
     let m = view.add_el(&mut v, 0, "main", "")
     view.set_attr(&mut v, m, "role", "main")
     let h = view.add_el(&mut v, m, "h1", "")
@@ -615,11 +713,12 @@ fn frames_ok(is_open: bool) -> bool
     return rules.unmet(&t).len() == 0
 ```
 
-Of the 55 criteria, this panel's trace meets 13 by rule alone (1.3.4,
-1.4.3, 2.1.1, 2.1.2, 2.3.1, 2.4.1, 2.4.3, 2.4.7, 2.4.11, 2.5.2, 2.5.8,
-3.2.1, 4.1.2), 28 do not apply, and 14 are attested (after their exact
-parts meet); the same panel is a fixture of
-`stdlib/tests/ui/rules_checks.rce`. Applying the rules to every state
+Of the 55 criteria, this panel's trace meets 16 by rule alone (1.3.4,
+1.4.3, 1.4.4, 1.4.10, 1.4.12, 2.1.1, 2.1.2, 2.3.1, 2.4.1, 2.4.3, 2.4.7,
+2.4.11, 2.5.2, 2.5.8, 3.2.1, 4.1.2), 28 do not apply, and 11 are attested
+(after their exact parts meet); the same panel is a fixture of
+`stdlib/tests/ui/rules_checks.rce`. Before the layout geometry of
+2026-11-02 it also needed attestations of 1.4.4, 1.4.10 and 1.4.12. Applying the rules to every state
 reachable within a fuel bound, rather than to the states examples reach,
 is H3.
 
@@ -635,8 +734,8 @@ raised.
 #### Not in this slice
 
 - Layout geometry for 1.4.4, 1.4.10, 1.4.12, 2.4.11 and the 2.5.8 spacing
-  exception (above): attested until a renderer reports positions (H1,
-  H4).
+  exception was attested in this slice; the change of 2026-11-02 makes it
+  exact ("Layout geometry" above).
 - The red flash of 2.3.1: exact (a transition to or from a state with
   R/(R+G+B) of 0.8 or more and a CIE 1976 u'v' distance over 0.2) but not
   written yet; a node whose colour changes involving a saturated red
@@ -702,9 +801,11 @@ raised.
   `ui.rules` finds nothing, and exactly `color-contrast`, `button-name`
   and `aria-hidden-focus` on the frames that fail 1.4.3, 4.1.2 (no name)
   and 4.1.2 (focusable under `aria-hidden`); for a widget role with no
-  `tabindex` (2.1.1) axe-core has no rule, and the test records that. Not
-  yet: layout geometry for 1.4.4, 1.4.10, 1.4.12, 2.4.11 and 2.5.8, and
-  the playground integration.
+  `tabindex` (2.1.1) axe-core has no rule, and the test records that.
+  *Layout geometry implemented* (branch `claude/ui-geometry`): the model
+  is `ui.layout`, not the browser, and the renderer lays out its boxes,
+  which a second test requires Chromium to reproduce exactly (4.2,
+  "Layout geometry"). Not yet: the playground integration.
 - **H5 Native reference adapter.** A host adapter that draws `ui.view`
   frames in a desktop window with a native accessibility tree, feeds
   keys, pointer, focus and resize back as inputs (HC-10), and reports
@@ -792,8 +893,8 @@ proposal.
 4. **Done:** H1 (frame sink, replay mode word `frames`, HC-29). It
    edits `host.rs`, `cli.rs` and Appendix E, and its words follow PC-1 to
    PC-8.
-5. **After H1:** H4 (DOM renderer and axe-core in CI; the renderer and
-   its CI job are built, layout geometry is not), then H3.
+5. **After H1:** H4 (DOM renderer and axe-core in CI; the renderer, its
+   CI job and the layout geometry are built), then H3.
 6. **Spike, outside the repository, any time:** the Raven host-platform
    and accessibility question for H5. The choice of H5 goes to the
    owner.
@@ -838,7 +939,8 @@ proposal.
 
 The row of 2026-10-31 in `LEDGER.md` records this proposal: open, with
 Q1 and Q2 decided and the first slice (4.2) implemented. The row of
-2026-11-01 records H1 (HC-29) and the decision on Q4.
+2026-11-01 records H1 (HC-29) and the decision on Q4. A row of 2026-11-02
+records the layout geometry of 4.2.
 
 
 ## 5. Sources

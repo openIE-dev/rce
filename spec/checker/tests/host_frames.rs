@@ -239,3 +239,23 @@ fn ui_web_fixture_is_current() {
     assert_eq!(rep, std::fs::read_to_string(t.join("shop.replay.txt")).unwrap(), "ui/web/test/shop.replay.txt is stale: run ui/web/test/fixture.sh");
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// The fixture of the ui.layout cross-check (`ui/web/test/layout.test.cjs`)
+/// is the reference checker's output: the frames of `layout.rce` on the
+/// inputs of `layout.events`, and the Display lines of that run (the
+/// targets `ui.rules` finds under 2.5.8 and the boxes `ui.layout` gives each
+/// view in its four modes).
+#[test]
+fn ui_web_layout_fixture_is_current() {
+    let t = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/web/test");
+    let d = dir("uiweb-layout");
+    let (sink, log) = (d.join("layout.jsonl"), d.join("layout.log"));
+    let events = std::fs::read_to_string(t.join("layout.events")).unwrap();
+    let (c, out, err) = rce(&["host", "run", "frames", s(&sink), s(&t.join("layout.rce")), s(&log), events.trim_end()]);
+    assert_eq!(c, 0, "{out}{err}");
+    assert_eq!(std::fs::read_to_string(&sink).unwrap(), std::fs::read_to_string(t.join("layout.frames.jsonl")).unwrap(), "ui/web/test/layout.frames.jsonl is stale: run ui/web/test/fixture.sh");
+    let boxes: String = out.lines().filter_map(|l| l.trim().strip_prefix("emit Display(data: \"")).filter_map(|l| l.strip_suffix("\")")).map(|l| format!("{l}\n")).collect();
+    assert_eq!(boxes.lines().count(), events.split("Show(").count() - 1, "one Display per view");
+    assert_eq!(boxes, std::fs::read_to_string(t.join("layout.boxes.txt")).unwrap(), "ui/web/test/layout.boxes.txt is stale: run ui/web/test/fixture.sh");
+    let _ = std::fs::remove_dir_all(&d);
+}

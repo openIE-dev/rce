@@ -844,6 +844,32 @@ text, its child list, then its matched children), where Vue patches
 children depth first while scanning. In `diff_vue` minimality holds for the moves given Vue's matching;
 `diff` is optimal over all matchings.
 
+## ui.layout (`lib/ui/layout.rce`)
+
+Pure. The layout model `rce.ui.layout/1`: a box for every node of a
+`ui.view` tree in integer hundredths of a CSS px, from the tree's
+attributes, at a viewport width, a font scale and with or without the
+text spacing of WCAG 1.4.12 (the module's header states the model;
+`spec/proposals/human-interface.md` 4.2, "Layout geometry").
+
+- **reference (a browser):** `ui/web/test/layout.rce`, 37 views, whose
+  boxes in four modes (the root's viewport, 320 CSS px, text at 200
+  percent, the text spacing of 1.4.12) are written by the reference
+  checker to `ui/web/test/layout.boxes.txt`. `ui/web/test/layout.test.cjs`
+  draws each view with the DOM renderer in Chromium 141.0.7390.37
+  (Playwright 1.56.1) and the cell font `ui/web/rce-cell.ttf` (written by
+  `ui/web/gen-font.py` with fontTools 4.68.0), measures every element with
+  `getBoundingClientRect` and every text run with its Range's client
+  rects, and requires them equal. Result: all 468 element boxes and all
+  293 lines of 160 text runs agree; axe-core 4.14.0's rule `target-size`
+  and `ui.rules` 2.5.8 agree on all 27 targets of the views (8 failing).
+- **fixtures:** the `ui.layout` checks of `tests/ui/rules_checks.rce`
+  (boxes of columns, rows, padding, borders and layers).
+
+Not covered: line breaks other than at a space (a browser also breaks
+after a hyphen, by UAX #14), text in a font other than the cell font, and
+writing modes other than horizontal lines.
+
 ## ui.rules (`lib/ui/rules.rce`)
 
 Pure. Rules over `ui.view` trees for every level A and AA success
@@ -894,7 +920,11 @@ sources below).
 - **fixtures:** `tests/ui/rules_checks.rce`: for every rule a view or
   trace that meets it and one that fails it (or is undecided), the table
   checks (55 criteria, one class each, every E, L and P row naming a rule
-  of the module), and verdicts with attestations (222 checks);
+  of the module), verdicts with attestations, and the geometric parts of
+  1.4.4, 1.4.10, 1.4.11, 1.4.12, 2.3.1, 2.4.7, 2.4.11 and 2.5.8 at their
+  boundaries (2.5.8: circles 23 and 24 CSS px apart, 11 and 12 CSS px from
+  a large target; 2.3.1: 148 by 147 and 148 by 148 CSS px) and the boxes of
+  `ui.layout` (275 checks);
   `tests/ui/rules_checks_fuel.rce`: the report over three frames of an
   801-node view runs within one file's comptime fuel.
 - **table:** `tests/ui/rules_table_probes.py` checks that `criteria()`
@@ -902,9 +932,7 @@ sources below).
   that every rule a row names is defined and dispatched, and that the
   table of `spec/proposals/human-interface.md` agrees.
 
-Not covered: layout geometry (the parts of 1.4.4, 1.4.10, 1.4.12, 2.4.11
-and the 2.5.8 spacing exception that need positions are left to an
-attestation until a renderer reports geometry); the red flash of 2.3.1
+Not covered: the red flash of 2.3.1
 (CIE 1976 u'v' distance, not yet written: frequent changes involving a
 saturated red are undecided); fractional ARIA values (undecided).
 

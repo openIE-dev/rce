@@ -1,5 +1,6 @@
 module ui.rules
 use ui.view
+use ui.layout
 
 # Exact accessibility rules over ui.view trees and traces of them, for every
 # success criterion (SC) of level A and AA of WCAG 2.2 (Web Content
@@ -43,9 +44,12 @@ use ui.view
 #   view's title), autocomplete (an input purpose of WCAG 2.2 section 7),
 #   href ("#K" names the node with key K), value.
 # - Presentation: fg, bg, border, focus-fg, focus-bg, focus-border,
-#   focus-outline, bg-image, font-px, font-weight, w, h (declared minimum
-#   size in CSS px), inline, layer (> 0: drawn above the flow), graphic,
+#   focus-outline (a colour, or none), focus-outline-px (its width, 2 by
+#   default), bg-image, font-px, font-weight, inline, graphic,
 #   orientation, user-scale, max-scale (percent), user-spacing.
+# - Layout (the model rce.ui.layout/1 of ui.layout, which states each):
+#   w, h, pad, gap, flow, clip, layer, x, y, and the root's vw (the
+#   viewport width, 1280 CSS px by default).
 # - Behaviour: action (the event the node raises when activated; a node
 #   with action is interactive), focused (the node with focus), context
 #   (root: the id of the view's context), dismiss-key, dismisses,
@@ -60,6 +64,12 @@ use ui.view
 # - Media: media (audio, video or audio-video), media-live, autoplay,
 #   captions, audio-description, transcript, audio-track.
 # - exempt and attest-ID as above.
+#
+# Geometry. The rules of 1.4.4, 1.4.10, 1.4.11 (focus outline), 1.4.12,
+# 2.3.1 (flash area), 2.4.7, 2.4.11 and 2.5.8 read the boxes ui.layout
+# gives each frame: at the root's vw, at 320 CSS px (1.4.10), with every
+# font size doubled (1.4.4) and with the text spacing of 1.4.12. A frame
+# with a malformed layout attribute is undecided under each of them.
 #
 # Contrast is integer arithmetic: LIN holds each linearised sRGB channel
 # times 10^12 within 1/2, so a luminance times 10^16 is within 5000 of
@@ -85,8 +95,8 @@ pub struct Step
     v: View
 
 # A step with facts every rule reads, computed once per frame: role,
-# role index, hidden, inactive, interactive, focusable, and visible
-# element (an element not hidden).
+# role index, hidden, inactive, interactive, focusable, visible element
+# (an element not hidden), and the boxes of the view at its viewport.
 pub struct Facts
     ev: text
     ms: i64
@@ -98,6 +108,8 @@ pub struct Facts
     inter: List[bool]
     foc: List[bool]
     vis: List[bool]
+    lay: Layout
+    ft: List[i64]
 
 pub struct Criterion
     id: text
@@ -128,11 +140,11 @@ pub fn criteria() -> List[Criterion]
     c.push(cr("1.4.1", "A", "H", "-", "whether colour is the only visual means of conveying information"))
     c.push(cr("1.4.2", "A", "E", "audio_control", ""))
     c.push(cr("1.4.3", "AA", "E", "contrast_minimum", ""))
-    c.push(cr("1.4.4", "AA", "E", "resize_text", "layout geometry, which RCE does not have yet: text resized to 200 percent without loss of content"))
+    c.push(cr("1.4.4", "AA", "E", "resize_text", ""))
     c.push(cr("1.4.5", "AA", "H", "-", "whether images of text are essential or customisable"))
-    c.push(cr("1.4.10", "AA", "E", "reflow", "layout geometry, which RCE does not have yet: content at 320 CSS px without two-dimensional scrolling"))
+    c.push(cr("1.4.10", "AA", "E", "reflow", ""))
     c.push(cr("1.4.11", "AA", "P", "non_text_contrast", "which boundaries and graphics are required to identify components and understand content"))
-    c.push(cr("1.4.12", "AA", "E", "text_spacing", "layout geometry, which RCE does not have yet: no loss of content under the stated text spacing"))
+    c.push(cr("1.4.12", "AA", "E", "text_spacing", ""))
     c.push(cr("1.4.13", "AA", "L", "hover_focus_content", ""))
     c.push(cr("2.1.1", "A", "E", "keyboard", ""))
     c.push(cr("2.1.2", "A", "E", "no_keyboard_trap", ""))
@@ -147,13 +159,13 @@ pub fn criteria() -> List[Criterion]
     c.push(cr("2.4.5", "AA", "H", "-", "whether more than one way locates this view within its set"))
     c.push(cr("2.4.6", "AA", "H", "-", "whether headings and labels describe topic or purpose"))
     c.push(cr("2.4.7", "AA", "E", "focus_visible", ""))
-    c.push(cr("2.4.11", "AA", "E", "focus_not_obscured", "layout geometry, which RCE does not have yet: whether a declared layer hides the focused component"))
+    c.push(cr("2.4.11", "AA", "E", "focus_not_obscured", ""))
     c.push(cr("2.5.1", "A", "E", "pointer_gestures", ""))
     c.push(cr("2.5.2", "A", "E", "pointer_cancellation", ""))
     c.push(cr("2.5.3", "A", "P", "label_in_name", "labels shown outside the component or as images of text"))
     c.push(cr("2.5.4", "A", "E", "motion_actuation", ""))
     c.push(cr("2.5.7", "AA", "E", "dragging", ""))
-    c.push(cr("2.5.8", "AA", "E", "target_size", "layout geometry, which RCE does not have yet: the spacing exception for targets under 24 by 24"))
+    c.push(cr("2.5.8", "AA", "E", "target_size", ""))
     c.push(cr("3.1.1", "A", "P", "language_of_page", "whether lang names the language of the content"))
     c.push(cr("3.1.2", "AA", "P", "language_of_parts", "whether every passage in another language declares lang"))
     c.push(cr("3.2.1", "A", "L", "on_focus", ""))
@@ -576,7 +588,264 @@ fn parse_px(s: text) -> i64
     let x = s.strip().toint()
     return if x < 0 then -1 else x
 
-# 1.4.4: the view does not forbid zoom (user-scale "no", max-scale under 200).
+# ---------------- geometry (ui.layout) ----------------
+# the viewport width the root declares (vw), else 1280 CSS px
+fn viewport(v: &View) -> i64
+    let s = av(v, 0, "vw").strip()
+    let x = layout.px_of(&s)
+    return if x > 0 then x else layout.VW_DEFAULT
+
+fn lay_mode(v: &View, vw: i64, scale: i64, spacing: bool) -> Layout
+    let m = layout.Mode(vw: vw, scale: scale, spacing: spacing)
+    return layout.layout(v, &m)
+
+# centi-px as CSS px text: 24, 23.5, 1.92
+pub fn px_text(c: i64) -> text
+    let a = c.abs()
+    let w = (if c < 0 then "-" else "") + (a / 100).tostr()
+    let f = a % 100
+    if f == 0
+        return w
+    if f % 10 == 0
+        return w + "." + (f / 10).tostr()
+    return w + "." + (if f < 10 then "0" else "") + f.tostr()
+
+# undecided findings for a frame whose layout attributes are malformed;
+# true when there are any (the geometric part is then not decided)
+fn bad_layout(l: &Layout, sc: text, rule: text, fr: i64, out: &mut List[Finding]) -> bool
+    for j in 0..l.bad.len()
+        undecided(out, copy(sc), copy(rule), fr, l.bad[j], "the layout is not known: " + l.why[j] + " is not a whole number of CSS px or a value ui.layout reads")
+    return l.bad.len() > 0
+
+fn within(r: &List[i64], c: &List[i64]) -> bool = c.len() == 0 or (r[0] >= c[0] and r[1] >= c[1] and r[2] <= c[2] and r[3] <= c[3])
+
+# node n lies in content that is an image or media (1.4.4's images of text
+# and captions; 1.4.10's two-dimensional parts come from two_d)
+fn in_image(v: &View, n: i64) -> bool
+    var m = n
+    while m >= 0 bound 65536
+        let r = role(v, m)
+        if r == "img" or r == "image" or media_kind(v, m) != ""
+            return true
+        m = v.parent[m as usize]
+    return false
+
+# whether any node clips (clip="true"): without one, no layout loses content
+fn clips(x: &Facts) -> bool
+    for i in 0..nodes(&x.v)
+        if av(&x.v, i as i64, "clip").strip() == "true"
+            return true
+    return false
+
+# Loss of content under a layout: a line of text partly outside the region
+# its clipping ancestors show, or an interactive node with a box that they
+# hide entirely. skip2d leaves out two-dimensional content (1.4.10), else
+# images and media (1.4.4, 1.4.12).
+fn lost(x: &Facts, l: &Layout, sc: text, rule: text, fr: i64, what: text, skip2d: bool, out: &mut List[Finding])
+    let v = &x.v
+    for i in 0..nodes(v)
+        let n = i as i64
+        if not l.shown[i]
+            continue
+        if l.clip[i].len() == 0
+            continue
+        let p = if v.tag[i] == "" then v.parent[i] else n
+        var why = ""
+        if v.tag[i] == ""
+            let ls = layout.line_rects(l, n)
+            for j in 0..ls.len()
+                if why == "" and not within(&ls[j], &l.clip[i])
+                    why = nm(v, n) + " text is cut off " + what + ": line " + (j + 1).tostr() + " lies outside the box that clips it"
+        elif x.inter[i] and not x.hid[i] and not x.off[i]
+            let r = layout.rect(l, n)
+            let vr = layout.visible(l, n)
+            if not layout.empty(&r) and layout.empty(&vr)
+                why = nm(v, n) + " cannot be reached " + what + ": the box that clips it hides it entirely"
+        if why != "" and not ((skip2d and two_d(v, p)) or (not skip2d and in_image(v, p)))
+            fails(out, copy(sc), copy(rule), fr, n, why)
+
+# The nodes whose focus a frame shows: a focusable node that is focused in
+# that frame, and in every frame a focusable node that no frame of the
+# trace focuses (its focus styles change no box, so any frame shows where
+# its focus would be).
+fn focus_targets(t: &List[Facts]) -> List[List[i64]]
+    var ever: List[text] = []
+    var ps: List[List[text]] = []
+    for f in 0..t.len()
+        let p = pids(&t[f].v)
+        for i in 0..nodes(&t[f].v)
+            if t[f].foc[i] and yes(&t[f].v, i as i64, "focused") and not ever.contains(p[i])
+                ever.push(copy(p[i]))
+        ps.push(p)
+    var out: List[List[i64]] = []
+    for f in 0..t.len()
+        var ns: List[i64] = []
+        for i in 0..nodes(&t[f].v)
+            if t[f].foc[i] and not t[f].hid[i] and t[f].lay.shown[i]
+                if yes(&t[f].v, i as i64, "focused") or not ever.contains(ps[f][i])
+                    ns.push(i as i64)
+        out.push(ns)
+    return out
+
+fn outline_px(v: &View, n: i64) -> i64
+    let o = av(v, n, "focus-outline").strip()
+    if o == "" or o == "none"
+        return 0
+    let ws = av(v, n, "focus-outline-px").strip()
+    let w = layout.px_of(&ws)
+    return (if w >= 0 then w else 2) * layout.CPX
+
+fn grow(r: &List[i64], d: i64) -> List[i64] = [r[0] - d, r[1] - d, r[2] + d, r[3] + d]
+
+# the distinct values of xs in ascending order
+fn cuts(xs: &List[i64]) -> List[i64]
+    var out: List[i64] = []
+    for x in xs
+        var j: usize = 0
+        while j < out.len() and out[j] < x bound 16777216
+            j += 1
+        if j == out.len()
+            out.push(x)
+        elif out[j] != x
+            out.push(0)
+            var k = out.len() - 1
+            while k > j bound 16777216
+                out[k] = out[k - 1]
+                k -= 1
+            out[j] = x
+    return out
+
+# whether the rectangles rs cover the rectangle r (coordinate compression)
+pub fn covers(rs: &List[List[i64]], r: &List[i64]) -> bool
+    var xs: List[i64] = [r[0], r[2]]
+    var ys: List[i64] = [r[1], r[3]]
+    for q in rs
+        if q[0] > r[0] and q[0] < r[2]
+            xs.push(q[0])
+        if q[2] > r[0] and q[2] < r[2]
+            xs.push(q[2])
+        if q[1] > r[1] and q[1] < r[3]
+            ys.push(q[1])
+        if q[3] > r[1] and q[3] < r[3]
+            ys.push(q[3])
+    let cx = cuts(&xs)
+    let cy = cuts(&ys)
+    for a in 0..cx.len() - 1
+        for b in 0..cy.len() - 1
+            var hit = false
+            for q in rs
+                if q[0] <= cx[a] and q[2] >= cx[a + 1] and q[1] <= cy[b] and q[3] >= cy[b + 1]
+                    hit = true
+                    break
+            if not hit
+                return false
+    return true
+
+# The area of the union of rectangles rs inside rectangle w.
+pub fn union_area(rs: &List[List[i64]], w: &List[i64]) -> i64
+    var cl: List[List[i64]] = []
+    for k in 0..rs.len()
+        let c = layout.meet(w, &rs[k])
+        if not layout.empty(&c)
+            cl.push(c)
+    var xs: List[i64] = []
+    var ys: List[i64] = []
+    for q in cl
+        xs.push(q[0])
+        xs.push(q[2])
+        ys.push(q[1])
+        ys.push(q[3])
+    let cx = cuts(&xs)
+    let cy = cuts(&ys)
+    var a: i64 = 0
+    if cx.len() < 2 or cy.len() < 2
+        return 0
+    for i in 0..cx.len() - 1
+        for j in 0..cy.len() - 1
+            for q in cl
+                if q[0] <= cx[i] and q[2] >= cx[i + 1] and q[1] <= cy[j] and q[3] >= cy[j + 1]
+                    a += (cx[i + 1] - cx[i]) * (cy[j + 1] - cy[j])
+                    break
+    return a
+
+# the nodes other than the root that paint an opaque background: an element
+# with a bg colour, with a visible box (the root's bg is also the page's,
+# so it is the colour wherever no other box paints)
+fn opaque(x: &Facts) -> List[i64]
+    var out: List[i64] = []
+    for i in 1..nodes(&x.v)
+        if el(&x.v, i as i64) and x.lay.shown[i] and parse_color(av(&x.v, i as i64, "bg")) >= 0
+            let vr = layout.visible(&x.lay, i as i64)
+            if not layout.empty(&vr)
+                out.push(i as i64)
+    return out
+
+# whether a is painted after b: a greater stacking path, then later in tree order
+fn paints_after(l: &Layout, a: i64, b: i64) -> bool
+    let sa = &l.stack[a as usize]
+    let sb = &l.stack[b as usize]
+    if layout.above(sa, sb)
+        return true
+    if layout.above(sb, sa)
+        return false
+    return l.order[a as usize] > l.order[b as usize]
+
+# The colours painted in rectangle r by the opaque nodes ops other than the
+# subtree of n: per cell of the boxes' edges, the colour of the box painted
+# last; where none is, the root's bg (the page background), or -1.
+fn colours_in(x: &Facts, ops: &[i64], n: i64, r: &List[i64], page: i64) -> List[i64]
+    let v = &x.v
+    var cand: List[i64] = []
+    var boxes: List[List[i64]] = []
+    for b in ops
+        if not is_desc(v, b, n)
+            let vb = layout.visible(&x.lay, b)
+            let q = layout.meet(&vb, r)
+            if not layout.empty(&q)
+                cand.push(b)
+                boxes.push(q)
+    var xs: List[i64] = [r[0], r[2]]
+    var ys: List[i64] = [r[1], r[3]]
+    for q in boxes
+        xs.push(q[0])
+        xs.push(q[2])
+        ys.push(q[1])
+        ys.push(q[3])
+    if cand.len() == 0
+        return [page]
+    let cx = cuts(&xs)
+    let cy = cuts(&ys)
+    var out: List[i64] = []
+    for i in 0..cx.len() - 1
+        for j in 0..cy.len() - 1
+            var top: i64 = -1
+            for k in 0..cand.len()
+                let q = &boxes[k]
+                if q[0] <= cx[i] and q[2] >= cx[i + 1] and q[1] <= cy[j] and q[3] >= cy[j + 1]
+                    if top < 0 or paints_after(&x.lay, cand[k], top)
+                        top = cand[k]
+            let c = if top >= 0 then parse_color(av(v, top, "bg")) else page
+            if not out.contains(c)
+                out.push(c)
+    return out
+
+fn hex6(c: i64) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = "#"
+    var k: i64 = 20
+    while k >= 0 bound 8
+        s = s + ds[((c >> k) & 15) as usize]
+        k -= 4
+    return s
+
+# the right edge of what node i shows (its box, cut by what clips it)
+fn shown_right(l: &Layout, i: usize) -> i64
+    let r = l.x[i] + l.w[i]
+    return if l.clip[i].len() == 0 then r else r.min(l.clip[i][2])
+
+# 1.4.4: the view does not forbid zoom (user-scale "no", max-scale under
+# 200), and with every font size doubled at its viewport no text outside
+# images and media is cut off and no interactive node is clipped away.
 fn r_resize_text(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     if av(v, 0, "user-scale").strip() == "no"
@@ -585,6 +854,10 @@ fn r_resize_text(x: &Facts, fr: i64, out: &mut List[Finding])
         let m = nat(v, 0, "max-scale")
         if m < 200
             fails(out, "1.4.4", "resize_text", fr, 0, "max-scale " + av(v, 0, "max-scale") + " is under 200 percent")
+    if bad_layout(&x.lay, "1.4.4", "resize_text", fr, out) or not clips(x)
+        return
+    let l = lay_mode(v, viewport(v), 200, false)
+    lost(x, &l, "1.4.4", "resize_text", fr, "with text at 200 percent", false, out)
 
 fn two_d(v: &View, n: i64) -> bool
     let xs = ["img", "image", "table", "grid", "treegrid", "application", "math", "toolbar"]
@@ -596,28 +869,88 @@ fn two_d(v: &View, n: i64) -> bool
         m = v.parent[m as usize]
     return false
 
-# 1.4.10: no flow content declares a width over 320 CSS px.
+# 1.4.10: laid out at a viewport 320 CSS px wide, nothing outside
+# two-dimensional content reaches past its right edge (which would need
+# scrolling in two dimensions), no text is cut off and no interactive node
+# is clipped away. Only the outermost node that reaches past is reported.
+# Content scrolled horizontally (a height of 256 CSS px) does not arise:
+# ui.layout sets text in horizontal lines only.
 fn r_reflow(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
+    if bad_layout(&x.lay, "1.4.10", "reflow", fr, out)
+        return
+    let l = lay_mode(v, 320, 100, false)
+    lost(x, &l, "1.4.10", "reflow", fr, "at 320 CSS px", true, out)
+    let edge = 320 * layout.CPX
+    var past: List[bool] = []
+    for i in 0..nodes(v)
+        past.push(l.shown[i] and shown_right(&l, i) > edge)
     for i in 0..nodes(v)
         let n = i as i64
-        let w = nat(v, n, "w")
-        if x.vis[n as usize] and w > 320 and not two_d(v, n)
-            fails(out, "1.4.10", "reflow", fr, n, nm(v, n) + " declares w " + w.tostr() + " over 320 CSS px")
+        let p = v.parent[i]
+        if past[i] and not two_d(v, if v.tag[i] == "" then p else n) and (p < 0 or not past[p as usize])
+            fails(out, "1.4.10", "reflow", fr, n, nm(v, n) + (if v.tag[i] == "" then " text" else "") + " reaches " + px_text(shown_right(&l, i)) + " CSS px, past a viewport 320 CSS px wide")
 
-# 1.4.11: a declared component boundary or graphic has contrast 3 : 1 with what is next to it.
-fn r_non_text_contrast(x: &Facts, fr: i64, out: &mut List[Finding])
-    let v = &x.v
-    for i in 0..nodes(v)
-        let n = i as i64
-        if x.vis[n as usize] and not x.off[n as usize]
-            let p = v.parent[i]
-            if x.inter[n as usize] and has(v, n, "border")
-                let c = parse_color(av(v, n, "border"))
-                let b = if p >= 0 then color_up(v, p, "bg") else -1
-                nt_pair(out, fr, n, c, b, nm(v, n) + " border")
-            if yes(v, n, "graphic")
-                nt_pair(out, fr, n, color_up(v, n, "fg"), color_up(v, n, "bg"), nm(v, n) + " graphic")
+# 1.4.11: a declared component boundary or graphic has contrast 3 : 1 with
+# what is next to it, and so has the focus outline of every node whose
+# focus a frame shows (focus_targets) with every colour painted in the
+# 1 CSS px band around it (the backgrounds ui.layout places there, the
+# root's bg where none is).
+fn r_non_text_contrast(t: &List[Facts], out: &mut List[Finding])
+    for f in 0..t.len()
+        let x = &t[f]
+        let v = &x.v
+        let fr = f as i64
+        for i in 0..nodes(v)
+            let n = i as i64
+            if x.vis[n as usize] and not x.off[n as usize]
+                let p = v.parent[i]
+                if x.inter[n as usize] and has(v, n, "border")
+                    let c = parse_color(av(v, n, "border"))
+                    let b = if p >= 0 then color_up(v, p, "bg") else -1
+                    nt_pair(out, fr, n, c, b, nm(v, n) + " border")
+                if yes(v, n, "graphic")
+                    nt_pair(out, fr, n, color_up(v, n, "fg"), color_up(v, n, "bg"), nm(v, n) + " graphic")
+        var outlined: List[i64] = []
+        var ows: List[i64] = []
+        for n in t[f].ft
+            let w = outline_px(v, n)
+            if w > 0
+                outlined.push(n)
+                ows.push(w)
+        if outlined.len() == 0 or bad_layout(&x.lay, "1.4.11", "non_text_contrast", fr, out)
+            continue
+        let ops = opaque(x)
+        let page = parse_color(av(v, 0, "bg"))
+        for j in 0..outlined.len()
+            let n = outlined[j]
+            let o = parse_color(av(v, n, "focus-outline"))
+            if o < 0
+                undecided(out, "1.4.11", "non_text_contrast", fr, n, nm(v, n) + " focus-outline \"" + av(v, n, "focus-outline").strip() + "\" is not a #rrggbb colour")
+                continue
+            var cols: List[i64] = []
+            if ops.len() == 0
+                cols.push(page)
+            else
+                let rr = layout.rect(&x.lay, n)
+                let r = grow(&rr, ows[j])
+                let d = layout.CPX
+                let bands = [[r[0] - d, r[1] - d, r[2] + d, r[1]], [r[0] - d, r[3], r[2] + d, r[3] + d], [r[0] - d, r[1], r[0], r[3]], [r[2], r[1], r[2] + d, r[3]]]
+                for k in 0..bands.len()
+                    let b = layout.meet(&x.lay.clip[n as usize], &bands[k])
+                    if not layout.empty(&b)
+                        for c in colours_in(x, &ops, n, &b, page)
+                            if not cols.contains(c)
+                                cols.push(c)
+            for c in cols
+                if c < 0
+                    undecided(out, "1.4.11", "non_text_contrast", fr, n, nm(v, n) + " focus outline: the colour next to it is not declared (no bg there, and none on the root)")
+                else
+                    let k = contrast_at_least(o, c, 3, 1)
+                    if k == 0
+                        fails(out, "1.4.11", "non_text_contrast", fr, n, nm(v, n) + " focus outline " + hex6(o) + " has contrast " + ratio_text(o, c) + " : 1 with the adjacent " + hex6(c) + ", under 3 : 1")
+                    elif k < 0
+                        undecided(out, "1.4.11", "non_text_contrast", fr, n, nm(v, n) + " focus outline contrast with " + hex6(c) + " is within the table bound of 3 : 1")
 
 fn nt_pair(out: &mut List[Finding], fr: i64, n: i64, c: i64, b: i64, what: text)
     if c < 0 or b < 0
@@ -629,11 +962,18 @@ fn nt_pair(out: &mut List[Finding], fr: i64, n: i64, c: i64, b: i64, what: text)
         elif d < 0
             undecided(out, "1.4.11", "non_text_contrast", fr, n, what + " contrast within the table bound of 3 : 1")
 
-# 1.4.12: the view does not refuse the user's text spacing.
+# 1.4.12: the view does not refuse the user's text spacing, and with line
+# height 1.5, paragraph spacing 2, letter spacing 0.12 and word spacing
+# 0.16 times the font size, at its viewport, no text outside images and
+# media is cut off and no interactive node is clipped away.
 fn r_text_spacing(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
     if av(v, 0, "user-spacing").strip() == "no"
         fails(out, "1.4.12", "text_spacing", fr, 0, "user-spacing is no")
+    if bad_layout(&x.lay, "1.4.12", "text_spacing", fr, out) or not clips(x)
+        return
+    let l = lay_mode(v, viewport(v), 100, true)
+    lost(x, &l, "1.4.12", "text_spacing", fr, "with the text spacing of 1.4.12", false, out)
 
 # 2.1.1: every enabled interactive node is focusable or has a key shortcut.
 fn r_keyboard(x: &Facts, fr: i64, out: &mut List[Finding])
@@ -754,45 +1094,69 @@ fn differs(v: &View, n: i64, fattr: text, base: text) -> bool
     let b = color_up(v, n, base)
     return f >= 0 and f != b
 
-# 2.4.7: every focusable node declares a focus style that differs from its unfocused style.
-fn r_focus_visible(x: &Facts, fr: i64, out: &mut List[Finding])
-    let v = &x.v
-    for i in 0..nodes(v)
-        let n = i as i64
-        if x.foc[n as usize] and not x.hid[n as usize]
-            let o = av(v, n, "focus-outline").strip()
-            let border_differs = has(v, n, "focus-border") and parse_color(av(v, n, "focus-border")) >= 0 and parse_color(av(v, n, "focus-border")) != parse_color(av(v, n, "border"))
-            if not (differs(v, n, "focus-fg", "fg") or differs(v, n, "focus-bg", "bg") or border_differs or (o != "" and o != "none"))
-                fails(out, "2.4.7", "focus_visible", fr, n, nm(v, n) + " is focusable and declares no focus-fg, focus-bg, focus-border or focus-outline that differs from its unfocused style")
+# 2.4.7: every focusable node declares a focus style that differs from its
+# unfocused style, and where a frame shows its focus (focus_targets) some
+# of its indicator is visible: its border box, grown by its focus outline,
+# is not empty and not wholly outside the region its clipping ancestors
+# show.
+fn r_focus_visible(t: &List[Facts], out: &mut List[Finding])
+    for f in 0..t.len()
+        let x = &t[f]
+        let v = &x.v
+        let fr = f as i64
+        var styled: List[bool] = []
+        for _i in 0..nodes(v)
+            styled.push(true)
+        for i in 0..nodes(v)
+            let n = i as i64
+            if x.foc[n as usize] and not x.hid[n as usize]
+                let o = av(v, n, "focus-outline").strip()
+                let border_differs = has(v, n, "focus-border") and parse_color(av(v, n, "focus-border")) >= 0 and parse_color(av(v, n, "focus-border")) != parse_color(av(v, n, "border"))
+                if not (differs(v, n, "focus-fg", "fg") or differs(v, n, "focus-bg", "bg") or border_differs or (o != "" and o != "none"))
+                    fails(out, "2.4.7", "focus_visible", fr, n, nm(v, n) + " is focusable and declares no focus-fg, focus-bg, focus-border or focus-outline that differs from its unfocused style")
+                    styled[i] = false
+        if t[f].ft.len() == 0 or bad_layout(&x.lay, "2.4.7", "focus_visible", fr, out)
+            continue
+        for n in t[f].ft
+            if not styled[n as usize]
+                continue
+            let rr = layout.rect(&x.lay, n)
+            let ind = grow(&rr, outline_px(v, n))
+            let seen = layout.meet(&x.lay.clip[n as usize], &ind)
+            if layout.empty(&seen)
+                fails(out, "2.4.7", "focus_visible", fr, n, nm(v, n) + " shows no focus indicator: " + (if layout.empty(&ind) then "its box has no area and it has no focus outline" else "its box and focus outline lie outside what the box that clips it shows"))
 
-# 2.4.11: layer values are non-negative integers (whether a layer hides
-# the focused node needs layout; see human_need).
-fn r_focus_not_obscured(x: &Facts, fr: i64, out: &mut List[Finding])
-    let v = &x.v
-    for i in 0..nodes(v)
-        let n = i as i64
-        if has(v, n, "layer") and nat(v, n, "layer") < 0
-            fails(out, "2.4.11", "focus_not_obscured", fr, n, nm(v, n) + " layer \"" + av(v, n, "layer") + "\" is not a non-negative integer")
-
-fn layered(x: &Facts) -> bool
-    let v = &x.v
-    var any_layer = false
-    for i in 0..nodes(v)
-        if nat(v, i as i64, "layer") > 0
-            any_layer = true
-    if not any_layer
-        return false
-    for i in 0..nodes(v)
-        if x.foc[i]
-            var m = i as i64
-            var inside = false
-            while m >= 0 bound 65536
-                if nat(v, m, "layer") > 0
-                    inside = true
-                m = v.parent[m as usize]
-            if not inside
-                return true
-    return false
+# 2.4.11: where a frame shows a node's focus (focus_targets), the part of
+# its box that its clipping ancestors show is not wholly covered by the
+# opaque backgrounds (bg) of nodes drawn above it (a higher stacking path
+# of ui.layout; boxes of one flow do not cover one another) that are not
+# inside it.
+fn r_focus_not_obscured(t: &List[Facts], out: &mut List[Finding])
+    for f in 0..t.len()
+        let x = &t[f]
+        let v = &x.v
+        let fr = f as i64
+        if t[f].ft.len() == 0 or bad_layout(&x.lay, "2.4.11", "focus_not_obscured", fr, out)
+            continue
+        let ops = opaque(x)
+        for n in t[f].ft
+            let r = layout.visible(&x.lay, n)
+            if layout.empty(&r)
+                continue
+            var cover: List[List[i64]] = []
+            var by: List[i64] = []
+            for b in ops
+                if layout.above(&x.lay.stack[b as usize], &x.lay.stack[n as usize]) and not is_desc(v, b, n)
+                    let vb = layout.visible(&x.lay, b)
+                    let q = layout.meet(&vb, &r)
+                    if not layout.empty(&q)
+                        cover.push(q)
+                        by.push(b)
+            if cover.len() > 0 and covers(&cover, &r)
+                var names: List[text] = []
+                for b in by
+                    names.push(nm(v, b))
+                fails(out, "2.4.11", "focus_not_obscured", fr, n, nm(v, n) + " is focusable and entirely hidden by " + ", ".join(names) + ", drawn above it")
 
 fn single_pointer(v: &View, n: i64) -> bool = has(v, n, "action") or has(v, n, "alt-action")
 
@@ -853,23 +1217,55 @@ fn r_dragging(x: &Facts, fr: i64, out: &mut List[Finding])
         if x.vis[n as usize] and yes(v, n, "drag") and not single_pointer(v, n)
             fails(out, "2.5.7", "dragging", fr, n, nm(v, n) + " is dragged and has no action or alt-action")
 
-# 2.5.8: every target declares its size (24 by 24 or more, or inline).
+# 2.5.8: every target (an enabled interactive node; its area is the part
+# of its box its clipping ancestors show) is at least 24 by 24 CSS px, or
+# is inline, or meets the spacing exception: a circle of 24 CSS px
+# diameter centred on its box intersects no other target's box and no
+# other undersized target's circle (touching is not intersecting). A
+# target inside or around another is not its neighbour.
 fn r_target_size(x: &Facts, fr: i64, out: &mut List[Finding])
     let v = &x.v
+    if bad_layout(&x.lay, "2.5.8", "target_size", fr, out)
+        return
+    var ts: List[i64] = []
+    var rs: List[List[i64]] = []
     for i in 0..nodes(v)
         let n = i as i64
-        if x.inter[n as usize] and not x.hid[n as usize] and not x.off[n as usize] and not yes(v, n, "inline")
-            if nat(v, n, "w") < 0 or nat(v, n, "h") < 0
-                undecided(out, "2.5.8", "target_size", fr, n, nm(v, n) + " is a target with no declared w and h")
-
-fn undersized(x: &Facts) -> i64
-    let v = &x.v
-    var c: i64 = 0
-    for i in 0..nodes(v)
-        let n = i as i64
-        if x.inter[n as usize] and not x.hid[n as usize] and not x.off[n as usize] and not yes(v, n, "inline") and nat(v, n, "w") >= 0 and nat(v, n, "h") >= 0 and (nat(v, n, "w") < 24 or nat(v, n, "h") < 24)
-            c += 1
-    return c
+        if x.inter[i] and not x.hid[i] and not x.off[i] and x.lay.shown[i]
+            let r = layout.visible(&x.lay, n)
+            if not layout.empty(&r)
+                ts.push(n)
+                rs.push(r)
+    let min = 24 * layout.CPX
+    var small: List[bool] = []
+    for r in rs
+        small.push(r[2] - r[0] < min or r[3] - r[1] < min)
+    for a in 0..ts.len()
+        let n = ts[a]
+        if not small[a] or yes(v, n, "inline")
+            continue
+        let r = &rs[a]
+        let cx = r[0] + r[2]
+        let cy = r[1] + r[3]
+        var hit = ""
+        for b in 0..ts.len()
+            let m = ts[b]
+            if b == a or is_desc(v, m, n) or is_desc(v, n, m)
+                continue
+            let q = &rs[b]
+            let dx = (2 * q[0] - cx).max(cx - 2 * q[2]).max(0)
+            let dy = (2 * q[1] - cy).max(cy - 2 * q[3]).max(0)
+            if dx < min and dy < min and dx * dx + dy * dy < min * min
+                hit = nm(v, m) + "'s box"
+                break
+            if small[b]
+                let ex = (cx - q[0] - q[2]).abs()
+                let ey = (cy - q[1] - q[3]).abs()
+                if ex < 2 * min and ey < 2 * min and ex * ex + ey * ey < 4 * min * min
+                    hit = "the circle of " + nm(v, m) + ", also under 24 by 24"
+                    break
+        if hit != ""
+            fails(out, "2.5.8", "target_size", fr, n, nm(v, n) + " is " + px_text(r[2] - r[0]) + " by " + px_text(r[3] - r[1]) + " CSS px, under 24 by 24, and the 24 CSS px circle on its centre intersects " + hit)
 
 # a BCP 47 tag in shape: a primary subtag of 2 to 8 letters, then subtags
 # of 1 to 8 letters or digits
@@ -1050,8 +1446,6 @@ fn view_rule(name: &text, v: &Facts, fr: i64, out: &mut List[Finding]) -> bool
         r_resize_text(v, fr, out)
     elif name == "reflow"
         r_reflow(v, fr, out)
-    elif name == "non_text_contrast"
-        r_non_text_contrast(v, fr, out)
     elif name == "text_spacing"
         r_text_spacing(v, fr, out)
     elif name == "keyboard"
@@ -1068,10 +1462,6 @@ fn view_rule(name: &text, v: &Facts, fr: i64, out: &mut List[Finding]) -> bool
         r_focus_order(v, fr, out)
     elif name == "link_purpose"
         r_link_purpose(v, fr, out)
-    elif name == "focus_visible"
-        r_focus_visible(v, fr, out)
-    elif name == "focus_not_obscured"
-        r_focus_not_obscured(v, fr, out)
     elif name == "pointer_gestures"
         r_pointer_gestures(v, fr, out)
     elif name == "pointer_cancellation"
@@ -1321,19 +1711,18 @@ fn r_pause_stop_hide(t: &List[Facts], out: &mut List[Finding])
 # second (general flash: opposing luminance changes of 0.1 or more with
 # the darker state under 0.8), unless the flashing nodes together cover at
 # most 21,824 CSS px squared (a quarter of 341 by 256) of any one 341 by
-# 256 field. Without positions: one node whose part inside such a field
-# exceeds that fails; nodes whose parts sum to at most that meet; between
-# the two is undecided (layout geometry). A red flash is
-# not computed in this slice: frequent changes involving a saturated red
-# are undecided.
+# 256 field. The area is exact: the union of the flashing nodes' boxes
+# (each as ui.layout places it in the last frame that shows its colour)
+# inside a 341 by 256 window, at the window's largest value, which lies
+# where a window edge meets a box edge. A red flash is not computed in
+# this slice: frequent changes involving a saturated red are undecided.
 fn r_three_flashes(t: &List[Facts], out: &mut List[Finding])
     var ks: List[text] = []
     for f in 0..t.len()
         for i in 0..nodes(&t[f].v)
             if has(&t[f].v, i as i64, "bg") and t[f].v.key[i] != "" and not ks.contains(t[f].v.key[i])
                 ks.push(copy(t[f].v.key[i]))
-    var area: i64 = 0
-    var biggest: i64 = 0
+    var boxes: List[List[i64]] = []
     var area_known = true
     var flashing: List[text] = []
     var maybe: List[text] = []
@@ -1356,27 +1745,51 @@ fn r_three_flashes(t: &List[Facts], out: &mut List[Finding])
         let cnt = flash_count(&times, &cols)
         if cnt[0] >= 8
             flashing.push(copy(k))
-            let w = nat(&t[last_f].v, last_n, "w")
-            let h = nat(&t[last_f].v, last_n, "h")
-            if w < 0 or h < 0
+            let l = &t[last_f].lay
+            if l.bad.len() > 0
                 area_known = false
             else
-                # the part of the node inside one 341 by 256 field
-                let a = (if w < 341 then w else 341) * (if h < 256 then h else 256)
-                area += a
-                if a > biggest
-                    biggest = a
+                boxes.push(layout.visible(l, last_n))
         elif cnt[1] >= 8 or cnt[2] >= 8
             maybe.push(copy(k))
     if flashing.len() > 0
         if not area_known
-            undecided(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second; declare w and h to apply the small-area threshold")
-        elif biggest > 21824
-            fails(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second over " + biggest.tostr() + " CSS px squared of one 341 by 256 field")
-        elif area > 21824
-            undecided(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second; whether they share one 341 by 256 field needs layout geometry")
+            undecided(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second; the layout is not known (a malformed layout attribute)")
+        else
+            let a = flash_area(&boxes)
+            if a > 21824 * layout.CPX * layout.CPX
+                fails(out, "2.3.1", "three_flashes", -1, -1, "nodes " + ", ".join(flashing) + " flash more than three times in one second over " + area_text(a) + " CSS px squared of one 341 by 256 field")
     for k in maybe
         undecided(out, "2.3.1", "three_flashes", -1, -1, "node " + k + " changes colour often enough that a general or red flash cannot be ruled out")
+
+# the largest area of the union of boxes inside one 341 by 256 CSS px
+# window (centi-px squared): the area is bilinear between window positions
+# where a window edge meets a box edge, so its largest value is at one of
+# those positions
+pub fn flash_area(boxes: &List[List[i64]]) -> i64
+    let fw = 341 * layout.CPX
+    let fh = 256 * layout.CPX
+    var xs: List[i64] = []
+    var ys: List[i64] = []
+    for b in boxes
+        for e in [b[0], b[2]]
+            xs.push(e)
+            xs.push(e - fw)
+        for e in [b[1], b[3]]
+            ys.push(e)
+            ys.push(e - fh)
+    var best: i64 = 0
+    for wx in cuts(&xs)
+        for wy in cuts(&ys)
+            let w = [wx, wy, wx + fw, wy + fh]
+            best = best.max(union_area(boxes, &w))
+    return best
+
+fn area_text(a: i64) -> text
+    let q = layout.CPX * layout.CPX
+    if a % q == 0
+        return (a / q).tostr()
+    return "more than " + (a / q).tostr()
 
 pub const FLASH_STEP: i64 = 1000000000000000
 pub const FLASH_DARK: i64 = 8000000000000000
@@ -1640,6 +2053,12 @@ fn v_text(v: &View, n: i64) -> bool = v.tag[n as usize] == "" and v.text[n as us
 fn trace_rule(name: &text, t: &List[Facts], out: &mut List[Finding]) -> bool
     if name == "hover_focus_content"
         r_hover_focus_content(t, out)
+    elif name == "non_text_contrast"
+        r_non_text_contrast(t, out)
+    elif name == "focus_visible"
+        r_focus_visible(t, out)
+    elif name == "focus_not_obscured"
+        r_focus_not_obscured(t, out)
     elif name == "timing_adjustable"
         r_timing_adjustable(t, out)
     elif name == "pause_stop_hide"
@@ -1724,12 +2143,16 @@ pub fn frame_of(s: &Step) -> Facts
         for c in v.kids[k]
             q.push(c)
         h += 1
-    return Facts(ev: copy(s.ev), ms: s.ms, v: copy(s.v), role: rl, ri: ri, hid: hid, off: off, inter: inter, foc: foc, vis: vis)
+    let lay = lay_mode(v, viewport(v), 100, false)
+    return Facts(ev: copy(s.ev), ms: s.ms, v: copy(s.v), role: rl, ri: ri, hid: hid, off: off, inter: inter, foc: foc, vis: vis, lay: lay, ft: [])
 
 pub fn frames(t: &List[Step]) -> List[Facts]
     var out: List[Facts] = []
     for s in t
         out.push(frame_of(&s))
+    let tg = focus_targets(&out)
+    for f in 0..out.len()
+        out[f].ft = copy(tg[f])
     return out
 
 pub fn has_rule(name: &text) -> bool
@@ -1888,12 +2311,6 @@ fn any_frame(t: &List[Facts], what: text) -> bool
         elif what == "no-bypass"
             if not bypass_mechanism(&t[f])
                 return true
-        elif what == "layered"
-            if layered(&t[f])
-                return true
-        elif what == "undersized"
-            if undersized(&t[f]) > 0
-                return true
         elif what == "multi-focus"
             if focus_order(v).len() > 1
                 return true
@@ -1911,10 +2328,6 @@ pub fn human_need(c: &Criterion, t: &List[Facts]) -> text
     if id == "2.4.1" and not any_frame(t, "no-bypass")
         return ""
     if id == "2.4.3" and not any_frame(t, "multi-focus")
-        return ""
-    if id == "2.4.11" and not any_frame(t, "layered")
-        return ""
-    if id == "2.5.8" and not any_frame(t, "undersized")
         return ""
     return copy(c.human)
 
