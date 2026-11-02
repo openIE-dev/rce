@@ -5,10 +5,15 @@
 //! `reported` (D.11: "an OS or on-chip energy counter: RAPL, NVML,
 //! IOReport"), never `measured`, which D.11 keeps for a wall or shunt meter
 //! on a named rail. The term carries D.11's `provenance` = {`sampler`,
-//! `counter`, `interval_s`, `idle_baseline_w`, `machine`, `boundary`} and an
-//! `amortization`, and nothing else, since D.11 reports a provenance with
-//! unknown fields as invalid. The sampling start and end, the sample count
-//! and the wraparounds seen are printed on a line of their own.
+//! `counter`, `interval_s`, `idle_baseline_w`, `machine`, `boundary`,
+//! `start_unix_ns`, `end_unix_ns`, `wraps`} and an `amortization`, and
+//! nothing else, since D.11 reports a provenance with unknown fields as
+//! invalid. The number of reads and the period between them have no field
+//! in D.11 and are printed on a line of their own.
+//!
+//! [`Provenance::parse`] reads a provenance from JSON and checks it by D.11
+//! rule 1: `rce test measured J PROVENANCE.json` and `reported J
+//! PROVENANCE.json` take a figure from another meter only with one.
 //!
 //! The joules are the whole package (every top-level powercap zone except
 //! `psys`), not the test run's own share: everything else the machine ran in
@@ -87,24 +92,25 @@ impl Unmeasured {
     }
 }
 
-/// A package-level counter reading: a D.11 term with basis `reported`.
+/// The provenance of a D.11 reading (rule 1): which sampler read which
+/// counter, over what interval and when, against which idle baseline, on
+/// which machine, inside which boundary, with how many wraparounds.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Reading {
-    pub j: f64,
-    // D.11 provenance
+pub struct Provenance {
     pub sampler: String,
     pub counter: String,
     pub interval_s: f64,
     pub idle_baseline_w: f64,
     pub machine: String,
     pub boundary: String,
-    // outside D.11's provenance
     pub start_unix_ns: u64,
     pub end_unix_ns: u64,
-    pub samples: u64,
-    pub period_s: f64,
     pub wraps: u64,
 }
+
+/// The fields of a provenance, in byte order (D.11 rule 1).
+pub const FIELDS: [&str; 9] =
+    ["boundary", "counter", "end_unix_ns", "idle_baseline_w", "interval_s", "machine", "sampler", "start_unix_ns", "wraps"];
 
 fn js(s: &str) -> String {
     serde_json::to_string(s).expect("a string serializes")
@@ -114,36 +120,155 @@ fn jf(x: f64) -> String {
     serde_json::to_string(&x).expect("a finite float serializes")
 }
 
-impl Reading {
-    /// The term as canonical JSON (keys in byte order, no spaces): the
-    /// receipt form of D.11, `{"j", "basis", "provenance", "amortization"}`.
-    /// One `rce test` run is one call, so the amortization is `per_call`.
-    pub fn term_json(&self) -> String {
+impl Provenance {
+    /// D.11 rule 1: the four names non-empty, `interval_s` finite and > 0,
+    /// `idle_baseline_w` finite and >= 0, `start_unix_ns` < `end_unix_ns`.
+    /// `wraps` and the timestamps are unsigned by their type.
+    pub fn check(&self) -> Result<(), String> {
+        for (k, v) in [("sampler", &self.sampler), ("counter", &self.counter), ("machine", &self.machine), ("boundary", &self.boundary)] {
+            if v.is_empty() {
+                return Err(format!("`{k}` is empty"));
+            }
+        }
+        if !(self.interval_s.is_finite() && self.interval_s > 0.0) {
+            return Err(format!("`interval_s` {} is not finite and > 0", self.interval_s));
+        }
+        if !(self.idle_baseline_w.is_finite() && self.idle_baseline_w >= 0.0) {
+            return Err(format!("`idle_baseline_w` {} is not finite and >= 0", self.idle_baseline_w));
+        }
+        if self.start_unix_ns >= self.end_unix_ns {
+            return Err(format!("`start_unix_ns` {} is not before `end_unix_ns` {}", self.start_unix_ns, self.end_unix_ns));
+        }
+        Ok(())
+    }
+
+    /// A provenance from a JSON object with exactly the nine fields of
+    /// D.11 rule 1, checked by that rule. The error says which field is
+    /// missing, unknown, of the wrong type or out of range.
+    pub fn parse(text: &str) -> Result<Provenance, String> {
+        let v: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("not JSON ({e})"))?;
+        let o = v.as_object().ok_or("not a JSON object")?;
+        if let Some(k) = o.keys().find(|k| !FIELDS.contains(&k.as_str())) {
+            return Err(format!("unknown field `{k}`"));
+        }
+        let get = |k: &str| o.get(k).ok_or(format!("missing field `{k}`"));
+        let text = |k: &str| get(k)?.as_str().map(String::from).ok_or(format!("`{k}` is not a string"));
+        let num = |k: &str| get(k)?.as_f64().ok_or(format!("`{k}` is not a number"));
+        let int = |k: &str| get(k)?.as_u64().ok_or(format!("`{k}` is not an integer >= 0"));
+        let p = Provenance {
+            sampler: text("sampler")?,
+            counter: text("counter")?,
+            interval_s: num("interval_s")?,
+            idle_baseline_w: num("idle_baseline_w")?,
+            machine: text("machine")?,
+            boundary: text("boundary")?,
+            start_unix_ns: int("start_unix_ns")?,
+            end_unix_ns: int("end_unix_ns")?,
+            wraps: int("wraps")?,
+        };
+        p.check()?;
+        Ok(p)
+    }
+
+    /// Canonical JSON: keys in byte order, no spaces.
+    pub fn json(&self) -> String {
         format!(
-            "{{\"amortization\":{{\"kind\":\"per_call\"}},\"basis\":\"reported\",\"j\":{},\"provenance\":{{\"boundary\":{},\"counter\":{},\"idle_baseline_w\":{},\"interval_s\":{},\"machine\":{},\"sampler\":{}}}}}",
-            jf(self.j),
+            "{{\"boundary\":{},\"counter\":{},\"end_unix_ns\":{},\"idle_baseline_w\":{},\"interval_s\":{},\"machine\":{},\"sampler\":{},\"start_unix_ns\":{},\"wraps\":{}}}",
             js(&self.boundary),
             js(&self.counter),
+            self.end_unix_ns,
             jf(self.idle_baseline_w),
             jf(self.interval_s),
             js(&self.machine),
             js(&self.sampler),
+            self.start_unix_ns,
+            self.wraps,
+        )
+    }
+}
+
+/// The two labels of a D.11 reading.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Basis {
+    /// An OS or on-chip energy counter (RAPL, NVML, IOReport).
+    Reported,
+    /// A wall or shunt meter on a named rail.
+    Measured,
+}
+
+impl Basis {
+    pub fn word(self) -> &'static str {
+        match self {
+            Basis::Reported => "reported",
+            Basis::Measured => "measured",
+        }
+    }
+}
+
+/// A D.11 reading: joules, a label and a checked provenance. The only
+/// constructor, [`Term::new`], checks the provenance, so there is no term
+/// from a bare number. One `rce test` run is one call, so the amortization
+/// is `per_call`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Term {
+    j: f64,
+    basis: Basis,
+    provenance: Provenance,
+}
+
+impl Term {
+    /// A reading of `j` joules, finite and >= 0, with a provenance valid by
+    /// D.11 rule 1.
+    pub fn new(j: f64, basis: Basis, provenance: Provenance) -> Result<Term, String> {
+        if !(j.is_finite() && j >= 0.0) {
+            return Err(format!("J {j} is not a finite figure >= 0"));
+        }
+        provenance.check()?;
+        Ok(Term { j, basis, provenance })
+    }
+    pub fn j(&self) -> f64 {
+        self.j
+    }
+    pub fn basis(&self) -> Basis {
+        self.basis
+    }
+    pub fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+
+    /// The term as canonical JSON (keys in byte order, no spaces): the
+    /// receipt form of D.11, `{"j", "basis", "provenance", "amortization"}`.
+    pub fn json(&self) -> String {
+        format!(
+            "{{\"amortization\":{{\"kind\":\"per_call\"}},\"basis\":\"{}\",\"j\":{},\"provenance\":{}}}",
+            self.basis.word(),
+            jf(self.j),
+            self.provenance.json()
         )
     }
 
-    /// The lines `rce test measure` prints: the receipt, then the sampling
-    /// facts that D.11's provenance has no field for.
+    /// The line `rce test` prints for the term.
+    pub fn line(&self) -> String {
+        format!("energy receipt: {}", self.json())
+    }
+}
+
+/// A package-level counter reading: a D.11 term with basis `reported`, and
+/// the two sampling facts that D.11's provenance has no field for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Reading {
+    pub term: Term,
+    pub samples: u64,
+    pub period_s: f64,
+}
+
+impl Reading {
+    /// The lines `rce test measure` prints: the receipt, then the number of
+    /// reads and their period.
     pub fn lines(&self) -> [String; 2] {
         [
-            format!("energy receipt: {}", self.term_json()),
-            format!(
-                "energy sampling: start_unix_ns {} end_unix_ns {} samples {} period_s {} wraps {} (not fields of the D.11 provenance)",
-                self.start_unix_ns,
-                self.end_unix_ns,
-                self.samples,
-                jf(self.period_s),
-                self.wraps
-            ),
+            self.term.line(),
+            format!("energy sampling: samples {} period_s {} (not fields of the D.11 provenance)", self.samples, jf(self.period_s)),
         ]
     }
 }
@@ -193,8 +318,9 @@ impl Sampling {
     /// Take the last read and make the receipt, or say why there is none.
     pub fn finish(self) -> Result<Reading, Unmeasured> {
         let _ = self.stop.send(());
-        let elapsed = self.started.elapsed().as_secs_f64();
         let d = self.worker.join().map_err(|_| Unmeasured::ReadFailed("the sampling thread panicked".into()))?;
+        // from the first read to the last, on the monotonic clock
+        let elapsed = self.started.elapsed().as_secs_f64();
         if let Some(e) = d.error {
             return Err(Unmeasured::ReadFailed(e));
         }
@@ -212,8 +338,10 @@ impl Sampling {
             .map(|z| format!("powercap {} {} ({}, max_energy_range_uj {})", z.zone, z.domain, z.energy_file.display(), z.max_energy_range_uj))
             .collect::<Vec<_>>()
             .join("; ");
-        Ok(Reading {
-            j,
+        if last.t_ns <= self.first.t_ns {
+            return Err(Unmeasured::ReadFailed(format!("the system clock did not advance over the run ({} ns to {} ns)", self.first.t_ns, last.t_ns)));
+        }
+        let provenance = Provenance {
             sampler: "rce test measure (IDE build): Linux powercap RAPL energy_uj".into(),
             counter,
             interval_s: elapsed,
@@ -222,10 +350,10 @@ impl Sampling {
             boundary: "package".into(),
             start_unix_ns: self.first.t_ns,
             end_unix_ns: last.t_ns,
-            samples: d.samples,
-            period_s: self.period.as_secs_f64(),
             wraps: zones.iter().map(|z| z.wraps).sum(),
-        })
+        };
+        let term = Term::new(j, Basis::Reported, provenance).map_err(Unmeasured::ReadFailed)?;
+        Ok(Reading { term, samples: d.samples, period_s: self.period.as_secs_f64() })
     }
 }
 
@@ -256,21 +384,26 @@ pub(crate) mod tests {
         let s = Sampling::start(&env(r)).unwrap();
         // the counter wraps: 999_000_000 -> 1_000_000 over a range of 1e9
         fs::write(r.join("intel-rapl:0/energy_uj"), "1000000").unwrap();
-        let g = s.finish().unwrap();
-        assert!((g.j - 2.000001).abs() < 1e-9, "{}", g.j);
+        let r0 = s.finish().unwrap();
+        let (g, t) = (r0.term.provenance(), &r0.term);
+        assert!((t.j() - 2.000001).abs() < 1e-9, "{}", t.j());
+        assert_eq!(t.basis(), Basis::Reported);
         assert_eq!(g.wraps, 1);
         assert_eq!(g.boundary, "package");
         assert_eq!(g.idle_baseline_w, 0.0);
         assert_eq!(g.machine, "test-host; cpu Test CPU; kernel Linux 0.0");
         assert_eq!(g.counter, format!("powercap intel-rapl:0 package-0 ({}, max_energy_range_uj 1000000000)", r.join("intel-rapl:0/energy_uj").display()));
-        assert!(g.interval_s > 0.0 && g.end_unix_ns >= g.start_unix_ns && g.samples == 2);
-        let v: serde_json::Value = serde_json::from_str(&g.term_json()).unwrap();
+        assert!(g.interval_s > 0.0 && g.end_unix_ns > g.start_unix_ns && r0.samples == 2);
+        let v: serde_json::Value = serde_json::from_str(&t.json()).unwrap();
         assert_eq!(v["basis"], "reported");
         assert_eq!(v["amortization"], serde_json::json!({"kind": "per_call"}));
         let p = v["provenance"].as_object().unwrap();
         let keys: Vec<&str> = p.keys().map(|k| k.as_str()).collect();
-        assert_eq!(keys, ["boundary", "counter", "idle_baseline_w", "interval_s", "machine", "sampler"]);
+        assert_eq!(keys, FIELDS);
+        assert_eq!(v["provenance"]["wraps"], 1);
         assert_eq!(v.as_object().unwrap().len(), 4);
+        // the printed provenance reads back as the same provenance
+        assert_eq!(&Provenance::parse(&v["provenance"].to_string()).unwrap(), g);
     }
 
     #[test]
@@ -289,10 +422,8 @@ pub(crate) mod tests {
         assert!(matches!(e, Unmeasured::Stale(_)), "{e:?}");
     }
 
-    #[test]
-    fn formatting_is_deterministic() {
-        let g = Reading {
-            j: 12.5,
+    pub(crate) fn prov() -> Provenance {
+        Provenance {
             sampler: "rce test measure (IDE build): Linux powercap RAPL energy_uj".into(),
             counter: "powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)".into(),
             interval_s: 2.25,
@@ -301,15 +432,56 @@ pub(crate) mod tests {
             boundary: "package".into(),
             start_unix_ns: 10,
             end_unix_ns: 2_250_000_010,
-            samples: 4,
-            period_s: 1.0,
             wraps: 0,
-        };
+        }
+    }
+
+    #[test]
+    fn formatting_is_deterministic() {
+        let g = Reading { term: Term::new(12.5, Basis::Reported, prov()).unwrap(), samples: 4, period_s: 1.0 };
         let want = [
-            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","idle_baseline_w":0.0,"interval_s":2.25,"machine":"h; cpu \"X\"; kernel Linux 6.1","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj"}}"#.to_string(),
-            "energy sampling: start_unix_ns 10 end_unix_ns 2250000010 samples 4 period_s 1.0 wraps 0 (not fields of the D.11 provenance)".to_string(),
+            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":0.0,"interval_s":2.25,"machine":"h; cpu \"X\"; kernel Linux 6.1","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}"#.to_string(),
+            "energy sampling: samples 4 period_s 1.0 (not fields of the D.11 provenance)".to_string(),
         ];
         assert_eq!(g.lines(), want);
         assert_eq!(g.clone().lines(), g.lines());
+        let m = Term::new(3.0, Basis::Measured, prov()).unwrap();
+        assert!(m.line().starts_with(r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"measured","j":3.0,"provenance":{"boundary":"package","#), "{}", m.line());
+    }
+
+    #[test]
+    fn provenance_rule_1() {
+        let good = prov().json();
+        assert_eq!(Provenance::parse(&good).unwrap(), prov());
+        let with = |k: &str, v: serde_json::Value| {
+            let mut o: serde_json::Value = serde_json::from_str(&good).unwrap();
+            o[k] = v;
+            Provenance::parse(&o.to_string())
+        };
+        let without = |k: &str| {
+            let mut o: serde_json::Value = serde_json::from_str(&good).unwrap();
+            o.as_object_mut().unwrap().remove(k);
+            Provenance::parse(&o.to_string())
+        };
+        // every field is required, for both labels
+        for k in FIELDS {
+            assert_eq!(without(k).unwrap_err(), format!("missing field `{k}`"));
+        }
+        assert_eq!(with("samples", 4.into()).unwrap_err(), "unknown field `samples`");
+        assert_eq!(with("sampler", "".into()).unwrap_err(), "`sampler` is empty");
+        assert_eq!(with("boundary", 1.into()).unwrap_err(), "`boundary` is not a string");
+        assert_eq!(with("interval_s", 0.into()).unwrap_err(), "`interval_s` 0 is not finite and > 0");
+        assert_eq!(with("idle_baseline_w", (-1.0).into()).unwrap_err(), "`idle_baseline_w` -1 is not finite and >= 0");
+        assert_eq!(with("wraps", (-1).into()).unwrap_err(), "`wraps` is not an integer >= 0");
+        assert_eq!(with("wraps", 1.5.into()).unwrap_err(), "`wraps` is not an integer >= 0");
+        assert_eq!(with("end_unix_ns", 10.into()).unwrap_err(), "`start_unix_ns` 10 is not before `end_unix_ns` 10");
+        assert_eq!(with("idle_baseline_w", 0.into()).unwrap(), prov());
+        assert!(Provenance::parse("[]").unwrap_err().starts_with("not a JSON object"));
+        assert!(Provenance::parse("2").unwrap_err().starts_with("not a JSON object"));
+        assert!(Provenance::parse("x").unwrap_err().starts_with("not JSON ("));
+        // no term from a bare number, nor from a figure that is not one
+        assert!(Term::new(f64::NAN, Basis::Measured, prov()).is_err());
+        assert!(Term::new(-1.0, Basis::Measured, prov()).is_err());
+        assert!(Term::new(1.0, Basis::Measured, Provenance { wraps: 0, end_unix_ns: 0, ..prov() }).is_err());
     }
 }

@@ -10,8 +10,11 @@ source returns 0 J in place of a measurement.
 `rce test measure` (the IDE build of `rce`) reads `rapl` around a test run
 and prints the reading as a receipt term of spec Appendix D, D.11: basis
 `reported` (an on-chip counter, not a wall or shunt meter), boundary
-`package`, with the zones, files, interval and machine in its provenance
-(`crates/rce-ide/src/reading.rs`; `ide/README.md` shows the output).
+`package`, with the zones, files, interval, start and end times, machine and
+wraparounds counted in its provenance (`crates/rce-ide/src/reading.rs`;
+`ide/README.md` shows the output). A figure from a meter this crate does not
+read enters the gate as `rce test measured J PROVENANCE.json` or `reported J
+PROVENANCE.json`, and only with a provenance valid by D.11 rule 1.
 
 `rce-ide telemetry probe` (or `ide_energy::discover::probe_all`) opens every
 source this build knows, reads it once, and prints what works, what needs a
