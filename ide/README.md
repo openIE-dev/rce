@@ -48,6 +48,27 @@ addition of the IDE's own, the energy-budget gate
 in `crates/rce-ide/src/ci.rs`; the `rce` of `../spec/checker` does not have
 it), `rce-lsp` (language server) and `rce-mcp` (MCP server for agents).
 
+`measure` reads the RAPL package counters (Linux powercap
+`intel-rapl:N/energy_uj`, every top-level zone except `psys`) before the
+run, once a second during it and after it, and prints the reading as a
+receipt term of spec Appendix D, D.11, with basis `reported` (an on-chip
+counter; D.11 keeps `measured` for a wall or shunt meter), its
+`provenance` and `amortization` `per_call`:
+
+    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","idle_baseline_w":0.0,"interval_s":2.25,"machine":"HOST; cpu MODEL; kernel Linux RELEASE","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj"}}
+    energy sampling: start_unix_ns 10 end_unix_ns 2250000010 samples 4 period_s 1.0 wraps 0 (not fields of the D.11 provenance)
+
+The joules are the whole package over the interval, everything the machine
+ran, not the share of the tests; no idle baseline is subtracted
+(`idle_baseline_w` 0). D.11's provenance has no field for the sampling start
+and end, the number of reads or the wraparounds counted, so they are on the
+second line. With no readable counter (no `/sys/class/powercap`, or
+`energy_uj` not readable), a failed read, or a counter that did not move,
+`measure` prints `energy: unmeasured: no counter available (...)` (or `counter
+read failed`, `the counter did not move`) and the energy gate has no figure
+(`energy: no measurement`, which fails only under `strict`); it never falls
+back to the simulated figure. The code is `crates/rce-ide/src/reading.rs`.
+
 Build from source (Rust 1.98.1, read from `rust-toolchain.toml`):
 
 ```sh
