@@ -1,2 +1,3 @@
 requires change change/decimal.rce: line 1: W-NAME-1 unknown type `decimal` [requires change]; line 1: W-TY-1 expected never, found ?0 [requires change]
+attention: 2 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

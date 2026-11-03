@@ -684,13 +684,45 @@ fn vacuity(o: &Obligation, reads: bool, in_form: usize, complete: bool, killed: 
 /// obligation no mutant has killed is judged on every mutant of its reach
 /// before it is reported.
 pub fn gate(p: &Program, sites_of: &Sites, measure: &Measure) -> Vec<String> {
+    gate_measured(p, sites_of, measure).errs
+}
+
+/// What the mutation gate measured of one obligation (6.12), by the line of
+/// the obligation: whether W-MUT-1 measures it, the mutants of its reach,
+/// and whether one of them was killed by it. An admission receipt (10.15)
+/// records these.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MutRow {
+    pub line: usize,
+    pub measured: bool,
+    pub reach: usize,
+    pub killed: bool,
+}
+
+/// The W-MUT-1 reports of `gate`, what it measured of each obligation, and
+/// the mutants judged of the whole set (at most MUTANT_BOUND).
+pub struct Gate {
+    pub errs: Vec<String>,
+    pub rows: Vec<MutRow>,
+    pub judged: usize,
+    pub total: usize,
+}
+
+/// `gate`, with what it measured.
+pub fn gate_measured(p: &Program, sites_of: &Sites, measure: &Measure) -> Gate {
     let addrs = &sites_of.addrs;
     let lm = p.linked;
     if !lm.items.iter().take(p.own).any(|i| matches!(i, Item::Example(_) | Item::Check(_) | Item::Intent(..) | Item::Law(_))) {
-        return vec![];
+        return Gate { errs: vec![], rows: vec![], judged: 0, total: 0 };
     }
     let mut q = Prep::new(p, MUTANT_BOUND, measure, sites_of);
     let n = q.obs.len();
+    // per obligation: whether it is measured, and the mutants of its reach
+    let mut shape: Vec<(bool, usize)> = vec![(false, 0); n];
+    for (o, sh) in shape.iter_mut().enumerate() {
+        let (all, complete) = q.of(&q.reach[o]);
+        *sh = (q.reads[o] && q.light(o) && complete && !q.measured[o].is_empty(), all.len());
+    }
     let mut killed = vec![false; n];
     let mut undec = vec![false; n];
     let mut core_inform: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); n];
@@ -763,7 +795,8 @@ pub fn gate(p: &Program, sites_of: &Sites, measure: &Measure) -> Vec<String> {
             errs.extend(vacuity(&q.obs[o], true, core_inform[o].len(), complete, false, undec[o]));
         }
     }
-    errs
+    let rows = (0..n).map(|o| MutRow { line: q.obs[o].line, measured: shape[o].0, reach: shape[o].1, killed: killed[o] }).collect();
+    Gate { errs, rows, judged: q.mutants.len(), total: q.total }
 }
 
 /// The result of `rce mutants FILE`.

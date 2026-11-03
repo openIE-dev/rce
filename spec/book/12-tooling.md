@@ -27,8 +27,10 @@ and shows that the step of the third event keeps the state, with exit status 1.
    (6.9) as the reference checker `rce-check`. A file accepted by one is
    accepted by all.
 4. **Exit status.** 0 means success. 1 means a program requires change, an
-   example or check failed, a run reached a kept step, or `fmt check`
-   found a file to change. 2 means a usage error: unknown subcommand, wrong
+   example or check failed, a run reached a kept step, `fmt check`
+   found a file to change, or an admission receipt does not hold (10.15).
+   For `rce check` and `rce fmt` this is the rule AC-1 of 7.1: the status
+   is 1 exactly when a finding requires change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
    construct an emitter does not translate (10.5). 3 means a question the
    command could not decide within its bound: `rce equiv` and `rce change`
@@ -54,7 +56,7 @@ generates from this book. The two tables are cut from it into
 and its wasm build; `rce-spec-data check` fails when either file
 differs from what the book gives.
 
-### 10.2 `rce check FILE|DIR...`
+### 10.2 `rce check [write RECEIPT] FILE|DIR...`
 
 All FILEs form one program: `use` resolves among them and then in the built-in standard library (4.1). A DIR is a
 package: it stands for its `.rce` files, recursively, in sorted order,
@@ -71,13 +73,26 @@ the order given, one line is printed:
 ok FILE
 recommended FILE: line N: RULE message
 requires change FILE: line N: RULE message [METHOD][; line M: RULE message [METHOD] ...]
+observed FILE: line N: RULE message [observed: rce fmt records the rewrite and writes nothing]
 ```
 
 Every `requires change` report names its rule from section 7 and ends with
 the rule's method from the table of 7.1: `[altered by rce fmt]` when
 `rce fmt` writes the change (10.6), else `[requires change]`. A
 `recommended` line follows the `ok` line of an admitted file, one per
-recommended change. Exit status 1 if any file requires change, else 0.
+recommended change. A report of an altered rule whose mode is `observe`
+(RM-2 of 7.1) does not block admission and is printed as an `observed`
+line after the file's verdict; one whose mode is `off` is not printed.
+Last, on standard error, the attention line of AC-1 (7.1), for example
+`attention: 1 requires change, 0 recommended, 0 altered, 0 observed`.
+Exit status 1 if any file requires change, else 0.
+
+With `write RECEIPT`, when every file is admitted, `rce check` writes the
+admission receipt of the program (10.15) to RECEIPT and prints
+`receipt RECEIPT: SHA256`, the SHA-256 of the receipt's bytes; when a file
+requires change it writes nothing and prints `no receipt RECEIPT: the
+program requires change`. The receipt is written from the admission just
+computed, so it records exactly the run whose verdicts were printed.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -529,9 +544,23 @@ step changes exactly the places its rewrites name.
 
 With `check`, no file is written; each rewrite is printed as
 `would alter FILE: line N: RULE what`, each file whose layout would change
-as `would reformat FILE`, and the status is 1. Without it, each rewrite is
+as `would reformat FILE`, and the status is 1: under `check`, each such
+line is a finding that requires change. Without it, each rewrite is
 printed as `altered FILE: line N: RULE what`, and each changed file is
 written and printed as `formatted FILE`.
+
+**Modes.** The rewrites above are those of the altered rules whose mode
+(RM-2 of 7.1) is `auto`; a rule whose mode is `off` is not rewritten.
+The rewrites of the rules whose mode is `observe` are worked out on the
+text as the `auto` rewrites leave it, in the same rounds, and recorded,
+never written, with or without `check`: each is printed as
+`observed FILE: line N: RULE what`, followed by its canonical diff
+(the `-` and `+` lines of 10.13, each indented by four spaces) from the
+text as the earlier recorded rewrites leave it. Applying the diffs in
+order to the text gives the text `rce fmt` would write before the layout
+step if those rules were `auto` and applied after the others
+(`tests/rule_modes.rs`). A recorded rewrite does not change the status.
+The run ends with the attention line of AC-1 (7.1) on standard error.
 
 **`rce fmt nameless FILE`** prints the name-free projection of one file
 to standard output and writes nothing. Every identifier the module declares
@@ -596,7 +625,10 @@ the full text of each open document; it does not read other files.
 
 **Diagnostics.** For a document with text t, the published diagnostics are
 exactly the reports `rce check` gives for t that the text requires change, one per
-report, with severity Error and source `rce`. A report `line N: ...` covers line N − 1 in the
+report, with severity Error and source `rce`. They come from the one
+admission code that `rce check`, `rce test` and `rce index` use
+(`spec/checker/src/admission.rs`), under the same rule set and modes, so a
+report of a rule in observe mode is not a diagnostic. A report `line N: ...` covers line N − 1 in the
 protocol's 0-based numbering, from column 0 to the start of the next line.
 `use` resolves among the module paths of all open documents.
 
@@ -1186,6 +1218,114 @@ evaluated the edited expression. An obligation is reported only after it
 has been run on every in-Form mutant of its reach, so `rce check` and
 `rce mutants` report the same W-MUT-1 lines.
 
+### 10.15 `rce check write RECEIPT` and `rce check receipt RECEIPT FILE|DIR...`: admission receipts
+
+An *admission receipt* is the record of why a program was admitted: what
+it was, which rules were in force, which checker judged it, and what each
+obligation measured. It is evidence of a past admission, never an
+authority: no tool reads a receipt to decide whether a program is
+admitted, and revalidation recomputes admission from the program text
+every time. A receipt whose program, rule set and checker are unchanged
+holds because the recomputed receipt has the same bytes, not because the
+receipt says so. Example: `rce check write counter.receipt counter.rce`
+writes the receipt; after an edit of a step, `rce check receipt
+counter.receipt counter.rce` prints that the program changed and whether
+it is still admitted.
+
+- **AR-1 (contents).** A receipt is the JSON object of format
+  `rce-admission-receipt/1` with exactly these members: `program`, the
+  program hash of 10.8 (name-free, layout-free and order-free); `checker`,
+  the commit, specification draft and release label of `rce version`;
+  `rules`, the rule set in force as `table`, every rule of 7.1 as
+  `[RULE, METHOD]` or, for an altered rule, `[RULE, "altered", MODE]`,
+  sorted by rule, and `sha256`, the SHA-256 of `rce-rules/1`, a line end
+  and the canonical JSON of `table`; `obligations`, every example, check
+  and law of the program's own modules, each with its `kind`, its
+  obligation hash `sha256` (the SHA-256 under `rce-obligation/1` of its
+  text in the name-free projection of 10.6 with every named definition
+  replaced by its definition hash, as 10.8 hashes an unnamed item), its
+  `result` (`holds`, or `attested` for a law), its `fuel` (an example or a
+  check, 6.7) or its `states` and `steps` (a law that holds, 6.11) or its
+  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), and, when the mutation
+  gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
+  its reach and whether one was killed (6.12); `mutation`, the mutants
+  judged and the whole mutant set; `attestations`, every attestation that
+  admitted a law, sorted; `observed`, per rule in observe mode the number
+  of its reports (RM-2); and `binding`, `PROGRAM;RULES;CHECKER`, the
+  program hash, the rule-set hash and the checker commit, in the form of
+  an attestation (6.11), so that one line names what the receipt is bound
+  to.
+- **AR-2 (canonical bytes).** The receipt is the canonical JSON of 6.1.1
+  followed by one line end. Obligations are sorted by their canonical
+  JSON and an obligation written twice is listed once, as the program hash
+  hashes it once, so the same program text, rule set and checker give the
+  same bytes (`tests/admission_receipts.rs`). The receipt reads no clock
+  and names no person but the authors of attestations.
+- **AR-3 (evidence, not authority).** Admission is always recomputed. A
+  receipt never admits a program, never skips an obligation and never
+  changes a verdict; the break-even receipt of D.11 is a measurement record
+  in the same sense.
+- **AR-4 (revalidation).** `rce check receipt RECEIPT FILE|DIR...` admits
+  the program again under the rules in force, prints each file's verdict as
+  10.2 does, and then one of these, in this order of precedence:
+  - `receipt holds RECEIPT: program P admitted under rules R by checker C`
+    when the program hash, the rule set and the checker are the receipt's
+    and the recomputed receipt has its bytes;
+  - `receipt does not hold RECEIPT: the program changed (program OLD ->
+    NEW); under the rules in force the program is admitted` (or
+    `requires change`) when the program hash differs;
+  - `receipt does not hold RECEIPT: the rule set changed (rules OLD ->
+    NEW); under the new set the program is admitted` (or `requires
+    change`), then one line per rule `added RULE METHOD`, `removed RULE
+    METHOD` or `changed RULE OLD -> NEW` (a change of method or of mode,
+    such as `changed W-UNUSED-1 altered observe -> altered auto`);
+  - `receipt does not hold RECEIPT: the checker changed (checker OLD ->
+    NEW); the program is admitted, and the record it gives is` (or `is
+    not`) `the receipt's` when only the checker differs;
+  - `receipt does not hold RECEIPT: its record is not the one admission
+    gives for the same program, rules and checker` otherwise.
+
+  The precedence follows what the receipt is bound to: a receipt of
+  another program says nothing about this one, and the rule set is
+  compiled into the checker, so a change of rules is named before the
+  change of checker that carries it. The run ends with the attention line
+  of AC-1, which counts a receipt that does not hold as one finding that
+  requires change; the status is 0 when the receipt holds and the program
+  is admitted, else 1.
+- **AR-5 (an invalid receipt).** A receipt is read back and checked
+  against itself, as D.11 re-derives a break-even receipt: its format, its
+  members, its bytes (the canonical form of its own JSON), a rule table
+  whose rows are well formed and whose hash is `rules.sha256`, and a
+  `binding` made of its own program, rule-set hash and checker commit. A
+  receipt that fails any of these is invalid: `rce check receipt` prints
+  `RECEIPT: AR-5 ...` on standard error and exits 2, as for an unreadable
+  file (10.1).
+
+Promoting an altered rule from `observe` to `auto` (RM-3) changes the rule
+set, so every receipt written before the promotion reports `changed RULE
+altered observe -> altered auto` and whether the program is still
+admitted: a program that had an observed report of that rule now requires
+change until `rce fmt` writes the rewrite.
+
+**Conformance.** Each rule of this section and of the modes and attention
+rules of 7.1 is checked by these tests of `spec/checker/tests/`:
+
+| Rule | Test |
+|---|---|
+| AR-1 | `admission_receipts.rs`: `a_receipt_records_program_rules_checker_obligations_and_attestations` |
+| AR-2 | `admission_receipts.rs`: `a_receipt_is_byte_stable` |
+| AR-3 | `admission_receipts.rs`: `revalidation_recomputes_admission` |
+| AR-4 | `admission_receipts.rs`: `revalidation_reports_each_case` |
+| AR-5 | `admission_receipts.rs`: `an_invalid_receipt_is_reported` |
+| RM-1 | `rule_modes.rs`: `the_modes_table_names_exactly_the_altered_rules` |
+| RM-2 | `rule_modes.rs`: `observe_records_exactly_what_auto_writes`, `the_observe_report_is_a_canonical_diff_with_its_rule`, `observed_reports_do_not_block_admission` |
+| RM-3 | `admission_receipts.rs`: `a_promotion_changes_the_rule_set_hash` |
+| AC-1 | `rule_modes.rs`: `every_check_and_fmt_run_ends_with_the_attention_line` |
+
+The design and its source, the mandate and accept modes of DeepSeek's
+`dsh-superagent-prototype` (MIT), are in
+`spec/proposals/admission-receipts.md`.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 9cebe70c641c3097f8abae94554dbb92258969df39d2080d34911063d53bfecc -->
+<!-- body-sha256: 0018113c68de5c9a3ad0350e37cca20f16eb79f6757fa0b0588f910166b74fa2 -->

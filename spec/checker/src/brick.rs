@@ -152,22 +152,10 @@ fn check_all(mods: &[(String, Module)]) -> Vec<Checked> {
     let refs: Vec<&Module> = mods.iter().map(|(_, m)| m).collect();
     mods.iter()
         .map(|(_, m)| {
-            let mut lk = crate::link::link(m, &refs);
-            let mut c = crate::check::Checker::new();
-            c.imported_fns = lk.imported_fns.clone();
-            c.imported_types = lk.imported_types.clone();
-            for e in std::mem::take(&mut lk.errs) {
-                c.e(e);
-            }
-            c.check_module(&lk.module, &known);
-            // admission and the mutation gate (6.12, W-MUT-1), as `rce check`
-            if c.errs.is_empty() {
-                c.errs = crate::admit_gated(&mut lk, m.items.len(), &known, true);
-            }
-            Checked {
-                errs: c.errs,
-                linked: lk.module,
-            }
+            // the one admission of every tool, with the mutation gate (6.12,
+            // W-MUT-1), as `rce check` (admission.rs)
+            let a = crate::admission::module(crate::admission::RuleSet::in_force(), m, &refs, &known, true);
+            Checked { errs: a.errs, linked: a.linked }
         })
         .collect()
 }

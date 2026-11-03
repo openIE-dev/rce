@@ -10,7 +10,7 @@
 //!
 //! What is compiled in (`include_str!`) is `spec/data/spec-tables.json`,
 //! the `methods` and `method_work` members of spec-data.json and the rule
-//! to method map of `w_methods`, and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
+//! to method map of `w_methods` and the rule to mode map of `w_modes` (7.1), and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
 //! build does not carry the grammar tables. `rce-spec-data check` and
 //! `tests/spec_data.rs` fail when either file is stale against the book,
 //! and `tests/spec_read.rs` checks that every table entry is typed and
@@ -28,7 +28,11 @@ pub fn tables_of(spec_data: &str) -> String {
         .as_array()
         .map(|t| t.iter().map(|r| (r["rule"].as_str().unwrap_or("").to_string(), r["method"].clone())).collect())
         .unwrap_or_default();
-    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"], "w_methods": rules }).to_string()
+    let modes: serde_json::Map<String, Value> = d["w_modes"]["table"]
+        .as_array()
+        .map(|t| t.iter().map(|r| (r["rule"].as_str().unwrap_or("").to_string(), r["mode"].clone())).collect())
+        .unwrap_or_default();
+    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"], "w_methods": rules, "w_modes": modes }).to_string()
 }
 
 /// Complexity class of a method (C.6.4).
@@ -90,6 +94,33 @@ pub fn rule_method(rule: &str) -> Option<&'static str> {
         d["w_methods"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect()).unwrap_or_default()
     });
     M.get(rule).map(|s| s.as_str())
+}
+
+/// The mode of a rule whose method is altered, by the modes table of 7.1:
+/// `off`, `observe` or `auto`. None for a rule the table does not list
+/// (every rule whose method is not altered).
+pub fn rule_mode(rule: &str) -> Option<&'static str> {
+    rule_modes().get(rule).map(|s| s.as_str())
+}
+
+/// Every rule of the table of 7.1 with its method, and with its mode when
+/// the method is altered, sorted by rule: the rule set compiled into this
+/// checker (`admission::RuleSet::in_force`).
+pub fn rule_table() -> Vec<(String, String, Option<String>)> {
+    let d: Value = serde_json::from_str(SPEC_TABLES).expect("spec-tables.json is JSON");
+    let modes = rule_modes();
+    d["w_methods"]
+        .as_object()
+        .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string(), modes.get(k).cloned())).collect())
+        .unwrap_or_default()
+}
+
+fn rule_modes() -> &'static BTreeMap<String, String> {
+    static M: LazyLock<BTreeMap<String, String>> = LazyLock::new(|| {
+        let d: Value = serde_json::from_str(SPEC_TABLES).expect("spec-tables.json is JSON");
+        d["w_modes"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect()).unwrap_or_default()
+    });
+    &M
 }
 
 /// Whether 5.15 lists method `m` for receiver `recv`.

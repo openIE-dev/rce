@@ -209,6 +209,48 @@ pub fn program_hash(ms: &[Module]) -> String {
     sha(&format!("rce-program/1\n{json}"))
 }
 
+/// The obligations of a module (6.12: its `example`, `check` and `law`
+/// items, those inside an `intent` included), each with the line where it
+/// stands in `m0`, its kind and its *obligation hash*: the SHA-256, under
+/// the domain `rce-obligation/1`, of its text in the name-free projection
+/// of 10.6 with every named definition replaced by its definition hash, as
+/// `program_hash` hashes an unnamed item. A renaming keeps it; any change of
+/// what the obligation states changes it. In item order.
+pub fn obligation_hashes(m0: &Module) -> Vec<(usize, &'static str, String)> {
+    fn texts(m: &Module) -> Vec<(usize, &'static str, String)> {
+        let ex = |x: &Example| (x.line, "example", crate::unparse::example(x));
+        let ck = |e: &Expr| (e.line(), "check", format!("check {}", crate::unparse::expr(e)));
+        let mut v = vec![];
+        for it in &m.items {
+            match it {
+                Item::Example(x) => v.push(ex(x)),
+                Item::Check(e) => v.push(ck(e)),
+                Item::Intent(_, xs, cs) => {
+                    v.extend(xs.iter().map(ex));
+                    v.extend(cs.iter().map(ck));
+                }
+                Item::Law(l) => v.push((l.line, "law", format!("law {}", crate::unparse::law_claim(&l.claim)))),
+                _ => {}
+            }
+        }
+        v
+    }
+    let nameless = crate::nameless::nameless(&crate::unparse::unparse(m0)).ok().and_then(|t| crate::parse::parse(&t).ok());
+    let own = texts(m0);
+    // the projection keeps the items and their order; a text it cannot
+    // project is hashed as written
+    let (m, free) = match &nameless {
+        Some(n) if texts(n).len() == own.len() => (n, texts(n)),
+        _ => (m0, own.clone()),
+    };
+    let map: HashMap<String, String> = defs(m).iter().map(|d| (d.name.clone(), format!("#{}", d.hash))).collect();
+    let ver = module_version(m);
+    own.into_iter()
+        .zip(free)
+        .map(|((line, kind, _), (_, _, t))| (line, kind, sha(&format!("rce-obligation/1\n{ver}\n{kind}\n{}", mask(&t, &map)))))
+        .collect()
+}
+
 /// The cover of a law (6.11): the hash an attestation of the law is bound
 /// to. It is the SHA-256 of the law's claim, with every named definition
 /// replaced by its definition hash, and of the sorted definition hashes of

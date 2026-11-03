@@ -1,2 +1,3 @@
 requires change mut_alias.rce: line 6: W-OWN-2 `xs` is borrowed mutably and again in one call [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

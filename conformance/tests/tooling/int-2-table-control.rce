@@ -19,6 +19,6 @@ step C on Inc -> n + 1
 #   - ok main.rce
 #   - "recommended main.rce: line 2: W-INT-2"
 # output_lacks:
-#   - requires change
+#   - requires change main.rce
 # provenance: targeted: 6.9 and 10.2, the obligations are examples only, so the module is admitted with the recommended change W-INT-2 and status 0
 #---

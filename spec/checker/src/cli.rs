@@ -5,7 +5,7 @@ use crate::args::{Command, Fate, MANY, Removed, Word};
 use crate::ast::{Item, Module};
 use crate::interp::{Interp, Region, V, form_json, why};
 use crate::parse::{Tok, lex, parse};
-use crate::{check, interp};
+use crate::interp;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
@@ -28,24 +28,11 @@ pub const UNDECIDED: i32 = 3;
 pub fn diagnostics(src: &str, known: &HashSet<String>) -> Vec<(usize, String)> {
     let errs = match parse(src) {
         Err(e) => vec![e],
-        Ok(m) => {
-            // the program as the tools run it: `use` imports linked in from
-            // the built-in library (4.1)
-            let mut lk = crate::link::link(&m, &[]);
-            let mut c = check::Checker::new();
-            c.imported_fns = lk.imported_fns.clone();
-            c.imported_types = lk.imported_types.clone();
-            for e in std::mem::take(&mut lk.errs) {
-                c.e(e);
-            }
-            c.check_module(&lk.module, known);
-            if c.errs.is_empty() {
-                // admission and the mutation gate (6.12, W-MUT-1), as `rce check`
-                crate::admit_gated(&mut lk, m.items.len(), known, true)
-            } else {
-                c.errs
-            }
-        }
+        // the program as the tools run it: `use` imports linked in from the
+        // built-in library (4.1), then the one admission of every tool with
+        // the mutation gate (6.12, W-MUT-1), as `rce check` (admission.rs);
+        // a report of a rule in observe mode is not one that requires change
+        Ok(m) => crate::admission::module(crate::admission::RuleSet::in_force(), &m, &[], known, true).errs,
     };
     errs.into_iter().map(|e| (line_of(&e), e)).collect()
 }
@@ -783,7 +770,22 @@ const SERVE_WORDS: [Word; 15] = serve_words();
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
 pub const COMMANDS: &[Command] = &[
-    Command { path: &["check"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)" },
+    Command {
+        path: &["check"],
+        words: &[Word::set("write", &["RECEIPT"])],
+        operands: "FILE|DIR...",
+        min: 1,
+        max: MANY,
+        help: "parse, type check and admit; one verdict per file (a DIR is a package: its .rce files);\nwrite RECEIPT: when every file is admitted, write the admission receipt of the program to RECEIPT (10.15)",
+    },
+    Command {
+        path: &["check", "receipt"],
+        words: &[],
+        operands: "RECEIPT FILE|DIR...",
+        min: 2,
+        max: MANY,
+        help: "admit the program again and say whether the receipt RECEIPT still holds: it holds, the program changed,\nthe rule set changed (the rules added, removed or changed, and whether the program is still admitted), or the checker changed (10.15)",
+    },
     Command { path: &["run"], words: &[], operands: "FILE [EVENTS]", min: 1, max: 2, help: "apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()" },
     Command { path: &["test"], words: &[], operands: "FILE|DIR...", min: 1, max: MANY, help: "run every example and check; report per file" },
     Command {
@@ -1012,6 +1014,115 @@ fn expand(ps: &[String]) -> Result<Vec<String>, String> {
     Ok(v)
 }
 
+/// What `rce fmt` does to one file (10.6).
+pub struct Fmt {
+    /// the text to write, when it differs from the file
+    pub write: Option<String>,
+    /// what the run leaves for a person (7.1)
+    pub attention: crate::admission::Attention,
+}
+
+/// `rce fmt [check]` on one file `p` with text `src`, under the modes of
+/// `rules` (7.1): the lines it prints and what it writes. The rewrites of
+/// the altered rules in `auto` mode are written (with `check`, listed as
+/// `would alter`, and each of them requires change); those in `observe`
+/// mode are printed as `observed` with their canonical diff and never
+/// written; then the canonical layout. Deterministic: a function of `rules`,
+/// `p`, `src` and `check`.
+pub fn fmt_file(rules: &crate::admission::RuleSet, p: &str, src: &str, check: bool) -> (Vec<String>, Fmt) {
+    let mut lines = vec![];
+    let mut att = crate::admission::Attention::default();
+    let alt = crate::alter::alter_modes(rules, src);
+    // a text whose layout cannot be made canonical is formatted as written
+    let laid = fmt_text(&alt.text).is_ok();
+    let src_alt = if laid { alt.text.clone() } else { src.to_string() };
+    let applied = if src_alt == src { vec![] } else { alt.applied.clone() };
+    for a in &applied {
+        let verb = if check { "would alter" } else { "altered" };
+        lines.push(format!("{verb} {p}: line {}: {} {}", a.line, a.rule, a.what));
+    }
+    if check {
+        att.requires_change += applied.len();
+    } else {
+        att.altered += applied.len();
+    }
+    // the rewrites of the rules in observe mode: recorded with their diff,
+    // never written
+    if laid {
+        for o in &alt.observed {
+            lines.push(format!("observed {p}: line {}: {} {}", o.line, o.rule, o.what));
+            lines.extend(o.diff.iter().map(|d| format!("    {d}")));
+            att.observed += 1;
+        }
+    }
+    // a report of an altered rule in auto mode whose rewrite would add or
+    // change another report is left for the author
+    for r in crate::alter::unaltered_under(rules, &src_alt) {
+        lines.push(format!("requires change {p}: {r} [not altered: the rewrite would add or change another report]"));
+        att.requires_change += 1;
+    }
+    let mut write = None;
+    match fmt_text(&src_alt) {
+        Ok(n) if n == src => {}
+        Ok(n) => {
+            if check {
+                if n != src_alt {
+                    lines.push(format!("would reformat {p}"));
+                    // with `check`, a file not in canonical layout requires change
+                    att.requires_change += 1;
+                }
+            } else {
+                lines.push(format!("formatted {p}"));
+            }
+            write = Some(n);
+        }
+        Err(e) => {
+            lines.push(format!("requires change {p}: {e}"));
+            att.requires_change += 1;
+        }
+    }
+    (lines, Fmt { write, attention: att })
+}
+
+/// The verdict lines of `rce check` (10.2) for the admission `adm` of a
+/// program, and what they leave for a person (7.1).
+fn check_lines(files: &[(String, String)], adm: &crate::receipt::Program, out: &mut dyn Write) -> Result<crate::admission::Attention, String> {
+    let w = |e: std::io::Error| e.to_string();
+    let mut att = crate::admission::Attention::default();
+    let srcs: HashMap<&str, &str> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
+    for (p, v) in adm {
+        let observed: &[String] = match v {
+            Ok(a) if a.errs.is_empty() => {
+                writeln!(out, "ok {p}").map_err(w)?;
+                // recommended changes (10.2, W-INT-2): the verdict stays `ok`
+                if let Some(m) = srcs.get(p.as_str()).and_then(|s| parse(s).ok()) {
+                    for r in recommendations(&m) {
+                        writeln!(out, "recommended {p}: {r}").map_err(w)?;
+                        att.recommended += 1;
+                    }
+                }
+                &a.observed
+            }
+            Ok(a) => {
+                att.requires_change += a.errs.len();
+                writeln!(out, "requires change {p}: {}", with_methods(&a.errs.join("; "))).map_err(w)?;
+                &a.observed
+            }
+            Err(e) => {
+                att.requires_change += 1;
+                writeln!(out, "requires change {p}: {}", with_methods(e)).map_err(w)?;
+                &[]
+            }
+        };
+        // the reports of rules in observe mode (7.1): recorded, never blocking
+        for r in observed {
+            writeln!(out, "observed {p}: {r} [observed: rce fmt records the rewrite and writes nothing]").map_err(w)?;
+            att.observed += 1;
+        }
+    }
+    Ok(att)
+}
+
 fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
     let load = |ps: &[String]| -> Result<Vec<(String, String)>, String> {
         expand(ps)?.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
@@ -1041,27 +1152,39 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     let rest = &p.operands[..];
     Ok(match cmd.path {
         ["check"] => {
-            let mut bad = 0;
             let files = load(rest)?;
-            let srcs: HashMap<&str, &str> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
-            for (p, v) in crate::check_program(&files, false) {
-                match v {
-                    Ok(()) => {
-                        writeln!(out, "ok {p}").map_err(w)?;
-                        // recommended changes (10.2, W-INT-2): the verdict stays `ok`
-                        if let Some(m) = srcs.get(p.as_str()).and_then(|s| parse(s).ok()) {
-                            for r in recommendations(&m) {
-                                writeln!(out, "recommended {p}: {r}").map_err(w)?;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        bad += 1;
-                        writeln!(out, "requires change {p}: {}", with_methods(&e)).map_err(w)?
-                    }
+            let rules = crate::admission::RuleSet::in_force();
+            let adm = crate::admission::program(rules, &files, true);
+            let att = check_lines(&files, &adm, out)?;
+            if let Some(path) = p.value("write") {
+                if att.requires_change == 0 {
+                    let r = crate::receipt::write_of(rules, &files, &adm)?;
+                    std::fs::write(path, &r).map_err(|e| format!("{path}: {e}"))?;
+                    writeln!(out, "receipt {path}: {}", crate::manifest::sha256_hex(r.as_bytes())).map_err(w)?;
+                } else {
+                    writeln!(out, "no receipt {path}: the program requires change").map_err(w)?;
                 }
             }
-            if bad > 0 { REQUIRES_CHANGE } else { OK }
+            writeln!(err, "{}", att.line()).map_err(w)?;
+            att.status()
+        }
+        ["check", "receipt"] => {
+            let (path, files) = (&rest[0], load(&rest[1..])?);
+            let text = read_file(path)?;
+            let rules = crate::admission::RuleSet::in_force();
+            // admission is recomputed: the verdict of every file, as `rce check`
+            let adm = crate::admission::program(rules, &files, true);
+            let o = crate::receipt::revalidate_of(rules, &text, &files, &adm).map_err(|e| format!("{path}: {e}"))?;
+            let mut att = check_lines(&files, &adm, out)?;
+            let stored: Value = serde_json::from_str(&text).unwrap_or_default();
+            for l in crate::receipt::show(path, &o, &stored) {
+                writeln!(out, "{l}").map_err(w)?;
+            }
+            if !o.holds() {
+                att.requires_change += 1;
+            }
+            writeln!(err, "{}", att.line()).map_err(w)?;
+            att.status()
         }
         ["run"] => {
             match run(&read_file(&rest[0])?, rest.get(1).map(String::as_str)) {
@@ -1451,44 +1574,23 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         }
         ["fmt"] => {
             let (check, files) = (p.has("check"), rest);
-            let mut code = OK;
+            let rules = crate::admission::RuleSet::in_force();
+            let mut att = crate::admission::Attention::default();
             for p in files {
                 let src = read_file(p)?;
-                // the rewrites of the rules whose method is altered (7.1),
-                // then the canonical layout
-                let (altered, done) = crate::alter::alter(&src);
-                let src_alt = if fmt_text(&altered).is_ok() { altered } else { src.clone() };
-                let done = if src_alt == src { vec![] } else { done };
-                for a in &done {
-                    let verb = if check { "would alter" } else { "altered" };
-                    writeln!(out, "{verb} {p}: line {}: {} {}", a.line, a.rule, a.what).map_err(w)?;
+                let (lines, a) = fmt_file(rules, p, &src, check);
+                for l in &lines {
+                    writeln!(out, "{l}").map_err(w)?;
                 }
-                // a report of an altered rule whose rewrite would add or
-                // change another report is left for the author
-                for r in crate::alter::unaltered(&src_alt) {
-                    writeln!(out, "requires change {p}: {r} [not altered: the rewrite would add or change another report]").map_err(w)?;
-                    code = REQUIRES_CHANGE;
+                if let (false, Some(n)) = (check, &a.write) {
+                    std::fs::write(p, n).map_err(|e| format!("{p}: {e}"))?;
                 }
-                match fmt_text(&src_alt) {
-                    Ok(n) if n == src => {}
-                    Ok(n) => {
-                        if check {
-                            if n != src_alt {
-                                writeln!(out, "would reformat {p}").map_err(w)?;
-                            }
-                            code = REQUIRES_CHANGE;
-                        } else {
-                            std::fs::write(p, n).map_err(|e| format!("{p}: {e}"))?;
-                            writeln!(out, "formatted {p}").map_err(w)?;
-                        }
-                    }
-                    Err(e) => {
-                        writeln!(out, "requires change {p}: {e}").map_err(w)?;
-                        code = REQUIRES_CHANGE;
-                    }
-                }
+                att.requires_change += a.attention.requires_change;
+                att.altered += a.attention.altered;
+                att.observed += a.attention.observed;
             }
-            code
+            writeln!(err, "{}", att.line()).map_err(w)?;
+            att.status()
         }
         ["index"] => {
             let o = crate::brick::Opts { vectors: p.count("vectors", 0, "a count of vectors")? };
