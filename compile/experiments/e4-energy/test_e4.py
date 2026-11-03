@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Unit tests of E4's harness: the ε count on tiny modules whose ε is worked out by hand here, the
-RAPL and powermetrics readers on fake inputs, the statistics and the report.
+RAPL, macmon and powermetrics readers on fake inputs, the statistics and the report.
 
     python3 test_e4.py
 """
@@ -311,6 +311,67 @@ class Powermetrics(unittest.TestCase):
         samples = [(0.0, 1.0, 10.0), (1.0, 2.0, 20.0)]
         self.assertAlmostEqual(meters.integrate(samples, 0.5, 1.5), 5.0 + 10.0)
         self.assertAlmostEqual(meters.integrate(samples, 3.0, 4.0), 0.0)
+
+
+class Macmon(unittest.TestCase):
+    LINES = [
+        '{"cpu_power":2.0,"gpu_power":0.5,"ane_power":0.0,"all_power":2.5,"timestamp":"2026-11-03T14:00:00.000000+00:00"}',
+        'not json',
+        '{"cpu_power":4.0,"gpu_power":0.0,"ane_power":1.0,"all_power":5.0,"timestamp":"2026-11-03T14:00:00.200000+00:00"}',
+        '{"cpu_power":1.0}',
+        '{"cpu_power":1.0,"gpu_power":1.0,"ane_power":1.0,"timestamp":"2026-11-03T14:00:00.300000+00:00"}',
+    ]
+
+    def test_sample(self):
+        w, t = meters.macmon_sample(json.loads(self.LINES[0]))
+        self.assertAlmostEqual(w, 2.5)
+        self.assertAlmostEqual(t % 60, 0.0)
+        self.assertIsNone(meters.macmon_sample({"cpu_power": 1.0}))
+        self.assertEqual(meters.macmon_sample({"cpu_power": 1, "gpu_power": 1, "ane_power": 1})[1], None)
+
+    def test_spans_use_measured_timestamps(self):
+        sp = meters.macmon_spans(self.LINES, 0.1)
+        self.assertEqual(len(sp), 3)
+        (s0, e0, j0), (s1, e1, j1), (s2, e2, j2) = sp
+        self.assertAlmostEqual(e0 - s0, 0.1, places=5)      # the first covers one interval
+        self.assertAlmostEqual(j0, 2.5 * 0.1, places=5)
+        self.assertAlmostEqual(s1, e0)              # the second covers the 200 ms since the first
+        self.assertAlmostEqual(j1, 5.0 * 0.2, places=6)
+        self.assertAlmostEqual(j2, 3.0 * 0.1, places=6)
+        self.assertAlmostEqual(meters.integrate(sp, s0, e2), j0 + j1 + j2, places=6)
+
+    def test_spans_without_timestamps(self):
+        sp = meters.macmon_spans(['{"cpu_power":1,"gpu_power":0,"ane_power":0}'] * 3, 0.5)
+        self.assertEqual([round(x[2], 6) for x in sp], [0.5, 0.5, 0.5])
+
+    def test_meter_on_fake_macmon(self):
+        d = tempfile.mkdtemp()
+        try:
+            fake = os.path.join(d, "macmon")
+            with open(fake, "w") as f:
+                f.write("#!%s\n" % sys.executable)
+                f.write("import sys, time, json, datetime\n")
+                f.write("if '--version' in sys.argv: print('macmon 9.9.9'); sys.exit()\n")
+                f.write("while True:\n")
+                f.write("    time.sleep(0.05)\n")
+                f.write("    t = datetime.datetime.now(datetime.timezone.utc).isoformat()\n")
+                f.write("    print(json.dumps({'cpu_power': 3.0, 'gpu_power': 1.0, 'ane_power': 0.0, 'timestamp': t}), flush=True)\n")
+            os.chmod(fake, 0o755)
+            m = meters.Macmon(d, 50, path=fake)
+            try:
+                t0 = m.mark()
+                time.sleep(0.5)
+                j = m.since(t0)
+                self.assertAlmostEqual(j / 0.5, 4.0, delta=0.6)
+                p = m.provenance()
+                self.assertEqual(p["kind"], "reported")
+                self.assertIn("macmon 9.9.9", p["sampler"])
+                self.assertEqual(p["wraps"], 0)
+                self.assertIn("cpu + gpu + ane", p["boundary"])
+            finally:
+                m.close()
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 class Stats(unittest.TestCase):

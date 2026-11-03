@@ -17,7 +17,7 @@ toolchain, the harness
    set so that a run takes about `target_seconds`, in an order shuffled per
    round by a declared seed, and reads the idle power again.
 
-Energy comes from RAPL on Linux and powermetrics on macOS (meters.py). On a
+Energy comes from RAPL on Linux and macmon on macOS (meters.py). On a
 machine with neither, every energy field is "unmeasured" and the rest is
 recorded as usual. The results file holds the machine, the toolchain
 versions, the counter's provenance and one row per program and level;
@@ -26,9 +26,9 @@ RESULTS.md is generated from it by report.py.
     python3 e4.py run RESULTS_JSON [WORK_DIR]
 
 WORK_DIR (default: a new directory under the system temporary directory)
-holds the builds and is deleted at the end. On macOS, powermetrics runs
-through `sudo -n`; when sudo has no cached credentials the harness prints
-the one line to run instead and exits with status 2.
+holds the builds and is deleted at the end. On macOS, macmon runs without
+root; without macmon, powermetrics is used only when sudo is already
+cached, and otherwise energy is recorded as unmeasured.
 """
 import hashlib
 import json
@@ -130,15 +130,14 @@ def execute(argv, cwd):
 def open_meter(cfg, work, argv_line):
     system = platform.system()
     if system == "Darwin":
-        if not os.path.exists(meters.POWERMETRICS):
-            return meters.Unmeasured("%s not found" % meters.POWERMETRICS)
-        if os.geteuid() != 0 and not meters.sudo_cached():
-            print("E4 reads energy from powermetrics, which needs root. Run this one line:")
-            print("")
-            print("    sudo -v && " + argv_line)
-            print("")
-            sys.exit(2)
-        return meters.Powermetrics(work, cfg["powermetrics_interval_ms"])
+        if meters.macmon_path():
+            try:
+                return meters.Macmon(work, cfg.get("macmon_interval_ms", 100))
+            except LookupError as e:
+                return meters.Unmeasured(str(e))
+        if os.path.exists(meters.POWERMETRICS) and (os.geteuid() == 0 or meters.sudo_cached()):
+            return meters.Powermetrics(work, cfg["powermetrics_interval_ms"])
+        return meters.Unmeasured("macmon not found (brew install macmon)")
     if system == "Linux":
         try:
             return meters.Rapl()

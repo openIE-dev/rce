@@ -178,6 +178,7 @@
   "idle_seconds": 10,
   "compile_repeats": 3,
   "powermetrics_interval_ms": 100,
+  "macmon_interval_ms": 100,
   "order_seed": 4
  },
  "landauer": {
