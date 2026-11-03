@@ -503,8 +503,19 @@ mod hwmon {
         fs::write(r.join("hwmon1/energy1_input"), "10").unwrap();
         assert!(m.sample().is_err(), "a counter reset is an error");
         let mut p = open(&ds[0], Duration::from_millis(10)).unwrap();
-        std::thread::sleep(Duration::from_millis(60));
-        assert!(p.sample().unwrap().joules > 1.0);
+        // 45 W integrates past 1 J after about 22 ms of polls. A loaded runner
+        // can starve the polling thread, so wait for the integral (it grows
+        // monotonically at a constant reading) with a deadline, not a fixed sleep.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let mut j = 0.0;
+        while std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+            j = p.sample().unwrap().joules;
+            if j > 1.0 {
+                break;
+            }
+        }
+        assert!(j > 1.0, "{j} J after the deadline");
         assert!(scan(&r.join("missing")).is_empty());
     }
 }

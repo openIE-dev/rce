@@ -1,0 +1,46 @@
+name: compile-e5
+
+# RCE Compile, experiment E5 (compile/experiments/e5-name-free/PROTOCOL.md):
+# part R of the Compiler Form, a name-free identity of a build. This job
+# runs the harness's unit tests (the alpha-equivalence hash keeps its value
+# under every renaming of a module's indices and changes under every change
+# of an opcode or a constant; the WARP-style function ID; the object
+# readers, with the x86-64 decoder checked against llvm-objdump; the
+# renamer) and checks that the committed RESULTS.md is generated from the
+# committed results files. clang, lld and llvm come from the runner's
+# package manager. The job does not build or use the RCE checker.
+
+on:
+  push:
+    paths:
+      - "compile/experiments/e5-name-free/**"
+      - "compile/experiments/e4-energy/wasm_eps.py"
+      - "compile/experiments/e1-determinism/e1.py"
+      - ".github/workflows/compile-e5.yml"
+  pull_request:
+    paths:
+      - "compile/experiments/e5-name-free/**"
+      - "compile/experiments/e4-energy/wasm_eps.py"
+      - "compile/experiments/e1-determinism/e1.py"
+      - ".github/workflows/compile-e5.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: compile/experiments/e5-name-free
+    steps:
+      - uses: actions/checkout@v4
+      - name: The committed write-up is generated from the committed results
+        run: python3 report.py check
+      - name: Install clang, lld and llvm from apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang lld llvm
+      - name: Unit tests
+        run: python3 test_e5.py -v
