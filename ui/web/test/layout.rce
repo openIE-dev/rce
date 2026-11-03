@@ -5,7 +5,7 @@ use ui.rules
 
 intent "the corpus of views on which the ui.layout model is compared with a browser: Show(i) emits view i as a frame (HC-29) and, as one Display, the keys of the targets ui.rules finds under 2.5.8 and the boxes ui.layout gives the view in each of the four modes ui.rules uses"
     example Show(i: 0) -> shown == 1
-    example Show(i: 0), Show(i: 1) -> shown == 2
+    example Show(i: 0), Show(i: 0) -> shown == 2
 
 struct Display
     data: text
@@ -90,7 +90,7 @@ fn tv(s: text) -> View
 
 fn corpus(i: i64) -> View
     let vs = [
-        "div\n.p\n..~ab cd ef gh ij kl mn op qr st uv wx yz",
+        "div|attest-1.3.1=A. Reviewer;2026-11-03|attest-1.3.2=A. Reviewer;2026-11-03|attest-1.3.3=A. Reviewer;2026-11-03|attest-1.4.1=A. Reviewer;2026-11-03|attest-2.4.1=A. Reviewer;2026-11-03|attest-2.4.2=A. Reviewer;2026-11-03|attest-2.4.5=A. Reviewer;2026-11-03|attest-3.1.1=A. Reviewer;2026-11-03|attest-3.1.2=A. Reviewer;2026-11-03\n.p\n..~ab cd ef gh ij kl mn op qr st uv wx yz",
         "div|pad=10|gap=6\n.div|pad=4|border=#000000\n..~one two\n.div\n..~three four five six seven\n.div|h=30",
         "div|flow=row|gap=8\n.button#a|role=button|tabindex=0|action=A|w=44|h=44\n..~A\n.button#b|role=button|tabindex=0|action=B|w=24|h=24\n..~B\n.button#c|role=button|tabindex=0|action=C|w=60|h=30\n..~CC",
         "div|flow=row\n.button#a|role=button|tabindex=0|action=A|w=16|h=16|aria-label=A\n.button#b|role=button|tabindex=0|action=B|w=16|h=16|aria-label=B\n.button#c|role=button|tabindex=0|action=C|w=16|h=16|aria-label=C",

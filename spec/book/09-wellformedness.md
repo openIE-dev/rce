@@ -86,6 +86,13 @@ The Form
 - W-MUT-2 (recommended; never requires change) A mutant of the program
   that no obligation kills and that `rce equiv` does not judge equivalent
   (6.12): `rce mutants` reports it with its diff and a witness (10.14).
+- W-UI-1 A module that emits frames (Appendix E, HC-29) whose frames do
+  not meet `ui.rules`: the frames each `example`'s run derives, judged as
+  one trace, leave a success criterion of WCAG 2.2 level A or AA failing
+  or undecided, or they cannot be judged (no example derives a frame, an
+  emitted `Frame` is not a frame, or judging them exceeds the fuel bound).
+  No `example` or `check` line names `ui.rules`; each finding is one
+  report that names its criterion (E.4f).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -254,6 +261,7 @@ written and one recorded never change it.
 | W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-MUT-1 | requires change | An obligation that no single edit makes fail carries zero bits about the program within the edits; whether it is strengthened or removed is the author's statement. |
 | W-MUT-2 | recommended | The program is admitted; which of the two behaviours is meant is a choice of intent only the author can make, so `rce mutants` recommends an obligation that tells the survivor apart (it judges the whole mutant set, which `rce check` does not). |
+| W-UI-1 | requires change | A frame is the program's output to a person; where its nodes, names, keys and colours go has more than one answer, and the part of a criterion no rule decides is a person's statement (an `attest-ID` attribute), so the program or its view changes. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
@@ -330,4 +338,4 @@ written and one recorded never change it.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: 33553bc8097859e1c55d50f9f06fa6e9079b95ff459292281e405d6dfeed7cb1 -->
+<!-- body-sha256: fa8320d0aefc52928018ca9b12af7ef12ca3756e2129c92376c7ded90e46810f -->

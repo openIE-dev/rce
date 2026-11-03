@@ -2492,6 +2492,13 @@ The Form
 - W-MUT-2 (recommended; never requires change) A mutant of the program
   that no obligation kills and that `rce equiv` does not judge equivalent
   (6.12): `rce mutants` reports it with its diff and a witness (10.14).
+- W-UI-1 A module that emits frames (Appendix E, HC-29) whose frames do
+  not meet `ui.rules`: the frames each `example`'s run derives, judged as
+  one trace, leave a success criterion of WCAG 2.2 level A or AA failing
+  or undecided, or they cannot be judged (no example derives a frame, an
+  emitted `Frame` is not a frame, or judging them exceeds the fuel bound).
+  No `example` or `check` line names `ui.rules`; each finding is one
+  report that names its criterion (E.4f).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -2660,6 +2667,7 @@ written and one recorded never change it.
 | W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-MUT-1 | requires change | An obligation that no single edit makes fail carries zero bits about the program within the edits; whether it is strengthened or removed is the author's statement. |
 | W-MUT-2 | recommended | The program is admitted; which of the two behaviours is meant is a choice of intent only the author can make, so `rce mutants` recommends an obligation that tells the survivor apart (it judges the whole mutant set, which `rce check` does not). |
+| W-UI-1 | requires change | A frame is the program's output to a person; where its nodes, names, keys and colours go has more than one answer, and the part of a criterion no rule decides is a person's statement (an `attest-ID` attribute), so the program or its view changes. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
@@ -4658,8 +4666,9 @@ it is still admitted.
   replaced by its definition hash, as 10.8 hashes an unnamed item), its
   `result` (`holds`, or `attested` for a law), its `fuel` (an example or a
   check, 6.7) or its `states` and `steps` (a law that holds, 6.11) or its
-  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), and, when the mutation
-  gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
+  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), for an example whose run
+  derived frames, `frames`, the number that W-UI-1 judged (Appendix E,
+  E.4f), and, when the mutation gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
   its reach and whether one was killed (6.12); `mutation`, the mutants
   judged and the whole mutant set; `attestations`, every attestation that
   admitted a law, sorted; `observed`, per rule in observe mode the number
@@ -7104,6 +7113,64 @@ delivers depends on the adapters it is granted.
   it looked: pixels and the timing of presentation stay outside D.
   Reference: `spec/checker/src/frame.rs`, `Host::presented`.
 
+  *Frames at admission (W-UI-1).* A module *emits frames* when it declares
+  the output struct `Frame` with a field `view` of type `View` and has a
+  step. Admission holds its frames to `ui.rules` with no `example` or
+  `check` line of its own, once its examples, checks and laws hold, and
+  before the mutation gate (6.12):
+
+  - *Which frames.* The frames of each `example` of the module, as a host
+    derives them from a D that holds that example's events as its program
+    entries: the event at position k (from 0) has seq k, each event is one
+    run of δ with its own fuel (HC-7a), a kept step emits nothing, and the
+    step word and time of each frame are derived as above. The frames are
+    a function of the program text, so every tool derives the same ones.
+  - *How they are judged.* The frames of one example are one trace, given
+    to `rules.findings` and to `rules.report` (`stdlib/lib/ui/rules.rce`),
+    each run within one fuel budget (6.7), exactly as
+    `rce host replay frames` judges a session. A criterion whose verdict is
+    `fails` or `undecided` is unmet (`rules.unmet`): each of its findings
+    at a node that claims no exception (`exempt`) is one report, and a
+    criterion with no such finding (one undecided until a person attests
+    it, `attest-ID`) is one report with the verdict's reason.
+  - *Undecided frames.* An emitted `Frame` that is not a frame, a judgement
+    that exceeds its fuel budget or traps, and a module none of whose
+    examples derives a frame leave the frames undecided. Undecided frames
+    require change, as an undecided law does (W-LAW-1): admission never
+    reads a frame it could not judge as one that meets.
+  - *Reports.* One line per finding, on the example's line (on the line of
+    `struct Frame` when no example derives a frame), naming the rule, the
+    frame, its seq and step word, and the criterion. For
+    `spec/examples/change/admission/frame_no_tabindex.rce`, among others:
+    `line 6: W-UI-1 frame 1 of the example (seq 0, start): WCAG 2.1.1 fails at node 1 (keyboard): node 1 (key toggle) is interactive but not focusable (tabindex) and has no aria-keyshortcuts`.
+    Each line is one finding that requires change in the attention count
+    of 7.1, so `rce check`, `rce test`, `rce check write` and
+    `rce check receipt`, `rce index` and the language server, which share
+    one admission (`spec/checker/src/admission.rs`), report the same lines.
+    A receipt (10.15) records, for each example whose run derived frames,
+    their number as `frames`.
+
+  A module that emits no frame is not affected; a module that builds views
+  and judges them in its own `check` lines (the `door` program of
+  `spec/proposals/human-interface.md`) still does so through W-INT-1.
+
+  *Decision on open question Q3 of `spec/proposals/human-interface.md`
+  (2026-11-03).* A module that emits `Frame` is held to `ui.rules` by the
+  checker, with no example line, rather than opting in through a library
+  call. In hindsight, every finding `ui.rules` reports on a session was
+  determined by the program text before any person met the frame, so a
+  rule read only after deployment comes later than the information
+  allows. In physical terms, a frame is the program's output to a person:
+  the last value the program determines before light or sound reaches
+  that person, and nothing after it is the program's to correct. In terms
+  of information, a finding the checker can derive from the text carries
+  information about the program whether or not its author asked for it,
+  and a rule that is opted into discards that information exactly where
+  no one asked; so the finding must not depend on the author opting in.
+  The rules, the frames and the fuel bound were already exact; only where
+  the finding is read moves, into admission. Reference: `frame::gate` in
+  `spec/checker/src/frame.rs`; `spec/checker/tests/ui_rules_admission.rs`.
+
 ### E.4g Directories, entries, the zone and account names (HC-30 to HC-33)
 
 A listing such as `ls -l` (`programs/systems/ls.rce`) reads a directory's
@@ -7566,6 +7633,7 @@ is cited by a test.
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
 | HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports`, `stdout_carries_only_the_programs_output` |
 | HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
+| W-UI-1, HC-29 | frames are held to ui.rules at admission | `tests/ui_rules_admission.rs`: `a_compliant_module_is_admitted`, `a_button_without_tabindex_requires_change_with_no_ui_rules_line`, `a_module_that_emits_no_frame_is_not_affected`, `a_module_whose_examples_derive_no_frame_is_undecided`, `a_frame_that_is_not_one_is_undecided`, `every_tool_reports_the_same_findings`, `the_receipt_records_the_rule_and_the_frames` |
 | HC-30, HC-10a | directory names as exact bytes, written exactly by Display | `tests/host_fs.rs`: `directory_names_arrive_as_their_exact_bytes`, `ls_lists_through_the_host_as_coreutils_does` |
 | HC-31 | lstat and readlink without following, checked on the directory that holds the entry | `tests/host_fs.rs`: `lstat_and_readlink_do_not_follow_and_replay`; `tests/host_adapters.rs`: `file_effects_stay_under_the_granted_root` |
 | HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |

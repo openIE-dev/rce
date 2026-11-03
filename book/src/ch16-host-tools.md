@@ -332,6 +332,14 @@ the whole session (Appendix E, HC-29). Under `rce host serve`,
 appends once it has shown a frame, and records each in D as
 `host.Presented`, so a program can count what a person was actually shown.
 
+`rce check` holds a program that emits frames to the same rules before it
+runs (rule W-UI-1, Appendix E.4f). It derives the frames of each `example`
+as the host would, judges them with `ui.rules` as one session, and reports
+each unmet WCAG 2.2 criterion as one line on the example's line, such as a
+button with no `tabindex` (2.1.1). No `example` or `check` line has to call
+`ui.rules`, and a program none of whose examples emits a frame requires
+change until one does, since its frames would otherwise go unjudged.
+
 ## The chat user interface
 
 `apps/chat.rce` is a complete chat program: workspaces, channels and

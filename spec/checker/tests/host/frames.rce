@@ -3,9 +3,9 @@ use ui.view
 use ui.rules
 
 intent "a door panel that emits one frame per step (HC-29): a heading and one button that opens or closes the door; Dim greys its text below 4.5 : 1, and Presented counts the frames a renderer confirmed"
-    example Open -> opened
-    example Open, Close -> opened == false
-    example Focus, Presented(seq: 0, digest: "") -> presented == 1
+    example Open, Focus -> opened
+    example Open, Focus, Close -> opened == false
+    example Open, Focus, Presented(seq: 1, digest: "") -> presented == 1
     check unmet_count(false) == 0
     check unmet_count(true) > 0
 

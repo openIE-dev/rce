@@ -8,8 +8,10 @@ frames, is implemented by the change on branch `claude/frame-replay`
 as HC-29, which also decides Q4 (ledger row of 2026-11-01). H6's fixes
 of the 1.4 findings are done (4.5). The layout geometry that 4.2 left to
 attestation is implemented by the change on branch `claude/ui-geometry`
-(4.2, "Layout geometry"; ledger row of 2026-11-02). Every other later item
-is a plan. Sections 1 to 3 describe `main` at a5df5be7, before that change.
+(4.2, "Layout geometry"; ledger row of 2026-11-02). Q3 is decided
+(2026-11-03): a module that emits `Frame` is held to `ui.rules` at
+admission by W-UI-1 (Appendix E, E.4f; ledger row of 2026-11-03). Every
+other later item is a plan. Sections 1 to 3 describe `main` at a5df5be7, before that change.
 
 The RCE owner wrote, after reading the Raven GUI library: "this is the
 lens RCE must also start looking at: UI/UX, HMI, HCI." This proposal
@@ -306,7 +308,8 @@ The mechanisms are:
 
 1. **G1.** Every requirement in section 2 that is exact becomes a rule a
    program can be held to, by the same examples and checks that admit it
-   today. No new admission gate.
+   today. No new admission gate, until the decision on Q3 (4.6) added
+   one: W-UI-1 holds a module that emits frames to the same rules.
 2. **G2.** What a rule cannot decide is reported as undecided, never as
    met. What no rule covers is listed as human, per program, and stays
    undecided until a person attests it.
@@ -621,10 +624,10 @@ Each rule below takes the WCAG 2.2 text as read at w3c/wcag 9b94e18a
 These rules are functions of `ui.rules`, used through `example` and
 `check` lines, so a view that fails one makes its program require change
 under W-INT-1, whose method in 7.1 is *requires change*: where boxes go is
-a choice of design with more than one answer. No rule of section 7 is
-added; a rule that held every module emitting `Frame` to `ui.rules`
-without an example line would be the admission rule of Q3, which stays
-open.
+a choice of design with more than one answer. This slice added no rule
+of section 7. The decision on Q3 (2026-11-03) added one: W-UI-1 holds
+every module that emits `Frame` to `ui.rules` without an example line
+(Appendix E, E.4f).
 
 **The browser agrees.** The DOM renderer (H4) lays out the same boxes: it
 sets every element as a flex column of border-box sizing with no style of
@@ -653,8 +656,11 @@ tree is.
 #### How a program uses it
 
 Through ordinary `example` and `check` lines, so a view that fails a rule
-makes the program require change by W-INT-1 (6.9). No admission rule is
-added (Q3 stays open). This program was checked with `rce test` during
+makes the program require change by W-INT-1 (6.9). This program does not
+emit `Frame`, so W-UI-1 (the decision on Q3) does not apply to it; a
+module that emits its views as frames needs no such line, since admission
+judges the frames its examples derive (`spec/checker/tests/host/frames.rce`
+is this panel emitted as frames). This program was checked with `rce test` during
 this change (2 examples, 2 checks); with `tabindex` removed from the
 button, both checks are false and the program requires change (2.1.1,
 and 3.2.1 since no step can focus it):
@@ -912,7 +918,19 @@ proposal.
 3. **Q3. Where findings live.** Are the rules a library that programs
    opt into (as built), or should a module that emits `Frame` be held to
    `ui.rules` by the checker without an example line? The second is a new
-   admission rule and moves the spec.
+   admission rule and moves the spec. *Decided 2026-11-03: the second, as
+   W-UI-1 (requires change; Appendix E, E.4f).* By hindsight, every
+   finding `ui.rules` reports on a session was fixed by the program text
+   before a person met the frame. By physics, a frame is the program's
+   output to a person, the last value the program determines before light
+   or sound reaches them. By information theory, a finding the checker can
+   derive carries information about the program whether or not its author
+   asked, and an opt-in rule discards it exactly where no one asked; so it
+   must not depend on the author opting in. The frames judged are those
+   each example's run derives, one trace per example, as
+   `rce host replay frames` judges a session; frames that cannot be judged
+   (none derived, not a tree, beyond the fuel bound) are undecided and
+   require change, as an undecided law does (W-LAW-1).
 4. **Q4. Renderer confirmations.** Does a renderer's "frame X presented"
    enter D as an input (so alarm annunciation can be counted from D), or
    stay outside as HC-28's status does? *Decided 2026-11-01, under the
@@ -940,7 +958,8 @@ proposal.
 The row of 2026-10-31 in `LEDGER.md` records this proposal: open, with
 Q1 and Q2 decided and the first slice (4.2) implemented. The row of
 2026-11-01 records H1 (HC-29) and the decision on Q4. A row of 2026-11-02
-records the layout geometry of 4.2.
+records the layout geometry of 4.2. A row of 2026-11-03 records the
+decision on Q3 and W-UI-1.
 
 
 ## 5. Sources

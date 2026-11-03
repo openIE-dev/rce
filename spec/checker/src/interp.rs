@@ -2735,6 +2735,9 @@ pub struct Measure {
     pub cover: HashMap<usize, HashSet<usize>>,
     /// every law with its verdict (6.11), when the laws were decided
     pub decided: Vec<crate::law::Decided>,
+    /// the frames each example's run derived and W-UI-1 judged, by line
+    /// (HC-29), for a module that emits frames
+    pub frames: HashMap<usize, usize>,
 }
 
 /// `admit`, and what it measured.

@@ -99,6 +99,9 @@ Under `rce host serve presented ACKS ...`, the renderer appends
 as `host.Presented` and delivers `Presented(seq, digest)` when the program
 declares it, so what a person was shown can be counted from D. A program
 that declares `Frame` is always replayed from the start of D (no snapshot).
+`rce check` judges the frames each example derives with `ui.rules` before
+deployment (W-UI-1), so a program that requires change under it is not
+admitted.
 
 ## Changing the program
 
