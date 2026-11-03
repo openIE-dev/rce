@@ -129,14 +129,41 @@ impl Entry {
     }
 }
 
+/// The event type of a checkpoint (HC-37).
+pub const CHECKPOINT: &str = "host.Checkpoint";
+
+/// HC-37: the `head` of a checkpoint entry, the hash of the last entry it
+/// stands for in the log it was proven from; `None` for any other entry.
+pub fn checkpoint_head(e: &Entry) -> Option<String> {
+    let v: Value = serde_json::from_str(&e.event).ok()?;
+    if v["type"].as_str()? != CHECKPOINT {
+        return None;
+    }
+    let h = v["payload"]["head"].as_str()?;
+    (h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())).then(|| h.to_string())
+}
+
 /// HS-4: the number of lines in the longest prefix that links from the
 /// genesis hash, each entry's `hash` recomputed over the hashed form of its
 /// event (T7). A line that does not parse (a torn write) ends the prefix.
 pub fn verify_prefix(lines: &[&str], m: &Module) -> usize {
     let mut prev = D_GENESIS.to_string();
+    let mut base = 0u64;
     for (i, l) in lines.iter().enumerate() {
         let Some(e) = Entry::parse_line(l) else { return i };
-        if e.seq != i as u64 || e.prev_hash != prev {
+        // HC-37: a checkpoint begins D; it is hashed over its stored event
+        // from the genesis hash, and the entry after it links to its head
+        if i == 0
+            && let Some(head) = checkpoint_head(&e)
+        {
+            if e.prev_hash != D_GENESIS || e.hash != d_sha(&body(&e.event, &e.prev_hash, e.seq, &e.state_hash)) {
+                return 0;
+            }
+            base = e.seq;
+            prev = head;
+            continue;
+        }
+        if e.seq != base + i as u64 || e.prev_hash != prev {
             return i;
         }
         let Some(hashed) = hashed_event(m, &e.event) else { return i };
@@ -154,9 +181,20 @@ pub fn verify_prefix(lines: &[&str], m: &Module) -> usize {
 /// themselves are checked by `verify_prefix` when the log is opened.
 pub fn verify_links(lines: &[&str]) -> usize {
     let mut prev = D_GENESIS.to_string();
+    let mut base = 0u64;
     for (i, l) in lines.iter().enumerate() {
         let Some(e) = Entry::parse_line(l) else { return i };
-        if e.seq != i as u64 || e.prev_hash != prev {
+        if i == 0
+            && let Some(head) = checkpoint_head(&e)
+        {
+            if e.prev_hash != D_GENESIS {
+                return 0;
+            }
+            base = e.seq;
+            prev = head;
+            continue;
+        }
+        if e.seq != base + i as u64 || e.prev_hash != prev {
             return i;
         }
         prev = e.hash;
@@ -967,6 +1005,10 @@ struct RapCall {
     body: Option<String>,
     /// the status that settled its delivery (`host.RapSent`)
     sent: Option<u16>,
+    /// HC-37: for a kept step, the canonical named form of the state it was
+    /// kept on, from which a checkpoint re-derives the kept text (HC-21: the text
+    /// is never in D)
+    kept_state: Option<String>,
 }
 
 /// HC-35, HC-36: the invocations of D by seq, the first seq of each
@@ -1050,6 +1092,11 @@ pub struct Host<'a> {
     bound: Vec<&'static str>,
     /// Requests emitted and not yet answered, in emit order (E-x).
     queue: std::collections::VecDeque<Queued>,
+    /// HC-37: every request emitted and not yet answered, whatever adapters
+    /// this host has: each output of a declared struct with an integer
+    /// `req`. `queue` is the part of it this host's adapters perform, so a
+    /// checkpoint, which no adapter set is known for, carries this.
+    unanswered: std::collections::VecDeque<Queued>,
     /// HC-21: the requests (`K` with a `req`, `KDone` declared) emitted by
     /// steps that descend from a `StepKept` entry and not yet answered by a
     /// `KDone` with their req: (K, req, the `StepKept` entry's seq), in emit
@@ -1241,6 +1288,15 @@ pub fn http_inputs(m: &Module, text: &str) -> Result<Vec<HttpOfD>, String> {
         if skip == Some(e.seq) {
             continue;
         }
+        // HC-37: the HTTP inputs still open where the checkpoint stands
+        if e.kind() == CHECKPOINT {
+            let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+            for x in v["payload"]["http"].as_array().into_iter().flatten() {
+                let (Some(id), Some(head), Some(close)) = (x[0].as_u64(), x[1].as_bool(), x[2].as_bool()) else { return Err("D: an open HTTP input of the checkpoint is not [id, head, close]".into()) };
+                out.push(HttpOfD { id, head, close, answer: None });
+            }
+            continue;
+        }
         let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
         let (ev, at) = match e.kind().as_str() {
             "host.Typed" => {
@@ -1263,6 +1319,36 @@ pub fn http_inputs(m: &Module, text: &str) -> Result<Vec<HttpOfD>, String> {
         out.push(HttpOfD { id: p.get("id").and_then(Value::as_u64).unwrap_or(at), head, close, answer });
     }
     Ok(out)
+}
+
+/// HC-37: the HTTP inputs of `text` still open at its end: inputs the
+/// program answers ([`http_inputs`]) with no `HttpRespondDone` delivered for
+/// their id, and admitted after the last `host.Restarted`, whose process
+/// owned the connections of every earlier request (HC-22). A checkpoint
+/// carries them, so the bytes of a response made after it are a function of
+/// D' as they are of D (HC-26).
+pub fn http_open(m: &Module, text: &str) -> Result<Vec<HttpOfD>, String> {
+    let mut closed = std::collections::BTreeSet::new();
+    let mut restart = 0u64;
+    for l in text.split_terminator('\n') {
+        let e = Entry::parse_line(l).ok_or("D: a line that is not an entry")?;
+        let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+        let ev = match e.kind().as_str() {
+            "host.Restarted" => {
+                restart = e.seq;
+                continue;
+            }
+            "host.Kept" => v["payload"]["event"].clone(),
+            _ => v,
+        };
+        if ev["type"].as_str() == Some("HttpRespondDone")
+            && ev["payload"]["status"].as_str() == Some("delivered")
+            && let Some(r) = ev["payload"]["req"].as_u64()
+        {
+            closed.insert(r);
+        }
+    }
+    Ok(http_inputs(m, text)?.into_iter().filter(|x| x.answer.is_none() && !closed.contains(&x.id) && x.id > restart).collect())
 }
 
 /// HC-6: a live `fn main` task. Its state is a function of D: the start
@@ -1595,7 +1681,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), unanswered: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -1647,6 +1733,14 @@ impl<'a> Host<'a> {
         }
         let lines: Vec<&str> = text.split_terminator('\n').collect();
         let keep = verify_prefix(&lines, m);
+        // HC-37: a checkpoint that does not verify, or that the entry after
+        // it does not link to, fails closed: D is not cut and not opened
+        if let Some(first) = lines.first().and_then(|l| Entry::parse_line(l))
+            && first.kind() == CHECKPOINT
+            && (keep == 0 || (keep == 1 && lines.get(1).is_some_and(|l| Entry::parse_line(l).is_some())))
+        {
+            return Err(format!("host fault: {}: the checkpoint that begins D does not verify, or the entry after it does not link to its head (HC-37); D is left unchanged", path.display()));
+        }
         let dropped = lines.len() - keep;
         if dropped > 0 || !text.ends_with('\n') {
             let len: usize = lines[..keep].iter().map(|l| l.len() + 1).sum();
@@ -1656,7 +1750,7 @@ impl<'a> Host<'a> {
         let mut h = Host::fresh(m, Box::new(fs), adapters)?;
         h.bound_drains(drain_max);
         let from = match snap {
-            Some(sn) if h.load_snapshot(sn, &entries) => sn.seq as usize + 1,
+            Some(sn) if h.load_snapshot(sn, &entries) => entries.iter().position(|e| e.seq == sn.seq).map_or(0, |i| i + 1),
             _ => 0,
         };
         h.refold(&entries[from..])?;
@@ -1741,27 +1835,11 @@ impl<'a> Host<'a> {
         if declares_struct(self.m, crate::frame::FRAME) {
             return false; // HC-29: folded from the start of D
         }
-        let Some(e) = entries.get(sn.seq as usize) else { return false };
+        let Some(e) = entries.iter().find(|e| e.seq == sn.seq) else { return false };
         if d_sha(&sn.bytes) != sn.state_hash || e.state_hash != sn.state_hash {
             return false;
         }
-        let Ok(v) = serde_json::from_str::<Value>(&sn.bytes) else { return false };
-        let mut st = self.state.clone();
-        for (ri, (_, fs)) in st.iter_mut().enumerate() {
-            for (fi, (_, val, ty)) in fs.iter_mut().enumerate() {
-                let Some(j) = v.get(ri).and_then(|r| r.get(fi)) else { return false };
-                let Ok(x) = json_expr(j, Some(ty), self.m) else { return false };
-                self.it.scopes = vec![HashMap::new()];
-        self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
-                match self.it.eval(&x) {
-                    Ok(nv) => *val = nv,
-                    Err(_) => return false,
-                }
-            }
-        }
-        if state_pos_json(&st, self.m) != sn.bytes {
-            return false;
-        }
+        let Some(st) = self.decode_state(&sn.bytes) else { return false };
         self.state = st;
         self.state_hash = sn.state_hash.clone();
         self.prev = e.hash.clone();
@@ -1770,12 +1848,305 @@ impl<'a> Host<'a> {
         true
     }
 
+    /// The state whose positional form (`state_pos_json`) is `bytes`,
+    /// decoded guided by the declared field types in declaration order; `None`
+    /// unless it re-encodes to the same bytes (HS-5, HC-37).
+    fn decode_state(&mut self, bytes: &str) -> Option<Vec<Region>> {
+        let v = serde_json::from_str::<Value>(bytes).ok()?;
+        let mut st = self.it.initial_state().ok()?;
+        if v.as_array().map(Vec::len) != Some(st.len()) {
+            return None;
+        }
+        for (ri, (_, fs)) in st.iter_mut().enumerate() {
+            if v[ri].as_array().map(Vec::len) != Some(fs.len()) {
+                return None;
+            }
+            for (fi, (_, val, ty)) in fs.iter_mut().enumerate() {
+                let x = json_expr(&v[ri][fi], Some(ty), self.m).ok()?;
+                self.it.scopes = vec![HashMap::new()];
+                self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
+                // typed as the initial state's fields are, so a decoded
+                // value is the value δ left, not an untyped literal
+                let v = self.it.eval(&x).ok()?;
+                *val = self.it.fit(v, ty).ok()?;
+            }
+        }
+        (state_pos_json(&st, self.m) == bytes).then_some(st)
+    }
+
+    /// HC-37: everything the fold of D has reached that replay of the
+    /// entries after this point depends on, as canonical JSON values, keyed
+    /// as a checkpoint carries them. Each item and its reason:
+    /// - `state`: the canonical named form of the state (6.1); the SHA-256
+    ///   of its positional form is the state hash unless a task is live
+    ///   (`task`);
+    /// - `head`: the hash of the last entry folded, which the next entry's
+    ///   `prev_hash` names (HS-4);
+    /// - `queue`: every request emitted and not yet answered (an output of a
+    ///   declared struct with an integer `req`), with the seq that requested
+    ///   it: a later result answers one of them, and a restart gives each
+    ///   one a host performs one result, `interrupted` (HC-3, HC-22);
+    /// - `descends`: the requests whose results descend from a delivered
+    ///   `StepKept`, so a later kept step is not delivered again (HC-21);
+    /// - `admitted`, `window`, `closed_tick`: per source the highest seq in
+    ///   D, the next window id and the last closed tick, the dedupe and
+    ///   window state of HC-15 to HC-17;
+    /// - `term`: the admitter's term, which a later `host.Term` must exceed
+    ///   (HC-19);
+    /// - `task`: a live `fn main` task, part of the state D folds to (HC-6);
+    /// - `calib`, `exacts`: the calibrations and exact probes placement
+    ///   reads (HC-12, HC-13);
+    /// - `last_tick`: the n of the last `Tick(n)`, which a host loop
+    ///   continues (HC-22);
+    /// - `rap`: every RAP invocation: its key, which dedupes every later
+    ///   invocation (HC-35), whether it was stepped, how its step ended,
+    ///   the length and SHA-256 of its result and the status that settled
+    ///   it (HC-36). A kept step's text is never carried (HC-21): the state
+    ///   it was kept on is, and the text is derived again from it.
+    fn carried(&self) -> serde_json::Map<String, Value> {
+        use serde_json::json;
+        let mut p = serde_json::Map::new();
+        p.insert("admitted".into(), Value::Object(self.admitted.iter().map(|(k, v)| (k.clone(), json!(v))).collect()));
+        let fin = |x: f64| if x.is_finite() { json!(x) } else { Value::Null };
+        p.insert("calib".into(), Value::Array(self.calib.iter().map(|((f, c), (o, t))| json!([f, c, fin(*o), fin(*t)])).collect()));
+        p.insert("closed_tick".into(), json!(self.closed_tick));
+        p.insert("descends".into(), Value::Array(self.descends.iter().map(|(k, r, q)| json!([k, r, q])).collect()));
+        p.insert("exacts".into(), Value::Array(self.exacts.iter().map(|(f, c)| json!([f, c])).collect()));
+        p.insert("head".into(), json!(self.prev));
+        p.insert("last_tick".into(), json!(self.last_tick));
+        p.insert("queue".into(), Value::Array(self.unanswered.iter().map(|q| json!([q.kind, q.req, q.at, q.json])).collect()));
+        let rap: Vec<Value> = self
+            .rap
+            .calls
+            .iter()
+            .map(|(c, x)| {
+                let outcome = match &x.outcome {
+                    Some(crate::rap::Outcome::Applied { event, seq, outputs, state_hash }) => json!({"applied": {"event": event, "outputs": outputs, "seq": seq, "state_hash": state_hash}}),
+                    Some(crate::rap::Outcome::Kept { event, seq, cause, .. }) => json!({"kept": {"cause": cause, "event": event, "seq": seq, "state": x.kept_state}}),
+                    _ => Value::Null,
+                };
+                let answered = x.body.as_ref().map_or(Value::Null, |b| json!({"length": b.len(), "sha256": d_sha(b)}));
+                json!({"answered": answered, "call": c, "inv": x.inv, "of": x.of, "outcome": outcome, "sent": x.sent, "stepped": x.stepped})
+            })
+            .collect();
+        p.insert("rap".into(), Value::Array(rap));
+        p.insert("state".into(), json!(crate::interp::state_json(&self.state, self.m)));
+        let task = self.task.as_ref().map_or(Value::Null, |t| {
+            let ins: Vec<Value> = t.inputs.iter().map(|(a, b, c, d)| json!([a, b, c, d])).collect();
+            let evs: Vec<Value> = t.events.iter().map(|(a, b)| json!([a, b])).collect();
+            json!({"digest": t.digest, "events": evs, "inputs": ins, "last_tick": t.last_tick, "start": t.start, "steps": t.steps})
+        });
+        p.insert("task".into(), task);
+        p.insert("term".into(), json!(self.term));
+        p.insert("window".into(), json!(self.window));
+        p
+    }
+
+    /// HC-37: what a checkpoint after the entries folded so far carries
+    /// ([`Host::carried`]), or why no checkpoint may stand here: D owes
+    /// entries after the last one folded (HC-10b, HC-21, HC-22, HC-35), the
+    /// last one announces an input of a window that has not followed
+    /// (HC-17), or the module declares `Frame`, whose frames derive from
+    /// every entry of D (HC-29).
+    pub fn checkpoint_value(&self) -> Result<serde_json::Map<String, Value>, String> {
+        if self.seq == 0 {
+            return Err("no entry to stand for".into());
+        }
+        if !self.owe.is_empty() || self.rap.stepping.is_some() {
+            return Err(format!("D owes entries after seq {} (HC-10b, HC-21, HC-22, HC-35): a checkpoint stands only where every input's entries are complete", self.seq - 1));
+        }
+        if declares_struct(self.m, crate::frame::FRAME) {
+            return Err("the module declares Frame, whose frames derive from every entry of D (HC-29)".into());
+        }
+        Ok(self.carried())
+    }
+
+    /// HC-37: the digest of everything the fold has reached, owed entries
+    /// included, so two folds can be compared wherever they end.
+    pub(crate) fn fold_digest(&self) -> String {
+        let mut p = self.carried();
+        p.insert("owe".into(), Value::String(format!("{:?}", self.owe)));
+        p.insert("state_hash".into(), Value::String(self.state_hash.clone()));
+        p.insert("seq".into(), Value::from(self.seq));
+        d_sha(&crate::interp::canon_json(&Value::Object(p)))
+    }
+
+    /// HC-37: take the place of the entries a checkpoint stands for. Every
+    /// item is read back, the state is decoded and the state hash
+    /// recomputed, each kept RAP step's text is derived again from its
+    /// state, and each result's bytes are derived again and compared with
+    /// the length and SHA-256 carried. The values read back must give the
+    /// carried payload byte for byte. Anything else fails closed.
+    fn load_checkpoint(&mut self, e: &Entry) -> Result<(), String> {
+        let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+        let p = v["payload"].as_object().ok_or("no payload")?;
+        let head = checkpoint_head(e).ok_or("no head")?;
+        let u = |k: &str| p.get(k).and_then(Value::as_u64).ok_or_else(|| format!("no {k}"));
+        let arr = |k: &str| p.get(k).and_then(Value::as_array).cloned().ok_or_else(|| format!("no {k}"));
+        let text = |x: &Value| x.as_str().map(String::from).ok_or_else(|| format!("{x} is not text"));
+        let num = |x: &Value| x.as_u64().ok_or_else(|| format!("{x} is not a count"));
+        let sb = p.get("state").and_then(Value::as_str).ok_or("no state")?;
+        self.state = self.decode_named(sb).ok_or("the state does not decode to the module's state")?;
+        self.admitted = p.get("admitted").and_then(Value::as_object).ok_or("no admitted")?.iter().map(|(k, x)| Ok((k.clone(), num(x)?))).collect::<Result<_, String>>()?;
+        self.calib = arr("calib")?.iter().map(|x| Ok(((text(&x[0])?, text(&x[1])?), (x[2].as_f64().unwrap_or(f64::INFINITY), x[3].as_f64().unwrap_or(f64::INFINITY))))).collect::<Result<_, String>>()?;
+        self.closed_tick = u("closed_tick")?;
+        self.descends = arr("descends")?.iter().map(|x| Ok((text(&x[0])?, num(&x[1])?, num(&x[2])?))).collect::<Result<_, String>>()?;
+        self.exacts = arr("exacts")?.iter().map(|x| Ok((text(&x[0])?, text(&x[1])?))).collect::<Result<_, String>>()?;
+        self.last_tick = u("last_tick")?;
+        self.unanswered = arr("queue")?.iter().map(|x| Ok(Queued { kind: text(&x[0])?, req: num(&x[1])?, at: num(&x[2])?, json: x[3].clone() })).collect::<Result<_, String>>()?;
+        // the part this host's adapters perform, as the fold from the start gives it
+        self.queue = self.unanswered.iter().filter(|q| self.bound.iter().any(|k| *k == q.kind)).cloned().collect();
+        self.term = u("term")?;
+        self.window = u("window")?;
+        self.task = match p.get("task") {
+            Some(Value::Null) => None,
+            Some(t) => Some(MainTask {
+                start: t["start"].clone(),
+                inputs: t["inputs"].as_array().ok_or("task inputs")?.iter().map(|x| Ok((num(&x[0])?, x[1].as_bool().ok_or("task input")?, text(&x[2])?, text(&x[3])?))).collect::<Result<_, String>>()?,
+                events: t["events"].as_array().ok_or("task events")?.iter().map(|x| Ok((num(&x[0])?, text(&x[1])?))).collect::<Result<_, String>>()?,
+                steps: num(&t["steps"])? as usize,
+                digest: text(&t["digest"])?,
+                last_tick: num(&t["last_tick"])?,
+                run: None,
+            }),
+            None => return Err("no task".into()),
+        };
+        for x in arr("rap")? {
+            let c = num(&x["call"])?;
+            let inv = x["inv"].as_object().cloned().ok_or("rap: no inv")?;
+            let key = rap_key(&inv).ok_or("rap: an invocation without a string group_id and id")?;
+            let of = match &x["of"] {
+                Value::Null => None,
+                o => Some(num(o)?),
+            };
+            let mut call = RapCall { inv, of, stepped: x["stepped"].as_bool().ok_or("rap: stepped")?, ..Default::default() };
+            match of {
+                None => {
+                    if self.rap.keys.insert(key, c).is_some() {
+                        return Err(format!("rap: call {c} repeats a key"));
+                    }
+                    call.op = Some(self.rap_validate(&call.inv));
+                }
+                Some(o) => {
+                    if self.rap.keys.get(&key) != Some(&o) {
+                        return Err(format!("rap: call {c} is a duplicate of {o}, which is not the first of its key"));
+                    }
+                }
+            }
+            if call.stepped && !matches!(call.op, Some(Ok(_))) {
+                return Err(format!("rap: call {c} is stepped and is no invocation that conforms"));
+            }
+            let o = &x["outcome"];
+            if !o.is_null() {
+                let Some(Ok((name, args))) = call.op.clone() else { return Err(format!("rap: call {c} has an outcome and no step")) };
+                if let Some(a) = o.get("applied") {
+                    let outputs = a["outputs"].as_array().ok_or("rap: outputs")?.iter().map(text).collect::<Result<_, String>>()?;
+                    call.outcome = Some(crate::rap::Outcome::Applied { event: text(&a["event"])?, seq: num(&a["seq"])?, outputs, state_hash: text(&a["state_hash"])? });
+                } else if let Some(k) = o.get("kept") {
+                    // HC-21: the kept text is derived again from the state the
+                    // step was kept on, never read from D
+                    let ks = text(&k["state"])?;
+                    let st = self.decode_named(&ks).ok_or_else(|| format!("rap: the state call {c} was kept on does not decode"))?;
+                    self.it.scopes = vec![HashMap::new()];
+                    self.it.fuel = crate::interp::fuel_limit(); // HC-7a
+                    let ev = match self.it.construct(&name, &args) {
+                        Ok(Some(v)) => v,
+                        _ => return Err(format!("rap: the event of call {c} cannot be built")),
+                    };
+                    let r = match self.it.delta_r(&st, &ev) {
+                        Err(r) if r.cause.as_str() == text(&k["cause"])? => r,
+                        _ => return Err(format!("rap: the step of call {c} is not kept with cause {} on the state carried", k["cause"])),
+                    };
+                    call.outcome = Some(crate::rap::Outcome::Kept { event: text(&k["event"])?, seq: num(&k["seq"])?, cause: r.cause.as_str().to_string(), text: r.text });
+                    call.kept_state = Some(ks);
+                } else {
+                    return Err(format!("rap: call {c} has an outcome of no known kind"));
+                }
+            }
+            let answered = x["answered"].clone();
+            let sent = match &x["sent"] {
+                Value::Null => None,
+                s => Some(u16::try_from(num(s)?).map_err(|_| "rap: sent")?),
+            };
+            self.rap.add(c, call);
+            if !answered.is_null() {
+                let body = self.rap_derive(c).ok_or_else(|| format!("rap: call {c} is answered and its result cannot be derived"))?;
+                if answered["length"].as_u64() != Some(body.len() as u64) || answered["sha256"].as_str() != Some(d_sha(&body).as_str()) {
+                    return Err(format!("rap: the result of call {c} differs from the one derived ({} bytes, {})", body.len(), d_sha(&body)));
+                }
+                self.rap.answered(c, body);
+            }
+            if let Some(st) = sent {
+                if answered.is_null() {
+                    return Err(format!("rap: call {c} is settled without a result"));
+                }
+                self.rap.settled(c, st);
+            }
+        }
+        self.prev = head;
+        self.seq = e.seq + 1;
+        self.rehash();
+        if self.state_hash != e.state_hash {
+            return Err(format!("the state carried hashes to {}, the checkpoint says {}", self.state_hash, e.state_hash));
+        }
+        // what was read back gives the carried payload byte for byte, so
+        // nothing is carried that replay does not use, and nothing is lost
+        let mut again = self.carried();
+        for k in ["archive", "http"] {
+            if let Some(x) = p.get(k) {
+                again.insert(k.into(), x.clone());
+            }
+        }
+        if host_event("Checkpoint", &crate::interp::canon_json(&Value::Object(again))) != e.event {
+            return Err("the values read back do not give the payload byte for byte".into());
+        }
+        Ok(())
+    }
+
+    /// HC-37: the state whose canonical named form (`state_json`, 6.1) is
+    /// `bytes`, each field decoded by its declared type as an event's
+    /// fields are; `None` unless it re-encodes to the same bytes. The named
+    /// form, not the positional one, is carried, because the positional form
+    /// leaves out what only the types say (a variant is its index, an
+    /// optional value is the value), and the decoding must give back the
+    /// value δ left exactly.
+    fn decode_named(&mut self, bytes: &str) -> Option<Vec<Region>> {
+        let v = serde_json::from_str::<Value>(bytes).ok()?;
+        let mut st = self.it.initial_state().ok()?;
+        if v.as_object().map(serde_json::Map::len) != Some(st.len()) {
+            return None;
+        }
+        for (rn, fs) in st.iter_mut() {
+            let r = v.get(rn.as_str())?.as_object()?;
+            if r.len() != fs.len() {
+                return None;
+            }
+            for (fname, val, ty) in fs.iter_mut() {
+                let x = json_expr(r.get(fname.as_str())?, Some(ty), self.m).ok()?;
+                self.it.scopes = vec![HashMap::new()];
+                self.it.fuel = crate::interp::fuel_limit(); // HC-7a
+                let e = self.it.eval(&x).ok()?;
+                *val = self.it.fit(e, ty).ok()?;
+            }
+        }
+        (crate::interp::state_json(&st, self.m) == bytes).then_some(st)
+    }
+
     /// Fold verified entries into this host without appending (HC-8).
     fn refold(&mut self, entries: &[Entry]) -> Result<(), String> {
         // E.2a: a `host.Input` marks its source and seq admitted only when the
         // program entry it announces follows it (a cut between them admits nothing).
         let mut announced: Option<(String, u64)> = None;
         for e in entries {
+            // HC-37: a checkpoint stands for the entries before it, and only
+            // at the start of D, on a host that has folded nothing
+            if e.kind() == CHECKPOINT {
+                if self.seq != 0 || self.prev != D_GENESIS {
+                    return Err(format!("host fault: seq {}: a checkpoint stands only at the start of D", e.seq));
+                }
+                self.load_checkpoint(e).map_err(|x| format!("host fault: seq {}: the checkpoint does not hold: {x}", e.seq))?;
+                continue;
+            }
             // HC-10b, HC-21, HC-22: the entry the previous one requires
             let mut how = self.meet(e)?;
             if e.is_host() {
@@ -1842,10 +2213,11 @@ impl<'a> Host<'a> {
                 }
                 // HC-3: the request this result answers is no longer outstanding
                 let ans = answered(&how, &name, &ev);
-                if let Some((k, r)) = &ans
-                    && let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r)
-                {
-                    self.queue.remove(i);
+                if let Some((k, r)) = &ans {
+                    if let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r) {
+                        self.queue.remove(i);
+                    }
+                    self.unqueue(k, *r);
                 }
                 let under = self.descent(&how, e.seq, ans);
                 self.note_tick(&name, &ev);
@@ -1989,6 +2361,20 @@ impl<'a> Host<'a> {
                 let j: Value = serde_json::from_str(&crate::interp::form_value(o, self.m).json()).unwrap_or(Value::Null);
                 self.queue.push_back(Queued { kind: k.to_string(), req: req.unwrap_or(0), json: j, at });
             }
+            if let V::Rec(n, fs) = o
+                && declares_struct(self.m, n)
+                && let Some(req) = req_of(fs)
+            {
+                let j: Value = serde_json::from_str(&crate::interp::form_value(o, self.m).json()).unwrap_or(Value::Null);
+                self.unanswered.push_back(Queued { kind: n.clone(), req, json: j, at });
+            }
+        }
+    }
+
+    /// HC-37: the request (K, req) has its result.
+    fn unqueue(&mut self, k: &str, r: u64) {
+        if let Some(i) = self.unanswered.iter().position(|q| q.kind == k && q.req == r) {
+            self.unanswered.remove(i);
         }
     }
 
@@ -2145,6 +2531,7 @@ impl<'a> Host<'a> {
             if let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r) {
                 self.queue.remove(i);
             }
+            self.unqueue(k, *r);
             self.descent(&how, 0, Some((k.clone(), *r)));
         }
         let nexts = self.nexts(name, p, Plan { kept: None, deliver: plan.deliver }, how);
@@ -2263,6 +2650,9 @@ impl<'a> Host<'a> {
         };
         self.note_tick(name, &ev);
         let ans = answered(&how, name, &ev);
+        if let Some((k, r)) = &ans {
+            self.unqueue(k, *r);
+        }
         let under = self.descent(&how, e.seq, ans);
         let (mut display, mut exit) = (vec![], false);
         let frames = self.note_frames(e.seq, name, outcome.as_ref().ok().map(Vec::as_slice));
@@ -2629,8 +3019,11 @@ impl<'a> Host<'a> {
             },
             Err((cause, text)) => crate::rap::Outcome::Kept { event: name.to_string(), seq, cause: cause.as_str().to_string(), text: text.to_string() },
         };
+        // a kept step leaves the state unchanged, so this is the state it was kept on
+        let ks = matches!(o, crate::rap::Outcome::Kept { .. }).then(|| crate::interp::state_json(&self.state, self.m));
         if let Some(x) = self.rap.calls.get_mut(&c) {
             x.outcome = Some(o);
+            x.kept_state = ks;
         }
     }
 
@@ -3613,6 +4006,238 @@ pub fn as_of<'a>(m: &'a Module, text: &str, k: usize) -> Result<Host<'a>, String
     let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
     h.refold(&entries)?;
     Ok(h)
+}
+
+/// HC-37: a compaction of D at N, proven: the text of D' (the checkpoint,
+/// then the entries of D from seq N on, unchanged), the archive (the lines
+/// of D the checkpoint stands for, byte for byte) and its SHA-256.
+#[derive(Debug)]
+pub struct Compaction {
+    pub text: String,
+    pub archive: String,
+    pub sha: String,
+    /// the checkpoint's seq (N - 1) and state hash
+    pub seq: u64,
+    pub state_hash: String,
+    /// the entries D' keeps after the checkpoint
+    pub kept: usize,
+}
+
+fn lines_text(lines: &[&str]) -> String {
+    lines.iter().map(|l| format!("{l}\n")).collect()
+}
+
+/// The verified entries of `text`, or why it is not a whole log: a line
+/// that does not verify, or a last line without its line end (a torn tail).
+fn whole_log(m: &Module, text: &str) -> Result<Vec<Entry>, String> {
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let keep = verify_prefix(&lines, m);
+    if keep < lines.len() || (!text.is_empty() && !text.ends_with('\n')) {
+        return Err(format!("D does not verify after entry {keep} of {}: a torn or corrupted tail is cut by a host on open (HS-4), and is not compacted", lines.len()));
+    }
+    Ok(lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect())
+}
+
+/// HC-37: the checkpoint payload of a fold of the archive text: what the
+/// host carries, the archive's SHA-256 and the HTTP inputs open at its end.
+fn checkpoint_payload(h: &Host, archive: &str, m: &Module) -> Result<String, String> {
+    let mut p = h.checkpoint_value()?;
+    p.insert("archive".into(), Value::String(d_sha(archive)));
+    let open: Vec<Value> = http_open(m, archive)?.into_iter().map(|x| serde_json::json!([x.id, x.head, x.close])).collect();
+    p.insert("http".into(), Value::Array(open));
+    Ok(crate::interp::canon_json(&Value::Object(p)))
+}
+
+/// HC-37: compact the whole, verified log `text` at N: the checkpoint
+/// stands for the entries with seq below N and carries the fold of D at N.
+/// The checkpoint is admitted only as that fold: D is replayed in full, D'
+/// is replayed from the checkpoint, and the two must agree at every entry
+/// after N on the state hash, the outputs, the kept steps, the RAP results,
+/// the open HTTP inputs and everything else the fold reaches. `Err` says
+/// why no checkpoint may stand at N.
+pub fn compact_text(m: &Module, text: &str, n: u64) -> Result<Compaction, String> {
+    let entries = whole_log(m, text)?;
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let (Some(first), Some(last)) = (entries.first(), entries.last()) else { return Err("D is empty".into()) };
+    // the lowest N: above the entries an earlier checkpoint stands for
+    let low = if first.kind() == CHECKPOINT { first.seq + 2 } else { 1 };
+    if n < low || n > last.seq + 1 {
+        return Err(format!("N must be from {low} to {} (the entries of D have seq {} to {})", last.seq + 1, first.seq, last.seq));
+    }
+    let count = (n - first.seq) as usize;
+    let at = &entries[count - 1];
+    if at.kind() == "host.Input" {
+        return Err(format!("entry {} announces an input of a window that follows it (HC-17): a checkpoint stands only where every input's entries are complete", at.seq));
+    }
+    // the full replay of D, with the fold at N taken on the way
+    let mut full = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    full.outputs = Some(vec![]);
+    full.refold(&entries[..count]).map_err(|e| format!("replay of D fails: {e}"))?;
+    let archive = lines_text(&lines[..count]);
+    let payload = checkpoint_payload(&full, &archive, m)?;
+    let at_n = format!("{:?}", full.state);
+    let before_kept = full.kept_outcomes.len();
+    full.outputs = Some(vec![]);
+    full.refold(&entries[count..]).map_err(|e| format!("replay of D fails: {e}"))?;
+    let cp = Entry::new(m, n - 1, host_event("Checkpoint", &payload), D_GENESIS, &at.state_hash);
+    let new = format!("{}\n{}", cp.line(), lines_text(&lines[count..]));
+    // the replay of D' from the checkpoint
+    let ne = whole_log(m, &new).map_err(|e| format!("D' does not verify: {e}"))?;
+    // the state read back from the checkpoint is the value δ left, every
+    // part of it with its type, not only one with the same bytes: the
+    // entries a host appends later are folded from it
+    let mut back = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    back.refold(&ne[..1]).map_err(|e| format!("the checkpoint does not load: {e}"))?;
+    if format!("{:?}", back.state) != at_n {
+        return Err(format!("the checkpoint at N {n} does not replay equal to D: the state read back differs from the state at N"));
+    }
+    let mut from = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    from.outputs = Some(vec![]);
+    from.refold(&ne).map_err(|e| format!("D' does not replay: {e}"))?;
+    let differ = |what: &str| Err(format!("the checkpoint at N {n} does not replay equal to D: {what} differ"));
+    if from.state_hash != full.state_hash || from.seq != full.seq {
+        return differ("the final state hashes");
+    }
+    if from.outputs != full.outputs {
+        return differ("the outputs of the entries after N");
+    }
+    if from.kept_outcomes != full.kept_outcomes[before_kept..] {
+        return differ("the kept steps after N");
+    }
+    let rap = |h: &Host| -> Vec<RapOut> { h.rap.calls.keys().filter_map(|c| h.rap_out(*c)).collect() };
+    if rap(&from) != rap(&full) {
+        return differ("the RAP results");
+    }
+    if from.fold_digest() != full.fold_digest() {
+        return differ("the host states after the last entry");
+    }
+    let carried = http_open(m, &archive)?;
+    let want: Vec<HttpOfD> = http_inputs(m, text)?.into_iter().filter(|x| x.id >= n || carried.contains(x)).collect();
+    if http_inputs(m, &new)? != want {
+        return differ("the HTTP inputs");
+    }
+    Ok(Compaction { text: new, sha: d_sha(&archive), archive, seq: n - 1, state_hash: at.state_hash.clone(), kept: entries.len() - count })
+}
+
+/// HC-37: prove the checkpoint that begins `text` from the archive text it
+/// names: the archive's SHA-256 is the one the checkpoint carries, the
+/// archive is a whole log that replays, and its fold gives the checkpoint
+/// byte for byte. An archive that itself begins with a checkpoint is
+/// proven in turn by [`prove_file`].
+pub fn prove_checkpoint(m: &Module, text: &str, archive: &str) -> Result<(), String> {
+    let first = text.split_terminator('\n').next().and_then(Entry::parse_line).ok_or("D is empty")?;
+    let v: Value = serde_json::from_str(&first.event).map_err(|x| x.to_string())?;
+    if first.kind() != CHECKPOINT {
+        return Err("D does not begin with a checkpoint".into());
+    }
+    if v["payload"]["archive"].as_str() != Some(d_sha(archive).as_str()) {
+        return Err(format!("the archive's SHA-256 is {}, the checkpoint names {}", d_sha(archive), v["payload"]["archive"]));
+    }
+    let entries = whole_log(m, archive).map_err(|e| format!("the archive: {e}"))?;
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    h.refold(&entries).map_err(|e| format!("the archive does not replay: {e}"))?;
+    let want = Entry::new(m, h.seq.saturating_sub(1), host_event("Checkpoint", &checkpoint_payload(&h, archive, m)?), D_GENESIS, &h.state_hash);
+    if want.line() != text.split_terminator('\n').next().unwrap_or("") {
+        return Err("the fold of the archive does not give the checkpoint".into());
+    }
+    Ok(())
+}
+
+/// HC-37: prove the checkpoint that begins the log `text` of the file `d`
+/// from its archive beside D, then the archive's own checkpoint, and so on.
+/// Returns one line per checkpoint: proven, or its archive not present (the
+/// checkpoint was then checked only by the entries after it). An archive
+/// that is present and does not prove its checkpoint is an `Err`.
+pub fn prove_file(m: &Module, d: &Path, text: &str) -> Result<Vec<String>, String> {
+    let mut notes = vec![];
+    let mut cur = text.to_string();
+    while let Some((seq, sha)) = checkpoint_archive(&cur) {
+        let ap = archive_path(d, &sha);
+        let Ok(a) = std::fs::read_to_string(&ap) else {
+            notes.push(format!("checkpoint at seq {seq}: archive {} is not beside D; the checkpoint is checked by the entries after it", ap.display()));
+            break;
+        };
+        prove_checkpoint(m, &cur, &a).map_err(|e| format!("checkpoint at seq {seq}: {}: {e}", ap.display()))?;
+        notes.push(format!("checkpoint at seq {seq}: proven from archive {}", ap.display()));
+        cur = a;
+    }
+    Ok(notes)
+}
+
+/// HC-37: the archive a checkpoint names, beside D: `D.archive.SHA256`.
+pub fn archive_path(d: &Path, sha: &str) -> PathBuf {
+    let mut s = d.as_os_str().to_os_string();
+    s.push(format!(".archive.{sha}"));
+    PathBuf::from(s)
+}
+
+/// HC-37: the archive SHA-256 the checkpoint that begins `text` names.
+pub fn checkpoint_archive(text: &str) -> Option<(u64, String)> {
+    let e = text.split_terminator('\n').next().and_then(Entry::parse_line)?;
+    checkpoint_head(&e)?;
+    let v: Value = serde_json::from_str(&e.event).ok()?;
+    Some((e.seq, v["payload"]["archive"].as_str()?.to_string()))
+}
+
+/// HS-2, E.3: write `bytes` to `path` through a file beside it, made
+/// durable, then renamed into place with the rename barrier of E.3.
+pub fn write_durable(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut tmp = path.as_os_str().to_os_string();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    {
+        let mut f = OpenOptions::new().write(true).create(true).truncate(true).open(&tmp)?;
+        f.write_all(bytes)?;
+        // Rust std: F_FULLFSYNC on Apple platforms, fsync elsewhere
+        f.sync_all()?;
+    }
+    sync_dir(&tmp)?;
+    rename_durable(&tmp, path)?;
+    sync_dir(path)
+}
+
+#[cfg(not(windows))]
+fn rename_durable(from: &Path, to: &Path) -> io::Result<()> {
+    std::fs::rename(from, to)
+}
+
+/// E.3, Windows: `MoveFileEx` with `MOVEFILE_WRITE_THROUGH`.
+#[cfg(windows)]
+fn rename_durable(from: &Path, to: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+    let w = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain(std::iter::once(0)).collect() };
+    let (a, b) = (w(from), w(to));
+    // MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
+    // SAFETY: two NUL-terminated wide strings that outlive the call.
+    if unsafe { MoveFileExW(a.as_ptr(), b.as_ptr(), 0x1 | 0x8) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// HC-37: compact the log file `d` at N. The archive is written first and
+/// made durable (`D.archive.SHA256`, its bytes the lines replaced), then D'
+/// is written beside D and made durable, D is read again and must be
+/// unchanged, and D' is renamed over D with the rename barrier (E.3), so a
+/// crash at any point leaves D or D' whole, each with every entry it names.
+/// `Err` is a refusal (exit status 2): why no checkpoint may stand at N.
+pub fn compact_file(m: &Module, d: &Path, n: u64) -> Result<Compaction, String> {
+    let text = std::fs::read_to_string(d).map_err(|e| format!("{}: {e}", d.display()))?;
+    let c = compact_text(m, &text, n)?;
+    let ap = archive_path(d, &c.sha);
+    let have = std::fs::read(&ap).ok();
+    if have.as_deref() != Some(c.archive.as_bytes()) {
+        write_durable(&ap, c.archive.as_bytes()).map_err(|e| format!("host.StorageFault: {}: {e}", ap.display()))?;
+    }
+    if std::fs::read_to_string(d).ok().as_deref() != Some(text.as_str()) {
+        return Err(format!("{} changed while it was compacted: compact a log no host has open", d.display()));
+    }
+    write_durable(d, c.text.as_bytes()).map_err(|e| format!("host.StorageFault: {}: {e}", d.display()))?;
+    Ok(c)
 }
 
 /// Path helper for the CLI.

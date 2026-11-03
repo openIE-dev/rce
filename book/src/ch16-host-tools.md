@@ -267,6 +267,49 @@ not granted`. Start it again on the same log with `callback
 127.0.0.1:41234`. The Infinity side of this section was not run for this
 book; the RCE side is checked by `spec/checker/tests/host_rap.rs`.
 
+## Compacting a long log: `rce host compact FILE D N`
+
+A host folds D from its first entry every time it opens it, and so does
+`rce host replay`, so a program that runs for months opens more slowly as
+its log grows. `rce host compact FILE D N` replaces the first N entries of
+D by one entry, `host.Checkpoint`, that carries the state after them and
+everything else the host needs to continue from there: requests still
+waiting for their results, the inputs already admitted from each source,
+the RAP invocations and their results, and the rest listed in Appendix E,
+HC-37. The entries after N stay as they were, with the same seq numbers.
+
+The checkpoint is written only when it is exact. The command replays the
+whole log, replays the compacted log from the checkpoint, and keeps the
+new log only when both give the same state after every entry, the same
+outputs, the same kept steps and the same RAP results. Otherwise it
+refuses with exit status 2 and says why, for example when N falls between
+a kept step's entry and the `host.StepKept` that follows it, or when the
+log ends in a torn line (open it with the host first, which cuts it).
+
+Stop the host first, then compact, here at entry 1000:
+
+```sh
+rce host compact counter.rce counter.log 1000
+```
+
+The replaced lines are not deleted. They are kept beside the log as
+`counter.log.archive.` followed by their SHA-256, and the checkpoint names
+that hash. `rce host replay counter.rce counter.log` then replays from the
+checkpoint and also proves it again from the archive:
+
+```text
+replay ok: 1240 entries, 0 kept, state_hash 5b3c...
+  checkpoint at seq 999: proven from archive counter.log.archive.8edc...
+```
+
+An archive may be moved to other storage: replay then says that it is not
+beside the log, and checks the checkpoint by the entries after it.
+`archive none`, which would delete the replaced lines, is refused, since
+the log is the record every past state is read from. The new log and the
+archive are written beside the old log and made durable before the new
+log replaces it in one rename, so a crash during compaction leaves either
+the old log or the new one, never a mix.
+
 ## The net adapter: `net HOST:PORT`
 
 `net HOST:PORT` grants connections of the Transmission Control

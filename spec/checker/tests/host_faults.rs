@@ -13,9 +13,14 @@
 //!   as a kill -9 leaves it, with a torn last line, or cut back to the last
 //!   barrier (a power cut, HS-2);
 //! - skew: `host.WallTime` is read from a clock that steps backward and
-//!   forward of true time.
+//!   forward of true time;
+//! - compact: after a kill, D is compacted at a random N (HC-37) before the
+//!   next process opens it; a torn tail must be refused, and so must an N
+//!   where an input's entries are not complete, which moves N down.
 //!
-//! After each run, from D alone, it checks:
+//! After each run, from D alone, it checks (on a compacted D, (a) on D and
+//! on its whole history, the archives the checkpoints name followed by the
+//! entries after them, and (b), (c) on that history):
 //! - (a) replay with no adapters re-derives the live state and its hash;
 //! - (b) every entry is a step or a kept step (T8): a host entry and a kept
 //!   entry leave the state hash unchanged, and each kept cause is one of
@@ -88,10 +93,12 @@ struct Mix {
     lose: u64,
     restart: u64,
     skew: u64,
+    /// of the kills, the share followed by a compaction (HC-37)
+    compact: u64,
 }
 
 fn mix(name: &str) -> Mix {
-    let all = Mix { drop: 10, dup: 10, delay: 4, lose: 10, restart: 3, skew: 10 };
+    let all = Mix { drop: 10, dup: 10, delay: 4, lose: 10, restart: 3, skew: 10, compact: 50 };
     match name {
         "all" => all,
         "none" => Mix::default(),
@@ -101,6 +108,7 @@ fn mix(name: &str) -> Mix {
         "lose" => Mix { lose: all.lose, ..Default::default() },
         "restart" => Mix { restart: all.restart, ..Default::default() },
         "skew" => Mix { skew: all.skew, ..Default::default() },
+        "compact" => Mix { restart: all.restart, compact: 100, ..Default::default() },
         _ => panic!("unknown fault mix {name}"),
     }
 }
@@ -203,6 +211,8 @@ struct Life<'m> {
     m: &'m Module,
     path: PathBuf,
     h: Option<Host<'m>>,
+    /// the share of kills followed by a compaction (HC-37)
+    compact: u64,
 }
 
 impl<'m> Life<'m> {
@@ -247,8 +257,49 @@ impl<'m> Life<'m> {
             }
             _ => {}
         }
+        if rng.chance(self.compact) {
+            self.compact(rng, run);
+        }
         let t = std::fs::read_to_string(&self.path).unwrap();
         t.lines().filter_map(Entry::parse_line).map(|e| e.seq).next_back()
+    }
+    /// HC-37: compact D at a random N, as an operator would between two
+    /// processes. A torn tail is refused; an N where an input's entries are
+    /// not complete is refused, and the next lower N is tried.
+    fn compact(&mut self, rng: &mut Rng, run: &mut Run) {
+        let t = std::fs::read_to_string(&self.path).unwrap();
+        let es: Vec<Entry> = t.lines().filter_map(Entry::parse_line).collect();
+        let (Some(first), Some(last)) = (es.first(), es.last()) else { return };
+        let low = if first.kind() == "host.Checkpoint" { first.seq + 2 } else { 1 };
+        if last.seq + 1 < low {
+            return;
+        }
+        let torn = !t.ends_with('\n') || t.lines().count() != es.len();
+        let mut n = low + rng.below(last.seq + 2 - low);
+        loop {
+            match rce_spec_check::host::compact_file(self.m, &self.path, n) {
+                Ok(_) => {
+                    run.fault("compact");
+                    if torn {
+                        run.a.push(format!("a torn tail was compacted at {n}"));
+                    }
+                    return;
+                }
+                Err(e) if torn => {
+                    if !e.contains("torn") {
+                        run.a.push(format!("a torn tail was refused for another reason: {e}"));
+                    }
+                    run.fault("compact_refused_torn");
+                    return;
+                }
+                Err(e) if (e.contains("D owes entries") || e.contains("announces an input")) && n > low => n -= 1,
+                Err(e) if e.contains("D owes entries") || e.contains("announces an input") => return,
+                Err(e) => {
+                    run.a.push(format!("compaction at {n} refused: {e}"));
+                    return;
+                }
+            }
+        }
     }
     fn open(&mut self, adapters: Vec<Box<dyn Adapter + 'm>>) {
         self.h = Some(Host::open_file_with(self.m, &self.path, adapters).unwrap_or_else(|e| panic!("reopen {}: {e}", self.path.display())));
@@ -278,9 +329,38 @@ impl Clock {
 }
 
 /// (a), (b), (c) on the D a run left, against the live state.
-fn check_d(m: &Module, text: &str, live_hash: &str, live_state: &str, run: &mut Run) {
+/// HC-37: the whole history of the log file `log` whose text is `text`:
+/// for a compacted D, the archive its checkpoint names (itself expanded),
+/// then the entries after the checkpoint.
+fn history(log: &Path, text: &str) -> String {
+    match rce_spec_check::host::checkpoint_archive(text) {
+        None => text.to_string(),
+        Some((_, sha)) => {
+            let a = std::fs::read_to_string(rce_spec_check::host::archive_path(log, &sha)).unwrap_or_else(|e| panic!("the archive {sha}: {e}"));
+            let rest = text.split_once('\n').map_or("", |x| x.1);
+            history(log, &a) + rest
+        }
+    }
+}
+
+fn check_d(m: &Module, log: &Path, text: &str, live_hash: &str, live_state: &str, run: &mut Run) {
     const CAUSES: [&str; 6] = ["fail", "fuel", "size", "value", "depth", "trap"];
-    let entries: Vec<Entry> = text.lines().map(|l| Entry::parse_line(l).unwrap_or_else(|| panic!("a line of D does not parse: {l}"))).collect();
+    // HC-37: a compacted D and its whole history replay to the live state,
+    // and each checkpoint is proven from its archive
+    let whole = history(log, text);
+    if whole != text {
+        match rce_spec_check::host::prove_file(m, log, text) {
+            Ok(notes) if notes.iter().all(|x| x.contains("proven")) => {}
+            Ok(notes) => run.a.push(format!("a checkpoint is not proven: {notes:?}")),
+            Err(e) => run.a.push(format!("a checkpoint is not proven: {e}")),
+        }
+        match replay_report(m, &whole) {
+            Ok(r) if r.state_hash == live_hash => {}
+            Ok(r) => run.a.push(format!("the whole history replays to {}, live {live_hash}", r.state_hash)),
+            Err(e) => run.a.push(format!("the whole history does not replay: {e}")),
+        }
+    }
+    let entries: Vec<Entry> = whole.lines().map(|l| Entry::parse_line(l).unwrap_or_else(|| panic!("a line of D does not parse: {l}"))).collect();
     run.entries = entries.len() as u64;
     // (a) replay with every adapter disconnected
     let rep = match replay_report(m, text) {
@@ -296,7 +376,8 @@ fn check_d(m: &Module, text: &str, live_hash: &str, live_state: &str, run: &mut 
     if format!("{:?}", rep.state) != live_state {
         run.a.push("replayed state differs from the live state".into());
     }
-    // (b) every entry is a step or a kept step
+    // (b) every entry is a step or a kept step, over the whole history
+    let rep = if whole != text { replay_report(m, &whole).unwrap_or(rep) } else { rep };
     let kept: BTreeMap<u64, &str> = rep.kept_outcomes.iter().map(|(q, c, _)| (*q, *c)).collect();
     for c in kept.values() {
         *run.kept.entry(c.to_string()).or_default() += 1;
@@ -445,7 +526,7 @@ fn run_stream(p: &Stream, path: Path_, mx: &Mix, seed: u64, dir: &Path) -> Run {
     let mut clock = Clock { skew_ns: 0 };
     let log = dir.join(format!("{}.d", p.name));
     let _ = std::fs::remove_file(&log);
-    let mut life = Life { m: &m, path: log.clone(), h: None };
+    let mut life = Life { m: &m, path: log.clone(), h: None, compact: mx.compact };
     life.open(vec![]);
     // the client
     let mut next = 0usize;
@@ -583,7 +664,7 @@ fn run_stream(p: &Stream, path: Path_, mx: &Mix, seed: u64, dir: &Path) -> Run {
     });
     drop(h);
     let text = std::fs::read_to_string(&log).unwrap();
-    check_d(&m, &text, &live_hash, &live_state, &mut run);
+    check_d(&m, &log, &text, &live_hash, &live_state, &mut run);
     // (d) against the client's intent
     let mut count: BTreeMap<usize, u64> = BTreeMap::new();
     for (op, _, ok, _) in &applied {
@@ -613,7 +694,7 @@ fn run_stream(p: &Stream, path: Path_, mx: &Mix, seed: u64, dir: &Path) -> Run {
                 run.mishandled("over_limit", format!("client {c} allowed {n}, more than 3 + {secs} s of true time"));
             }
         }
-        for (q, c, t) in &replay_report(&m, &text).map(|r| r.kept_outcomes).unwrap_or_default() {
+        for (q, c, t) in &replay_report(&m, &history(&log, &text)).map(|r| r.kept_outcomes).unwrap_or_default() {
             if *c == "trap" {
                 run.mishandled("kept_on_clock_step", format!("seq {q}: {t}"));
             }
@@ -789,7 +870,7 @@ fn run_notes_http(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let world = Rc::new(RefCell::new(HttpWorld::default()));
     let log = dir.join("notes_http.d");
     let _ = std::fs::remove_file(&log);
-    let mut life = Life { m: &m, path: log.clone(), h: None };
+    let mut life = Life { m: &m, path: log.clone(), h: None, compact: mx.compact };
     life.open(vec![Box::new(Responder(world.clone()))]);
     let mut wire: Vec<Attempt> = vec![];
     let mut copies = 0;
@@ -897,7 +978,7 @@ fn run_notes_http(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let notes = note_texts(&field(&h, "notes"));
     drop(h);
     let text = std::fs::read_to_string(&log).unwrap();
-    check_d(&m, &text, &live_hash, &live_state, &mut run);
+    check_d(&m, &log, &text, &live_hash, &live_state, &mut run);
     judge_notes(&clients, &notes, &mut run);
     run.d_text = text;
     run
@@ -938,7 +1019,7 @@ fn run_rap(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let mut rng = Rng(seed ^ 0x7777_0006);
     let log = dir.join("account_rap.d");
     let _ = std::fs::remove_file(&log);
-    let mut life = Life { m: &m, path: log.clone(), h: None };
+    let mut life = Life { m: &m, path: log.clone(), h: None, compact: mx.compact };
     life.open(vec![]);
     // results D holds whose POST has not settled in this process
     let mut pending: Vec<rce_spec_check::host::RapOut> = vec![];
@@ -1059,10 +1140,10 @@ fn run_rap(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let (live_hash, live_state) = (h.state_hash().to_string(), format!("{:?}", h.state()));
     drop(h);
     let text = std::fs::read_to_string(&log).unwrap();
-    check_d(&m, &text, &live_hash, &live_state, &mut run);
+    check_d(&m, &log, &text, &live_hash, &live_state, &mut run);
     // (c) for RAP: no invocation is stepped twice, every result received is
     // the one replay derives for its call, and one id has one result text
-    let entries: Vec<Entry> = text.lines().filter_map(Entry::parse_line).collect();
+    let entries: Vec<Entry> = history(&log, &text).lines().filter_map(Entry::parse_line).collect();
     let id_of: BTreeMap<u64, String> = entries
         .iter()
         .filter(|e| e.kind() == "host.RapInvoke" || e.kind() == "host.RapDuplicate")
@@ -1260,7 +1341,7 @@ fn run_notes_net(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let world = Rc::new(RefCell::new(NetWorld::default()));
     let log = dir.join("notes_net.d");
     let _ = std::fs::remove_file(&log);
-    let mut life = Life { m: &m, path: log.clone(), h: None };
+    let mut life = Life { m: &m, path: log.clone(), h: None, compact: mx.compact };
     life.open(sim_net(&world));
     life.h().admit(&src, "Start(addr: \"127.0.0.1:8080\")").unwrap();
     let mut round = 0;
@@ -1357,7 +1438,7 @@ fn run_notes_net(mx: &Mix, seed: u64, dir: &Path) -> Run {
     let notes = note_texts(&field(&h, "notes"));
     drop(h);
     let text = std::fs::read_to_string(&log).unwrap();
-    check_d(&m, &text, &live_hash, &live_state, &mut run);
+    check_d(&m, &log, &text, &live_hash, &live_state, &mut run);
     judge_notes(&clients, &notes, &mut run);
     run.d_text = text;
     run
@@ -1435,12 +1516,19 @@ fn host_contract_holds_under_seeded_faults() {
     let out = std::env::var("RCE_FAULT_OUT").ok();
     let sink = std::sync::Mutex::new(out.map(|p| std::fs::OpenOptions::new().create(true).append(true).open(p).unwrap()));
     let failures = std::sync::Mutex::new(Vec::<String>::new());
+    // HC-37: kills and the compactions that followed them
+    let compacted = std::sync::Mutex::new((0u64, 0u64));
     std::thread::scope(|sc| {
         for _ in 0..threads {
             sc.spawn(|| {
                 loop {
                     let Some((p, mx, seed)) = jobs.lock().unwrap().next() else { break };
                     let r = run_one(&p, &mx, seed);
+                    {
+                        let mut c = compacted.lock().unwrap();
+                        c.0 += r.faults.get("restart").copied().unwrap_or(0);
+                        c.1 += r.faults.get("compact").copied().unwrap_or(0) + r.faults.get("compact_refused_torn").copied().unwrap_or(0);
+                    }
                     let rerun = (seed % 10 == 0).then(|| run_one(&p, &mx, seed).d_text == r.d_text);
                     let mut bad = vec![];
                     bad.extend(r.a.iter().map(|x| format!("(a) {x}")));
@@ -1465,6 +1553,10 @@ fn host_contract_holds_under_seeded_faults() {
     });
     let f = failures.into_inner().unwrap();
     assert!(f.is_empty(), "{} runs broke the host contract:\n{}", f.len(), f.join("\n"));
+    let (kills, compactions) = compacted.into_inner().unwrap();
+    if mixes.iter().any(|m| m == "all" || m == "compact") && kills >= 10 {
+        assert!(compactions > 0, "{kills} kills and no compaction was tried");
+    }
 }
 
 /// The harness is deterministic: one seed, two runs, the same D, for each

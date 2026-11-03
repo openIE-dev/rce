@@ -899,6 +899,14 @@ pub const COMMANDS: &[Command] = &[
         help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27);\nframes also prints every frame's sink line, its ui.rules findings and the ui.rules report of the session (HC-29);\nrap also prints the bytes of every RAP tool result, `rap CALL STATUS BODY` (HC-36)",
     },
     Command {
+        path: &["host", "compact"],
+        words: &[Word::set("archive", &["none"])],
+        operands: "FILE D N",
+        min: 3,
+        max: 3,
+        help: "compact D at N (HC-37): replay D in full, then replace its first N entries by a host.Checkpoint that carries the\nstate and the host state at N, proven equal to the full replay; the replaced lines are kept beside D as D.archive.SHA256;\nD is swapped for the new log atomically; exit 2 when no checkpoint may stand at N; archive none is refused (HS-1, HS-9, HC-20)",
+    },
+    Command {
         path: &["db"],
         words: &[],
         operands: "D CMD [ARGS]",
@@ -1736,20 +1744,57 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
         st.retitle(&p.join("."));
     }
     // HC-27: a log is bound to the program that wrote it.
-    if matches!(sub, "run" | "serve" | "replay") {
-        if let Some(why) = program_binding(log, &src, sub != "replay")? {
+    if matches!(sub, "run" | "serve" | "replay" | "compact") {
+        if let Some(why) = program_binding(log, &src, matches!(sub, "run" | "serve"))? {
             st.error("requires change: HC-27, the log was written by another program");
             writeln!(out, "requires change {file}: {why}").map_err(w)?;
             return Ok(REQUIRES_CHANGE);
         }
     }
     match sub {
+        "compact" => {
+            // HC-37: the prefix is never discarded (HS-1, HS-9, HC-20)
+            if p.has("archive") {
+                writeln!(out, "compact refused: archive {} is not allowed: D is the base truth (HS-1), every past state stays queryable from it (HS-9) and committed entries are never removed (HC-20), so the entries a checkpoint stands for are kept, and the checkpoint stays checkable from them", p.value("archive").unwrap_or("")).map_err(w)?;
+                return Ok(USAGE);
+            }
+            let n: u64 = match p.operands[2].parse() {
+                Ok(n) => n,
+                Err(_) => {
+                    writeln!(out, "compact refused: N must be a count of entries, not {}", p.operands[2]).map_err(w)?;
+                    return Ok(USAGE);
+                }
+            };
+            match crate::host::compact_file(&m, std::path::Path::new(log), n) {
+                Ok(c) => {
+                    let ap = crate::host::archive_path(std::path::Path::new(log), &c.sha);
+                    writeln!(out, "compacted {log} at {n}: checkpoint at seq {} with state_hash {}, then {} entries; archive {}", c.seq, c.state_hash, c.kept, ap.display()).map_err(w)?;
+                    Ok(OK)
+                }
+                Err(e) if crate::host::Host::is_storage_fault(&e) => Err(e),
+                Err(e) => {
+                    writeln!(out, "compact refused: {e}").map_err(w)?;
+                    Ok(USAGE)
+                }
+            }
+        }
         "replay" => {
             let text = std::fs::read_to_string(log).map_err(|e| format!("{log}: {e}"))?;
+            // HC-37: a checkpoint is proven again from its archive when the archive is beside D
+            let proofs = match crate::host::prove_file(&m, std::path::Path::new(log), &text) {
+                Ok(x) => x,
+                Err(e) => {
+                    writeln!(out, "REPLAY FAILED {log}: {e}").map_err(w)?;
+                    return Ok(REQUIRES_CHANGE);
+                }
+            };
             match crate::host::replay_report(&m, &text) {
                 Ok(r) => {
                     let (n, h, s) = (r.entries, r.state_hash, r.state);
                     writeln!(out, "replay ok: {n} entries, {} kept, state_hash {h}", r.kept_outcomes.len()).map_err(w)?;
+                    for x in &proofs {
+                        writeln!(out, "  {x}").map_err(w)?;
+                    }
                     // HC-21: the texts of the kept steps are not in D; replay re-derives them
                     for (q, c, t) in &r.kept_outcomes {
                         writeln!(out, "  seq {q} kept ({c}): {t}").map_err(w)?;
