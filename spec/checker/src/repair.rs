@@ -4,7 +4,9 @@
 //! `rce check`, which runs every example and check) judges each one, and the
 //! ladder stops at the first candidate the checker admits. No rung reads
 //! anything but the program, the modules given with it and the built-in
-//! library, and no rung calls a model.
+//! library, and no rung calls a model. Rung f, after them, judges proposals
+//! written outside RCE and given as a file (`proposals.rs`, RF-1 to RF-4);
+//! it too calls no model.
 //!
 //! The rungs, in order:
 //!
@@ -52,6 +54,18 @@
 //! within a definition, expressions in preorder. Intent, example and check
 //! items, and `check`, `requires` and `ensures` statements, are never edited:
 //! they are what the candidate is judged by.
+//!
+//! - **f, outside proposals**, only when a to e admit nothing: each proposal
+//!   of the file `proposals PROPOSALS` (canonical JSON, each with its origin
+//!   label and recorded by its digest) whose text parses, names FILE's
+//!   module and keeps FILE's obligations (RF-2) is judged as its canonical
+//!   text by the same gate. Rung f has a mode, read from the modes table of
+//!   10.13 (RF-3): in `observe` every proposal is judged and each one the
+//!   checker admits is reported as observed, with its diff, digest and
+//!   origin, and nothing closes; in `auto` the first admitted proposal
+//!   closes the program, labelled stochastic; `off` runs nothing. At most
+//!   `bound` proposals are judged.
+use crate::admission::Mode;
 use crate::ast::*;
 use crate::unparse::{expr as show, unparse};
 use serde_json::{Value, json};
@@ -73,7 +87,7 @@ pub(crate) enum Unit {
 /// What the ladder did.
 pub struct Outcome {
     pub closed: bool,
-    /// "a" to "e", or "none" when the program already complies
+    /// "a" to "f", or "none" when the program already complies
     pub rung: Option<String>,
     pub edit: Option<String>,
     pub diff: Vec<String>,
@@ -85,6 +99,36 @@ pub struct Outcome {
     /// whether the canonical text of the input gets the same report as the
     /// input itself (every candidate is a canonical text)
     pub canonical_same_report: Option<bool>,
+    /// the bound of rungs d, e and f
+    pub bound: usize,
+    /// the SHA-256 of each input file's bytes (RF-4)
+    pub inputs: Value,
+    /// what rung f did, when a proposals file was given
+    pub proposals: Option<RungF>,
+    /// closed by rung f (RF-3): a proposal written outside RCE
+    pub stochastic: bool,
+}
+
+/// What rung f was given and did (RF-4).
+pub struct RungF {
+    pub mode: Mode,
+    /// the SHA-256 of the proposals file's bytes
+    pub sha256: String,
+    /// whether rung f ran: rungs a to e admitted nothing, FILE parses and the
+    /// mode is not `off`
+    pub ran: bool,
+    pub given: usize,
+    pub judged: usize,
+    pub admitted: usize,
+    pub observed: usize,
+    /// one record per proposal, in the order of the file
+    pub records: Vec<Value>,
+}
+
+/// The proposals rung f judges and the mode it runs in.
+pub struct Outside<'p> {
+    pub proposals: &'p crate::proposals::Proposals,
+    pub mode: Mode,
 }
 
 struct Ctx<'a> {
@@ -112,13 +156,64 @@ impl Ctx<'_> {
         self.attempts.push(json!({"rung": rung, "definition": unit, "edit": edit, "verdict": verdict}));
         v.ok().map(|_| text.to_string())
     }
+
+    /// Judge one proposal of rung f by the same gate (`check_program`: the
+    /// admission of `rce check`, with the mutation gate W-MUT-1), with what
+    /// the mutation gate measured of the admitted text.
+    fn judge_measured(&mut self, unit: &str, edit: &str, text: &str) -> (String, Option<Value>) {
+        self.seen.insert(text.to_string());
+        *self.tried.entry("f".to_string()).or_insert(0) += 1;
+        let mut files = vec![(self.file.clone(), text.to_string())];
+        files.extend(self.others.iter().cloned());
+        let a = crate::admission::program(crate::admission::RuleSet::in_force(), &files, true).remove(0).1;
+        let (verdict, mutation) = match a {
+            Err(e) => (format!("requires change: {}", e.chars().take(200).collect::<String>()), None),
+            Ok(a) if a.errs.is_empty() => {
+                let measured = a.mutation.iter().filter(|r| r.measured).count();
+                ("admitted".to_string(), Some(json!({"obligations": a.mutation.len(), "measured": measured, "vacuous": 0})))
+            }
+            Ok(a) => (format!("requires change: {}", a.errs.join("; ").chars().take(200).collect::<String>()), None),
+        };
+        self.attempts.push(json!({"rung": "f", "definition": unit, "edit": edit, "verdict": verdict}));
+        (verdict, mutation)
+    }
+
+    /// A proposal of rung f refused before admission runs (its text does
+    /// not parse, or it does not keep FILE's obligations): judged, logged.
+    fn refuse(&mut self, unit: &str, edit: &str, verdict: &str) {
+        *self.tried.entry("f".to_string()).or_insert(0) += 1;
+        self.attempts.push(json!({"rung": "f", "definition": unit, "edit": edit, "verdict": verdict}));
+    }
 }
 
 /// Run the ladder on `file` (its text `src`), checked together with `others`.
 pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<&Known>, bound: usize) -> Outcome {
+    repair_with(file, src, others, known, None, bound)
+}
+
+/// The ladder, with rung f judging `outside` after rungs a to e (RF-2,
+/// RF-3) when they admit nothing.
+pub fn repair_with(file: &str, src: &str, others: &[(String, String)], known: Option<&Known>, outside: Option<Outside>, bound: usize) -> Outcome {
     let mut files = vec![(file.to_string(), src.to_string())];
     files.extend(others.iter().cloned());
     let first = crate::check_program(&files, false).remove(0).1;
+    let sha = |t: &str| crate::manifest::sha256_hex(t.as_bytes());
+    let inputs = json!({
+        "file": sha(src),
+        "known": known.map(|k| k.sha256.clone()),
+        "proposals": outside.as_ref().map(|o| o.proposals.sha256.clone()),
+        "modules": others.iter().map(|(_, t)| sha(t)).collect::<Vec<_>>(),
+    });
+    let mut rf = outside.as_ref().map(|o| RungF {
+        mode: o.mode,
+        sha256: o.proposals.sha256.clone(),
+        ran: false,
+        given: o.proposals.list.len(),
+        judged: 0,
+        admitted: 0,
+        observed: 0,
+        records: vec![],
+    });
     let mut out = Outcome {
         closed: false,
         rung: None,
@@ -130,12 +225,24 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<
         skipped: vec![],
         repaired: None,
         canonical_same_report: None,
+        bound,
+        inputs,
+        proposals: None,
+        stochastic: false,
+    };
+    // a proposal that rung f does not judge is recorded with the reason
+    let unjudged = |rf: &mut Option<RungF>, why: &str| {
+        if let (Some(r), Some(o)) = (rf.as_mut(), outside.as_ref()) {
+            r.records = o.proposals.list.iter().enumerate().map(|(i, p)| record(i, p, &format!("not judged: {why}"))).collect();
+        }
     };
     let err = match first {
         Ok(()) => {
             out.closed = true;
             out.rung = Some("none".into());
             out.verdict = format!("ok {file}: complies with the Form; nothing to repair");
+            unjudged(&mut rf, "FILE complies with the Form");
+            out.proposals = rf;
             return out;
         }
         Err(e) => e,
@@ -145,6 +252,11 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<
         Ok(m) => m,
         Err(e) => {
             out.skipped.push(format!("a, b, c, d, e: the text does not parse ({e}); every rung edits the parsed module"));
+            if rf.is_some() {
+                out.skipped.push("f: the text does not parse; rung f compares each proposal with the obligations of the parsed FILE (RF-2)".into());
+            }
+            unjudged(&mut rf, "FILE does not parse");
+            out.proposals = rf;
             return out;
         }
     };
@@ -158,6 +270,9 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<
     for r in ["a", "b", "c", "d", "e"] {
         cx.tried.insert(r.into(), 0);
     }
+    if outside.is_some() {
+        cx.tried.insert("f".into(), 0);
+    }
     let units = order_units(&m, &err);
     // with `known GOOD`, the renaming onto GOOD (no search) first
     let found = known
@@ -167,6 +282,21 @@ pub fn repair(file: &str, src: &str, others: &[(String, String)], known: Option<
         .or_else(|| rung_c(src, &mut cx))
         .or_else(|| rung_d(&m, &units, bound, &mut cx))
         .or_else(|| rung_e(&m, &units, &err, bound, &mut cx));
+    // rung f, only when rungs a to e admitted nothing (RF-2)
+    let found = if let Some(f) = found {
+        unjudged(&mut rf, &format!("rung {} closed the program", f.0));
+        Some(f)
+    } else if outside.as_ref().is_some_and(|o| o.mode == Mode::Off) {
+        out.skipped.push("f: rung f is off (its row in the modes table of 10.13)".into());
+        unjudged(&mut rf, "rung f is off");
+        None
+    } else if let (Some(o), Some(r)) = (outside.as_ref(), rf.as_mut()) {
+        rung_f(&base, &m, o, known, bound, &mut cx, r)
+    } else {
+        None
+    };
+    out.stochastic = found.as_ref().is_some_and(|f| f.0 == "f");
+    out.proposals = rf;
     out.tried = cx.tried;
     out.attempts = cx.attempts;
     if let Some((rung, edit, text)) = found {
@@ -1266,6 +1396,8 @@ pub struct Known {
     pub file: String,
     pub canon: String,
     pub proj: String,
+    /// the SHA-256 of GOOD's bytes (RF-4)
+    pub sha256: String,
 }
 
 /// Read `known GOOD`: its canonical text and projection; an error when GOOD
@@ -1274,7 +1406,7 @@ pub fn known(file: &str, src: &str) -> Result<Known, String> {
     let m = crate::parse::parse(src).map_err(|e| format!("{file}: {e}"))?;
     let canon = unparse(&m);
     let proj = projection(&canon).ok_or_else(|| format!("{file}: no name-free projection"))?;
-    Ok(Known { file: file.to_string(), canon, proj })
+    Ok(Known { file: file.to_string(), canon, proj, sha256: crate::manifest::sha256_hex(src.as_bytes()) })
 }
 
 /// The identifiers of a canonical text outside strings and comments, as
@@ -1462,6 +1594,211 @@ fn rung_e(m: &Module, units: &[Unit], err: &str, bound: usize, cx: &mut Ctx) -> 
     None
 }
 
+// ---------- rung f: outside proposals ----------
+
+/// The record of one proposal (RF-4): its place in the file, its origin,
+/// its digest and the verdict.
+fn record(i: usize, p: &crate::proposals::Proposal, verdict: &str) -> Value {
+    json!({"index": i + 1, "origin": p.origin, "sha256": p.sha256, "verdict": verdict, "admitted": false, "observed": false})
+}
+
+/// The text of one item, as the source printer writes it alone.
+fn item_text(it: &Item) -> String {
+    let mm = Module { path: None, items: vec![it.clone()], pubs: Default::default(), v09_hygiene: vec![], x09: Default::default() };
+    unparse(&mm)
+}
+
+/// The statement blocks of a definition.
+fn unit_blocks<'m>(m: &'m Module, u: &Unit) -> Vec<&'m [Stmt]> {
+    let of = |b: &'m Body| match b {
+        Body::Block(s) => Some(s.as_slice()),
+        Body::Arrow(_) => None,
+    };
+    match (u, &m.items[match u {
+        Unit::Fn(i) | Unit::ImplFn(i, _) | Unit::Step(i) | Unit::Actor(i) | Unit::Const(i) | Unit::State(i) => *i,
+    }]) {
+        (Unit::Fn(_), Item::Fn(d)) => of(&d.body).into_iter().collect(),
+        (Unit::ImplFn(_, j), Item::Impl { members, .. }) => of(&members[*j].body).into_iter().collect(),
+        (Unit::Step(_), Item::Step { body, .. }) => of(body).into_iter().collect(),
+        (Unit::Actor(_), Item::Actor { handlers, fns, .. }) => handlers.iter().map(|h| &h.body).chain(fns.iter().map(|d| &d.body)).filter_map(of).collect(),
+        _ => vec![],
+    }
+}
+
+/// What a candidate is judged by (RF-2): the module it names, and the
+/// canonical texts of its intent, example, check and law items and of the
+/// `check`, `requires` and `ensures` statements of each definition (named
+/// by the definition), sorted, so that a proposal may move a definition but
+/// not change what judges it.
+fn obligations(m: &Module) -> (Option<Vec<String>>, Vec<String>) {
+    let check = |e: &Expr| format!("check {}", show(e));
+    let mut v: Vec<String> = vec![];
+    for it in &m.items {
+        match it {
+            Item::Intent(what, xs, cs) => {
+                v.push(format!("intent {}", crate::unparse::text(what)));
+                v.extend(xs.iter().map(crate::unparse::example));
+                v.extend(cs.iter().map(check));
+            }
+            Item::Example(x) => v.push(crate::unparse::example(x)),
+            Item::Check(e) => v.push(check(e)),
+            Item::Law(_) => v.push(item_text(it)),
+            _ => {}
+        }
+    }
+    for u in units(m) {
+        let name = unit_name(m, &u);
+        for b in unit_blocks(m, &u) {
+            crate::check::walk_stmts(b, &mut |s| {
+                if let Stmt::Check(e) = s {
+                    v.push(format!("{name}: {}", show(e)));
+                }
+            });
+        }
+    }
+    v.sort();
+    (m.path.clone(), v)
+}
+
+/// Why a proposal does not keep FILE's obligations (RF-2), or None.
+fn kept(want: &(Option<Vec<String>>, Vec<String>), m: &Module) -> Option<String> {
+    let have = obligations(m);
+    if have.0 != want.0 {
+        return Some("the proposal names another module than FILE".into());
+    }
+    if have.1 == want.1 {
+        return None;
+    }
+    let first = |t: &str| t.lines().find(|l| !l.starts_with("# rce-version:")).unwrap_or("").trim().chars().take(80).collect::<String>();
+    let mut left: Vec<&String> = have.1.iter().collect();
+    let mut removed = vec![];
+    for w in &want.1 {
+        match left.iter().position(|h| *h == w) {
+            Some(k) => {
+                left.remove(k);
+            }
+            None => removed.push(format!("`{}`", first(w))),
+        }
+    }
+    let added: Vec<String> = left.iter().map(|h| format!("`{}`", first(h))).collect();
+    let mut why = "the proposal does not keep what FILE is judged by:".to_string();
+    if !removed.is_empty() {
+        why.push_str(&format!(" removed {}", removed.join(", ")));
+    }
+    if !added.is_empty() {
+        why.push_str(&format!("{} added {}", if removed.is_empty() { "" } else { ";" }, added.join(", ")));
+    }
+    Some(why)
+}
+
+/// How an admitted proposal compares with GOOD (RF-4): `restored` when the
+/// program hash of 10.8 is GOOD's; else, by `rce equiv` (10.11) with the
+/// state bound of `rce mutants`, `behaviour-equal`, `contradicts` (with the
+/// event sequence after which the outputs differ, when there is one) or
+/// `undecided`; `not compared` when a program has no step.
+fn against(text: &str, k: &Known) -> Value {
+    let (Ok(g), Ok(p)) = (crate::parse::parse(&k.canon), crate::parse::parse(text)) else {
+        return json!({"result": "not compared", "why": "a text does not parse"});
+    };
+    if crate::apidiff::program_hash(&[g]) == crate::apidiff::program_hash(&[p]) {
+        return json!({"result": "restored"});
+    }
+    let (Ok(g), Ok(p)) = (crate::program(&k.canon), crate::program(text)) else {
+        return json!({"result": "not compared", "why": "a program does not link"});
+    };
+    let steps = |m: &Module| m.items.iter().any(|i| matches!(i, Item::Step { .. } | Item::Actor { .. }));
+    if !steps(&g) || !steps(&p) {
+        return json!({"result": "not compared", "why": "a program with no step: rce equiv compares the steps' behaviour (6.10)"});
+    }
+    let fuel = crate::mutants::EQUIV_FUEL;
+    match crate::dim::equiv(&g, &p, fuel) {
+        Ok(e) if e.equivalent && e.exact => json!({"result": "behaviour-equal"}),
+        Ok(e) if e.equivalent => json!({"result": "undecided", "why": format!("rce equiv: equivalent only to the explored bound ({fuel} states)")}),
+        Ok(e) if e.undecided => json!({"result": "undecided", "why": format!("rce equiv: undecided within {fuel} states")}),
+        Ok(e) => match e.witness {
+            Some((seq, a, b)) => {
+                let why = format!("after {}: GOOD {}, the proposal {}", seq.join(", "), crate::mutants::output(&a), crate::mutants::output(&b));
+                json!({"result": "contradicts", "after": seq, "why": why})
+            }
+            None if !e.only_a.is_empty() || !e.only_b.is_empty() => json!({"result": "contradicts", "why": "rce equiv: the proposal and GOOD explore other event instances"}),
+            None => json!({"result": "contradicts", "why": "rce equiv: different, with no finite witness in the explored graph"}),
+        },
+        Err(e) => json!({"result": "not compared", "why": format!("rce equiv: {e}")}),
+    }
+}
+
+/// Rung f (RF-2, RF-3): each proposal, in the order of the file, whose text
+/// parses, names FILE's module and keeps FILE's obligations is judged as its
+/// canonical text by the gate of every rung; a candidate already judged is
+/// judged once, and at most `bound` proposals are judged. In `observe`, every
+/// proposal is judged and each admitted one is observed; nothing closes. In
+/// `auto`, the first admitted proposal closes the program.
+fn rung_f(base: &str, m: &Module, o: &Outside, known: Option<&Known>, bound: usize, cx: &mut Ctx, rf: &mut RungF) -> Option<(String, String, String)> {
+    rf.ran = true;
+    let want = obligations(m);
+    let mut mine: BTreeMap<String, usize> = BTreeMap::new();
+    let mut found: Option<(String, String, usize)> = None;
+    for (i, p) in o.proposals.list.iter().enumerate() {
+        let n = i + 1;
+        let unit = format!("module (proposal {n})");
+        let edit = format!("proposal {n} (origin `{}`, sha256 {})", p.origin, p.sha256);
+        let mut rec = record(i, p, "");
+        let verdict = if let Some((_, _, k)) = &found {
+            format!("not judged: proposal {k} closed the program")
+        } else if rf.judged >= bound {
+            format!("not judged: rung f judged its bound of {bound} proposals")
+        } else {
+            match crate::parse::parse(&p.text) {
+                Err(e) => {
+                    rf.judged += 1;
+                    let v = format!("requires change: {}", e.chars().take(200).collect::<String>());
+                    cx.refuse(&unit, &edit, &v);
+                    v
+                }
+                Ok(pm) => {
+                    let text = unparse(&pm);
+                    if text == base {
+                        "not judged: the proposal is FILE itself, in its canonical text".to_string()
+                    } else if let Some(k) = mine.get(&text) {
+                        format!("not judged: the candidate of proposal {k}, judged once")
+                    } else if cx.seen.contains(&text) {
+                        "not judged: an earlier rung judged the same candidate and did not admit it".to_string()
+                    } else if let Some(why) = kept(&want, &pm) {
+                        rf.judged += 1;
+                        mine.insert(text, n);
+                        let v = format!("requires change: RF-2 {why}");
+                        cx.refuse(&unit, &edit, &v);
+                        v
+                    } else {
+                        rf.judged += 1;
+                        mine.insert(text.clone(), n);
+                        let (v, mutation) = cx.judge_measured(&unit, &edit, &text);
+                        if v == "admitted" {
+                            rf.admitted += 1;
+                            rec["admitted"] = json!(true);
+                            rec["diff"] = json!(diff(base, &text));
+                            rec["mutation"] = mutation.unwrap_or(Value::Null);
+                            if let Some(k) = known {
+                                rec["known"] = against(&text, k);
+                            }
+                            if rf.mode == Mode::Auto {
+                                found = Some((edit.clone(), text, n));
+                            } else {
+                                rf.observed += 1;
+                                rec["observed"] = json!(true);
+                            }
+                        }
+                        v
+                    }
+                }
+            }
+        };
+        rec["verdict"] = json!(verdict);
+        rf.records.push(rec);
+    }
+    found.map(|(e, t, _)| ("f".to_string(), e, t))
+}
+
 /// The report `rce repair` prints.
 pub fn report(file: &str, o: &Outcome) -> String {
     let mut s = String::new();
@@ -1471,6 +1808,7 @@ pub fn report(file: &str, o: &Outcome) -> String {
         "c" => "c altered rules",
         "d" => "d bounded enumeration",
         "e" => "e renames",
+        "f" => "f outside proposal (stochastic)",
         "none" => "none (nothing to repair)",
         _ => "?",
     };
@@ -1488,6 +1826,35 @@ pub fn report(file: &str, o: &Outcome) -> String {
     if !t.is_empty() {
         s.push_str(&format!("tried     {} (candidates judged by the checker; 0 model calls)\n", t.join(", ")));
     }
+    if let Some(p) = &o.proposals {
+        s.push_str(&format!(
+            "proposals {} given, {} judged, {} admitted, {} observed (rung f {}; sha256 {})\n",
+            p.given,
+            p.judged,
+            p.admitted,
+            p.observed,
+            p.mode.text(),
+            p.sha256
+        ));
+        for r in p.records.iter().filter(|r| r["observed"] == true) {
+            let mm = &r["mutation"];
+            s.push_str(&format!(
+                "observed  proposal {} (origin `{}`, sha256 {}): admitted; W-MUT-1 measured {} of {} obligations; rung f is observe, so nothing closes\n",
+                r["index"],
+                r["origin"].as_str().unwrap_or(""),
+                r["sha256"].as_str().unwrap_or(""),
+                mm["measured"],
+                mm["obligations"]
+            ));
+            for l in r["diff"].as_array().into_iter().flatten() {
+                s.push_str(&format!("          {}\n", l.as_str().unwrap_or("")));
+            }
+            if let Some(k) = r["known"].as_object() {
+                let why = k.get("why").and_then(Value::as_str).map(|w| format!(": {w}")).unwrap_or_default();
+                s.push_str(&format!("          against GOOD: {}{why}\n", k["result"].as_str().unwrap_or("")));
+            }
+        }
+    }
     for k in &o.skipped {
         s.push_str(&format!("skipped   {k}\n"));
     }
@@ -1496,7 +1863,21 @@ pub fn report(file: &str, o: &Outcome) -> String {
     s
 }
 
+/// The JSON report of `rce repair json` (format `rce-repair/1`, RF-4): the
+/// canonical JSON of 6.1.1.
 pub fn report_json(file: &str, o: &Outcome) -> String {
+    let proposals = o.proposals.as_ref().map(|p| {
+        json!({
+            "mode": p.mode.text(),
+            "sha256": p.sha256,
+            "ran": p.ran,
+            "given": p.given,
+            "judged": p.judged,
+            "admitted": p.admitted,
+            "observed": p.observed,
+            "records": p.records,
+        })
+    });
     let v = json!({
         "format": "rce-repair/1",
         "file": file,
@@ -1511,6 +1892,10 @@ pub fn report_json(file: &str, o: &Outcome) -> String {
         "repaired": o.repaired,
         "canonical_same_report": o.canonical_same_report,
         "attempts": o.attempts,
+        "bound": o.bound,
+        "inputs": o.inputs,
+        "proposals": proposals,
+        "stochastic": o.stochastic,
     });
-    serde_json::to_string(&v).expect("json")
+    crate::interp::canon_json(&v)
 }

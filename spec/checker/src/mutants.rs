@@ -1075,7 +1075,7 @@ pub fn report(r: &Report) -> String {
     s
 }
 
-fn output(l: &str) -> String {
+pub(crate) fn output(l: &str) -> String {
     if l == "ok:" {
         "is silent".into()
     } else if let Some(x) = l.strip_prefix("ok:") {

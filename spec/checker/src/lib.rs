@@ -48,6 +48,7 @@ pub mod rap;
 pub mod rcedb;
 pub mod receipt;
 pub mod refine;
+pub mod proposals;
 pub mod repair;
 pub mod repl;
 pub mod sandbox;
