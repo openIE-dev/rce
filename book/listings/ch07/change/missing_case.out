@@ -1,2 +1,3 @@
 requires change missing_case.rce: line 7: W-MATCH-1 match is not exhaustive: missing Yellow [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

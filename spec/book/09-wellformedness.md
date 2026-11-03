@@ -149,7 +149,8 @@ that does not meet it into Form by exactly one of three methods:
 - **Recommended.** The program is admitted, and `rce check` prints a
   `recommended` line that names the rule and the change (10.2); for
   W-MUT-2, which needs every mutant judged, `rce mutants` prints it
-  (10.14).
+  (10.14). A recommended rule has no rewrite to write, so it is reported
+  and never applied, and it has no mode.
 - **Requires change.** The program is not admitted until its author changes
   it, because the change has more than one reading or states something only
   the author can state (a type, a declaration, a bound, an authority).
@@ -161,6 +162,55 @@ table gives every rule its method; the checker reads it from
 checks that every rule of the three lists has exactly one row and that the
 altered rows are the rules `rce fmt` rewrites. Name independence (T7,
 section 8) is the ground of a rewrite that renames.
+
+**Modes of the altered rules (RM-1 to RM-3).** Every rule whose method is
+altered has one *mode*, given by the second table below: `off`, `observe`
+or `auto`. A mode is part of the rule set, which is data: the checker
+reads it from `spec/data/spec-data.json` (`w_modes`), and no program text,
+comment or command word sets it. Example: W-UNUSED-1 is `auto`, so
+`rce fmt` renames an unread `b` to `_b`; were it `observe`, `rce fmt` would
+print that rename as a diff and leave the file as it is.
+
+- **RM-1 (modes belong to altered rules).** Only a rule whose method is
+  altered has a mode. A rule that requires change has none, so no table,
+  program or command can switch it off; a recommended rule is already
+  reported and never applied, which is what `observe` adds to an altered
+  rule. `tests/rule_modes.rs` checks that the modes table names exactly the
+  altered rules.
+- **RM-2 (what each mode does).** `auto`: the rewrite is written by
+  `rce fmt` (10.6), and until it is written the text requires change
+  (`[altered by rce fmt]`, 10.2). `observe`: `rce fmt`, and every path
+  that applies altered rules, records each rewrite it would write as a
+  canonical diff with its rule, in a deterministic report, and changes
+  nothing; the report does not block admission, and `rce check` prints it
+  as an `observed` line. `off`: the rule is not judged and nothing is
+  printed. The rewrites of the `observe` rules are worked out on the text
+  as the `auto` rewrites leave it, so applying the recorded diffs in order
+  gives the text that `auto` would write for those rules after the others.
+- **RM-3 (promotion is a change of the rule set).** A rule that becomes
+  altered enters the modes table as `observe` (the checker reads an
+  altered rule with no row as `observe`), and is promoted to `auto` once
+  the recorded rewrites have been reviewed. A change of mode is a
+  change of the modes table, so it changes the rule-set hash that every
+  admission receipt records (10.15): a receipt written before a promotion
+  reports the rule as changed, and whether the program is still admitted.
+
+| Rule | Mode | Reason |
+|---|---|---|
+| W-UNUSED-1 | auto | Altered before modes existed; `auto` keeps what `rce fmt` writes, and the rename carries no meaning (T7). |
+| W-DROP-1 | auto | Altered before modes existed; `auto` keeps what `rce fmt` writes, and `let _ = e` evaluates `e` as the statement did. |
+
+**What needs a person (AC-1).** A finding needs a person when it requires
+change or is recommended; an alteration written by `rce fmt` and one
+recorded in observe mode need none until someone reads the record. Every
+run of `rce check` and `rce fmt` ends with one deterministic line on
+standard error that counts them,
+`attention: R requires change, C recommended, A altered, O observed`:
+R the findings that require change (one per report), C the recommended
+findings, A the rewrites written and O the rewrites recorded in observe
+mode (or, for `rce check`, the reports of rules in observe mode). The exit
+status is 1 exactly when R is not 0. A recommended finding, an alteration
+written and one recorded never change it.
 
 | Rule | Method | Reason |
 |---|---|---|
@@ -280,4 +330,4 @@ section 8) is the ground of a rewrite that renames.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: fed1ccec29b97f92048cd2a4439f67a1a90ffc31f346bc1c9beb558d00706e54 -->
+<!-- body-sha256: 33553bc8097859e1c55d50f9f06fa6e9079b95ff459292281e405d6dfeed7cb1 -->

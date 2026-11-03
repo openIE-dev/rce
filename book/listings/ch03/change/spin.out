@@ -1,2 +1,3 @@
 requires change spin.rce: line 7: W-INT-1 check: trap: loop bound [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

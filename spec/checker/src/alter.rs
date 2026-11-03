@@ -17,6 +17,14 @@
 //! numbers of every other report hold, except where an arm written on one
 //! line becomes a block (W-DROP-1 in `P -> e`, where `let` cannot stand). The rewrite is deterministic, and a
 //! second run finds nothing to rewrite (`tests/three_methods.rs`).
+//!
+//! Each altered rule has a mode in the modes table of 7.1 (`admission::Mode`):
+//! the rewrites of the rules in `auto` are written; then the rewrites of the
+//! rules in `observe` are worked out on that text as if they were written,
+//! each recorded as a canonical diff (`repair::diff`) with its rule, and
+//! the text is not changed; a rule that is `off` is not rewritten. Applying
+//! the recorded diffs in order to the text gives the text the rewrites of
+//! those rules would write after the `auto` ones (`tests/rule_modes.rs`).
 use std::collections::HashSet;
 
 /// The rules whose reports `alter` rewrites. `tests/three_methods.rs`
@@ -30,6 +38,26 @@ pub struct Alteration {
     pub line: usize,
     pub rule: &'static str,
     pub what: String,
+}
+
+/// One rewrite recorded in observe mode and not written: what `Alteration`
+/// says, and the canonical diff (`repair::diff`) from the text as the
+/// earlier rewrites left it to the text with this rewrite written.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Observed {
+    pub line: usize,
+    pub rule: &'static str,
+    pub what: String,
+    pub diff: Vec<String>,
+}
+
+/// What `alter_modes` did: the text with the `auto` rewrites written, those
+/// rewrites, and the `observe` rewrites recorded on that text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Altered {
+    pub text: String,
+    pub applied: Vec<Alteration>,
+    pub observed: Vec<Observed>,
 }
 
 /// The static reports of a text (parse, link, check; admission, which
@@ -208,11 +236,7 @@ fn statement_starts(text: &str) -> Vec<usize> {
     v
 }
 
-fn rule_of(report: &str) -> Option<&str> {
-    let r = report.split_once(": ")?.1;
-    let code = r.split(' ').next()?;
-    code.starts_with("W-").then_some(code)
-}
+use crate::admission::{Mode, RuleSet, rule_of};
 
 /// A report as it reads after a line is added after line `at`.
 fn shift(report: &str, at: usize) -> String {
@@ -225,14 +249,14 @@ fn shift(report: &str, at: usize) -> String {
 
 /// One round: every report of an altered rule in `src`, each rewrite tried
 /// on the text as the earlier ones left it.
-fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> String {
+fn round(src: &str, rules: &[&str], taken: &HashSet<String>, done: &mut Vec<Alteration>, steps: &mut Vec<(String, String)>) -> String {
     let Some(mut old) = reports(src) else { return src.to_string() };
     let mut text = src.to_string();
     let renames = match crate::parse::parse(src) {
         Ok(m) => crate::v09::unused_renames(&m),
         Err(_) => vec![],
     };
-    let targets: Vec<String> = old.iter().filter(|r| rule_of(r).is_some_and(|c| RULES.contains(&c))).cloned().collect();
+    let targets: Vec<String> = old.iter().filter(|r| rule_of(r).is_some_and(|c| rules.contains(&c))).cloned().collect();
     for target in targets {
         if !old.contains(&target) {
             continue; // answered by an earlier rewrite (a `_x` read on several lines)
@@ -303,6 +327,7 @@ fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> Stri
                 && answers(&base, &new, &target)
             {
                 done.push(Alteration { line, rule, what });
+                steps.push((text.clone(), n.clone()));
                 if added.is_some() {
                     // the line numbers of the other reports moved: the next
                     // round reads them again
@@ -317,28 +342,88 @@ fn round(src: &str, taken: &HashSet<String>, done: &mut Vec<Alteration>) -> Stri
     text
 }
 
-/// The reports of an altered rule that `alter` left in `src`: those whose
-/// rewrite would add or change another report.
-pub fn unaltered(src: &str) -> Vec<String> {
-    reports(src).unwrap_or_default().into_iter().filter(|r| rule_of(r).is_some_and(|c| RULES.contains(&c))).collect()
+/// The altered rules in mode `m` under `rules`, in the order of `RULES`.
+fn in_mode(rules: &RuleSet, m: Mode) -> Vec<&'static str> {
+    RULES.iter().copied().filter(|r| rules.mode(r).unwrap_or(Mode::Observe) == m).collect()
 }
 
-/// The text with every rewrite of an altered rule written (7.1), and what
-/// was written, in order. Layout is `fmt_text`'s; this changes only the
-/// places the rewrites name.
+/// The reports of a rule in `auto` mode that `alter` left in `src`: those
+/// whose rewrite would add or change another report. They require change.
+pub fn unaltered(src: &str) -> Vec<String> {
+    unaltered_under(RuleSet::in_force(), src)
+}
+
+/// `unaltered` under the rule set `rules`.
+pub fn unaltered_under(rules: &RuleSet, src: &str) -> Vec<String> {
+    let auto = in_mode(rules, Mode::Auto);
+    reports(src).unwrap_or_default().into_iter().filter(|r| rule_of(r).is_some_and(|c| auto.contains(&c))).collect()
+}
+
+/// The text with every rewrite of an altered rule in `auto` mode written
+/// (7.1), and what was written, in order. Layout is `fmt_text`'s; this
+/// changes only the places the rewrites name.
 pub fn alter(src: &str) -> (String, Vec<Alteration>) {
+    let a = alter_modes(RuleSet::in_force(), src);
+    (a.text, a.applied)
+}
+
+/// The rewrites of the altered rules under the modes of `rules` (7.1): the
+/// `auto` ones written, then the `observe` ones recorded on that text.
+pub fn alter_modes(rules: &RuleSet, src: &str) -> Altered {
+    let (text, applied, _) = rewrite(src, &in_mode(rules, Mode::Auto));
+    let (_, seen, steps) = rewrite(&text, &in_mode(rules, Mode::Observe));
+    let observed = seen.into_iter().zip(steps).map(|(a, (before, after))| Observed { line: a.line, rule: a.rule, what: a.what, diff: crate::repair::diff(&before, &after) }).collect();
+    Altered { text, applied, observed }
+}
+
+/// Every rewrite of the rules `rules` written, in rounds: the text, what was
+/// written, and the text before and after each rewrite.
+fn rewrite(src: &str, rules: &[&str]) -> (String, Vec<Alteration>, Vec<(String, String)>) {
+    let (mut done, mut steps) = (vec![], vec![]);
+    if rules.is_empty() {
+        return (src.to_string(), done, steps);
+    }
     let taken: HashSet<String> = idents(src).iter().map(|i| src[i.start..i.end].to_string()).collect();
-    let mut done = vec![];
     let mut text = src.to_string();
     // each round writes at least one rewrite or ends the loop; a round that
     // adds a line ends early, so the bound is the number of reports
     let bound = reports(src).map(|r| r.len()).unwrap_or(0) + 1;
     for _ in 0..bound {
-        let n = round(&text, &taken, &mut done);
+        let n = round(&text, rules, &taken, &mut done, &mut steps);
         if n == text {
             break;
         }
         text = n;
     }
-    (text, done)
+    (text, done, steps)
+}
+
+/// The text with a canonical diff of `repair::diff` applied: the lines it
+/// removes (`-N text`) replaced by the lines it adds (`+N text`). None when
+/// the removed lines are not the text's lines at N.
+pub fn apply_diff(src: &str, diff: &[String]) -> Option<String> {
+    let mut lines: Vec<&str> = src.lines().collect();
+    let parse = |l: &str| -> Option<(char, usize, String)> {
+        let sign = l.chars().next()?;
+        let rest = &l[1..];
+        let (num, text) = rest.trim_start().split_once(' ').map(|(a, b)| (a, b.to_string())).unwrap_or((rest.trim(), String::new()));
+        Some((sign, num.parse().ok()?, text))
+    };
+    let hunk: Vec<(char, usize, String)> = diff.iter().map(|l| parse(l)).collect::<Option<_>>()?;
+    let removed: Vec<&(char, usize, String)> = hunk.iter().filter(|h| h.0 == '-').collect();
+    let added: Vec<String> = hunk.iter().filter(|h| h.0 == '+').map(|h| h.2.clone()).collect();
+    let at = hunk.first()?.1.checked_sub(1)?;
+    for (k, r) in removed.iter().enumerate() {
+        if r.1 != at + k + 1 || lines.get(at + k).copied() != Some(r.2.as_str()) {
+            return None;
+        }
+    }
+    let tail = src.ends_with('\n');
+    let added_refs: Vec<&str> = added.iter().map(String::as_str).collect();
+    lines.splice(at..at + removed.len(), added_refs);
+    let mut out = lines.join("\n");
+    if tail {
+        out.push('\n');
+    }
+    Some(out)
 }

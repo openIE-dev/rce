@@ -178,12 +178,14 @@ file would require change under W-INT-1.
 
 | Command | What it does |
 |---|---|
-| `rce check FILE...` | parse, type check and admit; one verdict per file |
+| `rce check FILE...` | parse, type check and admit; one verdict per file, then the attention line (what needs a person) on standard error |
+| `rce check write RECEIPT FILE...` | the same, and write the admission receipt of an admitted program: its name-free hash, the checker, the rule set and its hash, each obligation with its fuel and result, the mutation measurements and the attestations (spec 10.15) |
+| `rce check receipt RECEIPT FILE...` | admit again and say whether the receipt holds, or whether the program, the rule set or the checker changed; a receipt is evidence, never an authority (spec 10.15) |
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
-| `rce fmt [check] FILE...` | write the rewrites of the altered rules (W-UNUSED-1, W-DROP-1), then rewrite files in the canonical layout |
+| `rce fmt [check] FILE...` | write the rewrites of the altered rules in `auto` mode (W-UNUSED-1, W-DROP-1), print those in `observe` mode as diffs and write nothing for them (spec 7.1), then rewrite files in the canonical layout |
 | `rce dim [control] [json] [fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce repair [json] [bound N] [known GOOD] FILE` | propose a change to a program that requires change, by exact proposers (reuse, lookup by type, the rewrites of `rce fmt`, one small edit, renames; with a known-good version GOOD, the renaming onto it first) judged by the checker, with no model call (spec 10.13) |
 | `rce mutants [json] [bound N] FILE` | make every single edit of a program and run its examples, checks and laws on each: the score, what each obligation kills, the vacuous ones (W-MUT-1) and each surviving edit with its diff (spec 6.12, 10.14) |

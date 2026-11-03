@@ -13,6 +13,8 @@
 //!   `w_rules_09` the same for Appendices C and F;
 //! * `w_methods`: the table of 7.1, the method of every static rule
 //!   (altered, recommended or requires change) with its reason;
+//! * `w_modes`: the modes of 7.1, the mode (`off`, `observe` or `auto`) of
+//!   every rule whose method is altered, with its reason;
 //! * `edges`: the 6.3 edge semantics N1 to N11 with their text;
 //! * `methods`: the 5.15 standard library table (receiver, RCE type, methods);
 //! * `method_work`: the C.6.4 complexity classes (class, methods, work).
@@ -172,6 +174,10 @@ pub fn export(spec: &Path) -> String {
         .iter()
         .map(|r| json!({"rule": r[0].trim_matches('`'), "method": r[1], "reason": r[2]}))
         .collect();
+    let w_modes: Vec<Value> = table_rows(&ch9, "| Rule | Mode | Reason |")
+        .iter()
+        .map(|r| json!({"rule": r[0].trim_matches('`'), "mode": r[1].trim_matches('`'), "reason": r[2]}))
+        .collect();
     let v = json!({
         "format": "rce-spec-data/1",
         "source": "spec/book (normative chapters); see crates/rce/spec/checker/src/specdata.rs",
@@ -182,6 +188,7 @@ pub fn export(spec: &Path) -> String {
         "w_rules_06": {"from": "14-draft06-concurrency.md", "rules": w_rules(&app), "mentioned": mentions(&app)},
         "w_rules_09": {"from": "17-draft09.md", "rules": w_rules(&f), "mentioned": mentions(&f)},
         "w_methods": {"from": "09-wellformedness.md", "table": w_methods},
+        "w_modes": {"from": "09-wellformedness.md", "table": w_modes},
         "edges": {"from": "07-form-evaluation.md", "rules": edges(&read(spec, "07-form-evaluation.md"))},
         "methods": {"from": "06-regions-effects-extensions.md", "table": methods},
         "method_work": {"from": "14-draft06-concurrency.md", "table": work},

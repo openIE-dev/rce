@@ -2733,6 +2733,8 @@ pub struct Measure {
     /// the addresses of the expressions each `check` and `example` evaluated,
     /// by line (at most COVER_MAX each)
     pub cover: HashMap<usize, HashSet<usize>>,
+    /// every law with its verdict (6.11), when the laws were decided
+    pub decided: Vec<crate::law::Decided>,
 }
 
 /// `admit`, and what it measured.
@@ -2829,11 +2831,12 @@ pub fn admit_measured(m: &Module) -> (Vec<String>, Measure) {
     if errs.is_empty() {
         let (le, ds) = crate::law::gate_decided(m);
         errs.extend(le);
-        for d in ds {
+        for d in &ds {
             if let crate::law::Verdict::Holds { states, steps } = d.verdict {
                 ms.laws.insert(d.line, (states, steps));
             }
         }
+        ms.decided = ds;
     }
     (errs, ms)
 }

@@ -1,2 +1,3 @@
 requires change dropped.rce: line 4: W-DROP-1 an expression statement whose value is i64 is not admitted; bind it to `_` to drop it on purpose [altered by rce fmt]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

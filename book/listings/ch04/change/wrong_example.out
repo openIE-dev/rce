@@ -1,2 +1,3 @@
 requires change wrong_example.rce: line 2: W-INT-1 example does not hold: final value is 2, expected 3 [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1

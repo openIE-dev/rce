@@ -1,2 +1,3 @@
 requires change too_deep.rce: line 6: W-INT-1 check: trap: recursion bound [requires change]
+attention: 1 requires change, 0 recommended, 0 altered, 0 observed
 exit status: 1
