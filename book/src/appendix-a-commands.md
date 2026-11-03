@@ -38,6 +38,7 @@ record what they read in the log:
 | `rce host run [GRANT...] FILE D [EVENTS]` | admit events into the durable log D |
 | `rce host serve [GRANT...] [http HOST:PORT] [presented FILE] [rap HOST:PORT] [callback HOST:PORT]... FILE D` | run the host loop as a service; `presented FILE` reads a renderer's confirmations; `rap HOST:PORT` serves the program as a RAP tool, its results POSTed to `callback` addresses |
 | `rce host replay [redact F,...] [frames] [rap] FILE D` | replay D with every adapter disconnected; `frames` re-derives every frame and checks `ui.rules` on them; `rap` prints every RAP tool result |
+| `rce host compact [archive none] FILE D N` | replace the first N entries of D by a checkpoint proven equal to the full replay; the replaced lines stay beside D as `D.archive.SHA256`; exit 2 when no checkpoint may stand at N; `archive none` is refused (HC-37) |
 | `rce db D CMD [ARGS]` | RCEdb, the database whose storage is the log D |
 
 A command line is the command, then its words, then its operands: every
