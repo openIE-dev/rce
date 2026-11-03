@@ -748,9 +748,10 @@ const GRANTS: [Word; 11] = [
     Word::set("frames", &["FILE"]),
 ];
 
-/// The grants, then `http` and `presented`, which only the host loop takes.
-const fn serve_words() -> [Word; 13] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 13];
+/// The grants, then `http`, `presented`, `rap` and `callback`, which only
+/// the host loop takes.
+const fn serve_words() -> [Word; 15] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 15];
     let mut i = 0;
     while i < 11 {
         w[i] = GRANTS[i];
@@ -758,9 +759,13 @@ const fn serve_words() -> [Word; 13] {
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
     w[12] = Word::set("presented", &["FILE"]);
+    // HC-34: the program as a tool of RAP runtimes, and the addresses its
+    // results may be POSTed to (HC-5: no callback address is ambient)
+    w[13] = Word::set("rap", &["HOST:PORT"]);
+    w[14] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 13] = serve_words();
+const SERVE_WORDS: [Word; 15] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -882,16 +887,16 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D",
         min: 2,
         max: 2,
-        help: "the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared,\neach HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (http, Appendix E HC-24),\nDisplay(data) is written to stdout, Exit or SIGTERM ends the loop;\npresented FILE reads a renderer's confirmations, SEQ FRAME_DIGEST per line, as host.Presented inputs (HC-29)",
+        help: "the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared,\neach HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (http, Appendix E HC-24),\nDisplay(data) is written to stdout, Exit or SIGTERM ends the loop;\npresented FILE reads a renderer's confirmations, SEQ FRAME_DIGEST per line, as host.Presented inputs (HC-29);\nrap HOST:PORT serves the program as a RAP tool: its toolset at /.well-known/rap-toolset, each invocation of /invoke\none input, its result POSTed to the callback_url, whose address a callback HOST:PORT grants (HC-34 to HC-36)",
     },
     Command { path: &["host", "tls-id"], words: &[], operands: "FILE D", min: 2, max: 2, help: "the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with peer HOST:PORT KEY after tls)" },
     Command {
         path: &["host", "replay"],
-        words: &[Word::set("redact", &["F,..."]), Word::mode("frames")],
+        words: &[Word::set("redact", &["F,..."]), Word::mode("frames"), Word::mode("rap")],
         operands: "FILE D",
         min: 2,
         max: 2,
-        help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27);\nframes also prints every frame's sink line, its ui.rules findings and the ui.rules report of the session (HC-29)",
+        help: "replay D with every adapter disconnected (HC-8) and re-derive every state hash; D is bound to the program that wrote it by D.program (HC-27);\nframes also prints every frame's sink line, its ui.rules findings and the ui.rules report of the session (HC-29);\nrap also prints the bytes of every RAP tool result, `rap CALL STATUS BODY` (HC-36)",
     },
     Command {
         path: &["db"],
@@ -1754,6 +1759,13 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                     if p.has("frames") {
                         replay_frames(&m, &text, out)?;
                     }
+                    // HC-36: every RAP result, re-derived byte for byte
+                    if p.has("rap") {
+                        for o in crate::host::replay_rap(&m, &text)? {
+                            let st = o.sent.map_or("unsent".to_string(), |s| s.to_string());
+                            writeln!(out, "rap {} {st} {}", o.call, o.body).map_err(w)?;
+                        }
+                    }
                     // `redact f,g`: print those fields as digests (secrets stay in D)
                     let red: Vec<&str> = p.value("redact").map(|x| x.split(',').collect()).unwrap_or_default();
                     writeln!(out, "{}", show_state_redacted(&s, &red)).map_err(w)?;
@@ -1792,6 +1804,9 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
             let http_addr = p.value("http").map(String::from);
+            // HC-34: the RAP listener and the callback addresses granted
+            let rap_addr = p.value("rap").map(String::from);
+            let callbacks: Vec<String> = p.words.iter().filter(|(k, _)| *k == "callback").map(|(_, v)| v[0].clone()).collect();
             // HC-29: the frame sink and the renderer's confirmations, opened
             // before the sandbox is entered
             let mut sink = match p.value("frames") {
@@ -1901,6 +1916,25 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 }
                 None => None,
             };
+            // HC-34: the RAP listener is bound before the sandbox is entered;
+            // its address is in the toolset's endpoint, so a bind that fails
+            // stops the host
+            let rap_server = match &rap_addr {
+                Some(_) if sub != "serve" => return Err("rap needs `rce host serve`: invocations arrive while the host loop runs".into()),
+                Some(addr) => {
+                    let s = crate::adapters::http::Server::bind(addr);
+                    if let Some(e) = s.bind_error() {
+                        return Err(format!("rap {addr}: {e}"));
+                    }
+                    Some(s)
+                }
+                None => {
+                    if !callbacks.is_empty() {
+                        return Err("callback grants an address for RAP results, so it needs rap HOST:PORT".into());
+                    }
+                    None
+                }
+            };
             let mut h = if sub == "serve" { Host::open_file_bounded(&m, std::path::Path::new(log), adapters, DRAIN_MAX)? } else { Host::open_file_with(&m, std::path::Path::new(log), adapters)? };
             // E.4c: the host starts on any module; it says how it delivers to
             // each declaration that is not exactly what it has
@@ -1914,6 +1948,22 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                     None => eprintln!("rce host: http cannot listen on {} yet; retrying every second", s.addr),
                 }
             }
+            let mut rap = match rap_server {
+                Some(s) => {
+                    let a = s.local_addr().ok_or("rap: the listener has no local address")?;
+                    let endpoint = format!("http://{a}{}", crate::rap::INVOKE);
+                    let toolset = h.rap_listen(&s.addr, &endpoint)?;
+                    for n in crate::rap::tools(&m).1 {
+                        eprintln!("rce host: {n}");
+                    }
+                    if callbacks.is_empty() {
+                        eprintln!("rce host: rap: no callback HOST:PORT is granted, so every invocation is refused with 400");
+                    }
+                    eprintln!("rce host: rap listening on {a}; toolset at http://{a}{}", crate::rap::DISCOVERY);
+                    Some(RapServe { server: s, toolset, granted: callbacks.clone(), cb: Default::default() })
+                }
+                None => None,
+            };
             if let Some(id) = &tls_id {
                 h.tls_identity(&crate::tls::hex(&id.public))?;
             }
@@ -1948,6 +1998,14 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 for s in http.iter() {
                     grants.extend(NetGrant::parse(&s.addr, if s.bound() { GrantKind::Prebound } else { GrantKind::Listen }));
                 }
+                // HC-34: the RAP listener was bound before entering, and its
+                // results are POSTed to the granted callback addresses
+                for s in rap.iter() {
+                    grants.extend(NetGrant::parse(&s.server.addr, GrantKind::Prebound));
+                }
+                for a in &callbacks {
+                    grants.extend(NetGrant::parse(a, GrantKind::Connect));
+                }
                 grants.sort();
                 grants.dedup();
                 // HC-5a: what is read after entering: the wasm root, and the
@@ -1969,7 +2027,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             // HC-28: open, and waiting for input
             st.idle(h.len(), h.state_hash());
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out, err, http.as_mut(), st, &mut frames, acks)?;
+                let code = serve_loop(&mut h, &src, out, err, http.as_mut(), rap.as_mut(), st, &mut frames, acks)?;
                 let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
                 let code = validate_run(&m, log, &live, code, err)?;
@@ -2139,7 +2197,7 @@ pub const FRAME_MS: u64 = 16;
 /// starts at once while requests are queued, so a stop is read between
 /// drains even when results keep requesting effects.
 #[allow(clippy::too_many_arguments)]
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, st: &mut crate::status::Status, frames: &mut Frames, acks: Option<std::fs::File>) -> Result<i32, String> {
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>, mut rap: Option<&mut RapServe>, st: &mut crate::status::Status, frames: &mut Frames, acks: Option<std::fs::File>) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::host::Host;
     use std::sync::mpsc;
@@ -2176,6 +2234,34 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
     if let Some(s) = http.as_deref_mut() {
         let htx = std::sync::Mutex::new(tx.clone());
         s.start(std::sync::Arc::new(move |x| htx.lock().map(|t| t.send(Inbound::Http(x)).is_ok()).unwrap_or(false)));
+    }
+    // HC-36: a settled delivery of a RAP result comes back as an input
+    let rap_done: std::sync::Arc<dyn Fn(u64, u16) + Send + Sync> = {
+        let t = std::sync::Mutex::new(tx.clone());
+        std::sync::Arc::new(move |c, s| {
+            if let Ok(t) = t.lock() {
+                let _ = t.send(Inbound::RapSent(c, s));
+            }
+        })
+    };
+    if let Some(r) = rap.as_deref_mut() {
+        let rtx = std::sync::Mutex::new(tx.clone());
+        r.server.start(std::sync::Arc::new(move |x| rtx.lock().map(|t| t.send(Inbound::Rap(x)).is_ok()).unwrap_or(false)));
+        // HC-35, HC-36: what the process that wrote D left: invocations
+        // acknowledged and not stepped are stepped, and every result whose
+        // delivery did not settle is sent again
+        let (mut adm, _) = h.rap_steps()?;
+        adm.extend(h.settle()?);
+        frames.write(&adm)?;
+        for a in &adm {
+            for d in &a.display {
+                out.write_all(d).map_err(w)?;
+            }
+        }
+        out.flush().map_err(w)?;
+        for o in h.rap_unsent() {
+            r.cb.send(o.call, o.callback_url, o.body, rap_done.clone());
+        }
     }
     // HD-4: Tick is matched by field name like any delivery; a declaration
     // that no frame count can be built into is not delivered, and the host
@@ -2225,12 +2311,14 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
         }
         // HC-28: a round with an input from outside is work; a frame tick
         // is the host's own clock and leaves the reported state as it is
-        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Presented(..) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. })));
+        let work = batch.iter().any(|x| matches!(x, Inbound::Line(_) | Inbound::Presented(..) | Inbound::Http(HttpIn::Request { .. } | HttpIn::Malformed { .. }) | Inbound::Rap(HttpIn::Request { .. })));
         if work {
             st.working();
         }
         let mut adm = vec![];
         let mut answers: Vec<(mpsc::Sender<crate::adapters::http::Reply>, u64)> = vec![];
+        // HC-35: invocations appended this round, acknowledged once durable
+        let mut rap_acks: Vec<(mpsc::Sender<crate::adapters::http::Reply>, bool)> = vec![];
         let mut end = false;
         if tick.is_some() && stopping.is_none() && Instant::now() >= next_tick {
             next_tick += frame;
@@ -2271,8 +2359,22 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
                     }
                 }
                 Inbound::Eof => {
-                    if http.is_none() {
+                    if http.is_none() && rap.is_none() {
                         end = true;
+                    }
+                }
+                Inbound::Rap(x) => {
+                    if let Some(r) = rap.as_deref() {
+                        match rap_request(h, r, x) {
+                            Ok(Some(a)) => rap_acks.push(a),
+                            Ok(None) => {}
+                            Err(e) => report(e, out)?,
+                        }
+                    }
+                }
+                Inbound::RapSent(c, s) => {
+                    if let Err(e) = h.rap_sent(c, s) {
+                        report(e, out)?;
                     }
                 }
                 // HC-29: a renderer's confirmation, recorded as host.Presented
@@ -2282,12 +2384,15 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
                     Err(e) => eprintln!("rce host: {e}; not admitted"),
                 },
                 Inbound::Stop => {
-                    if http.is_none() {
+                    if http.is_none() && rap.is_none() {
                         end = true;
                     } else if stopping.is_none() {
                         stopping = Some(Instant::now());
                         if let Some(s) = http.as_deref() {
                             s.stop();
+                        }
+                        if let Some(r) = rap.as_deref() {
+                            r.server.stop();
                         }
                     }
                 }
@@ -2339,7 +2444,25 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
                 }
             }
         }
+        // HC-35: the invocations of the round are durable before any is
+        // acknowledged, and stepped after (HS-2); their results are
+        // appended with the steps and POSTed once the round is durable
+        let mut rap_outs = vec![];
+        if !rap_acks.is_empty() {
+            h.rap_commit()?;
+            for (reply, close) in rap_acks.drain(..) {
+                rap_reply(&reply, 200, None, &[], false, close);
+            }
+            let (a, outs) = h.rap_steps()?;
+            adm.extend(a);
+            rap_outs = outs;
+        }
         adm.extend(h.settle()?);
+        if let Some(r) = rap.as_deref() {
+            for o in rap_outs {
+                r.cb.send(o.call, o.callback_url, o.body, rap_done.clone());
+            }
+        }
         // HD-2: a request the program cannot answer gets the host's own
         // response, with no body, and the connection closes after it
         for (reply, status) in answers.drain(..) {
@@ -2364,12 +2487,18 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, err: &m
             break 'serve;
         }
         st.idle(h.len(), h.state_hash());
-        if let (Some(t), Some(s)) = (stopping, http.as_deref()) {
-            let idle = s.active() == 0 && open.as_ref().is_none_or(|o| o.borrow().is_empty());
-            if idle || t.elapsed() >= Duration::from_millis(STOP_MS) {
+        if let Some(t) = stopping {
+            let http_idle = http.as_deref().is_none_or(|s| s.active() == 0) && open.as_ref().is_none_or(|o| o.borrow().is_empty());
+            // HC-36: results still being delivered are given the same time
+            let rap_idle = rap.as_deref().is_none_or(|r| r.server.active() == 0 && r.cb.pending() == 0);
+            if (http_idle && rap_idle) || t.elapsed() >= Duration::from_millis(STOP_MS) {
                 break 'serve;
             }
         }
+    }
+    // HC-36: a result not delivered by now is sent again by the next host on D
+    if let Some(r) = rap.as_deref() {
+        r.cb.stop();
     }
     // HC-28: the host's status goes to stderr, so stdout is the program's
     // Display bytes alone
@@ -2391,6 +2520,70 @@ pub const STOP_MS: u64 = 5_000;
 /// the rest are performed in the next round, after a stop has been read.
 pub const DRAIN_MAX: usize = 64;
 
+/// HC-34: the RAP listener of the host loop, the toolset it serves, the
+/// callback addresses granted, and the deliveries of results in flight.
+struct RapServe {
+    server: crate::adapters::http::Server,
+    toolset: String,
+    granted: Vec<String>,
+    cb: crate::rap::Callbacks,
+}
+
+/// One answer of the RAP listener: the status, a JSON body when given, and
+/// further fields; the host frames it as any response (HC-26).
+fn rap_reply(reply: &std::sync::mpsc::Sender<crate::adapters::http::Reply>, status: u64, json: Option<&str>, fields: &[(&str, &str)], head: bool, close: bool) {
+    let mut names: Vec<&str> = fields.iter().map(|f| f.0).collect();
+    let mut values: Vec<&str> = fields.iter().map(|f| f.1).collect();
+    if json.is_some() {
+        names.push("Content-Type");
+        values.push("application/json");
+    }
+    let r = serde_json::json!({"status": status, "names": names, "values": values, "body": json.unwrap_or("")});
+    if let Ok((bytes, close)) = crate::adapters::http::response_bytes(&r, head, close) {
+        let _ = reply.send(crate::adapters::http::Reply { bytes, close });
+    }
+}
+
+/// HC-34, HC-35: one request to the RAP listener. The toolset is answered
+/// at once; an invocation that can be answered is appended and returned,
+/// to be acknowledged once durable; one that cannot (no id, group_id or
+/// granted http:// callback_url) is refused with 400 and appends nothing;
+/// a cancellation or a thread closure is acknowledged with 200 and not
+/// acted on, since each step is applied when it is admitted.
+fn rap_request(h: &mut crate::host::Host, r: &RapServe, x: crate::adapters::http::HttpIn) -> Result<Option<(std::sync::mpsc::Sender<crate::adapters::http::Reply>, bool)>, String> {
+    use crate::adapters::http::HttpIn;
+    use crate::rap::{CANCEL, CLOSE, DISCOVERY, INVOKE};
+    let error = |w: &str| serde_json::json!({ "error": w }).to_string();
+    match x {
+        HttpIn::Listening => Ok(None),
+        HttpIn::Malformed { status, why, reply } => {
+            rap_reply(&reply, status.into(), Some(&error(&why)), &[], false, true);
+            Ok(None)
+        }
+        HttpIn::Request { req, reply } => {
+            let path = req.target.split('?').next().unwrap_or("");
+            match (req.method.as_str(), path) {
+                ("GET" | "HEAD", DISCOVERY) => rap_reply(&reply, 200, Some(&r.toolset), &[], req.head, req.close),
+                ("POST", INVOKE) => match crate::rap::envelope(&req.body, &r.granted) {
+                    Ok(inv) => {
+                        h.rap_invoke(inv)?;
+                        return Ok(Some((reply, req.close)));
+                    }
+                    Err(why) => {
+                        eprintln!("rce host: rap: invocation refused with 400: {why}");
+                        rap_reply(&reply, 400, Some(&error(&why)), &[], false, req.close)
+                    }
+                },
+                ("POST", CANCEL | CLOSE) => rap_reply(&reply, 200, None, &[], false, req.close),
+                (_, DISCOVERY) => rap_reply(&reply, 405, None, &[("Allow", "GET, HEAD")], req.head, req.close),
+                (_, INVOKE | CANCEL | CLOSE) => rap_reply(&reply, 405, None, &[("Allow", "POST")], req.head, req.close),
+                _ => rap_reply(&reply, 404, None, &[], req.head, req.close),
+            }
+            Ok(None)
+        }
+    }
+}
+
 /// What the host loop receives, from any source, on one channel.
 enum Inbound {
     Line(Vec<u8>),
@@ -2399,6 +2592,10 @@ enum Inbound {
     Stop,
     /// HC-29: a renderer presented the frame of seq with this frame digest
     Presented(u64, String),
+    /// HC-35: a request to the RAP listener
+    Rap(crate::adapters::http::HttpIn),
+    /// HC-36: the delivery of the result of this call settled with this status
+    RapSent(u64, u16),
 }
 
 /// HC-29: the frame sink of `rce host run` and `serve`, when granted.

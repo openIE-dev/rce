@@ -1,0 +1,70 @@
+{
+  "invocation": {
+    "source": "basic/tool-invocation.md, Request",
+    "message": {
+      "operation": "subscribe_github_events",
+      "arguments": {
+        "owner": "acme",
+        "repo": "api",
+        "event_type": "pull_request"
+      },
+      "id": "call_abc123",
+      "call_id": null,
+      "callback_url": "https://agent.example.com/callback",
+      "group_id": "thread_xyz",
+      "thread_ancestors": ["thread_root", "thread_parent"],
+      "user_id": "user_42"
+    }
+  },
+  "tool_result": {
+    "source": "basic/tool-result.md, Structured Results",
+    "message": {
+      "type": "tool_result",
+      "group_id": "thread_xyz",
+      "id": "call_abc123",
+      "text": "{\"instances\": [{\"id\": \"i-0abc123\", \"state\": \"running\"}], \"count\": 1}"
+    }
+  },
+  "error_result": {
+    "source": "basic/tool-result.md, Error Handling",
+    "message": {
+      "type": "tool_result",
+      "group_id": "thread_xyz",
+      "id": "call_abc123",
+      "text": "Error: API rate limit exceeded. Retry after 60 seconds."
+    }
+  },
+  "tool": {
+    "source": "basic/toolsets.md, Tool Definition (displayScript left out)",
+    "message": {
+      "name": "get_pull_request",
+      "description": "Get details of a specific pull request",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner" },
+          "repo": { "type": "string", "description": "Repository name" },
+          "number": { "type": "integer", "description": "Pull request number" }
+        },
+        "required": ["owner", "repo", "number"]
+      }
+    }
+  },
+  "toolset": {
+    "source": "basic/toolsets.md, Toolset Definition",
+    "message": {
+      "name": "github-tools",
+      "description": "GitHub repository management and event subscription tools",
+      "endpoint": "https://tool.example.com/invoke",
+      "tools": []
+    }
+  },
+  "cancel": {
+    "source": "basic/tool-cancellation.md, Request",
+    "message": { "thread_id": "thread_xyz", "tool_call_id": "call_abc123" }
+  },
+  "close_thread": {
+    "source": "basic/thread-closure.md, Request",
+    "message": { "thread_id": "thread_xyz" }
+  }
+}

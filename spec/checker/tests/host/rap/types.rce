@@ -1,0 +1,29 @@
+# The JSON Schema of each declared type an operation may take (HC-34), and
+# the events that are not operations: those the host delivers itself.
+module rap.types
+
+state Store
+    n: i64 = 0
+
+struct Point
+    x: i64
+    y: i64
+
+type Name = text
+
+event Put(small: u8, ratio: f64, flag: bool, name: Name, tags: List[text], note: text?, at: Point)
+event Ping
+event Tick(n: u64)
+event StepKept(seq: u64, cause: text)
+event Restarted(below: u64)
+
+struct Pong
+    n: i64
+
+step Store on Put(small: _, ratio: _, flag: _, name: _, tags: _, note: _, at: p)
+    n += p.x
+step Store on Ping
+    emit Pong(n: n)
+step Store on Tick(n: _) -> n
+step Store on StepKept(seq: _, cause: _) -> n
+step Store on Restarted(below: _) -> n
