@@ -99,6 +99,12 @@ fn record(rules: &RuleSet, files: &[(String, String)], adm: &Program, checker: &
             } else {
                 o.insert("result".into(), json!("holds"));
                 o.insert("fuel".into(), json!(ms.fuel.get(&line).copied().unwrap_or(0)));
+                // W-UI-1: the frames the example's run derived and ui.rules judged
+                if kind == "example"
+                    && let Some(n) = ms.frames.get(&line)
+                {
+                    o.insert("frames".into(), json!(n));
+                }
             }
             if let Some(r) = a.mutation.iter().find(|r| r.line == line) {
                 o.insert("mutation".into(), json!({"measured": r.measured, "reach": r.reach, "killed": r.killed}));

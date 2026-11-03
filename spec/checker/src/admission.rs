@@ -1,5 +1,5 @@
 //! Admission as one piece of code that every tool shares (spec 6.9, 6.11,
-//! 6.12, 7.1, 10.2): `rce check`, `rce test`, `rce index`, `rce-check` and
+//! 6.12, 7.1, 10.2, and W-UI-1 of Appendix E, HC-29): `rce check`, `rce test`, `rce index`, `rce-check` and
 //! the language server all reach a verdict through [`module`], so a text
 //! one of them admits is admitted by all (10.1, principle 3), and the
 //! admission receipt of 10.15 (`receipt.rs`) is written from what this code
@@ -233,15 +233,21 @@ pub fn module(rules: &RuleSet, m: &Module, mods: &[&Module], known: &HashSet<Str
 /// Admission of a linked module whose static reports are `errs`, under
 /// `rules`: the reports of rules in observe mode are set apart and those of
 /// rules that are off dropped; when no report is left, admission (6.9,
-/// 6.11) and then, when `mutation` is true and every obligation holds, the
-/// mutation gate (6.12) on the first `own` items run.
+/// 6.11), then the frames of a module that emits them held to `ui.rules`
+/// (W-UI-1, HC-29), and then, when `mutation` is true and every obligation
+/// holds, the mutation gate (6.12) on the first `own` items run.
 pub fn linked(rules: &RuleSet, mut lk: Linked, errs: Vec<String>, own: usize, known: &HashSet<String>, mutation: bool) -> Admitted {
     let (mut errs, observed) = by_mode(rules, errs);
     let (mut measure, mut rows, mut mutants) = (None, vec![], (0, 0));
     if errs.is_empty() {
         let sites = if mutation { crate::mutants::site_addresses(&mut lk.module, own) } else { crate::mutants::Sites { addrs: vec![], emitted: Default::default() } };
-        let (e, ms) = crate::interp::admit_measured(&lk.module);
+        let (e, mut ms) = crate::interp::admit_measured(&lk.module);
         errs = e;
+        // W-UI-1 (7, HC-29): the frames of a module that emits them are
+        // held to ui.rules once its obligations hold
+        if errs.is_empty() {
+            errs = crate::frame::gate(&lk.module, own, &mut ms.frames);
+        }
         if mutation && errs.is_empty() {
             let p = crate::mutants::Program { linked: &lk.module, own, imported_fns: &lk.imported_fns, imported_types: &lk.imported_types, known };
             let g = crate::mutants::gate_measured(&p, &sites, &ms);

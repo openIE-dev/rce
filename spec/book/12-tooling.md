@@ -1246,8 +1246,9 @@ it is still admitted.
   replaced by its definition hash, as 10.8 hashes an unnamed item), its
   `result` (`holds`, or `attested` for a law), its `fuel` (an example or a
   check, 6.7) or its `states` and `steps` (a law that holds, 6.11) or its
-  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), and, when the mutation
-  gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
+  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), for an example whose run
+  derived frames, `frames`, the number that W-UI-1 judged (Appendix E,
+  E.4f), and, when the mutation gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
   its reach and whether one was killed (6.12); `mutation`, the mutants
   judged and the whole mutant set; `attestations`, every attestation that
   admitted a law, sorted; `observed`, per rule in observe mode the number
@@ -1328,4 +1329,4 @@ The design and its source, the mandate and accept modes of DeepSeek's
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 0018113c68de5c9a3ad0350e37cca20f16eb79f6757fa0b0588f910166b74fa2 -->
+<!-- body-sha256: 9f1336a8b87a061b0316922fb98d52ce777037c08f5cb4d79a8563579831d4ec -->

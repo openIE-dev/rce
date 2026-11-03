@@ -110,7 +110,9 @@ fn ui_rules_report_is_the_same_on_live_and_replayed_frames() {
 #[test]
 fn step_words_and_times_are_derived_from_d() {
     let d = dir("clock");
-    let src = "module plain\nuse ui.view\n\nstruct Frame\n    view: View\n\nstate S\n    n: i64 = 0\n\nevent Tick\nevent Go\n\nstep S on Tick\n    n += 1\n    if n % 2 == 0\n        emit Frame(view: view.view_new(\"div\", \"\"))\nstep S on Go\n    emit Frame(view: view.view_new(\"main\", \"\"))\n";
+    // W-UI-1 admits the module: its example derives frames whose views
+    // meet ui.rules (the human parts attested)
+    let src = "module plain\nuse ui.view\n\nintent \"a frame on Go and on every second Tick\"\n    example Go, Tick -> n == 1\n\nstruct Frame\n    view: View\n\nstate S\n    n: i64 = 0\n\nevent Tick\nevent Go\n\nstep S on Tick\n    n += 1\n    if n % 2 == 0\n        emit Frame(view: page(\"div\"))\nstep S on Go\n    emit Frame(view: page(\"main\"))\n\nfn page(tag: text) -> View\n    var v = view.view_new(tag, \"\")\n    for kv in [[\"lang\", \"en\"], [\"title\", \"Plain\"], [\"fg\", \"#000000\"], [\"bg\", \"#ffffff\"], [\"font-px\", \"16\"]]\n        view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))\n    for i in \"1.3.1 1.3.2 1.3.3 1.4.1 2.4.1 2.4.2 2.4.5 3.1.1 3.1.2\".words()\n        view.set_attr(&mut v, 0, \"attest-\" + i, \"A. Reviewer;2026-11-03\")\n    return v\n";
     let p = d.join("plain.rce");
     std::fs::write(&p, src).unwrap();
     let (sink, log) = (d.join("f.jsonl"), d.join("plain.log"));

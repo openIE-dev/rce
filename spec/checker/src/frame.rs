@@ -470,6 +470,45 @@ fn trace(frames: &[Frame]) -> (Value, Ty) {
     (Value::Array(steps), Ty::Path(vec!["List".into()], vec![path("Step")]))
 }
 
+/// One finding of `rules.findings`: the index of its frame (`None` for a
+/// finding of the trace as a whole), the node, and its texts.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Finding {
+    pub frame: Option<usize>,
+    pub at: i64,
+    pub sc: String,
+    pub rule: String,
+    pub outcome: String,
+    pub reason: String,
+}
+
+impl Finding {
+    /// `SC OUTCOME at node N (RULE): REASON`, as `rce host replay frames`
+    /// prints it.
+    pub fn text(&self) -> String {
+        format!("{} {} at node {} ({}){}", self.sc, self.outcome, self.at, self.rule, if self.reason.is_empty() { String::new() } else { format!(": {}", self.reason) })
+    }
+}
+
+/// One verdict of `rules.report`: a criterion's outcome over the trace.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Verdict {
+    pub sc: String,
+    pub outcome: String,
+    pub reason: String,
+}
+
+impl Verdict {
+    pub fn text(&self) -> String {
+        format!("{} {}{}", self.sc, self.outcome, if self.reason.is_empty() { String::new() } else { format!(": {}", self.reason) })
+    }
+    /// fails or undecided: what keeps the trace from WCAG 2.2 AA
+    /// (`rules.unmet`)
+    pub fn unmet(&self) -> bool {
+        self.outcome == "fails" || self.outcome == "undecided"
+    }
+}
+
 /// The `ui.rules` report of a session's frames as one trace
 /// (`rules.findings` and `rules.report`): each finding as
 /// (index of its frame, text), then each verdict's text.
@@ -478,9 +517,11 @@ pub struct Report {
     pub verdicts: Vec<String>,
 }
 
-pub fn rules_report(frames: &[Frame]) -> Result<Report, String> {
+/// `rules.findings` and `rules.report` of the frames as one trace, each
+/// run within one fuel budget (6.7).
+pub fn judge(frames: &[Frame]) -> Result<(Vec<Finding>, Vec<Verdict>), String> {
     if frames.is_empty() {
-        return Ok(Report { findings: vec![], verdicts: vec![] });
+        return Ok((vec![], vec![]));
     }
     let fs = call("findings", vec![trace(frames)])?;
     let mut findings = vec![];
@@ -488,19 +529,168 @@ pub fn rules_report(frames: &[Frame]) -> Result<Report, String> {
         let f = rec_fields(x)?;
         let s = |k: &str| f[k].as_str().unwrap_or("").to_string();
         // a finding of the trace as a whole has frame -1
-        let i = f["frame"].as_i64().and_then(|i| usize::try_from(i).ok()).unwrap_or(usize::MAX);
-        let why = s("reason");
-        findings.push((i, format!("{} {} at node {} ({}){}", s("sc"), s("outcome"), f["at"], s("rule"), if why.is_empty() { String::new() } else { format!(": {why}") })));
+        let frame = f["frame"].as_i64().and_then(|i| usize::try_from(i).ok());
+        findings.push(Finding { frame, at: f["at"].as_i64().unwrap_or(-1), sc: s("sc"), rule: s("rule"), outcome: s("outcome"), reason: s("reason") });
     }
     let vs = call("report", vec![trace(frames)])?;
     let mut verdicts = vec![];
     for x in list(&vs)? {
         let f = rec_fields(x)?;
         let s = |k: &str| f[k].as_str().unwrap_or("").to_string();
-        let why = s("reason");
-        verdicts.push(format!("{} {}{}", s("sc"), s("outcome"), if why.is_empty() { String::new() } else { format!(": {why}") }));
+        verdicts.push(Verdict { sc: s("sc"), outcome: s("outcome"), reason: s("reason") });
     }
-    Ok(Report { findings, verdicts })
+    Ok((findings, verdicts))
+}
+
+pub fn rules_report(frames: &[Frame]) -> Result<Report, String> {
+    let (fs, vs) = judge(frames)?;
+    Ok(Report { findings: fs.iter().map(|f| (f.frame.unwrap_or(usize::MAX), f.text())).collect(), verdicts: vs.iter().map(Verdict::text).collect() })
+}
+
+/// Whether node `n` of `v`, or an ancestor, claims an exception of `sc`
+/// with `exempt` (`rce.ui.attrs/1`), as `ui.rules` reads it.
+fn exempt(v: &ViewTree, n: i64, sc: &str) -> bool {
+    let mut m = n;
+    while let Some(u) = usize::try_from(m).ok().filter(|u| *u < v.tag.len()) {
+        if let Some(i) = v.names[u].iter().position(|k| k == "exempt")
+            && v.values[u][i].split(',').any(|x| x.trim() == sc)
+        {
+            return true;
+        }
+        m = v.parent[u];
+    }
+    false
+}
+
+/// The unmet findings of a trace: for each criterion whose verdict is
+/// fails or undecided (`rules.unmet`), every finding of it that no node
+/// claims an exception for; a criterion with none (one undecided until a
+/// person attests it) is one finding of the trace as a whole, at node -1,
+/// with the verdict's reason.
+pub fn unmet(frames: &[Frame], fs: &[Finding], vs: &[Verdict]) -> Vec<Finding> {
+    let mut out = vec![];
+    for v in vs.iter().filter(|v| v.unmet()) {
+        let n = out.len();
+        for f in fs.iter().filter(|f| f.sc == v.sc) {
+            let claimed = f.frame.is_some_and(|i| f.at >= 0 && frames.get(i).is_some_and(|fr| exempt(&fr.view, f.at, &f.sc)));
+            if !claimed {
+                out.push(f.clone());
+            }
+        }
+        if out.len() == n {
+            out.push(Finding { frame: None, at: -1, sc: v.sc.clone(), rule: "-".into(), outcome: v.outcome.clone(), reason: v.reason.clone() });
+        }
+    }
+    out
+}
+
+// ---------------- W-UI-1: frames are held to ui.rules at admission ----------------
+
+/// Whether the first `own` items of `m` (the module's own, before its
+/// imports) declare the output struct `Frame` of HC-29, a struct with a
+/// field `view` of type `View`, and a step that can emit it: a module that
+/// emits frames, which W-UI-1 holds to `ui.rules`. Its line, when it does.
+pub fn emits_frames(m: &Module, own: usize) -> Option<usize> {
+    let items = &m.items[..own.min(m.items.len())];
+    let has_step = items.iter().any(|i| matches!(i, crate::ast::Item::Step { .. }));
+    items.iter().find_map(|i| match i {
+        crate::ast::Item::Struct { name, fields, line, .. }
+            if has_step && name == FRAME && fields.iter().any(|f| f.name == "view" && matches!(&f.ty, Ty::Path(p, a) if a.is_empty() && p.last().is_some_and(|x| x == "View"))) =>
+        {
+            Some(*line)
+        }
+        _ => None,
+    })
+}
+
+/// The frames the run of one example derives (HC-29), as a host derives
+/// them from a D that holds the example's events as its entries: seq is
+/// the event's position from 0, each input a fresh fuel budget (HC-7a),
+/// and a kept step emits nothing. Err when a frame is not one (its view is
+/// not a tree) or the run does not complete.
+pub fn example_frames(m: &Module, s0: &[crate::interp::Region], x: &crate::ast::Example) -> Result<Vec<Frame>, String> {
+    let mut it = Interp::new(m);
+    let mut s = s0.to_vec();
+    let mut clock = Clock::default();
+    let mut out = vec![];
+    for (k, (evn, args)) in x.events.iter().enumerate() {
+        it.scopes = vec![HashMap::new()];
+        it.refuel();
+        let ev = match it.construct(evn, args) {
+            Ok(Some(v)) => v,
+            Ok(None) => return Err(format!("`{evn}` is not an event")),
+            Err(f) => return Err(crate::interp::why(f)),
+        };
+        clock.entry(evn);
+        if let Ok((s2, outs)) = it.delta(&s, &ev) {
+            s = s2;
+            for f in clock.frames(k as u64, evn, &outs) {
+                out.push(f?);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// W-UI-1 (7, Appendix E HC-29): a module that emits frames is held to
+/// `ui.rules` by admission, with no example or check line of its own. The
+/// frames of each example's run (`example_frames`) are judged as one trace
+/// by `rules.findings` and `rules.report`, each within one fuel budget;
+/// every unmet finding (`unmet`) is one report, on the example's line.
+/// Frames that cannot be judged (a frame that is not one, or a judgement
+/// that exceeds its fuel) are undecided, and a module none of whose
+/// examples derives a frame has undecided frames: both require change, as
+/// an undecided law does (W-LAW-1). `frames` records, per example line,
+/// the number of frames judged.
+pub fn gate(m: &Module, own: usize, frames: &mut HashMap<usize, usize>) -> Vec<String> {
+    let Some(decl) = emits_frames(m, own) else { return vec![] };
+    let mut it = Interp::new(m);
+    let Ok(s0) = it.initial_state() else { return vec![] };
+    let mut exs: Vec<&crate::ast::Example> = vec![];
+    for i in &m.items[..own.min(m.items.len())] {
+        match i {
+            crate::ast::Item::Example(x) => exs.push(x),
+            crate::ast::Item::Intent(_, xs, _) => exs.extend(xs.iter()),
+            _ => {}
+        }
+    }
+    let mut errs = vec![];
+    for x in exs {
+        let fs = match example_frames(m, &s0, x) {
+            Ok(fs) => fs,
+            Err(e) => {
+                errs.push(format!("line {}: W-UI-1 the example's frames are undecided: {e}", x.line));
+                continue;
+            }
+        };
+        if fs.is_empty() {
+            continue;
+        }
+        frames.insert(x.line, fs.len());
+        match judge(&fs) {
+            Ok((found, verdicts)) => {
+                for f in unmet(&fs, &found, &verdicts) {
+                    let what = match f.frame.and_then(|i| fs.get(i)) {
+                        Some(fr) => format!("frame {} of the example (seq {}, {}): WCAG {}", f.frame.unwrap_or(0) + 1, fr.seq, fr.ev, f.text()),
+                        None => format!(
+                            "the example's {} frames: WCAG {} {}{}{}",
+                            fs.len(),
+                            f.sc,
+                            f.outcome,
+                            if f.rule == "-" { String::new() } else { format!(" ({})", f.rule) },
+                            if f.reason.is_empty() { String::new() } else { format!(": {}", f.reason) }
+                        ),
+                    };
+                    errs.push(format!("line {}: W-UI-1 {what}", x.line));
+                }
+            }
+            Err(e) => errs.push(format!("line {}: W-UI-1 the example's {} frames are undecided: ui.rules did not decide them: {e}", x.line, fs.len())),
+        }
+    }
+    if frames.is_empty() && errs.is_empty() {
+        errs.push(format!("line {decl}: W-UI-1 the module emits Frame and no example derives a frame, so its frames are undecided: an example whose events emit a frame decides them"));
+    }
+    errs
 }
 
 #[cfg(test)]
