@@ -1022,6 +1022,129 @@ listing from D alone (HC-8).
   from the network or from another process, which no file grant bounds.
   Reference: `adapters::NameAdapter`.
 
+### E.4h A program served to RAP runtimes (HC-34 to HC-36)
+
+RAP, the Reactive Agent Protocol (github.com/hydro-project/infinity,
+`docs/docs/rap/spec/`, Apache-2.0), connects agent runtimes to tools over
+HTTP: a runtime POSTs an *invocation* to a tool, the tool acknowledges it
+with 200 at once, and later POSTs one *tool result* to the invocation's
+*callback URL*. A tool publishes its operations as a *toolset*, each
+operation with a JSON Schema of its arguments. These rules make an RCE
+program such a tool without a program change: an invocation is an input,
+and its result is a function of D. The design decisions and their reasons
+are in `spec/proposals/host-rap.md`.
+
+- **HC-34 A program is a toolset.** `rce host serve rap HOST:PORT FILE D`
+  (one address, under `serve` only) binds the address before the OS target
+  is entered (HC-5a). The address is in the toolset, so a bind that fails
+  stops the host instead of being retried as HC-24's is. The toolset is a
+  function of the module and its endpoint `http://ADDR/invoke`, ADDR the
+  bound address. It has one operation per event the program accepts from
+  outside, in declaration order: every declared event except those the
+  host delivers itself (the events of HC-10b, `Tick` and `Input`) and
+  those declared `extern` (HC-3). An operation is named as its event, and
+  its `inputSchema` is the JSON Schema (draft 2020-12) of the event's
+  fields: an object whose properties are the fields, every field not of a
+  `?` type required, and `additionalProperties: false`. An integer type
+  is `integer` with the `minimum` and `maximum` of the type, `f64` and
+  `f32` are `number`, `bool` is `boolean`, `text` is `string`, `List[T]`
+  an array of T, `T?` T or null, a struct an object of its fields under
+  the same rules, and an alias the type it names. An event with a field
+  of any other type is not an operation, and the host says so at start. A
+  module with no operation is not served, since a RAP toolset holds at
+  least one tool. The host answers `GET /.well-known/rap-toolset`, RAP's
+  discovery path, with the toolset's canonical JSON, and appends at start
+  `host.RapListen` {addr, endpoint, toolset}, toolset being the SHA-256
+  of those bytes, which replay derives again from the module and
+  compares: the toolset a runtime was shown is a function of D. A result
+  is POSTed only to an address that `callback HOST:PORT` (given once per
+  address) grants, compared by its exact text as in HC-23, since a
+  callback is a connection the host opens and the host holds no ambient
+  authority (HC-5); the OS target allows connecting to these addresses
+  (HC-5a). Reference: `rap::toolset`, `Host::rap_listen`.
+- **HC-35 An invocation is an input, durable before it is acknowledged.**
+  A POST to `/invoke` whose body is a JSON object with a string `id`, a
+  string `group_id` and a `callback_url` that is an `http://` URL to a
+  granted address is appended as `host.RapInvoke`, whose payload is the
+  host's whole value of the invocation: the eight fields of RAP's
+  invocation (`arguments`, `call_id`, `callback_url`, `group_id`, `id`,
+  `operation`, `thread_ancestors`, `user_id`), each null when absent, and
+  no other field. Any other POST to `/invoke` cannot be answered, since
+  RAP routes a result by its id and group_id to the callback URL: it is
+  refused with 400 and the reason, and nothing is appended; RAP's runtime
+  records a status other than 200 as a failed call. A body nested deeper
+  than 64 levels is refused before it is parsed. The invocations of one
+  round of the host loop are made durable by one barrier and only then
+  acknowledged with 200 (HS-2). The acknowledgement waits for that barrier
+  and never for a step or a result, so an acknowledged invocation is in D
+  after any crash, which is RAP's rule that a tool never drops an
+  invocation. Then, in D order, each invocation whose `operation` names an
+  operation, whose `arguments` conform to its `inputSchema` and whose
+  event can be constructed (a refined type, 5.1) is stepped:
+  `host.RapStep` {call}, call being the seq of its `host.RapInvoke`, then
+  its event, delivered by the host (HC-10). An invocation that does not
+  conform is acknowledged as well and never stepped, and its result is an
+  error (HC-36), as RAP requires of a tool. RAP delivers invocations at
+  least once, so the dedupe key is (group_id, id), as HC-16's is (source,
+  seq): an invocation whose key D already holds is appended as
+  `host.RapDuplicate` {call_id, callback_url, group_id, id, of}, of being
+  the seq of the first, is never stepped, and is answered from D with the
+  first one's result. A host opened on D steps every invocation D holds
+  and has not stepped before it reads any input, so a kill between the
+  acknowledgement and the step loses nothing. Replay requires each
+  `host.RapStep` to name an invocation that conforms and is not yet
+  stepped, and the entry after it to be that invocation's event; a
+  `host.RapInvoke` with a key D holds, and a `host.RapDuplicate` whose of
+  is not the first invocation of its key, are host faults. A POST to
+  `/cancel_tool_call` or `/close_thread`, RAP's best-effort notifications,
+  is acknowledged with 200 and not acted on: a step is applied when it is
+  admitted, so nothing is in flight to cancel, and the program's state is
+  not kept per thread. Neither enters D, and nothing the host writes
+  depends on one. Reference: `rap::envelope`, `rap::arguments`,
+  `Host::rap_invoke`, `Host::rap_commit`, `Host::rap_steps`.
+- **HC-36 A result is a function of D, delivered at least once.** The
+  result of an invocation is RAP's `tool_result` {call_id, group_id, id,
+  text, type} as canonical JSON: call_id, group_id and id as the
+  invocation holds them (call_id null when it had none), type
+  `tool_result`, and text. For an applied step the text is
+  `{"outputs":[...],"seq":N,"state_hash":H}`: the step's outputs in emit
+  order, each written as D writes an event ({payload, type}), N the seq
+  of the step's entry and H the state hash after it. For a kept step
+  (HC-21) it is `Error: the step of E at seq N was kept (cause C): T; the
+  state is unchanged`, C the cause of `host.StepKept` and T the text
+  replay derives; for an invocation that does not conform, `Error: ` and
+  the reason, following RAP's convention for errors. The effects the step
+  requests, and their results, are not part of it. After the step,
+  `host.RapResult` {call, length, sha256} records the length and SHA-256
+  of the result, not its bytes: replay derives the bytes from D and the
+  module and compares them, so the bytes a runtime receives are a
+  function of D, as HC-26's responses are, and the kept text, which can
+  name a declared error, stays out of D (HC-21). Once the round is durable
+  (HS-2) the host POSTs the result to its callback URL. A delivery settles
+  on an answer whose status is not 5xx: 2xx delivers it and any other
+  rejects it, since RAP does not retry on 4xx. No answer, a refused
+  connection, a timeout or a 5xx is retried after 100 ms, the pause
+  doubling to at most 30 s, until the delivery settles, and `host.RapSent`
+  {call, status} records the settling status once. This is the effect
+  rule of HC-16 and law 3 of E.2c, at-least-once delivery with an
+  idempotent receiver, with the host as the sender that retransmits until
+  acknowledged and the runtime keeping one result per id, as RAP asks of
+  it. It is not HC-22's rule for a request a restart finds outstanding,
+  which gives it one result, `interrupted`, and would drop the result RAP
+  requires. A host opened on D therefore POSTs again every result D holds
+  without `host.RapSent`, and never one that D records as settled. On
+  SIGTERM or SIGINT the host stops accepting and gives the open requests
+  and the deliveries that have not settled up to STOP_MS (HC-24).
+  Replay requires each `host.RapResult` to name an invocation without a
+  result and to equal the result it derives, and each `host.RapSent` to
+  name a result that has not settled. `rce host replay rap FILE D` prints
+  every result D holds as `rap CALL STATUS BODY` (STATUS `unsent` when it
+  has not settled), byte for byte. Subscription events, OAuth, user
+  choice and view updates are not built: no message other than the one
+  result is sent for an invocation. Reference: `rap::result_body`,
+  `rap::Callbacks`, `Host::rap_sent`, `Host::rap_unsent`,
+  `host::replay_rap`.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -1054,6 +1177,12 @@ JSON. The host entries are:
 | `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `http`, and when a retried bind succeeds (HC-24) |
 | `host.Presented` | digest (the frame digest), seq | when a renderer confirms that it presented the frame of seq (HC-29) |
 | `host.Zone` | file, sha256, tz | at start, when the module binds `LocalOffset` (HC-32) |
+| `host.RapListen` | addr, endpoint, toolset (the SHA-256 of the toolset) | at start under `rap` (HC-34) |
+| `host.RapInvoke` | the eight fields of a RAP invocation | before the invocation is acknowledged (HC-35) |
+| `host.RapDuplicate` | call_id, callback_url, group_id, id, of | for an invocation whose (group_id, id) D holds (HC-35) |
+| `host.RapStep` | call (the seq of the invocation) | before the event of an invocation's step (HC-35) |
+| `host.RapResult` | call, length, sha256 (of the result's bytes) | after the step, before the result is POSTed (HC-36) |
+| `host.RapSent` | call, status | when the delivery of a result settled (HC-36) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -1293,7 +1422,8 @@ is cited by a test.
 | HC-31 | lstat and readlink without following, checked on the directory that holds the entry | `tests/host_fs.rs`: `lstat_and_readlink_do_not_follow_and_replay`; `tests/host_adapters.rs`: `file_effects_stay_under_the_granted_root` |
 | HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |
 | HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
-| HC-8, HC-16, HC-21, HC-22 under faults | dropped, duplicated and reordered inputs, lost answers, kill -9, torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
+| HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
+| HC-8, HC-16, HC-21, HC-22 under faults, and HC-35, HC-36 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
 
@@ -1376,4 +1506,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: a2d5fd7d202d210fbf6a4e090f34dc8391d52a2eecb9f5c4538da07816a6dc1f -->
+<!-- body-sha256: 041e3d541a5d4616fde7c1920ede957d9dfd575c9ae81a9a8640a7e889c572e0 -->

@@ -732,6 +732,32 @@ fn json_kind(v: &Value) -> &'static str {
     }
 }
 
+/// What a JSON value is, for a reason text (`rap.rs`).
+pub(crate) fn json_kind_of(v: &Value) -> &'static str {
+    json_kind(v)
+}
+
+/// A declared type with its aliases followed (`rap.rs`).
+pub(crate) fn unalias_ty<'m>(t: &'m Ty, m: &'m Module) -> &'m Ty {
+    unalias(t, m)
+}
+
+/// A declared type as written (`rap.rs`).
+pub(crate) fn ty_name(t: &Ty) -> String {
+    ty_text(t)
+}
+
+/// A JSON value as an argument of a declared type, when it converts
+/// exactly (E.4c), for a value that is not received bytes (`rap.rs`).
+pub(crate) fn convert_value(v: &Value, ty: &Ty, m: &Module) -> Result<Expr, String> {
+    convert(v, ty, Bytes::No, m)
+}
+
+/// The program events the host delivers itself (HC-10b, `rap.rs`).
+pub(crate) fn host_named_events(m: &Module) -> Vec<String> {
+    host_named(m)
+}
+
 /// Received bytes as text, when they are UTF-8 (HD-3); otherwise why not,
 /// with the offset of the first byte that is not.
 pub(crate) fn utf8_text(b: &[u8]) -> Result<String, String> {
@@ -921,6 +947,84 @@ fn is_result_name(event: &str) -> bool {
 }
 
 /// The admitter and the program state it folds (one per program instance, HC-1).
+/// HC-35, HC-36: one invocation of D, from its `host.RapInvoke` or
+/// `host.RapDuplicate` to its `host.RapSent`. Every field is folded from D.
+#[derive(Clone, Debug, Default)]
+struct RapCall {
+    /// the host's whole value of the invocation (for a duplicate: its
+    /// call_id, callback_url, group_id and id)
+    inv: serde_json::Map<String, Value>,
+    /// the event and its arguments, or why the invocation does not conform;
+    /// `None` for a duplicate
+    op: Option<Result<(String, Vec<Arg>), String>>,
+    /// a duplicate: the seq of the first invocation of its (group_id, id)
+    of: Option<u64>,
+    /// `host.RapStep` names it
+    stepped: bool,
+    /// how its step ended, once replay or the host applied it
+    outcome: Option<crate::rap::Outcome>,
+    /// the bytes of its result, once `host.RapResult` holds their digest
+    body: Option<String>,
+    /// the status that settled its delivery (`host.RapSent`)
+    sent: Option<u16>,
+}
+
+/// HC-35, HC-36: the invocations of D by seq, the first seq of each
+/// (group_id, id), and the invocation whose step the next program entry is.
+#[derive(Debug, Default)]
+struct Rap {
+    calls: std::collections::BTreeMap<u64, RapCall>,
+    keys: HashMap<(String, String), u64>,
+    stepping: Option<u64>,
+    /// the calls without a result, and those whose result has not settled,
+    /// so a round's work is bounded by what is open, not by D
+    open: std::collections::BTreeSet<u64>,
+    unsent: std::collections::BTreeSet<u64>,
+}
+
+impl Rap {
+    fn add(&mut self, seq: u64, c: RapCall) {
+        self.calls.insert(seq, c);
+        self.open.insert(seq);
+    }
+    fn answered(&mut self, c: u64, body: String) {
+        if let Some(x) = self.calls.get_mut(&c) {
+            x.body = Some(body);
+        }
+        self.open.remove(&c);
+        self.unsent.insert(c);
+    }
+    fn settled(&mut self, c: u64, status: u16) {
+        if let Some(x) = self.calls.get_mut(&c) {
+            x.sent = Some(status);
+        }
+        self.unsent.remove(&c);
+    }
+}
+
+/// How the host admitted one RAP invocation (HC-35).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RapAdmit {
+    /// a first invocation of its (group_id, id), at this seq
+    Invoked(u64),
+    /// a duplicate at seq of the invocation at `of`: not stepped again
+    Duplicate { seq: u64, of: u64 },
+}
+
+/// One result to deliver (HC-36): the seq of the invocation (or duplicate)
+/// it answers, where it goes, its bytes, and the status that settled it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RapOut {
+    pub call: u64,
+    pub callback_url: String,
+    pub body: String,
+    pub sent: Option<u16>,
+}
+
+fn rap_key(p: &serde_json::Map<String, Value>) -> Option<(String, String)> {
+    Some((p.get("group_id")?.as_str()?.to_string(), p.get("id")?.as_str()?.to_string()))
+}
+
 pub struct Host<'a> {
     m: &'a Module,
     it: Interp<'a>,
@@ -997,6 +1101,8 @@ pub struct Host<'a> {
     last_view: Option<crate::frame::ViewTree>,
     /// When set, replay records every frame it re-derives (HC-29).
     frames: Option<Vec<Result<crate::frame::Frame, String>>>,
+    /// HC-35, HC-36: the RAP invocations of D.
+    rap: Rap,
 }
 
 /// A request emitted and not yet answered.
@@ -1489,7 +1595,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -1613,6 +1719,11 @@ impl<'a> Host<'a> {
         if !self.queue.is_empty() || !self.descends.is_empty() || self.seq == 0 || self.task.is_some() || !self.owe.is_empty() {
             return None;
         }
+        // HC-35: the dedupe keys and results of RAP invocations fold from
+        // every entry, so a log that holds any is folded from its start
+        if !self.rap.calls.is_empty() {
+            return None;
+        }
         // HC-29: frames derive from every entry (the first is `start`, the
         // time counts ticks, a confirmation names any earlier frame), so a
         // program that emits them is always folded from the start of D
@@ -1701,6 +1812,7 @@ impl<'a> Host<'a> {
                         }
                         self.owe.push_back(Next::Typed { seq: e.seq + 1 });
                     }
+                    k if k.starts_with("host.Rap") => self.rap_fold(e).map_err(|x| format!("host fault: seq {}: {x}", e.seq))?,
                     _ => {}
                 }
                 self.rehash();
@@ -1745,6 +1857,7 @@ impl<'a> Host<'a> {
                         }
                         self.state = s2;
                         self.rehash();
+                        self.rap_capture(e.seq, &name, Ok(&outs));
                         self.enqueue(&outs, e.seq);
                         self.note_descent(&outs, under);
                         if let Some(o) = &mut self.outputs {
@@ -1753,6 +1866,7 @@ impl<'a> Host<'a> {
                     }
                     Err(r) => {
                         self.note_frames(e.seq, &name, None);
+                        self.rap_capture(e.seq, &name, Err((r.cause, &r.text)));
                         // HC-21: replay re-derives the kept step and its cause
                         let bind = under.is_none() && declares_event(self.m, "StepKept");
                         self.owe.push_back(Next::HostKept { seq: e.seq, cause: r.cause, bind });
@@ -2177,6 +2291,10 @@ impl<'a> Host<'a> {
                 }
             }
         }
+        match &outcome {
+            Ok(outs) => self.rap_capture(e.seq, name, Ok(outs)),
+            Err(r) => self.rap_capture(e.seq, name, Err((r.cause, &r.text))),
+        }
         let kept = outcome.as_ref().err().map(|r| r.cause);
         let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
         let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, frames, cause: kept.map(Cause::as_str) }];
@@ -2358,6 +2476,236 @@ impl<'a> Host<'a> {
     pub fn http_listen(&mut self, payload: &str) -> Result<(), String> {
         self.append(host_event("HttpListen", payload))?;
         self.confirm()
+    }
+
+    /// HC-34: `host.RapListen` {addr, endpoint, toolset}, toolset being the
+    /// SHA-256 of the toolset this module publishes at that endpoint, which
+    /// replay re-derives; returns the toolset's bytes.
+    pub fn rap_listen(&mut self, addr: &str, endpoint: &str) -> Result<String, String> {
+        let ts = crate::rap::toolset(self.m, endpoint)?;
+        let p = serde_json::json!({"addr": addr, "endpoint": endpoint, "toolset": d_sha(&ts)});
+        self.append(host_event("RapListen", &crate::interp::canon_json(&p)))?;
+        self.confirm()?;
+        Ok(ts)
+    }
+
+    /// HC-35: the event an invocation names, built for the module, or why
+    /// it does not conform (the operation, the arguments, or a refined type).
+    fn rap_validate(&mut self, inv: &serde_json::Map<String, Value>) -> Result<(String, Vec<Arg>), String> {
+        let (name, args) = crate::rap::arguments(self.m, inv)?;
+        self.bound_json(&name, &args).map_err(|w| format!("{name}: {w}"))?;
+        Ok((name, args))
+    }
+
+    /// HC-35: append one invocation, the host's whole value from
+    /// `rap::envelope`, as part of a batch (no barrier): `host.RapInvoke`
+    /// with that value, or, when D already holds an invocation of the same
+    /// (group_id, id), `host.RapDuplicate` {call_id, callback_url, group_id,
+    /// id, of}, which is answered from the log and never stepped. The
+    /// caller acknowledges it once [`Host::rap_commit`] made it durable.
+    pub fn rap_invoke(&mut self, inv: serde_json::Map<String, Value>) -> Result<RapAdmit, String> {
+        let key = rap_key(&inv).ok_or("rap: an invocation without a string group_id and id")?;
+        let seq = self.seq;
+        if let Some(&of) = self.rap.keys.get(&key) {
+            let mut d = serde_json::Map::new();
+            for k in ["call_id", "callback_url", "group_id", "id"] {
+                d.insert(k.into(), inv.get(k).cloned().unwrap_or(Value::Null));
+            }
+            let mut p = d.clone();
+            p.insert("of".into(), Value::from(of));
+            self.append(host_event("RapDuplicate", &crate::interp::canon_json(&Value::Object(p))))?;
+            self.rap.add(seq, RapCall { inv: d, of: Some(of), ..Default::default() });
+            return Ok(RapAdmit::Duplicate { seq, of });
+        }
+        let op = self.rap_validate(&inv);
+        self.append(host_event("RapInvoke", &crate::interp::canon_json(&Value::Object(inv.clone()))))?;
+        self.rap.keys.insert(key, seq);
+        self.rap.add(seq, RapCall { inv, op: Some(op), ..Default::default() });
+        Ok(RapAdmit::Invoked(seq))
+    }
+
+    /// HC-35: the barrier that makes the invocations of the batch durable,
+    /// after which each is acknowledged with 200 (HS-2).
+    pub fn rap_commit(&mut self) -> Result<(), String> {
+        self.confirm()
+    }
+
+    /// HC-35, HC-36: step every invocation of D that conforms and has not been
+    /// stepped, in D order (`host.RapStep` {call}, then its event, as the
+    /// host delivers it), then append `host.RapResult` {call, length,
+    /// sha256} for every invocation and duplicate whose result D does not
+    /// hold yet. Returns the steps and the results to deliver, which the
+    /// caller POSTs once the batch is durable (HS-2). Called after the
+    /// acknowledgements of a batch, and on open for what a stopped host left.
+    pub fn rap_steps(&mut self) -> Result<(Vec<Admitted>, Vec<RapOut>), String> {
+        let mut adm = vec![];
+        let todo: Vec<(u64, String, Vec<Arg>)> = self
+            .rap
+            .open
+            .iter()
+            .filter_map(|c| match self.rap.calls.get(c) {
+                Some(RapCall { op: Some(Ok((n, a))), stepped: false, .. }) => Some((*c, n.clone(), a.clone())),
+                _ => None,
+            })
+            .collect();
+        for (c, name, args) in todo {
+            self.append(host_event("RapStep", &format!("{{\"call\":{c}}}")))?;
+            if let Some(x) = self.rap.calls.get_mut(&c) {
+                x.stepped = true;
+            }
+            self.rap.stepping = Some(c);
+            let r = self.apply(&name, args, How::Delivery);
+            self.rap.stepping = None;
+            adm.extend(r?);
+        }
+        let mut outs = vec![];
+        let need: Vec<u64> = self.rap.open.iter().copied().collect();
+        for c in need {
+            let Some(body) = self.rap_derive(c) else { continue };
+            self.append(host_event("RapResult", &format!("{{\"call\":{c},\"length\":{},\"sha256\":\"{}\"}}", body.len(), d_sha(&body))))?;
+            self.rap.answered(c, body);
+            outs.extend(self.rap_out(c));
+        }
+        Ok((adm, outs))
+    }
+
+    /// HC-36: the delivery of the result of `call` settled with `status`
+    /// (2xx delivered, 4xx and others rejected): `host.RapSent` {call,
+    /// status}. A call with no result, or one already settled, appends
+    /// nothing and gives false. Part of a batch (no barrier).
+    pub fn rap_sent(&mut self, call: u64, status: u16) -> Result<bool, String> {
+        match self.rap.calls.get(&call) {
+            Some(x) if x.body.is_some() && x.sent.is_none() => {}
+            _ => return Ok(false),
+        }
+        self.append(host_event("RapSent", &format!("{{\"call\":{call},\"status\":{status}}}")))?;
+        self.rap.settled(call, status);
+        Ok(true)
+    }
+
+    /// HC-36: the results D holds whose delivery has not settled: a host
+    /// opened on D sends each one again (at least once; the runtime keeps
+    /// one result per id).
+    pub fn rap_unsent(&self) -> Vec<RapOut> {
+        self.rap.unsent.iter().filter_map(|c| self.rap_out(*c)).collect()
+    }
+
+    fn rap_out(&self, c: u64) -> Option<RapOut> {
+        let x = self.rap.calls.get(&c)?;
+        Some(RapOut { call: c, callback_url: x.inv.get("callback_url")?.as_str()?.to_string(), body: x.body.clone()?, sent: x.sent })
+    }
+
+    /// HC-36: the bytes of the result of `call`, a function of D: the
+    /// outcome of its invocation's step (of the first invocation, for a
+    /// duplicate), or why it does not conform; `None` while it is not stepped.
+    fn rap_derive(&self, c: u64) -> Option<String> {
+        let x = self.rap.calls.get(&c)?;
+        let base = self.rap.calls.get(&x.of.unwrap_or(c))?;
+        let o = match &base.op {
+            Some(Err(w)) => crate::rap::Outcome::Invalid(w.clone()),
+            Some(Ok(_)) => base.outcome.clone()?,
+            None => return None,
+        };
+        Some(crate::rap::result_body(&x.inv, &o))
+    }
+
+    /// HC-36: the outcome of the step of the invocation `host.RapStep` named
+    /// last, when the entry at seq is that step.
+    fn rap_capture(&mut self, seq: u64, name: &str, r: Result<&[V], (Cause, &str)>) {
+        let Some(c) = self.rap.stepping.take() else { return };
+        let o = match r {
+            // each output as D writes an event: {"payload":..,"type":..}
+            Ok(outs) => crate::rap::Outcome::Applied {
+                event: name.to_string(),
+                seq,
+                outputs: outs
+                    .iter()
+                    .map(|x| match x {
+                        V::Rec(n, _) => event_json(n, x, self.m),
+                        _ => crate::interp::form_value(x, self.m).json(),
+                    })
+                    .collect(),
+                state_hash: self.state_hash.clone(),
+            },
+            Err((cause, text)) => crate::rap::Outcome::Kept { event: name.to_string(), seq, cause: cause.as_str().to_string(), text: text.to_string() },
+        };
+        if let Some(x) = self.rap.calls.get_mut(&c) {
+            x.outcome = Some(o);
+        }
+    }
+
+    /// Replay of the RAP entries (HC-34 to HC-36): each is checked against
+    /// what the entries before it and the module give, and a difference is
+    /// a host fault.
+    fn rap_fold(&mut self, e: &Entry) -> Result<(), String> {
+        let v: Value = serde_json::from_str(&e.event).map_err(|x| x.to_string())?;
+        let p = v["payload"].as_object().cloned().unwrap_or_default();
+        let call = p.get("call").and_then(Value::as_u64);
+        match e.kind().as_str() {
+            "host.RapListen" => {
+                let ep = p.get("endpoint").and_then(Value::as_str).unwrap_or("");
+                let want = crate::rap::toolset_digest(self.m, ep)?;
+                if p.get("toolset").and_then(Value::as_str) != Some(want.as_str()) {
+                    return Err(format!("host.RapListen names a toolset other than the one this module publishes at {ep} ({want})"));
+                }
+            }
+            "host.RapInvoke" => {
+                let key = rap_key(&p).ok_or("host.RapInvoke without a string group_id and id")?;
+                if !p.get("callback_url").is_some_and(Value::is_string) {
+                    return Err("host.RapInvoke without a callback_url".into());
+                }
+                if self.rap.keys.contains_key(&key) {
+                    return Err(format!("host.RapInvoke repeats ({}, {}), which only host.RapDuplicate may", key.0, key.1));
+                }
+                let op = self.rap_validate(&p);
+                self.rap.keys.insert(key, e.seq);
+                self.rap.add(e.seq, RapCall { inv: p, op: Some(op), ..Default::default() });
+            }
+            "host.RapDuplicate" => {
+                let key = rap_key(&p).ok_or("host.RapDuplicate without a string group_id and id")?;
+                let of = p.get("of").and_then(Value::as_u64);
+                if of.is_none() || self.rap.keys.get(&key).copied() != of {
+                    return Err(format!("host.RapDuplicate of {of:?} names no earlier host.RapInvoke of ({}, {})", key.0, key.1));
+                }
+                let mut d = p.clone();
+                d.remove("of");
+                self.rap.add(e.seq, RapCall { inv: d, of, ..Default::default() });
+            }
+            "host.RapStep" => {
+                let c = call.ok_or("host.RapStep without a call")?;
+                let (name, args) = match self.rap.calls.get(&c) {
+                    Some(RapCall { op: Some(Ok((n, a))), stepped: false, .. }) => (n.clone(), a.clone()),
+                    _ => return Err(format!("host.RapStep names {c}, which is no invocation that conforms and is not stepped")),
+                };
+                if let Some(x) = self.rap.calls.get_mut(&c) {
+                    x.stepped = true;
+                }
+                self.rap.stepping = Some(c);
+                self.owe.push_back(Next::Deliver { name, args, how: How::Delivery });
+            }
+            "host.RapResult" => {
+                let c = call.ok_or("host.RapResult without a call")?;
+                if self.rap.calls.get(&c).is_none_or(|x| x.body.is_some()) {
+                    return Err(format!("host.RapResult names {c}, which is no invocation without a result"));
+                }
+                let body = self.rap_derive(c).ok_or_else(|| format!("host.RapResult for {c} before its step"))?;
+                let sha = d_sha(&body);
+                if p.get("sha256").and_then(Value::as_str) != Some(sha.as_str()) || p.get("length").and_then(Value::as_u64) != Some(body.len() as u64) {
+                    return Err(format!("host.RapResult for {c} differs from the result replay derives ({} bytes, {sha})", body.len()));
+                }
+                self.rap.answered(c, body);
+            }
+            "host.RapSent" => {
+                let c = call.ok_or("host.RapSent without a call")?;
+                let st = p.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok()).ok_or("host.RapSent without a status")?;
+                match self.rap.calls.get(&c) {
+                    Some(x) if x.body.is_some() && x.sent.is_none() => self.rap.settled(c, st),
+                    _ => return Err(format!("host.RapSent names {c}, which has no result, or one already settled")),
+                }
+            }
+            k => return Err(format!("{k} is not a RAP entry of HC-34 to HC-36")),
+        }
+        Ok(())
     }
 
     /// Whether the store reported its last barrier failed (HS-3).
@@ -3219,6 +3567,22 @@ pub fn replay_outputs(m: &Module, text: &str) -> Result<Vec<(u64, Vec<Value>)>, 
     h.outputs = Some(vec![]);
     h.refold(&entries)?;
     Ok(h.outputs.take().unwrap_or_default())
+}
+
+/// HC-36: replay D with every adapter disconnected and re-derive the bytes
+/// of every RAP result D holds, in D order, each with the status that
+/// settled its delivery. `rce host replay rap FILE D` prints them.
+pub fn replay_rap(m: &Module, text: &str) -> Result<Vec<RapOut>, String> {
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let keep = verify_prefix(&lines, m);
+    if keep < lines.len() {
+        return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
+    }
+    let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    h.refold(&entries)?;
+    let calls: Vec<u64> = h.rap.calls.keys().copied().collect();
+    Ok(calls.into_iter().filter_map(|c| h.rap_out(c)).collect())
 }
 
 /// HC-29: replay D with every adapter disconnected and re-derive every
