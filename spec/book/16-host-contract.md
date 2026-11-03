@@ -1145,6 +1145,83 @@ are in `spec/proposals/host-rap.md`.
   `rap::Callbacks`, `Host::rap_sent`, `Host::rap_unsent`,
   `host::replay_rap`.
 
+### E.4i Compaction by an exact checkpoint (HC-37)
+
+A long-lived host's D grows without bound, and replay (HC-8) and every
+open (HS-4) fold it from the start. Compaction lets a host fold from a
+later point without giving up the rule that the state after every entry
+is the fold of D. The design and its source are in
+`spec/proposals/host-compaction.md`.
+
+- **HC-37 A checkpoint is admissible only as the proven fold of D at N.**
+  `rce host compact FILE D N` replaces the first N entries of D by one
+  entry `host.Checkpoint`, whose seq is N − 1 and whose state hash is the
+  state hash of entry N − 1, so it takes that entry's place; the entries
+  of D from seq N on follow it unchanged, byte for byte. Its payload
+  carries everything the fold of D has reached at N that the replay of
+  the entries after it reads: `state`, the state in the canonical named
+  form of 6.1, which is decoded by the declared types and whose positional
+  form hashes to the checkpoint's state hash (the positional form alone
+  leaves out what only the types say, such as which variant an index
+  names); `head`, the hash of entry N − 1, which the next entry's
+  `prev_hash` names; `queue`, every request emitted and not yet answered
+  (an output of a declared struct with an integer `req`) with the seq that
+  requested it, since a later result answers one of them and a restart
+  interrupts each one a host performs (HC-3, HC-22); `descends`, the
+  requests whose results descend from a delivered `StepKept` (HC-21);
+  `admitted`, `window` and `closed_tick`, the dedupe and window state of
+  HC-15 to HC-17; `term` (HC-19); `task`, a live `fn main` task, which is
+  part of the state D folds to (HC-6); `calib` and `exacts`, what placement
+  reads (HC-12, HC-13); `last_tick`, the tick a host loop continues
+  (HC-22); `http`, the HTTP inputs a response may still answer, as
+  [id, head, close] (HC-26); `rap`, every RAP invocation with its key, its
+  step, its outcome and the length and SHA-256 of its result and the
+  status that settled it (HC-35, HC-36); and `archive`, the SHA-256 of the
+  replaced lines. The text of a kept step is never carried (HC-21): for a
+  kept RAP step the checkpoint carries the state the step was kept on, and
+  the text is derived again from it. Seqs, and so ids, are those of D, so
+  a host opened on a compacted D issues ids from the same `below` and never
+  reuses one (HC-22).
+  The command replays D in full first and writes nothing unless the
+  replay of the compacted log from the checkpoint equals it: the same
+  state hash after every entry kept, the same outputs, kept steps and
+  texts, RAP results byte for byte, open HTTP inputs, and the same host
+  state at the end. Otherwise it is refused with exit status 2, as it is
+  for an N that is not above an earlier checkpoint's entries or past the
+  end, for a D whose tail does not verify (HS-4: a torn tail is cut by a
+  host on open, never compacted), and for an N where the entries of an
+  input are not complete: D owes entries after entry N − 1 (HC-10b, HC-21,
+  HC-22, HC-35) or entry N − 1 is the `host.Input` of an input that
+  follows it (HC-17), so a checkpoint never stands in the middle of a
+  step. A module that declares `Frame` is not compacted, since its frames
+  derive from every entry of D (HC-29).
+  The replaced lines are kept beside D as `D.archive.SHA256`, written and
+  made durable first; the new log is written beside D, made durable, and
+  renamed over D with the rename barrier of E.3, so a crash leaves D or the
+  compacted log whole. D is read again before the rename and the command
+  is refused if it changed: it compacts a log no host has open.
+  `archive none` is refused: D is the base truth (HS-1), every past state
+  stays queryable (HS-9), committed entries are never removed (HC-20), and
+  D is checked, not trusted (law 1 of E.2c), so the entries a checkpoint
+  stands for stay where the checkpoint can be proven from them again.
+  A checkpoint is verified on open and on replay: it begins D, its hash is
+  computed over its stored event from the genesis hash as for every entry
+  (HS-4), the entry after it links to its `head`, its state decodes and
+  hashes to its state hash, each kept text and each result is derived
+  again and compared, and the values read back give the payload byte for
+  byte. A checkpoint that fails any of these fails closed: replay fails,
+  and a host neither opens D nor cuts it. `rce host replay` also proves
+  each checkpoint again from its archive when the archive is beside D,
+  replaying the archive and requiring its fold to give the checkpoint, and
+  says when an archive is not present.
+  This is not the compaction of an agent runtime that replaces a long
+  history by a summary a model writes: such a summary is lossy and cannot
+  be checked against what it replaces. A checkpoint is a value, not a
+  description: it is admitted only where it equals the fold it stands
+  for, and anyone holding the archive can prove it again.
+  Reference: `host::compact_text`, `host::compact_file`,
+  `host::prove_file`, `Host::checkpoint_value`, `Host::load_checkpoint`.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -1183,6 +1260,7 @@ JSON. The host entries are:
 | `host.RapStep` | call (the seq of the invocation) | before the event of an invocation's step (HC-35) |
 | `host.RapResult` | call, length, sha256 (of the result's bytes) | after the step, before the result is POSTed (HC-36) |
 | `host.RapSent` | call, status | when the delivery of a result settled (HC-36) |
+| `host.Checkpoint` | admitted, archive, calib, closed_tick, descends, exacts, head, http, last_tick, queue, rap, state, task, term, window | the first entry of a compacted D, in place of entry N − 1 (HC-37) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -1423,7 +1501,8 @@ is cited by a test.
 | HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |
 | HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
-| HC-8, HC-16, HC-21, HC-22 under faults, and HC-35, HC-36 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
+| HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
+| HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
 
@@ -1506,4 +1585,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 041e3d541a5d4616fde7c1920ede957d9dfd575c9ae81a9a8640a7e889c572e0 -->
+<!-- body-sha256: 361c1a2e61f65ea68cc85befcd1826ef819a2cddf233ccfcdf5caabec40103b2 -->
