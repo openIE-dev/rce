@@ -124,7 +124,7 @@ the printed output of `rce-spec-check`, compared with this text by
 0 conflicts (118 rules, 581 productions, 1206 states);
 with C.2 and F.13, 0 conflicts (123 rules, 611 productions,
 1273 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
-13/13 requiring change; checker 62/62 accepted, 13/13 and 66/66 requiring change (17 of them
+13/13 requiring change; checker 62/62 accepted, 13/13 and 67/67 requiring change (18 of them
 inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.

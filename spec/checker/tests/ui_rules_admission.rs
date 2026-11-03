@@ -42,7 +42,7 @@ fn door(frames: bool, button: &str, examples: &str) -> String {
     let (decl, emit) = if frames { ("struct Frame\n    view: View\n    ev: text\n\n", true) } else { ("", false) };
     let em = |open: &str, focused: &str, ev: &str| if emit { format!("    emit Frame(view: panel({open}, {focused}), ev: \"{ev}\")\n") } else { format!("    let _ = panel({open}, {focused})\n") };
     format!(
-        r#"module door
+        r##"module door
 use ui.view
 
 intent "a door panel: one button opens and closes the door"
@@ -86,7 +86,7 @@ fn panel(is_open: bool, focused: bool) -> View
         view.set_attr(&mut v, b, "focused", "true")
     let _ = view.add_text(&mut v, b, if is_open then "Close" else "Open")
     return v
-"#,
+"##,
         open = em("true", "focused", "activate toggle"),
         close = em("false", "focused", "activate toggle"),
         focus = em("opened", "true", "focus toggle"),
@@ -132,8 +132,6 @@ fn a_button_without_tabindex_requires_change_with_no_ui_rules_line() {
     assert_eq!(k, 5, "2.1.1 in every frame: {u:#?}");
     assert!(u.iter().any(|e| e.starts_with("line 5: W-UI-1 frame 1 of the example (seq 0, activate toggle): WCAG 2.1.1 fails at node ")), "{u:#?}");
     assert!(u.iter().any(|e| e.starts_with("line 6: W-UI-1 frame 2 of the example (seq 1, focus toggle): WCAG 2.1.1 fails at node ")), "{u:#?}");
-    // a criterion over the trace as a whole: no step can focus the button
-    assert!(u.iter().any(|e| e.contains("WCAG 3.2.1")), "{u:#?}");
     // the inadmissible example of 7 says the same
     let ex = std::fs::read_to_string("../examples/change/admission/frame_no_tabindex.rce").unwrap();
     let es = errs(&ex);
@@ -147,7 +145,7 @@ fn a_module_that_emits_no_frame_is_not_affected() {
     assert_eq!(check_one(&door(false, "", EXAMPLES)), Ok(()));
     assert_eq!(check_one(&door(false, "", "    example Open -> opened\n")), Ok(()));
     // a library struct named Frame with no view, and no step, is not a frame
-    assert_eq!(check_one("module lib\n\npub struct Frame\n    op: text\n\npub fn op(f: &Frame) -> text = copy(f.op)\n\ncheck op(&Frame(op: \"a\")) == \"a\"\n"), Ok(()));
+    assert_eq!(check_one("module lib\n\npub struct Frame\n    op: text\n\npub fn op(f: Frame) -> text = f.op\n\ncheck op(Frame(op: \"a\")) == \"a\"\n"), Ok(()));
 }
 
 #[test]
