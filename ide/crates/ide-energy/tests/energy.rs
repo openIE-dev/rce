@@ -395,14 +395,22 @@ mod power {
 
     #[test]
     fn polled_meter_integrates_and_reports_errors() {
+        // The polling thread runs when the scheduler lets it, so no fixed sleep
+        // says how many polls have happened. Every bound here waits on what
+        // the meter reports, with a deadline: at a constant 5 W the integral
+        // only grows, and a failed read stays an error (it is never cleared).
+        let deadline = || std::time::Instant::now() + Duration::from_secs(10);
         let t0 = std::time::Instant::now();
         let mut m = PolledMeter::start("test", Duration::from_millis(10), || Ok(5.0)).unwrap();
-        std::thread::sleep(Duration::from_millis(120));
-        let s = m.sample().unwrap();
-        // 5 W over at most the time that really passed: a loaded machine
-        // sleeps longer than asked, so the bound is the elapsed time, not 120 ms.
-        // The meter stamps its polls with SystemTime and this test reads an
-        // Instant, so the two intervals can differ by up to one poll period (10 ms)
+        let until = deadline();
+        let mut s = m.sample().unwrap();
+        while s.joules <= 0.3 && std::time::Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(10));
+            s = m.sample().unwrap();
+        }
+        // 5 W over at most the time that really passed. The meter stamps its
+        // polls with SystemTime and this test reads an Instant, so the two
+        // intervals can differ by up to one poll period (10 ms).
         let most = 5.0 * (t0.elapsed().as_secs_f64() + 0.01);
         assert!(s.joules > 0.3 && s.joules <= most + 1e-9, "{} J, at most {most} J", s.joules);
         assert!(
@@ -421,11 +429,16 @@ mod power {
             }
         })
         .unwrap();
-        std::thread::sleep(Duration::from_millis(60));
-        assert!(
-            bad.sample().is_err(),
-            "a failed read is an error, not a frozen total"
-        );
+        // the third read fails; once it has happened, every sample is an error
+        let until = deadline();
+        let mut failed = bad.sample().is_err();
+        while !failed && std::time::Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+            failed = bad.sample().is_err();
+        }
+        assert!(failed, "a failed read is an error, not a frozen total");
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(bad.sample().is_err(), "a failed read stays an error");
     }
 }
 
