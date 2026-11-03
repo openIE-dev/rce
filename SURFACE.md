@@ -11,12 +11,11 @@ The surface is the text a person writes when authoring natively in RCE. It
 is not a language beside the Form; it is a notation for the Form
 P = (S, E, δ, D, λ) of a program, defined in spec 6.1
 (`spec/book/07-form-evaluation.md`), so every construct below names the
-Form element it denotes. flowG is the parent of RCE: it was the first pass at
-one shared form for all code, on the idea that the syntax of every
-language converges on one computer language, and RCE is the newer pass at
-that form. flowG reads a program as a graph of nodes joined by typed
-wires; its kernel, the closed vocabulary of 22 node primitives in 6
-categories and 11 wire kinds (`openIE-dev/flow-g`), is proposed as the
+Form element it denotes. RCE rests on the idea that the syntax of every
+language converges on one computer language. A program can also be drawn
+as a graph of nodes joined by typed wires; RCE's kernel, the closed
+vocabulary of 22 node primitives in 6 categories and 11 wire kinds (first
+written under the name flowG, `openIE-dev/flow-g`), is proposed as the
 vocabulary of the graph view of the Form (`spec/proposals/rce-form.md`
 §12, a proposal; the view is not built).
 
