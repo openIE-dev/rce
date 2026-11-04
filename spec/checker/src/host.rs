@@ -1684,10 +1684,29 @@ impl<'a> Host<'a> {
         Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), unanswered: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
     }
 
+    /// GT-9: the host loads every blob the program's graph terms name from
+    /// the store, each checked against its digest, and records in D the
+    /// digests and lengths it loaded (`host.Blobs`), before any input. A
+    /// blob no store holds stops the start: the program cannot run.
+    fn blobs_entry(&mut self) -> Result<(), String> {
+        let ds = crate::graph::blob_digests(self.m);
+        if ds.is_empty() {
+            return Ok(());
+        }
+        let mut items = vec![];
+        for d in &ds {
+            let b = crate::graph::blob_bytes(d)?;
+            items.push(format!("{{\"bytes\":{},\"digest\":\"{d}\"}}", b.len()));
+        }
+        self.append(host_event("Blobs", &format!("{{\"blobs\":[{}]}}", items.join(","))))?;
+        Ok(())
+    }
+
     fn start_entries(&mut self) -> Result<(), String> {
         let caps = self.store.caps();
         self.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         self.append(host_event("FabricCaps", &fabric_caps()))?;
+        self.blobs_entry()?;
         let http = self.adapters.iter().any(|a| a.kind() == "HttpRespond");
         for (e, k) in binds(self.m, &self.bound, http) {
             self.append(host_event("Bind", &format!("{{\"event\":\"{e}\",\"kind\":\"{k}\"}}")))?;
@@ -1763,6 +1782,7 @@ impl<'a> Host<'a> {
         }
         h.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         h.append(host_event("FabricCaps", &fabric_caps()))?;
+        h.blobs_entry()?;
         h.restarted()?;
         h.drain()?;
         h.confirm()?;

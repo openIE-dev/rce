@@ -180,7 +180,7 @@ fn sig_of(m: &Module, it: &Item) -> String {
 
 /// The program hash (proposal CC-1): the SHA-256 of the canonical JSON list
 /// of the definition hashes of every named definition of the modules given
-/// together, sorted. It is name-free (T7, through the definition hashes),
+/// together, and of the keys of their graph terms (6.13), sorted. It is name-free (T7, through the definition hashes),
 /// layout-free and order-free, and the same for one module or a package.
 pub fn program_hash(ms: &[Module]) -> String {
     let mut hs: Vec<String> = vec![];
@@ -202,6 +202,12 @@ pub fn program_hash(ms: &[Module]) -> String {
             }
         }
         hs.extend(ds.into_iter().map(|d| d.hash));
+        // 6.13 (GT-2): the key of every graph term, so the hash names the
+        // terms the program's steps are built from, not only the text that
+        // asks for them; a module without terms adds nothing
+        for k in crate::graph::keys_of(m0) {
+            hs.push(sha(&format!("rce-graph/1\n{k}")));
+        }
     }
     hs.sort();
     hs.dedup();

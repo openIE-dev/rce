@@ -1,0 +1,20 @@
+[package]
+name        = "rce-sd15-unet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for the Stable Diffusion 1.5 UNet2DConditionModel (~860M params, 4-channel latent diffusion with CLIP-L text conditioning, time-conditioned ResnetBlocks, SpatialTransformer self+cross attention)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+anyhow              = { workspace = true }
+
+[dev-dependencies]
+rce-clip-vit-l = { workspace = true }
+rce-sd15-vae = { workspace = true }
+image            = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

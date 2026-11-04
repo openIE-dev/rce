@@ -1,0 +1,14 @@
+[package]
+name = "rce-emit-triton"
+publish = false
+description = "Emit Triton Python DSL from RCE's FunctionGraph — GPU kernel interop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_emit_triton"
+
+[dependencies]
+rce-graph = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,22 @@
+[package]
+name        = "rce-op-nn-prims"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaves for the small NN primitives every modern model uses but the in-tree CPU kernel layer doesn't yet cover: silu, group-aware rms_norm, split_at. Necessary to express Mamba2 / Jamba / nemotron_h mixer blocks as composable .fg IR graphs (rather than fused into one Custom op)."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }
+
+[dev-dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-op-ssm = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-mps = { workspace = true }
+rce-op-attention = { workspace = true }
+memmap2              = { workspace = true }

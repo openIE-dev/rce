@@ -2,7 +2,6 @@
 resolver = "3"
 members = [
     "crates/ide-receipt",
-    "crates/ide-energy",
     "crates/rce-mcp",
     "crates/mei-machine",
     "crates/mei-agent",
@@ -34,7 +33,8 @@ nvml-wrapper = "0.13.0"
 # The reference checker lives in this repository at spec/checker (a path dependency, never vendored or pinned).
 rce_spec_check = { path = "../spec/checker", package = "rce-spec-check" }
 ide-receipt = { path = "crates/ide-receipt" }
-ide-energy = { path = "crates/ide-energy" }
+# RCE's one meter library, which the IDE names ide_energy
+ide-energy = { path = "../compute/crates/rce-energy", package = "rce-energy" }
 rce-mcp = { path = "crates/rce-mcp" }
 mei-machine = { path = "crates/mei-machine" }
 # Pure-Rust TLS: rustls with the RustCrypto provider (no ring, no aws-lc, no cc).

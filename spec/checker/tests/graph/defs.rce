@@ -1,0 +1,44 @@
+# Each elementwise operation of std.tensor equals its definition written
+# in RCE source over math.rce (spec 6.13 GT-4, 6.3 F9), bit for bit, for
+# f64 and for f32 (the binary64 function of the element, rounded once).
+use std.tensor
+use math
+
+fn sig(x: f64) -> f64
+    if x >= 0.0
+        return 1.0 / (1.0 + math.exp(-x))
+    let e = math.exp(x)
+    return e / (1.0 + e)
+
+fn silu(x: f64) -> f64
+    if x >= 0.0
+        return x / (1.0 + math.exp(-x))
+    let e = math.exp(x)
+    return (x * e) / (1.0 + e)
+
+fn gelu(x: f64) -> f64
+    return x * 0.5 * (1.0 + math.erf(x * 0.7071067811865476))
+
+fn gelu_tanh(x: f64) -> f64
+    return 0.5 * x * (1.0 + math.tanh(0.7978845608028654 * (x + 0.044715 * (x * x * x))))
+
+fn e32(x: f32) -> f32
+    return math.exp(x as f64) as f32
+
+const XE: [f64; 5] = [-745.0, -1.5, 0.0, 2.5, 700.0]
+const XT: [f64; 3] = [-0.75, 1.0e-9, 3.25]
+const XS: [f64; 4] = [-800.0, -2.5, 0.0, 4.0]
+const XU: [f64; 4] = [-3.0, -0.5, 0.5, 30.0]
+const XG: [f64; 3] = [-2.5, -0.125, 1.75]
+const XH: [f64; 3] = [-2.5, 0.375, 6.0]
+const XF: [f32; 3] = [-1.5 as f32, 0.1 as f32, 80.0 as f32]
+const XM: [[f64; 3]; 1] = [[1.0, 2.0, 4.0]]
+
+check tensor.exp(XE) == [math.exp(-745.0), math.exp(-1.5), 1.0, math.exp(2.5), math.exp(700.0)]
+check tensor.tanh(XT) == [math.tanh(-0.75), math.tanh(1.0e-9), math.tanh(3.25)]
+check tensor.sigmoid(XS) == [sig(-800.0), sig(-2.5), sig(0.0), sig(4.0)]
+check tensor.silu(XU) == [silu(-3.0), silu(-0.5), silu(0.5), silu(30.0)]
+check tensor.gelu(XG) == [gelu(-2.5), gelu(-0.125), gelu(1.75)]
+check tensor.gelu_tanh(XH) == [gelu_tanh(-2.5), gelu_tanh(0.375), gelu_tanh(6.0)]
+check tensor.exp(XF) == [e32(-1.5 as f32), e32(0.1 as f32), e32(80.0 as f32)]
+check tensor.softmax(XM, 1) == [[math.exp(-3.0) / ((math.exp(-3.0) + math.exp(-2.0)) + 1.0), math.exp(-2.0) / ((math.exp(-3.0) + math.exp(-2.0)) + 1.0), 1.0 / ((math.exp(-3.0) + math.exp(-2.0)) + 1.0)]]

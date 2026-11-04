@@ -69,7 +69,7 @@ terminal it asks nothing and changes nothing.
 ### `rce test measure` on macOS
 
 `rce test measure` on macOS reads `IoReportPackageMeter`
-(`crates/ide-energy/src/ioreport.rs`), with no root and no setup:
+(`compute/crates/rce-energy/src/ioreport.rs`), with no root and no setup:
 
 - Counter kind: `reported`, an on-chip counter (D.11 names IOReport).
 - Domains: the `package` boundary is CPU + GPU + ANE (`PACKAGE`), the sum
@@ -186,7 +186,7 @@ BatteryManager backend is tracked with `qualcomm`.
 
 ## Tests
 
-`crates/ide-energy/tests/energy.rs`: unit handling and rail selection with
+`compute/crates/rce-energy/tests/energy.rs`: unit handling and rail selection with
 the channel values recorded on the M5 Max (CLPC preferred, a stuck CPU or
 DRAM counter is never 0 J, an idle ANE is), CLPC ids, the package channels
 and sum (`ioreport::package`: units per channel, Ultra dies, a counter that

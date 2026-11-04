@@ -175,6 +175,11 @@ fn stmt_json_with(s: &Stmt, rf: RefJson) -> J {
         Stmt::Ret(a) => tagged("ret", vec![atom_json(a)]),
         Stmt::Halt(a) => tagged("halt", vec![atom_json(a)]),
         Stmt::Out(a) => tagged("out", vec![atom_json(a)]),
+        Stmt::Graph(k, args) => {
+            let mut v = vec![J::from(k.as_str())];
+            v.extend(args.iter().map(atom_json));
+            tagged("graph", v)
+        }
     }
 }
 
@@ -208,13 +213,20 @@ pub fn sha256_hex(v: &J) -> String {
 
 pub fn module_json(m: &Module) -> J {
     let defs: serde_json::Map<String, J> = m.defs.iter().map(|(k, g)| (k.clone(), group_json(g))).collect();
-    json!({
+    let mut v = json!({
         "format": FORMAT,
         "globals": m.globals.iter().map(|(t, l)| json!([ty_json(t), l.as_ref().map(lit_json).unwrap_or(J::Null)])).collect::<Vec<_>>(),
         "defs": J::Object(defs),
         "entry": [m.entry.0, m.entry.1],
         "names": m.names,
-    })
+    });
+    // a module without graph terms has no `graphs` field, so its text is
+    // the text it had before graph terms existed (6.13)
+    if !m.graphs.is_empty() {
+        let gs: serde_json::Map<String, J> = m.graphs.iter().map(|(k, g)| (k.clone(), json!({"graph": g.graph, "types": g.types}))).collect();
+        v["graphs"] = J::Object(gs);
+    }
+    v
 }
 
 /// The canonical JSON text of a module, as `rce emit core` prints it.
@@ -376,6 +388,12 @@ pub fn stmt_from(v: &J) -> R<Stmt> {
         "ret" => { want(2)?; Stmt::Ret(atom_from(&a[1])?) }
         "halt" => { want(2)?; Stmt::Halt(atom_from(&a[1])?) }
         "out" => { want(2)?; Stmt::Out(atom_from(&a[1])?) }
+        "graph" => {
+            if n < 2 {
+                return Err("`graph` takes a key".into());
+            }
+            Stmt::Graph(st(&a[1], "graph key")?, atoms(2)?)
+        }
         t => return Err(format!("unknown statement `{t}`")),
     })
 }
@@ -417,7 +435,16 @@ pub fn module_from_text(s: &str) -> R<Module> {
 }
 
 pub fn module_from(v: &J) -> R<Module> {
-    let o = obj(v, "module", &["format", "globals", "defs", "entry", "names"])?;
+    let has_graphs = v.as_object().is_some_and(|o| o.contains_key("graphs"));
+    let keys: &[&str] = if has_graphs { &["format", "globals", "defs", "entry", "names", "graphs"] } else { &["format", "globals", "defs", "entry", "names"] };
+    let o = obj(v, "module", keys)?;
+    let mut graphs = BTreeMap::new();
+    if has_graphs {
+        for (k, g) in o["graphs"].as_object().ok_or("graphs: expected an object")? {
+            let t = obj(g, "graph term", &["graph", "types"])?;
+            graphs.insert(k.clone(), GraphTerm { graph: t["graph"].clone(), types: t["types"].clone() });
+        }
+    }
     if o["format"] != FORMAT {
         return Err(format!("format is {}, not {FORMAT}", o["format"]));
     }
@@ -439,7 +466,7 @@ pub fn module_from(v: &J) -> R<Module> {
     if e.len() != 2 {
         return Err("entry is [KEY, i]".into());
     }
-    Ok(Module { globals, defs, entry: (st(&e[0], "entry key")?, idx(&e[1], "entry index")?), names: o["names"].clone() })
+    Ok(Module { globals, defs, entry: (st(&e[0], "entry key")?, idx(&e[1], "entry index")?), names: o["names"].clone(), graphs })
 }
 
 /// A readable text of a core module, one statement per line, for reading
@@ -490,6 +517,7 @@ pub fn text(m: &Module) -> String {
                 }
                 Stmt::Call(f, a) => o.push_str(&format!("{pad}{} = call {}({})\n", lhs(1), fref(f, names), args(a))),
                 Stmt::Catch(f, a) => o.push_str(&format!("{pad}{} = catch {}({})\n", lhs(1), fref(f, names), args(a))),
+                Stmt::Graph(k, a) => o.push_str(&format!("{pad}{} = graph {}({})\n", lhs(1), &k[..8.min(k.len())], args(a))),
                 Stmt::Var(t, a) => o.push_str(&format!("{pad}var {}: {} = {}\n", lhs(1), ty(t), atom(a))),
                 Stmt::Set(Place::V(i), a) => o.push_str(&format!("{pad}set v{i} = {}\n", atom(a))),
                 Stmt::Set(Place::G(i), a) => o.push_str(&format!("{pad}set g{i} = {}\n", atom(a))),

@@ -1,0 +1,49 @@
+[package]
+name        = "rce-format-fuzz"
+version     = "0.0.0"
+publish     = false
+edition     = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+# The fuzz crate is a sibling of the main rce workspace, NOT a member of
+# it — cargo-fuzz manages its own build profile (-fsanitize=fuzzer) which
+# the parent workspace doesn't want applied globally.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rce-format  = { path = "..", features = ["with-rce-graph", "sign"] }
+
+[[bin]]
+name              = "fg_file_read"
+path              = "fuzz_targets/fg_file_read.rs"
+test              = false
+doc               = false
+bench             = false
+
+[[bin]]
+name              = "fg_header"
+path              = "fuzz_targets/fg_header.rs"
+test              = false
+doc               = false
+bench             = false
+
+[[bin]]
+name              = "fg_toc"
+path              = "fuzz_targets/fg_toc.rs"
+test              = false
+doc               = false
+bench             = false
+
+[[bin]]
+name              = "fg_weight_manifest"
+path              = "fuzz_targets/fg_weight_manifest.rs"
+test              = false
+doc               = false
+bench             = false
+
+[profile.release]
+debug    = true
+overflow-checks = true

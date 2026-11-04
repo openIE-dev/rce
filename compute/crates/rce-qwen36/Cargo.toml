@@ -1,0 +1,15 @@
+[package]
+name        = "rce-qwen36"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qwen 3.6 inference runtime scaffolding on the rce substrate. Hybrid Gated DeltaNet (linear-attention recurrent state, 75% of layers) + Gated Attention (sigmoid-gated standard SDPA, every 4th layer per `full_attention_interval=4`). 64 layers, 16 QK heads × 128 + 48 V heads × 128 for DeltaNet, 24 Q / 4 KV head_dim=256 GQA for attention. Multi-axis RoPE (`dimension_sections=[11,11,10,0]`). Released April 22, 2026, Apache 2.0. THIS CRATE: scaffolding only — config + arch detection + layer-type classification + load. Full forward pass (DeltaNet recurrent state + multi-axis RoPE) lands in a follow-on."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-conv1d = { workspace = true }
+memmap2              = { workspace = true }
+rayon                = { workspace = true }

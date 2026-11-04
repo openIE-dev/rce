@@ -1,0 +1,23 @@
+[package]
+name        = "rce-placement-demo"
+version.workspace = true
+edition.workspace = true
+description = "End-to-end demo of cost-driven placement (rce-placement) → real execution (op-blas / op-mps) on Apple Silicon. Stage 5 wiring: pick_backend, then dispatch on the chosen leaf, with correctness cross-check."
+
+[[bin]]
+name = "rce-placement-demo"
+path = "src/main.rs"
+
+[[bin]]
+name = "rce-placement-scheduler-demo"
+path = "src/scheduler_demo.rs"
+
+[dependencies]
+rce-placement = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-mps = { workspace = true }
+rce-op-metal = { workspace = true }
+rce-op-nn-prims = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-scheduler = { workspace = true }
+rce-graph = { workspace = true }

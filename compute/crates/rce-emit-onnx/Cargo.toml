@@ -1,0 +1,22 @@
+[package]
+name = "rce-emit-onnx"
+publish = false
+description = "Emit ONNX ModelProto from RCE's FunctionGraph — Triton-ecosystem interop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_emit_onnx"
+
+[dependencies]
+rce-graph = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
+prost-build = "0.14"
+protoc-bin-vendored = "3"
+tonic-prost-build = { workspace = true }

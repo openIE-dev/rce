@@ -1,0 +1,20 @@
+[package]
+name        = "rce-wan22-ti2v"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for Wan-AI/Wan2.2-TI2V-5B (text+image-to-video DiT, 30 layers × dim 3072 × 24 heads + cross-attn to T5-XXL, pairs with the Wan 2.2 VAE shipped in rce-cosmos3::phase4_v2::Wan22VAE_v2)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+serde_json          = { workspace = true }
+anyhow              = { workspace = true }
+
+[dev-dependencies]
+rce-umt5-xxl-encoder = { workspace = true }
+rce-cosmos3 = { workspace = true, features = ["phase4"] }
+
+[lib]
+path = "src/lib.rs"

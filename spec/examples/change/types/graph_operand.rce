@@ -1,0 +1,11 @@
+# W-GRAPH-2: an operand of a tensor operation is a list, whose length is
+# not fixed, so it is not a tensor.
+use std.tensor
+
+state Layer
+    y: [f64; 2] = [0.0, 0.0]
+
+event Input(x: List[f64])
+
+step Layer on Input(x)
+    y = tensor.relu(x)

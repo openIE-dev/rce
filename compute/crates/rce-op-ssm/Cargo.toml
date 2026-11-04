@@ -1,0 +1,21 @@
+[package]
+name        = "rce-op-ssm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf for Mamba2-style selective state-space scan. The post-attention-era counterpart to rce-op-attention: routes Custom(\"ssm_scan\") to a fused per-token SSM kernel covering softplus(dt+bias), -exp(A_log), discretised recurrence A_bar*h + dt*B*x, readout C·h + D*x. Stateless function — caller provides state-in tensor and receives [y || state_out] packed."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }
+
+[dev-dependencies]
+rce-op-conv1d = { workspace = true }
+rce-op-nn-prims = { workspace = true }
+rce-op-metal = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+half                 = { workspace = true }

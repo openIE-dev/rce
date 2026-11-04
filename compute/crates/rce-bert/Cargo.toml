@@ -1,0 +1,11 @@
+[package]
+name        = "rce-bert"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BERT encoder primitive on the rce substrate (Wave-1 shared building block). Post-norm Transformer encoder (WordPiece tokenizer, learned positions, GELU, LayerNorm) + mean-pooling for E5 sentence embeddings. First model: intfloat/e5-small-v2 (hidden 384, 12 layers). F32 safetensors. Verified by cosine-similarity ranking (related pair >> unrelated)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+serde_json          = { workspace = true }

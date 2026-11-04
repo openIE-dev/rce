@@ -1,0 +1,21 @@
+[package]
+name        = "rce-bamba"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bamba inference runtime on the rce substrate. IBM's 9B hybrid Mamba-2 + transformer (May 2026). 32 layers of (SSM-or-Attn mixer + SwiGLU FFN), Llama-3 ChatML tokenizer. Reuses rce-op-ssm, rce-op-conv1d, rce-op-blas, with lifted partial-RoPE GQA attention from rce-nemotron's hybrid pattern."
+
+[[bin]]
+name = "bamba-chat"
+path = "src/bin/chat.rs"
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-ssm = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }

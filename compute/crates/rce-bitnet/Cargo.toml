@@ -1,0 +1,21 @@
+[package]
+name        = "rce-bitnet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Microsoft BitNet b1.58 inference runtime on the rce substrate. Llama-style GQA + gated FFN with two extra sub-norms (`attn_sub_norm` between attention V-mixing and the output projection; `ffn_sub_norm` between SiLU(gate)·up and the down projection — authoritative placement per vendored llama.cpp `llm_build_bitnet`). Body matmuls are ternary `I2_S` weights routed through `rce-op-qmm::mm_1d` → `mm_1d_i2_s_neon` (no multiplies in the hot loop). `token_embd` F16, tied to `lm_head`. Closes the phase-1 ternary thread."
+
+[features]
+default   = []
+placement = ["dep:rce-placement-adapter"]
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-attention = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-placement-adapter = { workspace = true, optional = true }
+memmap2                  = { workspace = true }
+tracing                  = { workspace = true }

@@ -104,11 +104,17 @@ pub struct Checker {
     /// the `&` `let` borrows live at the statement being checked (5.6):
     /// root, borrow name, line of its `let`, line of its last use
     live_loans: Vec<(String, String, usize, usize)>,
+    /// the name `std.tensor` is visible under (6.13), when the module uses it
+    pub tensor_name: Option<String>,
+    /// every graph term of the module (6.13), by the address of the callee
+    /// expression of the `tensor` call it is rooted at; the lowering reads
+    /// it for the core's graph terms
+    pub graph_terms: HashMap<usize, crate::graph::Term>,
 }
 
 const SAFE_FORMS: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
 const BUILTIN_TRAITS: &[&str] = &["Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge"];
-const STD_MODULES: &[&str] = &["std.text", "std.collections", "std.math"];
+const STD_MODULES: &[&str] = &["std.text", "std.collections", "std.math", "std.tensor"];
 
 fn d<X: std::fmt::Display>(line: usize, rule: &str, m: X) -> String {
     format!("line {line}: {rule} {m}")
@@ -191,6 +197,8 @@ impl Checker {
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
             live_loans: vec![],
+            tensor_name: None,
+            graph_terms: HashMap::new(),
         }
     }
     pub(crate) fn push_scope_pub(&mut self) {
@@ -213,6 +221,7 @@ impl Checker {
     }
 
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
+        self.tensor_name = crate::graph::visible_name(m);
         for e in &m.v09_hygiene {
             self.e(e.clone());
         }
@@ -3993,6 +4002,14 @@ impl Checker {
                 }
             }
         }
+        // 6.13: a call of `std.tensor` is the root of a graph term
+        if let Expr::Member(o, op, _) = f
+            && let Expr::Name(c, _) = &**o
+            && self.tensor_name.as_deref() == Some(c.as_str())
+            && self.lookup(c).is_none()
+        {
+            return self.tensor_call(f, op, args, l);
+        }
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
             && crate::index08::is_ctx(c)
@@ -4500,6 +4517,38 @@ impl Checker {
             false
         } else {
             true
+        }
+    }
+
+    /// The graph term rooted at the `tensor` call `f(args)` (6.13): its
+    /// operands are typed here, the term is built and recorded under the
+    /// address of `f`, and its result type is the call's type.
+    fn tensor_call(&mut self, f: &Expr, op: &str, args: &[Arg], l: usize) -> T {
+        let name = self.tensor_name.clone().unwrap_or_default();
+        let qual = format!("{name}.{op}");
+        let mut leaf = |e: &Expr| -> Result<crate::graph::TTy, crate::graph::Finding> {
+            let t = self.infer(e, false);
+            let t = peel(&self.sub.resolve(&t));
+            match crate::graph::TTy::of_t(&t) {
+                Some(tt) => Ok(tt),
+                None => Err(crate::graph::Finding {
+                    line: e.line(),
+                    rule: "W-GRAPH-2",
+                    msg: format!("an operand of `{qual}` has type {t}; a tensor is an array of fixed length, possibly nested, of f32, f64, i8 or i32"),
+                }),
+            }
+        };
+        let built = crate::graph::build(op, args, l, &name, &mut leaf);
+        match built {
+            Ok(term) => {
+                let t = term.result.to_t();
+                self.graph_terms.insert(crate::typed::addr(f), term);
+                t
+            }
+            Err(crate::graph::BuildErr::Finding(x) | crate::graph::BuildErr::Leaf(x)) => {
+                self.e(x.text());
+                T::Never
+            }
         }
     }
 

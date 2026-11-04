@@ -1,0 +1,26 @@
+{
+  "name": "@rce/runtime",
+  "version": "0.1.0",
+  "description": "rce Graph VM — browser bindings. Run .fg modules with safetensors weights on CPU or WebGPU.",
+  "main": "rce_vm_web.js",
+  "module": "rce_vm_web.js",
+  "files": [
+    "rce_vm_web.js",
+    "rce_vm_web_bg.wasm",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "./rce_vm_web.js"
+  ],
+  "license": "BSL-1.1",
+  "repository": "https://github.com/joulesperbit/joulesperbit",
+  "keywords": [
+    "wasm",
+    "webgpu",
+    "ml",
+    "inference",
+    "rce",
+    "tensor"
+  ]
+}

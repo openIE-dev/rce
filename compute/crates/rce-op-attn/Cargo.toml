@@ -1,0 +1,6 @@
+[package]
+name        = "rce-op-attn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "NEON-vectorized attention primitives for rce-* runtimes. Drop-in kernels for RoPE-pair rotation, Q·Kᵀ dot product, online softmax + accumulator (FlashAttention-style fused inner loop on CPU). Scalar fallback for non-aarch64. Sibling to rce-op-qmm (quantized matmul); both target the inner-loop hot paths in rce's per-architecture runtimes."

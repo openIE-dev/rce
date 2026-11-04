@@ -1,0 +1,15 @@
+[package]
+name        = "rce-whisper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenAI Whisper large-v3-turbo ASR on the rce substrate. Log-mel STFT frontend (n_fft=400, hop=160, 128 Slaney mel bins, center reflect-pad, log10 + clamp + rescale) → 2 GELU conv layers + sinusoidal positions → 32 encoder MHA layers (no rotary, LN with bias, GELU MLP) → 4 decoder layers (causal self-attn + cross-attn + GELU MLP) with learned positions + tied lm_head. F16 safetensors (loaded → f32). GPT-2 ByteLevel-BPE detokenizer; forced English-transcribe prefix. Reuses the encoder-decoder + cross-attention machinery proven by rce-moonshine."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-conv2d = { workspace = true }
+half                = { workspace = true }
+rustfft             = { workspace = true }
+rayon               = { workspace = true }
+serde_json          = { workspace = true }

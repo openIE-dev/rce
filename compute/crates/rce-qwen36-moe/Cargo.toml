@@ -1,0 +1,16 @@
+[package]
+name        = "rce-qwen36-moe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qwen 3.6-35B-A3B (MoE) inference runtime on the rce substrate. arch=qwen35moe. Same hybrid Gated DeltaNet + Gated Attention mixer as the dense Qwen 3.6, but every FFN block is replaced by an MoE block: 256 routed experts (top-8, softmax router) + always-on shared expert sigmoid-gated by ffn_gate_inp_shexp. 40 layers, d_model=2048, n_q/kv=16/2, d_head=256, n_v_heads=32, n_k_heads=16, d_state=128, d_conv=4. References llama.cpp Draft PR `src/models/qwen35moe.cpp`."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-moe = { workspace = true }
+memmap2              = { workspace = true }
+rayon                = { workspace = true }

@@ -1,0 +1,9 @@
+[package]
+name        = "rce-qwen35"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qwen 3.5 dense inference runtime on the rce substrate (0.8B / 2B / 4B). GGUF `general.architecture = qwen35` — the SAME hybrid Gated DeltaNet (linear-attention recurrent state) + Gated Attention (sigmoid-gated SDPA every 4th layer) design as Qwen 3.6, with multi-axis RoPE (`dimension_sections=[11,11,10,0]`). The forward pass is byte-identical to `rce-qwen36`; this crate re-exports that runtime under Qwen35 names and validates the dense checkpoints (33 layers, d_model=2560, d_ff=9216, 16/4 GQA heads for the 4B). Layer-type split is auto-detected per-layer via `ssm_a` tensor presence, so the same code path serves both the dense and MoE members of the family."
+
+[dependencies]
+rce-qwen36 = { workspace = true }

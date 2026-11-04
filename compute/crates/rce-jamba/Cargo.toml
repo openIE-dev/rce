@@ -1,0 +1,22 @@
+[package]
+name        = "rce-jamba"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Jamba-Reasoning inference runtime built on the rce substrate — loads a GGUF, runs the 26-SSM + 2-attention + 28-FFN hybrid forward through rce OpDispatch leaves (with a pre-loaded weight cache + sampler), and exposes a streaming chat API. Layer-12 dogfood: the working twin of efficient-genai, but every kernel goes through the substrate."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-op-ssm = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-attention = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-nn-prims = { workspace = true }
+rce-graph = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }
+
+[dev-dependencies]

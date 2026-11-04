@@ -400,7 +400,12 @@ exactly.
     `cos`; any other (`pow`, `tan`, `atan2`, ...) is absent until it meets
     the same rule. A result that overflows traps (F4); `log` of x ≤ 0
     traps (also `log2`, `log10`). Device versions stay output only or
-    verified (HC-13).
+    verified (HC-13). The graph term's operations `exp`, `tanh`,
+    `sigmoid`, `silu`, `gelu`, `gelu_tanh`, `softmax` and `attention`
+    (6.13, GT-4) use `math.exp`, `math.tanh` and `math.erf`; the reference
+    evaluation computes them with `compute/crates/rce-vm-backend-cpu/src/crmath.rs`,
+    the same method over the same integers in Rust, reading its constants
+    from `math.rce` (GT-6).
   Float *text* (the result of `tostr` and of `Show` on a float,
   `interp::float_text`) is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
@@ -492,4 +497,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 2b3344a046f82366a7cdd55da681cdbb746739153fe1250057430391c5de8397 -->
+<!-- body-sha256: 94b2b681e25dff8783d24e1b5ea37a0a8d10998a68d39ff39aebc1ca5035966c -->

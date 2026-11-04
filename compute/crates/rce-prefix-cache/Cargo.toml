@@ -1,0 +1,6 @@
+[package]
+name        = "rce-prefix-cache"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Token-id-keyed prefix cache (RadixAttention-style) for rce-* runtimes. Stores KV-cache snapshots at branch points in a radix trie keyed on the leading token sequence; longest-matching-prefix lookup at the start of each new generation skips re-prefilling shared context. Single-stream local-first design — no allocator/pool dependency, no PagedAttention. Per SGLang's measurements, 75-90% prefix hit rate on multi-turn chat and ~6.4× speedup on RAG-shaped workloads."

@@ -1,0 +1,15 @@
+[package]
+name        = "rce-op-conv2d"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared 2D convolution primitive for rce model crates. Specialized NEON 3×3 same-padding interior kernel (5.4× speedup on EDSR) + general bounds-checked scalar fallback."
+
+[dependencies]
+rayon          = { workspace = true }
+matrixmultiply = { workspace = true }
+half           = { workspace = true }
+rce-weight-loader = { workspace = true }
+
+[build-dependencies]
+# (Accelerate is linked via build.rs on macOS)

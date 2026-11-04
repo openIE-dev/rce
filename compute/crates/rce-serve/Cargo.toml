@@ -1,0 +1,27 @@
+[package]
+name        = "rce-serve"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenAI-compatible HTTP server for the rce arch runtimes — `/v1/chat/completions` (streaming + non-streaming), `/v1/models`, `/health`. Auto-detects arch from GGUF metadata and dispatches to `rce-jamba`, `rce-nemotron`, or `rce-mamba2`. Lets any OpenAI-API client talk to a model whose every kernel runs through the rce substrate."
+
+[[bin]]
+name = "rce-serve"
+path = "src/main.rs"
+
+[dependencies]
+rce-jamba = { workspace = true }
+rce-nemotron = { workspace = true }
+rce-mamba2 = { workspace = true }
+rce-mamba1 = { workspace = true }
+rce-bamba = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+memmap2         = { workspace = true }
+axum         = { workspace = true }
+tokio        = { workspace = true }
+tokio-stream = { workspace = true }
+futures      = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tracing      = { workspace = true }
+tracing-subscriber = { workspace = true }

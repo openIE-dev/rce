@@ -1,0 +1,20 @@
+[package]
+name        = "rce-moonshine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Moonshine ASR (Useful Sensors) inference on the rce substrate — rce's first encoder-decoder + cross-attention model and first speech-to-text runtime. Raw-audio conv stem (no log-mel frontend): conv k127/s64 + tanh + GroupNorm → conv k7/s3 + GELU → conv k3/s2 + GELU; 8 bidirectional rotary-attention encoder layers (GELU MLP); 8 decoder layers (causal rotary self-attn + cross-attn + SwiGLU MLP, 3 LayerNorms each); interleaved partial RoPE (rotary_dim=32 of head_dim=52, factor 0.62); tied lm_head. F32 safetensors. SentencePiece-BPE detokenizer."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-conv2d = { workspace = true }
+rce-wav2vec2 = { workspace = true }
+rayon               = { workspace = true }
+serde_json          = { workspace = true }
+clap                = { workspace = true }
+anyhow              = { workspace = true }
+
+[[bin]]
+name = "moonshine-cli"
+path = "src/bin/moonshine_cli.rs"

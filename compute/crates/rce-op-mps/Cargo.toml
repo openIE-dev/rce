@@ -1,0 +1,24 @@
+[package]
+name        = "rce-op-mps"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf binding `matmul` to Apple MetalPerformanceShaders (MPSMatrixMultiplication) via raw objc message sends — pushes large matmul above PyTorch CPU on Apple silicon by routing through the GPU's simdgroup_matrix tensor units"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+
+# macOS / iOS only — every other target compiles to a stub that always
+# returns Unsupported, so cross-target Cargo invocations stay green.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+metal          = { workspace = true }
+objc           = "0.2.7"
+foreign-types  = "0.5"
+# Zero-copy interop: accept `Value::DeviceTensor` on Metal as input by
+# borrowing the underlying MTLBuffer via rce-op-metal::metal_buffer_of.
+rce-op-metal = { workspace = true }
+
+[build-dependencies]

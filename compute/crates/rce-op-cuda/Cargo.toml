@@ -1,0 +1,15 @@
+[package]
+name        = "rce-op-cuda"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf binding `matmul` to NVIDIA cuBLAS via raw CUDA Driver API + cuBLAS FFI — the gold-standard f32 GEMM PyTorch's CUDA path uses, with per-shape device-buffer cache"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }
+
+[build-dependencies]

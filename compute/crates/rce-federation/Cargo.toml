@@ -1,0 +1,12 @@
+[package]
+name        = "rce-federation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Federation primitive for distributed RCE workers — port of mesh-core's Membership (OR-Set) + Authenticator + a verifiable-digest registry. Each worker reports its dispatch transcript digest; the registry detects inter-replica disagreement (byzantine worker → digest mismatch) without trusting any worker."
+
+[dependencies]
+# `Membership` + `DigestRegistry` + `Federation` derive Serialize /
+# Deserialize so they wire across an HTTP/gRPC/file transport (e.g.
+# `rce-federation-http`).
+serde = { workspace = true }

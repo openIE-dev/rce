@@ -1,0 +1,18 @@
+[package]
+name        = "rce-vm-backend-wasm"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce Wasm leaf backend — embeds Wasmtime to dispatch GraphNode::CodeBlock { language: \"wasm\" } as a Wasm function call"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+wasmtime             = { workspace = true }
+wat                  = "1.0"
+hex                  = "0.4"
+thiserror            = { workspace = true }
+
+[dev-dependencies]

@@ -1,0 +1,25 @@
+[package]
+name        = "rce-op-qmm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Quantized matmul kernels for the rce substrate. Reads GGUF Q4_0/Q4_K/Q5_K/Q6_K/Q8_0/F16/BF16 weights directly from raw bytes and produces f32 outputs — bypassing the dequant-to-f32 step that was consuming 78% of forward time as memory bandwidth. Expected ~3× end-to-end speedup on Q4_K/Q5_K models (mamba2-2.7b, Falcon3-Mamba, Jamba), ~2× on f16 models (Bamba)."
+
+[features]
+default = []
+# Enable AMX fast path for Q8_0 batched matmul on Apple Silicon. When on
+# and the shape qualifies (M ≥ 16, N % 16 == 0, K % 32 == 0), mm_batched
+# routes through rce-op-amx's FMA32 GEMM-tile kernel. ~3× speedup
+# measured on M=16, N=K=2048 TinyLlama prefill shape.
+amx = ["dep:rce-op-amx"]
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-amx = { workspace = true, optional = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-graph = { workspace = true }
+bytemuck             = { workspace = true }
+half                 = { workspace = true }
+rayon                = { workspace = true }
+memmap2              = { workspace = true }

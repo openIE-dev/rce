@@ -1,0 +1,14 @@
+[package]
+name        = "rce-gemma4"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Gemma 4 E2B/E4B dense text decoder + (later) vision + audio on the rce substrate. Gemma3-lineage: Per-Layer Embeddings (PLE), sliding/full attention mix with different head-dims per layer, V-norm, attn_post_norm + ffn_post_norm, GELU-PAR FFN, final logit softcapping. Shared-KV layers (last N reuse). Phase-3-adjacent — rce's first tri-modal target."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }

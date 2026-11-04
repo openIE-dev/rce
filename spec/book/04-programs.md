@@ -12,7 +12,10 @@ by its file path relative to the package root with `/` read as `.` and the
 `.rce` extension removed. `use p.q` makes module `p.q` visible under the name
 `q`; `use p.q as r` under `r`. Items are private to their module unless marked
 `pub`. Import cycles require change (W-MOD-2). The modules `std.text`,
-`std.collections` and `std.math` are built in and always resolvable (S4), and
+`std.collections`, `std.math` and `std.tensor` (the graph term, 6.13: the
+products, activations, normalisations, attention, embedding lookup and
+block-quantized products of tensors of `f32`, `f64`, `i8` and `i32`) are
+built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
 pinned by hash in its manifest, and pinned by a program as the dependency
 `stdlib`, F.5.3): `use enc`, `use data.events` and the
@@ -54,4 +57,4 @@ payload typing) and as constructor functions.
 
 **Read receipt.** What is the outermost scope called? (one word)
 
-<!-- body-sha256: f176cdbdab83223bd6e746a60ee394053648bbe43bb5f1afe1fec87c22fbb3ff -->
+<!-- body-sha256: b3b7015d34a76f1338720bd84070b978e43da537c795e53a8594f10c8bd9a47a -->

@@ -1,0 +1,13 @@
+[package]
+name        = "rce-jamba-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Jamba prefill latency bench harness. Loads a real Jamba-Reasoning-3B GGUF, sweeps prompt lengths, runs warmup + timed iterations through JambaRuntime::prefill_logits, and emits a CSV or JSON report. Gated on the JAMBA_GGUF env var so it stays cleanly skippable on machines without the multi-GB weights. Lives in its own crate so the bench harness can evolve without touching rce-jamba's working tree."
+
+[[bin]]
+name = "rce-jamba-bench"
+path = "src/main.rs"
+
+[dependencies]
+rce-jamba = { workspace = true }

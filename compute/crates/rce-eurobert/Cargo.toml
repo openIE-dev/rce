@@ -1,0 +1,14 @@
+[package]
+name        = "rce-eurobert"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "EuroBERT retrieval-embedding runtime on the rce substrate. rce's first ENCODER model: bidirectional (non-causal, no KV cache) modern-BERT block (RoPE + RMSNorm + SwiGLU, no biases), LAST-token pooling, L2-normalized output, Matryoshka (MRL) prefix truncation. Drives jina-v5-omni-nano-retrieval — the MRL leg of pattern-lang phase 2."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }
