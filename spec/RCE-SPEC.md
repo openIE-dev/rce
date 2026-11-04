@@ -3693,7 +3693,10 @@ and shows that the step of the third event keeps the state, with exit status 1.
 2. **No model in the loop.** No subcommand and no language server request
    calls a language model, a remote service or any learned component. A
    diagnostic, a run, a test verdict, an emitted file and a formatted file
-   come only from the rules of sections 2 to 7.
+   come only from the rules of sections 2 to 7. A program written outside
+   RCE, by a model or by a person, enters only as an input file, the
+   proposals file of `rce repair` (10.13, RF-1), and is judged by the same
+   gate as every other candidate.
 3. **One checker.** `rce check`, `rce test`, `rce run`, `rce emit` and the
    language server all use the same parser, type checker and admission gate
    (6.9) as the reference checker `rce-check`. A file accepted by one is
@@ -4694,7 +4697,7 @@ the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
 nodes and supervisors, and the tick, its phases and the log written as
 core functions, so that `rce run-core` prints the trace of `fn main`.
 
-### 10.13 `rce repair [json] [bound N] [known GOOD] FILE [MODULE...]`: the exact-proposer ladder (informative)
+### 10.13 `rce repair [json] [bound N] [known GOOD] [proposals PROPOSALS] FILE [MODULE...]`: the exact-proposer ladder and rung f (informative)
 
 `rce repair` takes a program FILE that requires change (an example or
 check does not hold, or a static rule reports it) and proposes a changed
@@ -4709,7 +4712,9 @@ example and check, an admitted candidate is one whose examples and checks
 all hold. No rung calls a model (10.1, item 2). A candidate is the
 canonical text of an edited module (the source printer of `unparse.rs`),
 never a text written by hand, and a candidate equal to one already judged
-is judged once.
+is judged once. After the exact rungs, rung f judges candidate programs
+written outside RCE and given to the command as a file (RF-1 to RF-7
+below); the command calls no model for them either.
 
 Terms. A **definition** is a function, a method of an `impl`, a step, an
 actor, a constant or a state declaration. A **site** is one expression
@@ -4797,6 +4802,15 @@ The rungs, in order:
   projection would differ from GOOD in names only, so the search needs no
   preference of its own for GOOD. The edit lists each identifier changed,
   by line of the canonical text.
+- **f. Outside proposals.** When every candidate of rungs a to e, with the
+  renaming onto GOOD, is judged and none is admitted, each program of the
+  file PROPOSALS is judged by the same gate, in the mode of rung f (RF-1
+  to RF-4 below). Rung f is not exact: what it judges is not computed from
+  FILE by a fixed rule, so equal inputs to the ladder do not give it. It is
+  the ladder's *stochastic* rung in the sense of the deterministic-first
+  principle, under which at least 98% of the closes come from exact rungs,
+  at most 2% from stochastic ones, and every stochastic output is gated
+  (hypothesis H6 of `compile/HYPOTHESES.md`).
 
 The order of rungs c, d and e, the three that edit FILE at one site, is
 the order of how many alternatives one edit chooses among, which is both
@@ -4813,11 +4827,13 @@ judges at most two candidates, needs no search, and uses the most
 information: a known-good version of the program.
 
 Rungs a, b and c are not bounded by `bound`: a and b judge at most one
-candidate per donor or catalog hit, and c at most one candidate. No rung
-edits an intent, example, check or law line.
+candidate per donor or catalog hit, and c at most one candidate; rung f
+judges at most N proposals. No rung edits an intent, example, check or
+law line, and rung f refuses a proposal that does (RF-2).
 
 Output: the rung that closed the program (`a reuse`, `b lookup by type`,
-`c altered rules`, `d bounded enumeration`, `e renames`, or `none` when FILE already
+`c altered rules`, `d bounded enumeration`, `e renames`, `f outside proposal
+(stochastic)`, or `none` when FILE already
 complies with the Form), the edit (it names the line of FILE), the diff of the canonical
 texts (`-` the old lines and `+` the new, with line numbers of the
 canonical text), the number of candidates each rung judged with
@@ -4829,7 +4845,8 @@ candidate is admitted, the report on FILE and `not closed FILE`. With
 the repaired text, `model_calls` (always 0), `canonical_same_report`
 (whether the canonical text of FILE gets the report FILE gets, line
 numbers aside) and `attempts`, one record per candidate judged: rung,
-definition, edit and the checker's verdict. Exit status 0 when the
+definition, edit and the checker's verdict, and the members of RF-4. Last,
+on standard error, the attention line of AC-1 (RF-4). Exit status 0 when the
 program is closed or already complies, 1 when it is not closed, 2 on a
 usage error. The command is deterministic: equal inputs give equal
 output bytes and the same exit status.
@@ -4839,6 +4856,153 @@ it the program that was meant. `rce equiv` (10.11) and the program hash of
 `rce hash` (10.8) say whether a repair has the behaviour or the
 definitions of a known original; `scripts/ladder-run.py` reports that
 split for the task sets that `scripts/ladder-tasks.py` writes.
+
+**Rung f (RF-1 to RF-7).** A *proposal* is a candidate program for FILE
+written outside RCE: by a model, hosted or local, or by a person. Its
+*origin* is a label it carries, such as `person` or `local model`. RCE
+reads proposals and never asks for them: the checker calls no model (10.1,
+item 2), and a proposal enters only as a file. Example:
+`rce repair json known good.rce proposals p.json counter.rce` runs rungs a
+to e on `counter.rce` and, when they close nothing, judges each proposal
+of `p.json`; in `observe` mode it reports each one the checker admits and
+leaves the program as it is.
+
+- **RF-1 (proposals are data).** PROPOSALS is the canonical JSON (6.1.1)
+  of the object `{"format": "rce-proposals/1", "proposals": [...]}`,
+  followed by one line end. Each proposal is an object with exactly
+  `origin`, a text of one line that is not empty, and `text`, the program
+  text. A proposal is recorded by its *digest*, the SHA-256 of
+  `rce-proposal/1`, a line end and its text, as the rule-set hash is
+  formed (10.15, AR-1). A file not in this form is a usage error: the
+  command prints `PROPOSALS: RF-1 ...` on standard error and exits 2.
+- **RF-2 (the same gate, after the exact rungs).** Rung f runs only when
+  FILE parses and rungs a to e, with the renaming onto GOOD, have admitted
+  no candidate. It takes the proposals in the order of the file. A
+  proposal whose text does not parse requires change with the parser's
+  report. A proposal that names another module than FILE, or that does
+  not keep what FILE is judged by, requires change under RF-2: its intent,
+  example, check and law items, and the `check`, `requires` and `ensures`
+  statements of each definition, have the canonical texts of FILE's, in
+  any order. A proposal may thus change a definition but never what judges
+  it, as no exact rung does. Every other proposal is judged as its
+  canonical text by the gate of every rung, `check_program`: the admission
+  of `rce check` (6.9, 6.11), which on a text whose obligations hold runs
+  the mutation gate (6.12). A proposal is therefore admitted only when
+  every example, check and law holds and no obligation is vacuous
+  (W-MUT-1), so a close by rung f never rests on an obligation that no
+  edit can make fail. A proposal whose canonical text was judged before
+  (FILE itself, a candidate of an earlier rung or an earlier proposal) is
+  not judged again. At most N proposals are judged (`bound N`).
+- **RF-3 (modes).** Rung f has one mode, given by the table below: `off`,
+  `observe` or `auto`, the modes of the altered rules (7.1, RM-1 to RM-3).
+  The mode is data: the checker reads it from `spec/data/spec-data.json`
+  (`repair_modes`), no program text, comment or command word sets it, and
+  a rung the table does not list is `observe`. `off`: rung f does not run,
+  and the report says so (`skipped f`). `observe`: every proposal is
+  judged, and each one the checker admits is reported as `observed`, with
+  its diff, digest and origin; rung f closes nothing and writes nothing,
+  and the status is that of a program not closed. `auto`: the first
+  admitted proposal closes the program as rung `f`, and the report labels
+  the close stochastic. Rung f entered as `observe`. Promotion to `auto` is
+  a change of its row, allowed only under RF-5 and RF-7.
+
+| Rung | Mode | Reason |
+|---|---|---|
+| f | observe | Entered as `observe`: a proposal written outside RCE is reported, never applied, until the criterion registered for its promotion holds on a recorded evaluation (RF-5, RF-7). No evaluation is recorded. |
+
+- **RF-4 (the record).** The text report adds `f N` to `tried`, a
+  `proposals` line (given, judged, admitted and observed, the mode, and the
+  SHA-256 of PROPOSALS) and one `observed` block per observed proposal:
+  its place in the file, origin, digest, what W-MUT-1 measured, the diff
+  of the canonical texts and, with GOOD, how it compares with GOOD. The
+  JSON report adds these members:
+  - `bound`;
+  - `inputs`, the SHA-256 of the bytes of FILE, GOOD, PROPOSALS and each
+    MODULE (`null` for a file not given);
+  - `stochastic`, true exactly when rung f closed the program;
+  - `proposals` (`null` without PROPOSALS): the mode, the file's SHA-256,
+    `ran` (whether rung f ran), the counts `given`, `judged`, `admitted`
+    and `observed`, and one record per proposal, in the order of the file,
+    with its `index`, `origin`, digest `sha256`, `verdict`, `admitted` and
+    `observed`. An admitted proposal's record also holds its `diff`,
+    `mutation` (its obligations, how many W-MUT-1 measured, and `vacuous`,
+    which is 0) and, with GOOD, `known`. `known` is `restored` when the
+    program hash of 10.8 is GOOD's; otherwise, by `rce equiv` (10.11) with
+    the state bound of 10.14 (20,000), `behaviour-equal`, `contradicts`
+    (with the event sequence after which GOOD and the proposal give
+    different outputs, when there is one) or `undecided`; and
+    `not compared` when a program has no step.
+
+  The JSON report is canonical JSON (6.1.1). `model_calls` stays 0: RCE
+  made no model call, and the proposals' origins are recorded instead.
+  Every run ends with the attention line of AC-1 on standard error: one
+  finding that requires change when the program is not closed, none
+  recommended or altered, and one observed per observed proposal. Equal
+  inputs give equal bytes.
+- **RF-5 (a registered promotion criterion).** Rung f is promoted from
+  `observe` to `auto` only when the criterion registered in
+  `spec/proposals/repair-observe/criterion.json` holds. The registration
+  is dated data, in the form of the ladder's registrations: it was
+  committed on 2026-11-03, before any observation; its SHA-256 is pinned
+  beside it (`criterion.json.sha256`); and it is not edited afterwards. It
+  fixes the corpus by path and SHA-256 (the 151 tasks of the second and
+  third registered ladder runs), the observation (one run of
+  `rce repair json known ORIGINAL proposals PROPOSALS MUTANT` per task, in
+  `observe` mode, bound 2000), and three conditions derived from the
+  deterministic-first principle, each of which holds:
+  1. *Share.* Every task has exactly one record, made as registered, and
+     every task that rungs a to e do not close and whose mutant parses had
+     at least one proposal judged. Of the closes, the tasks closed by rungs
+     a to e (E) and the tasks they leave open on which rung f observes an
+     admitted proposal (F), at most 2% come from rung f:
+     100 × F ≤ 2 × (E + F), with E + F > 0.
+  2. *W-MUT-1.* Every observed proposal also passes W-MUT-1: its record
+     shows that the mutation gate ran and found no vacuous obligation.
+  3. *GOOD.* No observed proposal contradicts the task's original, given
+     as GOOD: for none does `rce equiv` find an event sequence after which
+     the two give different outputs, or show that they explore other event
+     instances.
+- **RF-6 (the evaluator).** `rce repair criterion [json] REGISTRATION
+  CORPUS RECORDS` reads the registration, the corpus, whose SHA-256 is the
+  registered one, and RECORDS, one `rce repair json` report per line. It
+  matches each record to a task by the SHA-256 of FILE (`inputs.file`, the
+  task's `mutant_sha256`). It prints, one line each, the registration, the
+  corpus, the records, the closes by rungs a to e and by rung f with the
+  share, the tasks admitted as given or not closed (and of these, where
+  rung f did not run), the observed proposals (how many pass W-MUT-1 and
+  how each compares with GOOD), the proposals judged per origin, any task
+  the records do not cover as registered, and last `criterion holds` or
+  `criterion does not hold: REASONS`. With `json` the same is the canonical
+  JSON of format `rce-repair-criterion/1`, the form in which an evaluation
+  is recorded (`spec/proposals/repair-observe/evaluation.json`). Exit
+  status 0 when the criterion holds, 1 when it does not, 2 when a file
+  cannot be read or the corpus is not the registered one. The command is
+  deterministic.
+- **RF-7 (the mode row follows the evaluation).** `rce-spec-check` fails
+  when the registration's SHA-256 is not the pinned one, or when the mode
+  row of rung f is `auto` and no recorded evaluation of this registration
+  shows the criterion met. The check derives the verdict again from the
+  evaluation's counts and the registration, as AR-5 derives a receipt
+  again, and does not take its `holds` on trust. Rung f is `observe`, and
+  no evaluation is recorded.
+
+**Conformance.** Each rule of rung f is checked by these tests of
+`spec/checker/tests/`:
+
+| Rule | Test |
+|---|---|
+| RF-1 | `repair_observe.rs`: `a_proposals_file_is_canonical_json_and_each_proposal_has_its_digest` |
+| RF-2 | `repair_observe.rs`: `rung_f_never_runs_when_an_exact_rung_closes`, `a_proposal_the_checker_or_w_mut_1_refuses_is_not_admitted`, `a_proposal_that_edits_what_judges_it_requires_change` |
+| RF-3 | `repair_observe.rs`: `observe_records_and_never_closes`, `auto_closes_with_the_stochastic_label`, `off_judges_nothing`, `the_modes_table_gives_rung_f_observe` |
+| RF-4 | `repair_observe.rs`: `the_report_is_byte_stable`, `an_observed_proposal_is_compared_with_good` |
+| RF-5 | `repair_observe.rs`: `the_registration_is_dated_and_pinned` |
+| RF-6 | `repair_observe.rs`: `the_criterion_holds_when_every_condition_holds`, `the_criterion_fails_on_each_condition` |
+| RF-7 | `repair_observe.rs`: `the_mode_row_of_rung_f_is_auto_only_with_a_met_criterion` |
+
+The design and its sources are in `spec/proposals/repair-observe.md`: the
+accept modes of DeepSeek's `dsh-superagent-prototype` (MIT), already taken
+for 7.1, and its rule that a model assesses and deterministic policy
+decides.
 
 ### 10.14 `rce mutants [json] [bound N] FILE [MODULE...]`: mutation adequacy (informative)
 

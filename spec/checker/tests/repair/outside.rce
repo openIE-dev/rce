@@ -1,0 +1,11 @@
+# Rung f of `rce repair` (10.13): no exact rung edits a string, so only a
+# proposal written outside RCE closes this program (tests/repair_observe.rs).
+intent "a greeting and the size of a set"
+    check greet() == "hello"
+    check size(2) >= 0
+
+fn greet() -> text
+    return "hellx"
+
+fn size(n: u8) -> u8
+    return n
