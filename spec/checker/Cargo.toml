@@ -44,6 +44,9 @@ rce-vm-backend-cpu = { path = "../../compute/crates/rce-vm-backend-cpu" }
 # their weights in; `rce lift gguf` reads GGUF files into it
 rce-fgm = { path = "../../compute/crates/rce-fgm" }
 rce-ingest-gguf = { path = "../../compute/crates/rce-ingest-gguf" }
+# HC-38: RCE's one meter library; with the grant `energy` the host reads the
+# package counter over a run and records it in D as `host.Energy` (D.11)
+rce-energy = { path = "../../compute/crates/rce-energy" }
 
 [target.'cfg(unix)'.dependencies]
 # PTY adapter (src/adapters.rs): openpty, poll, non-blocking read

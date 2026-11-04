@@ -37,6 +37,7 @@ pub mod hwmon;
 pub mod ioreport;
 pub mod meter;
 pub mod power;
+pub mod reading;
 pub mod powermetrics;
 pub mod setup;
 pub mod shared;

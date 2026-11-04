@@ -2977,6 +2977,7 @@ name = "rce-spec-check"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "rce-energy",
  "rce-fgm",
  "rce-format",
  "rce-graph",
