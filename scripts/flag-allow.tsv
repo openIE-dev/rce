@@ -43,3 +43,4 @@ ide/crates/rce-ide/src/main.rs	Removed \{ flag:	the table of removed flags (deci
 scripts/positional.py	`--log D`|`--NAME`	the reader of removed flags (decision 2)
 spec/checker/tests/repair.rs	"repair", "--json"	the test that a dash argument exits 2
 **	\b(iverilog|verilator|yosys|vvp)\b[^\n]*(-V|--version|-g2005|--binary)	the HDL tools' own flags (Icarus Verilog, Verilator, Yosys)
+compile/experiments/e4-energy/test_e4.py	--version	a stand-in for macmon answers macmon's own flag; it is not an RCE command

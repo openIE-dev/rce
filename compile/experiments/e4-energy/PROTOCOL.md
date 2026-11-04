@@ -60,7 +60,7 @@ a dated row in the table of changes of [HYPOTHESES.md](../../HYPOTHESES.md).
 | [programs/](programs/) | the kernels in C and Rust, and the C driver |
 | [reference.py](reference.py) | the expected value of each kernel, written from the kernel's comment |
 | [wasm_eps.py](wasm_eps.py) | the pinned instrumentation for ε |
-| [meters.py](meters.py) | the RAPL and powermetrics readers |
+| [meters.py](meters.py) | the RAPL, macmon and powermetrics readers |
 | [stats.py](stats.py) | the declared analysis |
 | [e4.py](e4.py) | the harness, which writes `results/*.json` |
 | [report.py](report.py) | writes [RESULTS.md](RESULTS.md) from the results files and checks it |
@@ -174,7 +174,7 @@ standard library, which do not change with the kernel's lowering.
 | Host | Counter | Kind | Regime |
 |---|---|---|---|
 | Linux, x86 | RAPL through `/sys/class/powercap`: the sum of the top-level zones `intel-rapl:N` (sub-zones not read, `psys` skipped), counter `energy_uj`, one wraparound past `max_energy_range_uj` added back per read, wraps counted per zone | reported | B |
-| macOS | `powermetrics -i 100 -f plist --samplers cpu_power` through `sudo -n`; Apple silicon: `processor.cpu_power` (mW, the average over each sample) times `elapsed_ns`, the CPU clusters; Intel Macs: `processor.package_joules`, the package | reported | B |
+| macOS | `macmon pipe -i 100` (no root; macmon version recorded): `cpu_power + gpu_power + ane_power` (W, the average over each sample) times the span between measured sample timestamps, the cpu + gpu + ane boundary. Without macmon, `powermetrics` is used only when sudo is already cached (Apple silicon `processor.cpu_power` times `elapsed_ns`, the CPU clusters) | reported | B |
 | any other | none | unmeasured | - |
 
 - **Kind.** Both counters are *reported*: an on-chip energy model or
@@ -186,10 +186,11 @@ standard library, which do not change with the kernel's lowering.
   names are from its documentation and other tools' use of it [K]; the
   first metered Mac run records the keys of its first sample, so a
   different name shows in the results.
-- **powermetrics windows.** One powermetrics process runs for the whole
-  run. Each sample is stamped with the harness's clock when it arrives and
-  taken to cover the `elapsed_ns` before; a window takes the share of every
-  sample that overlaps it. At 100 ms samples and 2 s runs, the window edges
+- **macmon windows.** One `macmon pipe` process runs for the whole run.
+  Each sample covers the time from the previous sample's measured
+  timestamp to its own; a window takes the share of every sample that
+  overlaps it. (The powermetrics fallback stamps each sample when it
+  arrives and takes it to cover the `elapsed_ns` before.) At 100 ms samples and 2 s runs, the window edges
   move each run's figure by up to about 5%.
 - **Idle baseline.** The counter is read over 10 s of sleep before the
   builds and again after the energy runs. *Net* joules are gross joules
@@ -262,14 +263,14 @@ when it finds it) and `rustup target add wasm32-unknown-unknown`:
 
 ```sh
 cd compile/experiments/e4-energy
-sudo -v && python3 e4.py run results/NAME.json
+python3 e4.py run results/NAME.json
 python3 report.py write
 python3 report.py check
 ```
 
-`sudo -v` caches the password once; the harness starts powermetrics with
-`sudo -n` at the beginning and keeps it running, so it asks nothing later.
-Run without `sudo -v`, the harness prints that line and exits with status 2.
+with `brew install macmon` done first. macmon reads the counters without
+root, so no `sudo` is needed. Without macmon (and without cached sudo for
+the powermetrics fallback), energy is recorded as unmeasured.
 Without Homebrew's clang, the C rows are built natively and their ε is
 recorded as not counted, with the reason.
 
@@ -296,7 +297,7 @@ CI results hold ε and λ and no energy; they are uploaded as the artifact
 ## What it needs
 
 - For regime B: an x86 host with RAPL counters, or a Mac with
-  powermetrics. The machine of the committed results has no
+  macmon. The machine of the committed results has no
   `/sys/class/powercap` interface and no wall meter, so its results file
   holds ε and λ only.
 - An FPGA or in-order core with a supply meter for regime A, and a GPU with
@@ -309,7 +310,7 @@ CI results hold ε and λ and no energy; they are uploaded as the artifact
   energy is read.
 - The equivalence evidence is output equality on declared inputs, weaker
   than E3's exact level.
-- RAPL and powermetrics are reported counters; their accuracy against a
+- RAPL, macmon and powermetrics are reported counters; their accuracy against a
   supply meter is not established here.
 - The corpus is small: 16 programs, so the bootstrap over programs has 16
   units.

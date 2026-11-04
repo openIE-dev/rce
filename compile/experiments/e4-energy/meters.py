@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E4's energy counters: Linux RAPL through powercap, and macOS powermetrics.
+"""E4's energy counters: Linux RAPL through powercap, and macOS macmon (powermetrics kept as a fallback).
 
 Every figure these give is of kind "reported": an on-chip or operating-system
 counter, not a meter on the supply ("measured"). A host with neither gives
@@ -17,14 +17,18 @@ twice, and `psys` zones are skipped because they overlap the packages. The
 counter is `energy_uj`; it wraps past `max_energy_range_uj`, and one
 wraparound between two reads is added back.
 """
+import json
 import os
 import plistlib
+import shutil
 import subprocess
 import threading
 import time
+from datetime import datetime
 
 POWERCAP = "/sys/class/powercap"
 POWERMETRICS = "/usr/bin/powermetrics"
+MACMON_KEYS = ("cpu_power", "gpu_power", "ane_power")
 
 
 class NeedsAccess(Exception):
@@ -252,6 +256,140 @@ class Powermetrics:
                 self.child.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 pass
+
+
+def macmon_path():
+    """The macmon binary on PATH or in Homebrew's prefix, or None."""
+    return shutil.which("macmon") or next((p for p in ("/opt/homebrew/bin/macmon", "/usr/local/bin/macmon")
+                                          if os.path.exists(p)), None)
+
+
+def macmon_sample(d):
+    """(watts, measured end time in Unix seconds or None) of one `macmon pipe` JSON line, or None.
+
+    Watts are cpu_power + gpu_power + ane_power, each the average over the
+    sample's interval (macmon's all_power is the same sum).
+    """
+    if not all(k in d for k in MACMON_KEYS):
+        return None
+    w = sum(float(d[k]) for k in MACMON_KEYS)
+    ts = d.get("timestamp")
+    try:
+        t = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() if ts else None
+    except (AttributeError, ValueError):
+        t = None
+    return w, t
+
+
+def macmon_spans(lines, interval_s):
+    """Samples (start, end, joules) in measured Unix seconds from `macmon pipe` lines.
+
+    Each sample covers the time from the previous sample's timestamp to its
+    own (the first covers one interval before its own); joules are the
+    sample's watts times that span. Lines without a timestamp take the
+    previous end plus one interval.
+    """
+    out, prev = [], None
+    for line in lines:
+        try:
+            got = macmon_sample(json.loads(line))
+        except (ValueError, TypeError):
+            continue
+        if got is None:
+            continue
+        w, t = got
+        if t is None:
+            t = (prev if prev is not None else 0.0) + interval_s
+        s = prev if prev is not None and prev < t else t - interval_s
+        out.append((s, t, w * (t - s)))
+        prev = t
+    return out
+
+
+class Macmon:
+    """macmon (no root): one `macmon pipe` process for the whole run, one JSON line per sample."""
+    kind = "reported"
+
+    def __init__(self, work, interval_ms, path=None):
+        self.interval_ms = interval_ms
+        self.path = path or macmon_path()
+        if not self.path:
+            raise LookupError("macmon not found")
+        try:
+            v = subprocess.run([self.path, "--version"], capture_output=True, text=True, timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            v = ""
+        self.version = v or "unknown"
+        self.argv = [self.path, "pipe", "-i", str(interval_ms)]
+        self.samples = []
+        self.prev = None
+        self.lock = threading.Lock()
+        self.errpath = os.path.join(work, "macmon.stderr")
+        with open(self.errpath, "wb") as err:
+            self.child = subprocess.Popen(self.argv, stdout=subprocess.PIPE, stderr=err, text=True, bufsize=1)
+        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.reader.start()
+        deadline = time.monotonic() + 10 + 3 * interval_ms / 1e3
+        while time.monotonic() < deadline:
+            with self.lock:
+                if len(self.samples) >= 2:
+                    return
+            if self.child.poll() is not None:
+                break
+            time.sleep(0.05)
+        self.close()
+        with open(self.errpath, "rb") as f:
+            err = f.read()
+        raise LookupError("macmon gave no samples: %s" % err.decode("utf-8", "replace").strip()[:200])
+
+    def _read(self):
+        for line in self.child.stdout:
+            got = macmon_spans([line], self.interval_ms / 1e3)
+            if not got:
+                continue
+            s, t, _ = got[0]
+            with self.lock:
+                if self.prev is not None and self.prev < t:
+                    s = self.prev
+                w = got[0][2] / (got[0][1] - got[0][0])
+                self.samples.append((s, t, w * (t - s)))
+                self.prev = t
+
+    def mark(self):
+        return time.time()
+
+    def since(self, t0):
+        t1 = time.time()
+        deadline = time.monotonic() + 5 * self.interval_ms / 1e3 + 2
+        while time.monotonic() < deadline:
+            with self.lock:
+                if self.samples and self.samples[-1][1] >= t1:
+                    return integrate(self.samples, t0, t1)
+            time.sleep(self.interval_ms / 4e3)
+        raise RuntimeError("macmon stopped sending samples")
+
+    def provenance(self):
+        with self.lock:
+            n = len(self.samples)
+            first = self.samples[0][0] if n else None
+            last = self.samples[-1][1] if n else None
+        return {"kind": "reported", "sampler": "%s (pipe, no root)" % (self.version if self.version.startswith("macmon") else "macmon " + self.version), "argv": self.argv,
+                "counter": " + ".join(MACMON_KEYS) + " (W, the average over each sample) times the sample's span",
+                "interval": "%d ms; each sample spans from the previous sample's timestamp to its own; "
+                            "each window takes the share of every sample that overlaps it" % self.interval_ms,
+                "boundary": "cpu + gpu + ane (macmon cpu_power, gpu_power, ane_power)",
+                "samples": n, "first_sample_start_unix": first, "last_sample_end_unix": last, "wraps": 0}
+
+    def close(self):
+        if self.child.poll() is None:
+            self.child.terminate()
+            try:
+                self.child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+        self.reader.join(timeout=5)
+        if self.child.stdout:
+            self.child.stdout.close()
 
 
 def sudo_cached():
