@@ -2306,7 +2306,11 @@ pub fn unform(json: &str) -> Result<String, String> {
     let v: Value = serde_json::from_str(json).map_err(|e| format!("form json: {e}"))?;
     let t = v.get("terms").ok_or("the Form has no `terms` (emit it with `rce emit form`)")?;
     let mut m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
-    m.items.retain(|i| !matches!(i, Item::Use(..)));
+    // The terms hold the definitions of every library module the program
+    // uses, so its `use` lines would name them twice. `std.tensor` has no
+    // definitions to hold: its calls are graph terms (6.13), so its `use`
+    // stays.
+    m.items.retain(|i| !matches!(i, Item::Use(p, ..) if p.join(".") != crate::graph::MODULE));
     let m = crate::v09::restore_world(m)?;
     Ok(crate::unparse::unparse(&m))
 }
