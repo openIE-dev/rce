@@ -1,0 +1,42 @@
+{
+ "format": "rce-repair-registration/1",
+ "id": "rce-repair-rung-f-promotion-2026-11-03",
+ "registered": "2026-11-03, before any observation: no proposals file has been judged by rung f on this corpus, the mode row of rung f is observe, and no evaluation exists",
+ "question": "May rung f of rce repair (spec 10.13), which judges candidate programs written outside RCE, be promoted from observe to auto, so that a proposal the checker admits closes a program?",
+ "principle": "Deterministic first: at least 98% of the closes come from exact rungs and at most 2% from stochastic ones, and every stochastic output is gated (compile/HYPOTHESES.md, H6). Rung f is the ladder's stochastic rung: what it judges is not computed from the program by a fixed rule.",
+ "promotes": {
+  "rung": "f",
+  "from": "observe",
+  "to": "auto",
+  "where": "the modes table of rung f in 10.13 (spec/book/12-tooling.md), read into spec/data/spec-data.json as repair_modes; a promotion is a change of that row and nothing else"
+ },
+ "corpus": {
+  "what": "the frozen task set of the second and third registered ladder runs: 151 tasks (history-admit 33, history-fix 8, guard 27, rename 83), each a mutant that requires change and its original",
+  "repository": "openIE-dev/openie-research-experiments",
+  "path": "rce/bench/ladder/rung-e/tasks.jsonl",
+  "rebuilt_by": "python3 -I frozen.py RCE_REPO ../real-defects/tasks.list.tsv tasks.jsonl, in rce/bench/ladder/rung-e/ of that repository (ladder run 3); no rce binary is run",
+  "sha256": "6ae255a32211f620364ef713b1a36f7daac6ab46f22ac318b45acb2a6da9af50",
+  "tasks": 151,
+  "unit": "a task: a close is a task whose program the ladder closes"
+ },
+ "observation": {
+  "command": "rce repair json known ORIGINAL proposals PROPOSALS MUTANT, one run per task, with the checker of the commit that records the evaluation",
+  "known": "original",
+  "mode": "observe",
+  "bound": 2000,
+  "records": "RECORDS holds the standard output of each run, one rce-repair/1 report per line, one line per task",
+  "proposals": "PROPOSALS is the task's proposals file (rce-proposals/1). An outside proposer, a model (hosted or local) or a person, writes it from the mutant's text and the report rce check gives on the mutant, never from the original; each proposal carries its origin label. Every proposal written for a task is in its file, none is removed after any rce run, and every task that rungs a to e do not close and whose mutant parses has at least one proposal."
+ },
+ "criterion": {
+  "C1": "Share. Every task of the corpus has exactly one record, made with the registered command, mode and bound and with the task's original as GOOD, and no record is of a program outside the corpus; every task that rungs a to e do not close and whose mutant parses has at least one proposal judged. Let E be the tasks closed by rungs a to e, and F the tasks that rungs a to e leave open on which rung f observes at least one admitted proposal (a close in auto). Then E + F > 0 and 100 * F <= 2 * (E + F): at most 2% of the closes would come from rung f.",
+  "C2": "W-MUT-1. Every observed proposal also passes W-MUT-1: its record shows that the mutation gate ran on it and found no vacuous obligation.",
+  "C3": "GOOD. No observed proposal contradicts the task's original, given as GOOD: for none does rce equiv (10.11, state bound 20,000) find an event sequence after which the original and the proposal give different outputs, or show that they explore other event instances. A proposal that cannot be compared (a program with no step) or is undecided within the bound is reported and does not count against C3.",
+  "holds": "C1, C2 and C3 all hold.",
+  "max_stochastic_share": [
+   2,
+   100
+  ]
+ },
+ "evaluated_by": "rce repair criterion json REGISTRATION CORPUS RECORDS (10.13, RF-6). The output is recorded as spec/proposals/repair-observe/evaluation.json; rce-spec-check refuses a mode row of auto for rung f unless that evaluation, derived again from its counts, shows the criterion met (RF-7).",
+ "reporting": "Every task is reported, including those not closed, those admitted as given and those where rung f did not run; nothing is excluded after the run. A deviation from this registration is recorded in a dated DEVIATIONS.md beside it; this file is not edited."
+}

@@ -8,7 +8,11 @@ fn rce(args: &[&str]) -> (i32, String) {
     let a: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let (mut out, mut err) = (vec![], vec![]);
     let code = cli::main(&a, &mut &b""[..], &mut out, &mut err);
-    (code, String::from_utf8(out).unwrap() + &String::from_utf8(err).unwrap())
+    // standard output, then a usage error; the attention line that ends every
+    // run on standard error (RF-4) is tested in tests/repair_observe.rs
+    let err = String::from_utf8(err).unwrap();
+    let err = if err.starts_with("attention: ") { String::new() } else { err };
+    (code, String::from_utf8(out).unwrap() + &err)
 }
 
 fn repair(args: &[&str]) -> (i32, serde_json::Value) {
