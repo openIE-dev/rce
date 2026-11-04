@@ -5230,6 +5230,46 @@ values and no weight bytes, which a term needs, and several of their
 operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
 have no operation in `std.tensor`.
 
+### 10.19 Every command, in one place
+
+A *command* is a path of words that `rce help` prints, such as
+`rce host replay`; the list is `COMMANDS` in `spec/checker/src/cli.rs`.
+
+- **CMD-1 Every command is written down three times.** Each command of
+  `rce help` is named in this section 10, in Appendix A of the book
+  (`book/src/appendix-a-commands.md`) and in the command table of
+  `README.md`. A command that is missing from one of the three requires
+  change. The test `commands` in `spec/checker/tests/commands.rs` reads
+  `COMMANDS` and the three files and names each command it does not find.
+
+The commands that no earlier subsection defines are these.
+
+- `rce form-check FORM [VECTORS]` runs the gate FG1 to FG15 of the Form
+  proposal (`spec/proposals/rce-form.md`, section 11) on an `rce-form/1`
+  module FORM. It prints `applied KEY` and exits 0, or prints
+  `requires change RULE GROUP FN PATH: REASON` for the first rule that
+  fails and exits 1. VECTORS are the inputs its vectors are run on.
+- `rce fingerprint [json] [depth N] [fuel N] FILE...` prints the
+  behaviour fingerprint of rule BF-1 (`spec/proposals/behaviour-fingerprint.md`):
+  a hash of the name-free outputs of every event sequence of length 1 to N
+  (8 when N is not given) over the alphabet that `rce equiv` explores.
+  Programs that `rce equiv` judges equal share it; a shared fingerprint is
+  confirmed by `rce equiv`, never taken as proof.
+- `rce unform FORM.json` prints the canonical source of the terms of a
+  Form. It is the inverse of `rce emit form`.
+- `rce host run`, `rce host serve`, `rce host replay` and
+  `rce host compact` run a program under the host contract (Appendix E):
+  admission into the durable log D (HC-1), the host loop as a service
+  (HC-24 for HTTP), replay with every adapter disconnected (HC-8) and
+  compaction at entry N by a checkpoint proven equal to the full replay
+  (HC-37). Appendix E is normative for all four; this subsection only names
+  them.
+- `rce host tls-id FILE D` prints the Ed25519 key of the TLS identity of
+  the host whose log is D (kept in `D.tlskey`); a peer pins it with
+  `peer HOST:PORT KEY` after `tls`.
+- `rce help` prints every command with its words; `rce help` and the
+  `COMMANDS` list are the same list.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
 ---
