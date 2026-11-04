@@ -2901,8 +2901,8 @@ fn energy_reading(h: &mut crate::host::Host<'_>, sampling: Option<(rce_energy::r
     match s.finish() {
         Ok(r) if h.len() > first => {
             let source = r.kind().trim_start_matches("reported: ").to_string();
-            h.energy(&source, &r.term, first)?;
-            writeln!(err, "rce host: energy: {} J reported ({source}) over entries {first} to {}, recorded as host.Energy at seq {}", r.term.j(), h.len() - 2, h.len() - 1).map_err(w)
+            let (first, last, seq) = h.energy(&source, &r.term, first)?;
+            writeln!(err, "rce host: energy: {} J reported ({source}) over entries {first} to {last}, recorded as host.Energy at seq {seq}", r.term.j()).map_err(w)
         }
         Ok(_) => writeln!(err, "rce host: energy: the run appended no entry, so no reading is recorded").map_err(w),
         Err(u) => writeln!(err, "rce host: {}", u.line()).map_err(w),

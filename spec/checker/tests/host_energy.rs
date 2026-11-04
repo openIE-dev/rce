@@ -38,8 +38,11 @@ fn run_with_reading(dir: &Path) -> (String, String) {
     // 2.5 J at the package counter over the run
     std::fs::write(tree.join("intel-rapl:0/energy_uj"), "3500000").unwrap();
     let r = s.finish().unwrap();
-    h.energy("RAPL package counter, whole package", &r.term, first)
+    let (f, l, seq) = h
+        .energy("RAPL package counter, whole package", &r.term, first)
         .unwrap();
+    // the reading names the entries before it, and is the entry after them
+    assert_eq!((f, l + 1), (first, seq));
     let live = h.state_hash().to_string();
     drop(h);
     (std::fs::read_to_string(&log).unwrap(), live)
@@ -197,9 +200,20 @@ fn without_a_counter_the_host_says_why_and_writes_no_reading() {
     if n == 0 {
         assert!(err.contains("rce host: energy: unmeasured: "), "{err}");
     } else {
-        // a machine whose counter can be read: one reading, and replay took it
+        // a machine whose counter can be read: one reading, and replay took
+        // it; the terminal names the entries it covers and its own seq
         assert_eq!(n, 1, "{text}");
-        assert!(err.contains("recorded as host.Energy at seq"), "{err}");
+        let v = text
+            .lines()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .find(|v| v["event"]["type"] == "host.Energy")
+            .unwrap();
+        let p = &v["event"]["payload"];
+        let said = format!(
+            "over entries {} to {}, recorded as host.Energy at seq {}",
+            p["entries"][0], p["entries"][1], v["seq"]
+        );
+        assert!(err.contains(&said), "{err}\nwants: {said}");
     }
     let (c, err, text) = run(false, "d2");
     assert_eq!(c, Some(0), "{err}");
@@ -207,4 +221,44 @@ fn without_a_counter_the_host_says_why_and_writes_no_reading() {
         energy_entries(&text).is_empty() && !err.contains("energy"),
         "{err}"
     );
+}
+
+#[test]
+fn the_kept_readings_are_readings() {
+    // docs/readings holds readings taken on real machines; each is checked
+    // here by D.11, as replay checks a reading in D
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/readings");
+    let mut n = 0;
+    for f in std::fs::read_dir(&dir).unwrap() {
+        let f = f.unwrap().path();
+        let name = f.file_name().unwrap().to_string_lossy().into_owned();
+        let text = std::fs::read_to_string(&f).unwrap();
+        if name.ends_with(".jsonl") {
+            for l in text.lines() {
+                let v: Value = serde_json::from_str(l).unwrap();
+                assert_eq!(v["event"]["type"], "host.Energy", "{name}");
+                energy_check(&v["event"]["payload"], v["seq"].as_u64().unwrap())
+                    .unwrap_or_else(|e| panic!("{name}: {e}"));
+                n += 1;
+            }
+        } else if name.ends_with(".json") {
+            // a standalone D.11 term: {amortization, basis, j, provenance}
+            let v: Value = serde_json::from_str(&text).unwrap();
+            let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+            assert_eq!(keys, ["amortization", "basis", "j", "provenance"], "{name}");
+            assert!(
+                matches!(v["basis"].as_str(), Some("reported" | "measured")),
+                "{name}"
+            );
+            assert!(
+                v["j"].as_f64().is_some_and(|j| j.is_finite() && j >= 0.0),
+                "{name}"
+            );
+            assert_eq!(v["amortization"], json!({"kind": "per_call"}), "{name}");
+            rce_energy::reading::Provenance::parse(&v["provenance"].to_string())
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            n += 1;
+        }
+    }
+    assert!(n >= 5, "{n} readings");
 }

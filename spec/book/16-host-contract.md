@@ -1609,7 +1609,7 @@ is cited by a test.
 | HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
-| HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading` |
+| HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
@@ -1693,4 +1693,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 484ee151643f8bea844a486d8433b2a7f42a78eee2837474e1e434f65c95c00e -->
+<!-- body-sha256: 1d597eda0733fc8e9b586c21d0d4b2714df4b326e1ac6569bce4e4ad33a8b43a -->

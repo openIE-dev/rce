@@ -3921,8 +3921,9 @@ impl<'a> Host<'a> {
     /// HC-38: `host.Energy`, a package counter reading over the entries
     /// `first..=last` of this run, in the D.11 form of a `reported` term
     /// with its provenance and amortization. Changes no state; δ never
-    /// reads it.
-    pub fn energy(&mut self, source: &str, term: &rce_energy::reading::Term, first: u64) -> Result<(), String> {
+    /// reads it. Returns the entries it covers and its own seq, which the
+    /// host's terminal line names (the confirmation after it has the next).
+    pub fn energy(&mut self, source: &str, term: &rce_energy::reading::Term, first: u64) -> Result<(u64, u64, u64), String> {
         let seq = self.len();
         if first >= seq {
             return Err(format!("host.Energy: no entry of D from seq {first} to cover"));
@@ -3939,7 +3940,8 @@ impl<'a> Host<'a> {
         });
         energy_check(&p, seq)?;
         self.append(host_event("Energy", &crate::interp::canon_json(&p)))?;
-        self.confirm()
+        self.confirm()?;
+        Ok((first, last, seq))
     }
 
     pub fn wall_time(&mut self, ns: u64) -> Result<(), String> {
