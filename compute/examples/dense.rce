@@ -1,0 +1,22 @@
+# A dense layer driven by events: each input x gives y = relu(w x + b).
+# The step's numeric body is one graph term (spec 6.13): matvec, the
+# lane-wise + and relu, evaluated by the CPU backend in a fixed order.
+use std.tensor
+
+intent "a dense layer whose output follows each input"
+    example Input(x: [1.0, 2.0, 3.0]) -> y == [1.5, 0.0]
+    example Input(x: [0.0, 0.0, 0.0]) -> y == [0.5, 0.0] and seen == 1
+    example Input(x: [1.0, 2.0, 3.0]), Input(x: [-1.0, 0.0, 1.0]) -> y == [0.5, 0.0] and seen == 2
+    example Input(x: [1.0e308, -1.0e308, 1.0e308]) -> kept: trap("non-finite float")
+
+state Layer
+    w: [[f64; 3]; 2] = [[0.5, -0.5, 0.5], [-1.0, 1.0, -1.0]]
+    b: [f64; 2] = [0.5, -0.25]
+    y: [f64; 2] = [0.0, 0.0]
+    seen: u64 = 0
+
+event Input(x: [f64; 3])
+
+step Layer on Input(x)
+    y = tensor.relu(tensor.matvec(w, x) + b)
+    seen += 1

@@ -1,0 +1,18 @@
+[package]
+name        = "rce-vjepa"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "V-JEPA 2 video JEPA runtime on the rce substrate. Loads Meta's facebook/vjepa2-vitl-fpc64-256 safetensors checkpoint (ViT-L encoder d=1024×24L×16h + predictor d=384×12L×12h, RoPE-3D positional encoding, tubelet=2 × patch=16, 256×256×64 input). Closes pattern-lang Phase 3 (JEPA world models) with a real pretrained checkpoint, matching the substrate pattern set by rce-bitnet/rce-lfm2/rce-qwen3/rce-gemma4 (Phases 1-2)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-conv2d = { workspace = true }
+memmap2             = { workspace = true }
+half                = { workspace = true }
+thiserror           = { workspace = true }
+tracing             = { workspace = true }
+
+[dev-dependencies]
+mgai-reasoner = { workspace = true }

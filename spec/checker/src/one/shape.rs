@@ -62,14 +62,14 @@ struct Info<'a> {
 /// The shape of every loop of `f`, in textual order; a loop with neither
 /// shape gives the reason. `globals` are the types of the module's globals
 /// and `callee` gives the result type of a function a call names.
-pub fn loops(f: &Fn, globals: &[Ty], callee: &dyn std::ops::Fn(&FnRef) -> Option<Ty>) -> R<Vec<Result<Shape, String>>> {
+pub fn loops(f: &Fn, globals: &[Ty], callee: &dyn std::ops::Fn(&FnRef) -> Option<Ty>, graph: &dyn std::ops::Fn(&str) -> Option<Ty>) -> R<Vec<Result<Shape, String>>> {
     let mut info = Info { defs: HashMap::new(), tys: HashMap::new(), first: HashMap::new(), loops: vec![] };
     for (i, t) in f.params.iter().enumerate() {
         info.defs.insert(i as u32, Def::Other);
         info.tys.insert(i as u32, t.clone());
     }
     let mut next = f.params.len() as u32;
-    let cx = Cx { globals, callee };
+    let cx = Cx { globals, callee, graph };
     number(&cx, &f.body, &mut next, &mut info)?;
     Ok(info.loops.iter().map(|(l, lo)| classify(&info, l, *lo)).collect())
 }
@@ -88,8 +88,13 @@ pub fn unbounded(m: &Module) -> R<Vec<(String, u32, String, String)>> {
             }
             .map(|f| f.ret.clone())
         };
+        let graph = |k: &str| {
+            let t = m.graphs.get(k)?;
+            let (_, ty) = super::wf::graph_term(k, t).ok()?;
+            super::wf::tensor_ty(&ty.result).ok()
+        };
         for (i, f) in g.fns.iter().enumerate() {
-            for r in loops(f, &globals, &callee)? {
+            for r in loops(f, &globals, &callee, &graph)? {
                 if let Err(why) = r {
                     let name = m.names["fns"][k][i].as_str().unwrap_or("?").to_string();
                     out.push((k.clone(), i as u32, name, why));
@@ -103,6 +108,8 @@ pub fn unbounded(m: &Module) -> R<Vec<(String, u32, String, String)>> {
 struct Cx<'c> {
     globals: &'c [Ty],
     callee: &'c dyn std::ops::Fn(&FnRef) -> Option<Ty>,
+    /// the result type of a graph term, by key (6.13)
+    graph: &'c dyn std::ops::Fn(&str) -> Option<Ty>,
 }
 
 fn aty(cx: &Cx, info: &Info, a: &Atom) -> R<Ty> {
@@ -134,6 +141,10 @@ fn number<'a>(cx: &Cx, b: &'a [Stmt], next: &mut u32, info: &mut Info<'a>) -> R<
                 for t in rs {
                     bind(info, if one { Def::Prim(p.clone(), args.clone()) } else { Def::Other }, t);
                 }
+            }
+            Stmt::Graph(k, _) => {
+                let t = (cx.graph)(k).ok_or_else(|| format!("no graph term {k}"))?;
+                bind(info, Def::Other, t);
             }
             Stmt::Call(f, _) | Stmt::Catch(f, _) => {
                 let ret = (cx.callee)(f).ok_or_else(|| format!("no function {f:?}"))?;

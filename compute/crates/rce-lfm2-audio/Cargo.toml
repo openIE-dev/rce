@@ -1,0 +1,13 @@
+[package]
+name        = "rce-lfm2-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LFM2.5-Audio-1.5B audio encoder on the rce substrate. The mmproj (arch=clip, projector lfm2a) is a FastConformer — structurally the same as rce-canary's encoder: NeMo-style log-mel (128) → dw_striding 8x 2D-conv subsampling → 17 macaron Conformer blocks (½·FFN-swish + Transformer-XL rel-pos MHSA + conv module GLU/depthwise-k9/LayerNorm/swish) → mm.a.mlp projector (LN → 512→2048 → GELU → 2048→2048) into the LM d_model. Loaded from the F16 mmproj GGUF. The text backbone is plain `lfm2` (run via rce-lfm2). Audio-OUT (depthformer vocoder) is a separate component."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-lfm2 = { workspace = true }
+memmap2           = { workspace = true }
+rustfft           = { workspace = true }
+rayon             = { workspace = true }

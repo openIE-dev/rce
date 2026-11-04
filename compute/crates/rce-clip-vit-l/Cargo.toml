@@ -1,0 +1,17 @@
+[package]
+name        = "rce-clip-vit-l"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for OpenAI CLIP ViT-L/14 (~427M params; 24-layer ViT vision tower @ dim 1024 + 12-layer text tower @ dim 768, shared 768-d projection space). Foundation for multimodal alignment downstream."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+anyhow              = { workspace = true }
+tokenizers          = { workspace = true }
+image               = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

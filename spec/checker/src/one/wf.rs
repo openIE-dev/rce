@@ -1,4 +1,5 @@
-//! Well-formedness of a core module (one-emitter.md ONE-3, W1 to W6),
+//! Well-formedness of a core module (one-emitter.md ONE-3, W1 to W6, and
+//! W7 of spec 6.13 for graph terms),
 //! checked whenever a core module is read.
 //!
 //! - W1 Types. Every atom and application is well typed, and every `ret`
@@ -25,8 +26,14 @@
 //!   The members of a group are in canonical order
 //!   (`json::canonical_order`): their final digests ascend strictly, so
 //!   no two members are bisimilar and one group has one key.
-//! - W6 Arguments. The operands of `call` and `catch` are locals or
-//!   literals, and `set` names a `var` local or a global.
+//! - W6 Arguments. The operands of `call`, `catch` and `graph` are locals
+//!   or literals, and `set` names a `var` local or a global.
+//! - W7 Graph terms (spec 6.13, GT-2 and GT-3). A term's key is the BLAKE3
+//!   content hash of its `.fg` file (its graph and its typing); every
+//!   operation node carries one level, no stronger than its operation
+//!   admits; the graph is well formed and its shapes type; and every
+//!   `graph K(a…)` names a term of the module, with operands of its
+//!   parameters' types.
 //!
 //! Locals are lexically scoped: a local bound in a nested statement list is
 //! visible in that list after its binding and in the lists nested there.
@@ -86,6 +93,12 @@ pub fn check(m: &Module) -> R<()> {
         }
     }
     acyclic(&graph)?;
+    // W7: every graph term's key is the hash of its body, its levels are
+    // declared and admitted, and its shapes type
+    for (k, t) in &m.graphs {
+        let (g, ty) = graph_term(k, t)?;
+        crate::graph::check_term(k, &g, &ty)?;
+    }
     let Some(entry) = m.func(&m.entry.0, m.entry.1) else {
         return Err("W5: the entry names no function".into());
     };
@@ -127,7 +140,7 @@ fn mentions_globals(b: &[Stmt]) -> bool {
     let g = |a: &Atom| matches!(a, Atom::G(_));
     b.iter().any(|s| match s {
         Stmt::Let(a) | Stmt::Var(_, a) | Stmt::Ret(a) | Stmt::Halt(a) | Stmt::Out(a) => g(a),
-        Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) => xs.iter().any(g),
+        Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) | Stmt::Graph(_, xs) => xs.iter().any(g),
         Stmt::Set(p, a) => matches!(p, Place::G(_)) || g(a),
         Stmt::If(c, t, e) => g(c) || mentions_globals(t) || mentions_globals(e),
         Stmt::Block(x) | Stmt::Loop(x) => mentions_globals(x),
@@ -149,6 +162,29 @@ fn callees(b: &[Stmt], out: &mut BTreeSet<FnRef>) {
             _ => {}
         }
     }
+}
+
+/// A graph term of the module decoded from its JSON (W7).
+pub fn graph_term(k: &str, t: &GraphTerm) -> R<(rce_graph::graph::FunctionGraph, rce_graph::term::TermTypes)> {
+    let g = serde_json::from_value(t.graph.clone()).map_err(|e| format!("W7 graph term {k}: its graph does not decode: {e}"))?;
+    let ty = serde_json::from_value(t.types.clone()).map_err(|e| format!("W7 graph term {k}: its types do not decode: {e}"))?;
+    Ok((g, ty))
+}
+
+/// The core type of a tensor of a graph term: a nested `list` of its
+/// element type, one level per dimension, or the element type for a scalar.
+pub fn tensor_ty(t: &rce_graph::term::TensorType) -> R<Ty> {
+    let mut ty = match t.dtype.as_str() {
+        "f64" => Ty::F64,
+        "f32" => Ty::F32,
+        "i8" => Ty::Int(i8::MIN as i128, i8::MAX as i128),
+        "i32" => Ty::Int(i32::MIN as i128, i32::MAX as i128),
+        d => return Err(format!("W7: a tensor of element type {d}")),
+    };
+    for _ in &t.shape {
+        ty = Ty::list(ty);
+    }
+    Ok(ty)
 }
 
 fn acyclic(g: &BTreeMap<String, BTreeSet<String>>) -> R<()> {
@@ -813,6 +849,25 @@ impl<'a> Fun<'a> {
                     self.renew(st, Key::G(i));
                 }
                 let rt = if matches!(s, Stmt::Call(..)) { ret } else { Ty::Sum(vec![ret, Ty::halt()]) };
+                self.bind(rt, false, st);
+            }
+            Stmt::Graph(k, args) => {
+                let t = self.m.graphs.get(k).ok_or_else(|| format!("W7: `graph` names the term {k}, which the module does not declare"))?;
+                let (_, ty) = graph_term(k, t)?;
+                if ty.params.len() != args.len() {
+                    return Err(format!("W7: graph term {k} takes {} operands, found {}", ty.params.len(), args.len()));
+                }
+                for (j, a) in args.iter().enumerate() {
+                    if matches!(a, Atom::G(_)) {
+                        return Err("W6: an operand of graph is a global".into());
+                    }
+                    let want = tensor_ty(&ty.params[j])?;
+                    let at = self.use_atom(a, true, st, false)?;
+                    if !fits(&at, &want) {
+                        return Err(format!("W7: operand {j} of graph term {k} has type {at:?}, not {want:?}"));
+                    }
+                }
+                let rt = tensor_ty(&ty.result)?;
                 self.bind(rt, false, st);
             }
             Stmt::Var(t, a) => {

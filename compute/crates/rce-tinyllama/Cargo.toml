@@ -1,0 +1,27 @@
+[package]
+name        = "rce-tinyllama"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TinyLlama 1.1B inference runtime on the rce substrate. Plain Llama-2 arch — GQA attention (no QK-norm, no biases), SwiGLU FFN, NeoX RoPE, separate `output.weight` (NOT tied). The small leg of the pattern-lang phase-1 exploration (liquid + ternary + small). Simplest of the three; closes phase-1."
+
+[features]
+default   = []
+# Route every qmm site through `rce-placement-adapter`'s cost-driven
+# selector. `PlacementQmmAdapter::with_metal()` gives shape-routed
+# CPU↔native Metal dispatch; `PlacementQmmAdapter::new()` is CPU-only.
+placement = ["dep:rce-placement-adapter"]
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-prefix-cache = { workspace = true }
+rce-placement-adapter = { workspace = true, optional = true }
+memmap2                  = { workspace = true }
+
+[dev-dependencies]
+rce-placement-adapter = { workspace = true }
+rce-spec-decode = { workspace = true }
+tracing                 = { workspace = true }

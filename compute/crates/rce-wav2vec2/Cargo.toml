@@ -1,0 +1,18 @@
+[package]
+name        = "rce-wav2vec2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for facebook/wav2vec2-base-960h — raw-audio convs + 12-layer transformer + CTC head."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-conv2d = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+clap                = { workspace = true }
+anyhow              = { workspace = true }
+
+[[bin]]
+name = "wav2vec2-cli"
+path = "src/bin/wav2vec2_cli.rs"

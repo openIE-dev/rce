@@ -1,0 +1,10 @@
+[package]
+name        = "rce-dia"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dia-1.6B text-to-speech on the rce substrate — rce's first TTS, completing the audio round-trip. Byte-level text → 12-layer RoPE/SwiGLU encoder → 18-layer decoder (GQA self-attn + cross-attn, 9 DAC codebook channels with delay pattern [0,8,9..15], attention scaling=1) → on-disk DAC neural codec decoder (RVQ → weight-normalized transposed-conv stack with Snake activation) → 44kHz waveform. All F32 safetensors. Self-validates via Dia→wav→rce-canary/whisper ASR→compare text."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }

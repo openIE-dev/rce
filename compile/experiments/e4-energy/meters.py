@@ -9,7 +9,7 @@ Each meter has `mark()`, which returns an opaque start mark, and
 `since(mark)`, which returns the joules counted from the mark to now.
 `provenance()` returns what the results file records about the counter.
 
-RAPL follows the reading of rce's ide/crates/ide-energy (meter.rs),
+RAPL follows the reading of rce's compute/crates/rce-energy (meter.rs),
 reimplemented here because RCE Compile does not depend on RCE: every
 top-level zone `intel-rapl:N` under /sys/class/powercap is read (the AMD
 driver uses the same names), sub-zones are not read so nothing is counted

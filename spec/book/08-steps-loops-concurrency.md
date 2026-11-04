@@ -545,6 +545,227 @@ the program), or deciding it would cost more than the bound.
 where `rce equiv` finds one, the shortest event sequence after which the
 program and the mutant give different outputs.
 
+### 6.13 Graph terms and tensor values
+
+A step's numeric body may be a *graph term*: a FunctionGraph, the graph
+form of the crate `rce-graph` (nodes, wires between ports, one output
+node), applied to tensors. A graph term is part of δ like any other
+expression: it reads its operands, gives one value, and that value is
+written to the state or emitted by the ordinary statements of 6.4. Nothing
+about S, E, D or λ changes. This section defines the terms, the one
+library module that writes them, their meaning, the canonical form of
+their values and the rules that guard them. Example: in
+`compute/examples/dense.rce` the step body `y = tensor.relu(tensor.matvec(w, x) + b)`
+is one graph term of five operation nodes, and `rce trace` gives the same
+state hashes on every run; `compute/examples/block.rce` is a causal
+attention block over embeddings, with two heads, RMSNorm and a SiLU
+feed-forward layer, in eight terms.
+
+**GT-1 (tensors).** A *tensor* is a nested fixed-length array of `f32`,
+`f64`, `i8` or `i32` (5.1): `[[f64; 3]; 2]` is a tensor of *element type*
+`f64` and *shape* (2, 3), the lengths from the outside in. Every length is
+at least 1. A tensor is an ordinary value of 6.1, so no type is added. A
+*scalar* of a term is a value of the element type, the result of an
+operation that reduces a tensor to one element (`tensor.sum`). Integer
+tensors hold token ids and the quantized values of block formats; their
+arithmetic is RCE's integer arithmetic (6.3 N2).
+
+**GT-2 (the term and its key).** `use std.tensor` makes the built-in
+module `std.tensor` visible as `tensor` (4.1). A call `tensor.op(...)` is
+the *root* of a graph term: the term is the maximal expression made of
+`tensor` calls and lane-wise `+ - * /` between tensors under the root;
+every other subexpression under it is an *operand*. The term is a
+FunctionGraph whose parameters `p0`, `p1`, ... are the operands in the order
+a reader meets them (left to right, depth first), together with its
+*typing*: the element type and shape of each parameter and of the result,
+and the level (GT-3) of each operation node. Its *key* is the BLAKE3
+(a cryptographic hash with a 256-bit digest) content hash of its `.fg` file: a
+`Graph` section holding the graph and a `TypeTable` section holding the
+typing, each in CBOR (Concise Binary Object Representation, RFC 8949), hashed as the format of
+`compute/crates/rce-format` hashes every section. A term holds no
+declared name and no tensor bytes: its data enter only as operands (state
+fields, payload fields, constants). So the key is name-free (T7) and
+covers the whole body. In the core `rce-core/1` (10.12), the statement
+`vN = graph K(a...)` applies the term with key K, which the module declares
+in its `graphs` table; the key of the group that holds the statement (W5)
+covers K, and the program hash (CC-1, 10.8) covers the key of every term of
+the program.
+
+**GT-3 (levels).** Every operation node carries one of three *levels*.
+They are the levels of the RCE Compile study's experiment E3
+(`compile/CHARTER.md` 4.3), and each states what a *realisation* of the
+node (another backend, an emitted kernel, a fusion) must reproduce of the
+reference's result (GT-6):
+
+- `exact`: the reference's bits;
+- `within N`: each element within N units in the last place (ULP) of its
+  element type of the reference's element, N from 1 to 2^31 − 1;
+- `lossy`: no equality is claimed; the operation lowers precision, and a
+  realisation of it is a change of the program, recorded as one.
+
+Each operation admits a strongest level (GT-4). The *level in force* is
+`exact`, unless `tensor.within(N, t)`, N an integer literal, or
+`tensor.lossy(t)` around the operation declares another for every
+operation in t; an inner declaration takes the place of an outer one. A
+node carries the level in force, which may be weaker than its operation's
+level and never stronger. E3's fourth level, bitwise within an
+accumulation class, is `exact` here: each operation fixes its order of
+operations (GT-4), so its accumulation class has one member.
+
+**GT-4 (operations).** `rce graph ops` prints this table. `e` is the
+element type, the same for every tensor operand of one operation unless
+the row names the types (N4: no promotion). Arithmetic is that of `e`: each
+`+ - * /` and `sqrt` is one operation of `e` (binary32 for `f32`), rounded
+once to nearest even, with no fused multiply-add. E(x), T(x) and R(x) are
+`math.exp`, `math.tanh` and `math.erf` (6.3 F9) of the element as binary64,
+which is exact, rounded once to `e`; for `f64` they are those functions,
+and for `f32` the binary32 value nearest the binary64 one, which is the
+correctly rounded binary32 function except where the binary64 value is a
+binary32 midpoint. A sum runs in increasing index from +0.0 (from 0 for
+integers). An axis, an epsilon, a shape or a permutation is a literal, so
+the term's key covers it; an epsilon is rounded to `e`. Every operation of
+this table but the three that lower precision is `exact`: its order of
+operations is fixed and each of its roundings is correctly rounded, so a
+realisation can reproduce the reference's bits.
+
+| Operation | Operands and result | Order of operations | Level |
+|---|---|---|---|
+| `tensor.matmul(a, b)` | `[[e; k]; m]`, `[[e; n]; k]` to `[[e; n]; m]` | each element adds its k products in increasing k, starting from +0.0 | exact |
+| `tensor.matvec(a, x)` | `[[e; k]; m]`, `[e; k]` to `[e; m]` | `matmul` with x as one column | exact |
+| `tensor.transpose(a)` | `[[e; n]; m]` to `[[e; m]; n]` | no arithmetic | exact |
+| `tensor.permute(t, [a1, …])` | a tensor to its axes in the order a1, … (a permutation of 0 to r − 1) | no arithmetic | exact |
+| `tensor.reshape(t, [d1, …])` | a tensor to the same elements in row-major order with shape (d1, …) | no arithmetic; the element counts are equal | exact |
+| `tensor.concat(a, b, AXIS)` | two tensors equal in every length but AXIS to a then b along AXIS | no arithmetic | exact |
+| `tensor.add(a, b)`, `tensor.mul(a, b)` | two tensors whose shapes broadcast (aligned from the last length, each pair equal or one of them 1) to the broadcast shape | element by element | exact |
+| `tensor.sum(t)` | a tensor to a scalar of `e` | every element added in row-major order; an integer partial sum outside `e` traps | exact |
+| `tensor.relu(t)` | a tensor to one of its shape | each element x: x when x > 0, else +0.0 | exact |
+| `tensor.exp(t)`, `tensor.tanh(t)` | a float tensor to one of its shape | E(x), T(x) | exact |
+| `tensor.sigmoid(t)` | as `exp` | 1 / (1 + E(−x)) for x ≥ 0; E(x) / (1 + E(x)) for x < 0 | exact |
+| `tensor.silu(t)` | as `exp` | x / (1 + E(−x)) for x ≥ 0; (x · E(x)) / (1 + E(x)) for x < 0 | exact |
+| `tensor.gelu(t)` | as `exp` | (x · 0.5) · (1 + R(x · c)), c = 0.7071067811865476 | exact |
+| `tensor.gelu_tanh(t)` | as `exp` | (0.5 · x) · (1 + T(c1 · (x + c2 · ((x · x) · x)))), c1 = 0.7978845608028654, c2 = 0.044715 | exact |
+| `tensor.softmax(t, AXIS)` | a float tensor to one of its shape | per slice along AXIS: m its maximum, e_i = E(x_i − m), s = the sum of e_i, y_i = e_i / s | exact |
+| `tensor.rmsnorm(x, w, EPS)` | x a float tensor, w `[e; d]`, d x's last length, to x's shape | per row of d elements: ss = the sum of x_i · x_i; inv = 1 / sqrt(ss / d + EPS); y_i = (x_i · inv) · w_i | exact |
+| `tensor.layernorm(x, w, b, EPS)` | as `rmsnorm`, b `[e; d]` | per row: μ = (the sum of x_i) / d; v = (the sum of (x_i − μ) · (x_i − μ)) / d; inv = 1 / sqrt(v + EPS); y_i = ((x_i − μ) · inv) · w_i + b_i | exact |
+| `tensor.attention(q, k, v)` | q `[[e; d]; sq]`, k `[[e; d]; sk]`, v `[[e; dv]; sk]` to `[[e; dv]; sq]`; or heads first, `[h, s, d]`, the heads of q a multiple of those of k and v (query head i reads key and value head i / (hq / hk)) | per query row: a_j = q · k_j (in increasing index); with s = 1/√d (binary64, rounded to `e`), m the maximum of a_j · s, p_j = E(a_j · s − m), Σ = the sum of p_j, p_j = p_j · (1 / Σ); y_t = the sum over j of p_j · v_jt | exact |
+| `tensor.attention_causal(q, k, v)` | as `attention`, sq ≤ sk | as `attention`, query row i over the keys j ≤ i + sk − sq | exact |
+| `tensor.embed(table, ids)` | table `[[e; d]; n]` of a float type, ids a tensor of `i32`, to ids' shape followed by d | the rows the ids name; an id outside 0 to n − 1 traps `index ID out of range` | exact |
+| `tensor.matmul_q8_0(x, q, d)` | x `[[f32; k]; m]`, q `[[i8; k]; n]`, d `[[f32; k/32]; n]`, k a multiple of 32, to `[[f32; n]; m]` | y_ij = the sum over blocks b of d_jb · s_b, s_b the sum of (q_jt as f32) · x_it over the block's 32 positions in increasing t | exact |
+| `tensor.matmul_q4_0(x, q, d)` | as `matmul_q8_0`, each q in −8 to 7 (else the trap `Q4_0 value V outside -8..7`) | as `matmul_q8_0`, each block summed in the order 0, 16, 1, 17, …, 15, 31 | exact |
+| `tensor.round_bf16(t)` | a float tensor to one of its shape | each element rounded once to the nearest bfloat16 value (8 significant bits, the exponent range of binary32), ties to even | lossy |
+| `tensor.round_q8_0(t)`, `tensor.round_q4_0(t)` | an `f32` tensor whose last length is a multiple of 32 to one of its shape | each block of 32 along the last axis replaced by the values its Q8_0 or Q4_0 quantization represents, quantized as GGUF's reference quantizers do (`rce_vm_backend_cpu::ml::nn::quantize_block`) | lossy |
+| `a + b`, `a - b`, `a * b`, `a / b` | two tensors of one shape to one of that shape | element by element in row-major order; for integers each result is checked against `e` and `/` truncates | exact |
+
+The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0` and
+`matmul_q4_0` are those of the portable kernels of `rce-op-nn-prims`,
+`rce-op-attention` and `rce-op-qmm`, so those kernels differ from the
+reference only where they take `exp` or `tanh` from the platform (and, for
+`layernorm`, on a row of only −0.0, whose sum they start from −0.0). No
+operation has a `within N` level of its own: `within N` is what a program
+declares where it accepts a realisation that differs from the reference by
+up to N units in the last place.
+
+**GT-5 (order of evaluation).** The operands are evaluated left to right,
+depth first, as the arguments of a call are (6.2), and then the term. A
+trap or failure of an operand is the step's, as for any expression; the
+term itself traps only as GT-6 states.
+
+**GT-6 (the reference evaluation).** The reference interpreter evaluates
+a term with RCE's CPU backend (`compute/crates/rce-vm-backend-cpu`,
+`interpret_reference`): the nodes in one fixed topological order (Kahn's
+algorithm, the ready nodes taken in ascending index), each by a
+single-threaded kernel with the order of GT-4, one IEEE 754 rounding per
+operation and no fused multiply-add. An `f32` operation is the binary32
+operation, which for `+ - * /` equals computing in binary64 and rounding
+once (6.3 N7), since 53 ≥ 2 × 24 + 2. After each node every float element
+of its value is tested: NaN or an infinity stops the evaluation with the
+trap `non-finite float` (6.3 N3), and so does a float division by zero. A
+node whose element type is `i8` or `i32` (an `i8` tensor is held in `i32`
+lanes) computes each element exactly and traps with RCE's integer traps
+(6.3 N2: `overflow: V is outside T`, `division by zero`); an embedding
+lookup traps on an id out of range. E, T and R are computed by
+`crmath.rs` of the backend, which evaluates `math.rce`'s `exp`, `tanh` and
+`erf` by the same method (Ziv's strategy over exact integers, the same
+integers in base 2^32 limbs where `math.rce` uses 2^30) and reads ln 2 and
+2/√π from `math.rce`. The decision, and its reason: running `math.rce` in
+the reference interpreter for each element takes about 7 ms per `exp` and
+30 ms per `erf` on the machine this was measured on, which no tensor of a
+model can afford, while a correctly rounded value is unique, so a port
+that is correctly rounded gives `math.rce`'s bits. That it is: the port
+equals the MPFR-checked vectors of `stdlib/tests/math` (6,631 `exp`,
+15,099 `tanh` and 14,761 `erf` lines) and an oracle in exact decimal
+arithmetic on 1,951 arguments with edge cases
+(`compute/crates/rce-vm-backend-cpu/tests/crmath.rs`), and every
+elementwise operation equals its definition written in RCE over
+`math.rce`, run by the reference interpreter
+(`spec/checker/tests/graph/defs.rce`).
+The result is therefore a function of the operands' bits, so `rce run`,
+`rce test`, `rce trace`, the host and replay give the same bytes on every
+run. This is tested (`spec/checker/tests/graph_term.rs`), not yet proved
+in Lean. The core evaluator (`rce run-core`) evaluates `graph` statements
+with the same backend and is compared with the reference trace like every
+other core construct.
+
+**GT-7 (charges).** An application of a term takes one tick and C_CALL
+cost units, and then, for each scalar operation of its nodes, one tick and
+two cost units (6.7, C.6.4): 2mnk operations for a matrix product and a
+quantized one; for an attention of h heads, 2·h·sq·sk·(d + dv) +
+3·h·sq·sk; for a softmax three, and for a normalisation four, per element;
+none for a reshape; the element count of the result for the other
+operations. A term that would take fuel or a budget past its limit traps as
+any expression does.
+
+**GT-8 (the canonical form of tensor values).** A tensor embeds in the
+Form as nested lists: a tensor of shape (d₁, …, d_r), r ≥ 1, is the list of
+its d₁ subtensors of shape (d₂, …, d_r), and a tensor of rank 0, a scalar,
+is a float. Each element is written by rule 3 of 6.1.1. An `f32` element is
+its binary32 value read exactly as binary64, so `0.1 as f32` is written
+`0.10000000149011612`. -0.0 keeps its sign, and NaN and infinities never
+occur (GT-6). The positional form (T7) of a tensor is the same list, since
+a tensor holds no names. So the state hash, the entry hash of D and every
+trace cover tensors with no rule beyond 6.1.1. Example: the state of
+`dense.rce` after `Input(x: [1.0, 2.0, 3.0])` is hashed as
+`[[[[0.5,-0.5,0.5],[-1.0,1.0,-1.0]],[0.5,-0.25],[1.5,0.0],1]]`. A tensor
+whose list form exceeds VALUE_LIMIT cannot be held in the state (N9); an
+encoding of large tensors by a hash of their bytes is not part of this
+section.
+
+**GT-9 (weights by digest).** A term names a tensor of data it does not
+compute, a weight, by the content of its bytes: `tensor.blob_f32(DIGEST,
+[d1, …])`, and `blob_f64`, `blob_i8`, `blob_i32`, with DIGEST a text literal
+of 64 lowercase hexadecimal digits and the shape a literal. Its value is
+the tensor whose bytes, its elements in row-major order each in
+little-endian bytes (an `i8` in one byte, two's complement), have the
+BLAKE3 hash DIGEST; their number must be the shape's element count times
+the element's size. The digest is a literal of the term, so the term's
+key, and with it the program hash, covers the weight, and a program names
+its weights by content, never by path. The bytes come from a *store*: a
+directory holding each blob as the file DIGEST
+(`compute/crates/rce-fgm`), checked against its digest when read. The
+toolchain reads the store `blobs` beside the program file it is given;
+since a blob is the bytes its digest names, any store that holds it gives
+the same value. A blob no store holds stops the evaluation (`graph term: no
+store holds the blob DIGEST`), as a missing file does; it is not a trap of
+the program. The host loads every blob a program names when it starts and
+records the digests and lengths it loaded in D (`host.Blobs`, Appendix E)
+before any input. `rce lift gguf` (10.17) writes such programs.
+
+**W7 (graph terms in the core).** A core module read back from JSON
+(`rce emit core FILE`, `rce run-core FILE`) requires change, with the rule
+W7 and the term's key, when a term's key is not the content hash of its
+graph and typing, when an operation node carries no level or a level
+stronger than its operation admits, when the graph is not well formed or
+its shapes do not type, or when a `graph` statement names a term the module
+does not declare or gives operands of other types than the term's
+parameters. W7 joins W1 to W6 of the one-emitter proposal (ONE-3).
+
+The source rules are W-GRAPH-1 (shape), W-GRAPH-2 (operand) and
+W-GRAPH-3 (level) of section 7. `rce emit core` prints graph terms;
+`rust`, `python`, `js`, `scala` and `verilog` report status 2 for a program
+with graph terms until their print tables have rows for them. `rce graph`
+(10.16) writes a program's terms as `.fg` files, inspects them and
+evaluates them.
+
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 07582f5160406efca8eb6265ec7805d5da3327237bb4b9c126cf4790fe990f31 -->
+<!-- body-sha256: 57c36fde0e8a007d5170183a68164c52b4fadbf25dc7e8ffa7fe8d82a91605db -->

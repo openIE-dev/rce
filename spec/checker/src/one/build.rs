@@ -176,6 +176,11 @@ impl FB {
         self.push(Stmt::Call(f, args));
         self.fresh(ret)
     }
+    /// `vN = graph K(a…)` (6.13), its result of core type `ret`.
+    pub fn graph(&mut self, key: String, ret: Ty, args: Vec<Atom>) -> Atom {
+        self.push(Stmt::Graph(key, args));
+        self.fresh(ret)
+    }
     pub fn catch(&mut self, f: FnRef, ret: Ty, args: Vec<Atom>) -> Atom {
         self.push(Stmt::Catch(f, args));
         self.fresh(Ty::Sum(vec![ret, Ty::halt()]))
@@ -492,6 +497,8 @@ pub struct Fns {
     by_name: HashMap<String, usize>,
     pub globals: Vec<(Ty, Option<Lit>, String)>,
     gnames: HashMap<String, u32>,
+    /// the graph terms the functions apply, by key (6.13)
+    pub graphs: BTreeMap<String, GraphTerm>,
 }
 
 impl Fns {
@@ -632,6 +639,7 @@ impl Fns {
                 "fns": serde_json::Value::Object(names),
                 "globals": self.globals.iter().map(|g| g.2.clone()).collect::<Vec<_>>(),
             }),
+            graphs: self.graphs,
         })
     }
 }

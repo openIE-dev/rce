@@ -16,7 +16,7 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
   E_sim, E_meas with source tag `rapl|nvml|powermetrics|jetson|estimated-remote`, delta,
   checker verdict, policy hash), BLAKE3 hash chain, ed25519 signature. JSONL ledger,
   verified in full on open. Mappers from `mol.receipt.v1` and mei-studio `mei-receipt` JSON.
-- `crates/ide-energy`: `Simulator` trait and a linear simulator with per-gear/model
+- `../compute/crates/rce-energy` (named `ide_energy` here, RCE's one meter library): `Simulator` trait and a linear simulator with per-gear/model
   coefficients fitted by least squares; `Meter` trait with Linux RAPL (powercap
   `energy_uj`, wraparound handled), NVML behind `--features nvml`, and macOS / Jetson
   backends that return `Unsupported`; time-window attribution; k-sigma anomaly test.

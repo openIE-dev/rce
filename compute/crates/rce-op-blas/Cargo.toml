@@ -1,0 +1,22 @@
+[package]
+name        = "rce-op-blas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf binding `matmul` to platform BLAS (Apple Accelerate / OpenBLAS / MKL)"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+rayon                = { workspace = true }
+bytemuck             = { workspace = true }
+
+[build-dependencies]
+
+# Platform linking is decided at build time by build.rs:
+#   - macOS  → -framework Accelerate (system, no install needed)
+#   - linux  → -lopenblas when libopenblas is installed, else nothing, in
+#              which case the dispatch returns Unsupported and the CPU
+#              backend's own matmul runs

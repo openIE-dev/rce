@@ -22,6 +22,10 @@ pub mod index08;
 pub mod refine;
 #[path = "../../checker/src/types.rs"]
 mod types;
+#[path = "../../checker/src/graph.rs"]
+mod graph;
+#[path = "../../checker/src/typed.rs"]
+mod typed;
 #[path = "../../checker/src/specread.rs"]
 mod specread;
 #[path = "../../checker/src/session_prio.rs"]

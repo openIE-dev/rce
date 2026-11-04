@@ -1,0 +1,18 @@
+[package]
+name        = "rce-emit-wasm"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Emit WebAssembly (WAT text + compiled bytes) from a rce FunctionGraph — direct browser/edge dispatch path with no Linalg→LLVM intermediate"
+
+[lib]
+name = "rce_emit_wasm"
+
+[dependencies]
+rce-graph = { workspace = true }
+thiserror = { workspace = true }
+wat       = "1.0"
+
+[dev-dependencies]
+wasmtime  = { workspace = true }

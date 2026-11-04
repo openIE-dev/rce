@@ -254,6 +254,9 @@ pub enum Callee {
     /// a call the reference stops at, with this trap text: a foreign
     /// function, which has no definition to run (interp `call`)
     Trap(String),
+    /// a call of `std.tensor` (6.13): the root of a graph term, by the
+    /// operation's name
+    Graph(String),
     /// a call this pass does not resolve, and why
     Unknown(String),
 }
@@ -361,6 +364,8 @@ pub struct Tables<'a> {
     pub impl_generics: HashMap<(String, String), Vec<String>>,
     /// the foreign functions (`extern`) by name
     pub externs: std::collections::HashSet<String>,
+    /// the name `std.tensor` is visible under (6.13), when the module uses it
+    pub tensor: Option<String>,
 }
 
 impl<'a> Tables<'a> {
@@ -375,6 +380,7 @@ impl<'a> Tables<'a> {
             events: vec![],
             impl_generics: HashMap::new(),
             externs: Default::default(),
+            tensor: crate::graph::visible_name(m),
         };
         for i in &m.items {
             match i {
@@ -1153,6 +1159,15 @@ impl<'a, 'm> Cx<'a, 'm> {
         if let Expr::Member(_, m, _) = f {
             self.record(f, &RType::Fn(m.clone()), None, None);
         }
+        // 6.13: a `tensor` call is the root of a graph term; its operands are
+        // typed (the lowering lowers them), and its type is the term's
+        if let Expr::Member(o, op, _) = f
+            && let Expr::Name(c, _) = &**o
+            && self.lookup(c).is_none()
+            && self.t.tensor.as_deref() == Some(c.as_str())
+        {
+            return (self.tensor_type(op, args), None, Some(Callee::Graph(op.clone())));
+        }
         // 5.16 context text: `C.lit(t)` and `C.encode(t)` (interp `call`)
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
@@ -1393,6 +1408,60 @@ impl<'a, 'm> Cx<'a, 'm> {
             "filter" => RType::List(Box::new(et.clone())),
             _ => acc,
         })
+    }
+
+    /// The type of a `tensor` call (6.13): every operand typed, and the
+    /// result's rank and element type by the operation.
+    fn tensor_type(&mut self, op: &str, args: &[Arg]) -> RType {
+        let ts: Vec<RType> = args
+            .iter()
+            .enumerate()
+            .map(|(i, a)| if op == "within" && i == 0 { RType::Never } else { self.expr(&a.e) })
+            .collect();
+        fn elem(t: &RType) -> RType {
+            match t {
+                RType::List(e) => elem(e),
+                o => o.clone(),
+            }
+        }
+        let list = |t: RType| RType::List(Box::new(t));
+        let first = match op {
+            "within" => ts.get(1),
+            _ => ts.first(),
+        };
+        let Some(t0) = first.cloned() else { return RType::Unknown(format!("tensor.{op} without operands")) };
+        fn rank(t: &RType) -> usize {
+            match t {
+                RType::List(e) => 1 + rank(e),
+                _ => 0,
+            }
+        }
+        let nest = |e: RType, r: usize| (0..r).fold(e, |t, _| list(t));
+        let at = |i: usize| ts.get(i).cloned().unwrap_or(RType::Never);
+        match op {
+            "matmul" => list(list(elem(&t0))),
+            "matvec" => list(elem(&t0)),
+            "sum" => elem(&t0),
+            "reshape" => match args.get(1).map(|a| &a.e) {
+                Some(Expr::List(xs, _)) => nest(elem(&t0), xs.len()),
+                _ => RType::Unknown(format!("tensor.{op} without a shape")),
+            },
+            "add" | "mul" => nest(elem(&t0), rank(&t0).max(rank(&at(1)))),
+            "embed" => nest(elem(&t0), rank(&at(1)) + 1),
+            "matmul_q8_0" | "matmul_q4_0" => list(list(RType::F32)),
+            "blob_f32" | "blob_f64" | "blob_i8" | "blob_i32" => {
+                let e = match op {
+                    "blob_f32" => RType::F32,
+                    "blob_f64" => RType::F64,
+                    o => RType::Int(IntT::named(&o[5..])),
+                };
+                match args.get(1).map(|a| &a.e) {
+                    Some(Expr::List(xs, _)) => nest(e, xs.len()),
+                    _ => RType::Unknown(format!("tensor.{op} without a shape")),
+                }
+            }
+            _ => t0,
+        }
     }
 
     /// The result of a built-in method (interp `builtin`), and the new type

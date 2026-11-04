@@ -1,0 +1,12 @@
+[package]
+name        = "rce-canary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "NVIDIA Canary-1b-flash ASR (FastConformer AED) on the rce substrate. NeMo mel frontend (preemph 0.97, n_fft=512, HTK-128 slaney-norm, log, per-feature norm) → dw_striding 8× subsampling (2D convs) → 32 Conformer blocks (macaron FFN×0.5 + rel-pos Transformer-XL MHSA + conv module: GLU/depthwise-k9/batchnorm/swish) → 4-layer pre-LN Transformer decoder (self + cross + ReLU FFN, sinusoidal pos) → tied head. Encoder from model.safetensors; decoder+head offline-converted from the .nemo PyTorch ckpt → decoder_head.safetensors. Aggregate CanaryTokenizer (spl+en+de+es+fr=5248) detok from canary_vocab.txt; canary2 English-ASR prompt."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+half                = { workspace = true }
+rustfft             = { workspace = true }
+rayon               = { workspace = true }

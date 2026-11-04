@@ -1,0 +1,23 @@
+[package]
+name = "rce-ingest-gguf"
+publish = false
+description = "Parse GGUF model files into RCE graphs — llama.cpp ecosystem interop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_ingest_gguf"
+
+[[bin]]
+name = "gguf-inspect"
+path = "src/bin/gguf_inspect.rs"
+
+[dependencies]
+rce-graph = { workspace = true }
+thiserror  = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+memmap2    = { workspace = true }
+half       = { version = "2.5", features = ["bytemuck", "num-traits"] }
+bytemuck   = { workspace = true }

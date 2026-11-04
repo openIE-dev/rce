@@ -1,0 +1,22 @@
+[package]
+name        = "rce-vm-backend-cpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce Graph VM CPU backend: scalar interpreter (v0.1) + SIMD kernels (planned)"
+
+[dependencies]
+rce-vm-core = { workspace = true }
+rce-format = { workspace = true }
+rce-graph = { workspace = true }
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+thiserror     = { workspace = true }
+tracing       = { workspace = true }
+bytemuck      = { workspace = true }
+# Phase O: f16 / bf16 HostTensor support. The codegen + GPU dispatch
+# paths fast-path on raw narrow-dtype bytes; this is what gives them
+# a HostTensor to read from.
+half          = { workspace = true }
+
+[dev-dependencies]

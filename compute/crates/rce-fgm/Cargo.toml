@@ -1,0 +1,12 @@
+[package]
+name        = "rce-fgm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RCE's content-addressed store of tensor data: each blob is the bytes of one tensor, named by the BLAKE3 hash of those bytes. A program's graph terms name their weights by that digest (spec 6.13 GT-9)."
+
+[dependencies]
+blake3 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

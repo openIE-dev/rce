@@ -1,0 +1,13 @@
+[package]
+name        = "rce-op-moe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MoE router + dispatch primitives for rce-* runtimes. Sparse top-K selection: project to gate logits via QuantWeight, softmax (optionally renormalized over top-K only), pick the top-K experts and their weights, leave expert FFN execution to the caller. Decode-shape (M=1) optimized — only the K selected experts run, not all N. Gates ZAYA1-8B, Qwen 3.6-35B-A3B, DeepSeek V4 wiring."
+
+[dependencies]
+rce-op-qmm = { workspace = true }
+
+[dev-dependencies]
+rce-ingest-gguf = { workspace = true }
+half              = { workspace = true }

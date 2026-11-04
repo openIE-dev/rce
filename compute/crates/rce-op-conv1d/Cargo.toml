@@ -1,0 +1,13 @@
+[package]
+name        = "rce-op-conv1d"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf for causal depthwise 1D convolution with sliding-window state — the conv1d gate inside Mamba2 / Jamba / nemotron_h SSM layers. Fused with shift-state-and-conv into a single op so the IR carries the full per-token semantic instead of decomposing into 3+ Apply nodes."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }

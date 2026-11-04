@@ -1,0 +1,23 @@
+[package]
+name        = "rce-vm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce Graph VM core: backend trait, scheduler primitives, interpreter"
+
+[features]
+default = []
+# Bring in `rce_graph` for graph types in tests/examples.
+with-rce-graph = ["dep:rce-graph"]
+
+[dependencies]
+rce-format = { workspace = true }
+serde      = { version = "1", features = ["derive"] }
+thiserror  = { workspace = true }
+smallvec   = { version = "1" }
+
+# optional
+rce-graph = { workspace = true, optional = true  }
+
+[dev-dependencies]
+serde_json = "1"

@@ -96,7 +96,9 @@ fn emitted_form_terms_round_trip_and_check() {
         let v: serde_json::Value = serde_json::from_str(&form).unwrap();
         assert!(v["terms"]["items"].is_array(), "{}", f.display());
         let back = rce_spec_check::cli::unform(&form).unwrap();
-        let m2 = parse(&back).unwrap();
+        let mut m2 = parse(&back).unwrap();
+        // `use` lines are not terms (`rce unform` keeps only `use std.tensor`)
+        m2.items.retain(|i| !matches!(i, rce_spec_check::ast::Item::Use(..)));
         if shape(&m) != shape(&m2) {
             bad.push(format!("{}: terms differ", f.display()));
             continue;

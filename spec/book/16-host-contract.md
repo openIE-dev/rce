@@ -1292,6 +1292,7 @@ JSON. The host entries are:
 | `host.Synced` | upto (seq) | after a barrier succeeded; every entry up to seq is durable |
 | `host.StorageFault` | seq, error text | output only: written to the outside, never appended, since the admitter has stopped |
 | `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
+| `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
 | `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
@@ -1644,4 +1645,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 0ba7c6b87a65689649bf99368f3ca9a52ef1e208c27fd210e9d6bb99a2e67c68 -->
+<!-- body-sha256: b56346319ce51c5577e96ba3f26d5e4b9f6e23e3f7fe76d59b81e63a37f3e923 -->

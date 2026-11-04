@@ -1,0 +1,15 @@
+[package]
+name        = "rce-zaya1"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Zyphra ZAYA1-8B inference runtime on the rce substrate. Reasoning MoE released May 6-7 2026 (Apache 2.0), trained on AMD Instinct MI300. 8.4B total / 760M active. Alternating 80-layer hybrid: even layers = Compressed Convolutional Attention (CCA, latent compression + depthwise conv1d + grouped conv + delayed-V from prior hidden state + L2-norm + RoPE + GQA SDPA), odd layers = MoE FFN with multi-stage MLP router (down-proj → EDA residual-from-prev-router → RMSnorm → GELU → GELU → 17 logits including MOD-skip expert) + top-1 routing. Per-layer + final learned residual scaling in FP32. References llama.cpp Draft PR #23112 (`src/models/zaya.cpp`)."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-moe = { workspace = true }
+memmap2              = { workspace = true }

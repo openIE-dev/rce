@@ -1,0 +1,23 @@
+[package]
+name        = "rce-qwen3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qwen3 inference runtime on the rce substrate. Llama-2-style GQA + per-head QK-norm (attn_q_norm/attn_k_norm) + NeoX RoPE; tied lm_head. Drives prism-ml/Bonsai (Q1_0) and prism-ml/Ternary-Bonsai (Q2_0) — phase-1 extension on the low-bit axis."
+
+[features]
+default   = []
+# Cost-driven qmm dispatch via rce-placement-adapter. Mirror of the
+# tinyllama wiring.
+placement = ["dep:rce-placement-adapter"]
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-placement-adapter = { workspace = true, optional = true }
+memmap2                  = { workspace = true }
+tracing                  = { workspace = true }
+
+[dev-dependencies]

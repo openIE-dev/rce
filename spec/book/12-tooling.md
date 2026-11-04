@@ -1327,6 +1327,73 @@ The design and its source, the mandate and accept modes of DeepSeek's
 `dsh-superagent-prototype` (MIT), are in
 `spec/proposals/admission-receipts.md`.
 
+### 10.16 `rce graph ops`, `rce graph terms FILE DIR`, `rce graph inspect FILE`, `rce graph run FILE INPUTS`: graph terms
+
+The commands on the graph terms of 6.13 and their `.fg` files.
+`rce graph ops` prints the operations of `std.tensor` with their levels
+(GT-4). `rce graph terms FILE DIR` writes each graph term of the admitted
+module FILE as `DIR/KEY.fg`, KEY its content hash (GT-2), and prints one
+line per term: key, line, operation, typing and levels. `rce graph inspect
+FILE` reads a `.fg` file, verifies its content hash, checks its term by W7,
+and prints its header, sections and nodes with their levels. `rce graph run
+FILE INPUTS` evaluates the term of a `.fg` file by the reference evaluation
+(GT-6) on INPUTS, a JSON array with one tensor per parameter, and prints the
+result in canonical JSON (GT-8), or `trap: non-finite float`. A file whose
+hash does not hold, or whose term W7 does not admit, requires change
+(status 1). Example: `rce graph run KEY.fg '[[[0.5,-0.5,0.5],[-1.0,1.0,-1.0]],[1.0,2.0,3.0],[0.5,-0.25]]'`
+on the term of `compute/examples/dense.rce` prints `[1.5,0.0]`.
+
+### 10.17 `rce lift gguf FILE STORE`: a program from a GGUF file
+
+`rce lift gguf FILE STORE` reads the GGUF file FILE and prints an RCE
+program whose step is the model's forward pass as graph terms over
+`std.tensor` (6.13), and puts each of its weights into the store directory
+STORE as a blob (GT-9). Saved beside STORE as `blobs`, the program is
+checked, run, tested, traced and hosted like any other; nothing of FILE is
+read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
+`rce test m/toy.rce`.
+
+- **LIFT-1 (architectures).** The architecture `gpt2` is lifted: token and
+  position embeddings summed; per block a layer norm, causal multi-head
+  attention whose fused projection `attn_qkv` is split into its three row
+  ranges (each its own blob, so no term slices a tensor), the output
+  projection and a residual sum, a layer norm, a `gelu_tanh` feed-forward
+  layer and a residual sum, every projection with its bias; a final layer
+  norm and the output projection (`output.weight`, or the token embedding
+  when the file has none). The program has one event, `Tokens(ids: [i32;
+  C])` with C the file's context length, and keeps the logits of the last
+  sequence in its state. Another architecture is refused with its name
+  (status 2).
+- **LIFT-2 (weights).** F32 and F16 tensors become `f32` blobs (every
+  binary16 value is a binary32 value). Q8_0 and Q4_0 matrices become their
+  quantized values, an `i8` blob, and their block scales, an `f32` blob,
+  exactly as the file holds them (Q4_0 nibbles minus 8, low nibbles first),
+  for `matmul_q8_0` and `matmul_q4_0`. Another type is refused.
+- **LIFT-3 (layout).** GGUF lists a tensor's lengths fastest first: a
+  matrix of lengths (k, n) is n rows of k, the shape `[n, k]`, and a
+  projection of x by it is x Wᵀ (`matmul_q8_0(x, q, d)`, or `matmul(x,
+  transpose(W))` for f32).
+- **LIFT-4 (levels).** Every operation of a lifted program is at its
+  strongest level (GT-4): the quantization of its weights happened when the
+  file was written and is not an operation of the program. The kernels of
+  RCE's host adapters are judged against it node by node
+  (`spec/checker/tests/lift_gguf.rs`, a two-block model of width 32 with
+  Q8_0 and Q4_0 products): `rce-ingest-gguf`'s rows, `rce-op-nn-prims`'s
+  layer norm and `rce-op-qmm`'s Q8_0 and Q4_0 products reproduce every bit;
+  `rce-op-attention`, which takes `exp` from the platform, reproduced every
+  bit of its 1,024 elements there, and `rce-op-nn-prims`'s `gelu`, which
+  takes `tanh` from the platform, differed by up to 7 units in the last
+  place on 2,048 elements (glibc, x86-64). So that `gelu` kernel is not a
+  realisation of the lifted program; a program that accepts it declares
+  `tensor.within(N, …)` around the operation, and a run whose distance
+  exceeds N is judged as not realising it.
+
+`rce lift fx` is not a command yet: the PyTorch FX graphs that
+`rce-ingest-fx` reads carry no shapes for their inputs and intermediate
+values and no weight bytes, which a term needs, and several of their
+operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
+have no operation in `std.tensor`.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 9f1336a8b87a061b0316922fb98d52ce777037c08f5cb4d79a8563579831d4ec -->
+<!-- body-sha256: 7c89911f4ff15b03f15057efc54be6bdc75d295d92a08dd98962c80ce4a4c792 -->

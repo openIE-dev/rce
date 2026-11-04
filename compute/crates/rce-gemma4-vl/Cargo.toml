@@ -1,0 +1,15 @@
+[package]
+name        = "rce-gemma4-vl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Gemma 4 vision tower (gemma4v projector) on the rce substrate. SigLIP-style ViT 16L/d768 with **RMS norm + 2D RoPE per layer + 2D additive position embedding + ClippableLinear**, avg-pool n_merge×n_merge, single-linear projector → image embeddings spliced into rce-gemma4."
+
+[dependencies]
+rce-gemma4 = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+half                 = { workspace = true }
+image                = { workspace = true }

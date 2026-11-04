@@ -1,0 +1,18 @@
+[package]
+name        = "rce-vm-backend-wgpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wgpu backend — dispatches matmul / elementwise / softmax to WebGPU compute shaders. Native + browser via the same code."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+wgpu      = { workspace = true }
+bytemuck  = { workspace = true }
+pollster  = { workspace = true }
+thiserror = { workspace = true }
+futures-intrusive = "0.5"
+
+[dev-dependencies]

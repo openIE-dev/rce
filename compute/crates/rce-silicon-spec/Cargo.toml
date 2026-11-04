@@ -1,0 +1,14 @@
+[package]
+name = "rce-silicon-spec"
+publish = false
+version = "0.1.0"
+edition = "2024"
+description = "RCE silicon roadmap spec — 27 execution units in Tier A/B/C/D with cell coordinates, power targets, and FPGA mapping"
+
+[lib]
+name = "rce_silicon_spec"
+
+[dependencies]
+rce-graph = { workspace = true }
+serde     = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name = "rce-emit-stablehlo"
+publish = false
+description = "Emit StableHLO MLIR text from RCE's FunctionGraph — unlocks XLA/IREE/TPU/MAX"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_emit_stablehlo"
+
+[dependencies]
+rce-graph = { workspace = true }
+thiserror = { workspace = true }

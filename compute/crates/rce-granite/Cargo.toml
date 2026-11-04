@@ -1,0 +1,19 @@
+[package]
+name        = "rce-granite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "IBM Granite 4.1-8B inference runtime on the rce substrate. Dense GQA Llama-family decoder (32 Q heads / 8 KV heads, d_head=128, NeoX RoPE @ 10M base, SwiGLU FFN, 40 layers, vocab=100352). Apache 2.0, released April 29, 2026 — IBM's dense flagship that matches/beats their prior Granite-4.0-H-Small 32B-MoE hybrid. Custom muP-style scaling: embedding_scale, residual_scale, logit_scale, attention_scale override 1/√d_head."
+
+[features]
+default   = []
+placement = ["dep:rce-placement-adapter"]
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+rce-prefix-cache = { workspace = true }
+rce-placement-adapter = { workspace = true, optional = true }
+memmap2                  = { workspace = true }

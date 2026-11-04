@@ -1,0 +1,16 @@
+[package]
+name        = "rce-edsr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "EDSR baseline x2 super-resolution on rce — first crate built from a converted ONNX (tools/convert_onnx.py)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-conv2d = { workspace = true }
+rayon               = { workspace = true }
+image               = { workspace = true }
+
+[[bin]]
+name = "edsr-cli"
+path = "src/bin/edsr_cli.rs"

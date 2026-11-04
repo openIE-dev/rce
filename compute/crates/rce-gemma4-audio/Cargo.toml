@@ -1,0 +1,15 @@
+[package]
+name        = "rce-gemma4-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Gemma 4 audio tower (gemma4a Conformer projector) on the rce substrate. Subsampling conv2d → 12 Conformer blocks (dual half-step FFN + chunked-local attention with RPE + depthwise lightconv with GLU) → audio→text projector. Scaffold + tensor-loading shipped; forward impl is the next brick."
+
+[dependencies]
+rce-gemma4 = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+half                 = { workspace = true }
+rustfft              = { workspace = true }

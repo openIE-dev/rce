@@ -1,0 +1,10 @@
+[package]
+name        = "rce-fusion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Free-fraction fusion pass + MSL codegen for FunctionGraphs. Walks the graph, finds adjacent Apply{Custom(...)} nodes whose ops are both in the Free fraction per rce-placement::fusion_eligible, and either rewrites the chain via a registered fusion pattern OR emits a fresh MSL kernel for the chain shape (codegen modules cover per-element chains, matmul + epilogue naive/tiled, double matmul, FFN-swiglu naive/tiled — f32/f16/bf16). The downstream backend (e.g. rce-op-metal) lazily compiles + caches the kernel on first dispatch."
+
+[dependencies]
+rce-graph = { workspace = true }
+rce-placement = { workspace = true }

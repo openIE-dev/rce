@@ -1,0 +1,13 @@
+# W-GRAPH-1: the keys have rows of 3 elements and the queries rows of 2,
+# so a query and a key have no dot product.
+use std.tensor
+
+state Head
+    q: [[f64; 2]; 2] = [[1.0, 0.0], [0.0, 1.0]]
+    k: [[f64; 3]; 2] = [[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]
+    y: [[f64; 2]; 2] = [[0.0, 0.0], [0.0, 0.0]]
+
+event Go
+
+step Head on Go
+    y = tensor.attention_causal(q, k, q)

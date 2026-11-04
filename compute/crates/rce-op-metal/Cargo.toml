@@ -1,0 +1,32 @@
+[package]
+name        = "rce-op-metal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaves wrapping Metal Shading Language compute kernels. Hand-written kernels (silu, rms_norm, silu_rms_norm) are vendored from efficient-genai; codegen-emitted kernels (matmul naive/tiled, double matmul, FFN-swiglu naive/tiled — f32/f16/bf16 across the board) come from rce-fusion::codegen_* and are lazily compiled + cached on first dispatch. Also exposes a public dispatch_* API covering every dtype + chain shape (escape hatch around OpDispatch) and a u64-handle weight upload cache for the load-once / dispatch-many pattern."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+# rce-fusion::codegen emits MSL for fused Free-fraction chains. We
+# consume it here so MetalContext can lazily build + cache pipelines
+# for arbitrary chains at dispatch time (Phase B of the codegen rollout).
+rce-fusion = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }
+# Phase K: f16 dispatch path converts f32 host tensors to f16 on
+# upload and back on download. The kernel runs in half precision;
+# bandwidth + register pressure win is on-GPU only until f16 lands
+# as a first-class HostTensor dtype upstream.
+half                 = { workspace = true }
+
+[dev-dependencies]
+rce-op-nn-prims = { workspace = true }
+rce-op-attention = { workspace = true }
+
+[build-dependencies]
+
+# Metal exists only on Apple targets; elsewhere the crate builds its stubs.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+metal = { workspace = true }

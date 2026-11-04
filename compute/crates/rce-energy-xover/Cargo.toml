@@ -1,0 +1,15 @@
+[package]
+name        = "rce-energy-xover"
+version.workspace = true
+edition.workspace = true
+description = "Stage-A energy-calibration harness: measure whole-SoC joules per matmul on CPU (op-blas) vs GPU (op-mps) across shapes, to find the empirical energy crossover. Proof artifact for docs/rce-unified-ir-and-energy-routing.md."
+
+[[bin]]
+name = "rce-energy-xover"
+path = "src/main.rs"
+
+[dependencies]
+rce-energy = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-mps = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }

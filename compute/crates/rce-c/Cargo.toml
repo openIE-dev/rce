@@ -1,0 +1,23 @@
+[package]
+name        = "rce-c"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce C ABI — stable cdylib + staticlib surface for Go (cgo), Swift, JVM (JNI), C/C++ embedding."
+
+[lib]
+name = "rce"
+crate-type  = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+rce-format = { workspace = true, features = ["with-rce-graph"] }
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-backend-wgpu = { workspace = true }
+rce-weight-loader = { workspace = true }
+rce-graph = { workspace = true }
+serde_json           = "1"
+
+[build-dependencies]
+cbindgen = "0.29"
+
+[dev-dependencies]

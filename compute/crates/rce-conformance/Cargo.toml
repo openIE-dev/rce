@@ -1,0 +1,26 @@
+[package]
+name        = "rce-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce cross-backend conformance suite — bit-equality and tolerance checks across cpu/wgpu/wasm and sync/async, the gate every backend must pass to be admitted."
+
+[lib]
+name = "rce_conformance"
+
+[[bin]]
+name = "rce-conformance"
+path = "src/bin/main.rs"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-backend-wgpu = { workspace = true }
+rce-vm-scheduler = { workspace = true }
+rce-graph = { workspace = true }
+tokio                 = { workspace = true, features = ["rt-multi-thread", "sync", "macros"] }
+serde                 = { version = "1", features = ["derive"] }
+serde_json            = "1"
+thiserror             = { workspace = true }
+anyhow                = "1"
+
+[dev-dependencies]

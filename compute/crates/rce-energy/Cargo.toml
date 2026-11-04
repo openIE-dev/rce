@@ -1,0 +1,20 @@
+[package]
+name        = "rce-energy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "RCE's one meter library: measured and reported joules (Linux RAPL and hwmon, macOS IOReport, SMC and powermetrics, NVML, battery discharge), their provenance (D.11), the simulator, and the cumulative snapshots the placement crates read"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+nvml-wrapper = { version = "0.13.0", optional = true }
+
+[features]
+default = []
+nvml = ["dep:nvml-wrapper"]
+
+[dev-dependencies]
+tempfile = { workspace = true }

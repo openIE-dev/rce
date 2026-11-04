@@ -1,0 +1,17 @@
+[package]
+name        = "rce-op-amx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Apple AMX coprocessor scaffolding for rce-op-qmm. AMX is the undocumented matrix unit on Apple Silicon — peaks at 5-15 TFLOPS f32, 23-55× lower energy than vDSP_mmul on small-K decode-shaped gemms (measured on M4 Max via Mantle's cross-substrate harness). Apple exposes it only via deprecated BNNS direct calls; this crate uses corsix/amx-style inline asm to issue AMX opcodes directly, bypassing the BNNS deprecation path. Today's deliverable: AMX_SET / AMX_CLR + RAII guard, opcode encoding macros, and a working stub for f32 GEMM tiles. Full Q4/Q8 quantized matmul lands in the next brick."
+
+[dependencies]
+half          = { workspace = true }
+rce-op-attn = { workspace = true }
+
+[dev-dependencies]
+rce-op-qmm = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# No external deps — inline asm via core::arch::asm! suffices.

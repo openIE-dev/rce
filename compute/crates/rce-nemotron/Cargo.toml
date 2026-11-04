@@ -1,0 +1,19 @@
+[package]
+name        = "rce-nemotron"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Nemotron-H inference runtime on the rce substrate — Mamba2 SSM mixer + RoPE GQA attention + dense-gated FFN with block-type dispatch (attn / mamba2 / ffn in arbitrary order across 42 layers). Mirrors rce-jamba's shape; the new arch unlocks NVIDIA's Nemotron-Nano-3-4B (correct on 7+8=15) and lays groundwork for the 30B-A3B MoE variant."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-ssm = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-attention = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+rayon                = { workspace = true }
+tracing              = { workspace = true }

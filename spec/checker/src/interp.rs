@@ -570,6 +570,41 @@ impl<'a> Interp<'a> {
         self.fuel -= 1;
         Ok(())
     }
+    /// `n` fuel ticks at once (6.7): the scalar operations of a graph term.
+    pub(crate) fn ticks(&mut self, n: u64) -> R<()> {
+        if self.fuel < n {
+            self.fuel = 0;
+            return trap(TRAP_FUEL);
+        }
+        self.fuel -= n;
+        Ok(())
+    }
+    /// A graph term (6.13, GT-5 to GT-7): its operands evaluated left to
+    /// right, depth first, then the term built from their shapes, charged,
+    /// and evaluated by the CPU backend.
+    fn tensor_call(&mut self, name: &str, op: &str, args: &[Arg], line: usize) -> R<V> {
+        let mut vals: Vec<V> = vec![];
+        let mut leaf = |e: &Expr| -> Result<crate::graph::TTy, Flow> {
+            let v = self.eval(e)?;
+            let t = crate::graph::TTy::of_value(&v).ok_or_else(|| Flow::Trap("graph term: an operand is not a tensor".into()))?;
+            vals.push(v);
+            Ok(t)
+        };
+        let built = crate::graph::build(op, args, line, name, &mut leaf);
+        let term = match built {
+            Ok(t) => t,
+            Err(crate::graph::BuildErr::Leaf(fl)) => return Err(fl),
+            Err(crate::graph::BuildErr::Finding(x)) => return trap(format!("graph term: {}", x.msg)),
+        };
+        let w = i128::from(term.work);
+        self.charge(crate::conc::C_CALL.saturating_add(w.saturating_mul(2)))?;
+        self.tick()?;
+        self.ticks(term.work)?;
+        match crate::graph::evaluate(&term, &vals) {
+            Ok(v) => Ok(v),
+            Err(m) => trap(m),
+        }
+    }
     pub(crate) fn get(&self, n: &str) -> Option<V> {
         self.scopes.iter().rev().find_map(|s| s.get(n).cloned())
     }
@@ -1660,6 +1695,15 @@ impl<'a> Interp<'a> {
             && self.get(n).is_none()
         {
             return self.call(g, args, sized);
+        }
+        // 6.13: a call of `std.tensor` is the root of a graph term, which the
+        // CPU backend evaluates
+        if let Expr::Member(o, op, l) = f
+            && let Expr::Name(c, _) = &**o
+            && self.get(c).is_none()
+            && crate::graph::visible_name(self.m).as_deref() == Some(c.as_str())
+        {
+            return self.tensor_call(c, op, args, *l);
         }
         // 5.16 context text: `C.lit("…")` is its literal, `C.encode(t)` escapes
         if let Expr::Member(o, m, _) = f

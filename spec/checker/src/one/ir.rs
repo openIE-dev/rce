@@ -1,8 +1,11 @@
 //! The data types of the core `rce-core/1` (one-emitter.md, section 3.2).
 //!
 //! The core is the only input of the printer. It has nine types, three
-//! kinds of atom, thirteen statements, three declarations and one hundred
-//! and one primitives: the one hundred of section 3.2 and `f64.sign`. Every name has one meaning at its type argument, the form is
+//! kinds of atom, fourteen statements, four declarations and one hundred
+//! and one primitives: the one hundred of section 3.2 and `f64.sign`. The
+//! fourteenth statement and fourth declaration are the graph term of spec
+//! 6.13: `vN = graph K(a…)` applies the term with key K, a FunctionGraph
+//! with its typing, declared in the module's `graphs`. Every name has one meaning at its type argument, the form is
 //! in A-normal form (every operand is an atom), and every partial primitive
 //! is preceded by its domain test.
 //!
@@ -172,6 +175,22 @@ pub enum Stmt {
     Halt(Atom),
     /// append bytes to standard output, the only effect
     Out(Atom),
+    /// `vN = graph K(a…)`: the graph term with key K applied to its operands
+    /// (spec 6.13, GT-2); each operand and the result is a tensor, a nested
+    /// `list` of `f64` or `f32` of the term's shape, or a scalar of an empty
+    /// shape. It halts with the trap `non-finite float` when the reference
+    /// evaluation does. The operands are consumed, as by `call`.
+    Graph(String, Vec<Atom>),
+}
+
+/// A graph term (spec 6.13): a FunctionGraph and its typing
+/// (`rce_graph::term::TermTypes`), both as the JSON their serde form
+/// gives. Its key in [`Module::graphs`] is the BLAKE3 content hash of its
+/// `.fg` file (W7).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphTerm {
+    pub graph: serde_json::Value,
+    pub types: serde_json::Value,
 }
 
 /// A function.
@@ -200,6 +219,9 @@ pub struct Module {
     /// the concept record: the RCE names each function and global came from;
     /// never hashed
     pub names: serde_json::Value,
+    /// the graph terms the functions apply, by key (6.13); a group's key
+    /// covers the keys its `graph` statements name
+    pub graphs: BTreeMap<String, GraphTerm>,
 }
 
 impl Module {
@@ -213,7 +235,7 @@ impl Module {
 /// argument, so it is given by [`prim_results`].
 pub fn binds(s: &Stmt) -> usize {
     match s {
-        Stmt::Let(_) | Stmt::Call(..) | Stmt::Catch(..) | Stmt::Var(..) => 1,
+        Stmt::Let(_) | Stmt::Call(..) | Stmt::Catch(..) | Stmt::Var(..) | Stmt::Graph(..) => 1,
         Stmt::Prim(p, ty, _) => prim_results(p, ty),
         _ => 0,
     }

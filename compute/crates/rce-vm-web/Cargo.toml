@@ -1,0 +1,32 @@
+[package]
+name        = "rce-vm-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce Graph VM browser bindings — wasm-bindgen wrapper around rce-vm-backend-cpu/wgpu, ships as @rce/runtime npm package"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rce-format = { workspace = true, features = ["with-rce-graph"] }
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-backend-wgpu = { workspace = true }
+rce-weight-loader = { workspace = true }
+rce-graph = { workspace = true }
+
+wasm-bindgen        = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys              = "0.3"
+serde-wasm-bindgen  = "0.6"
+serde               = { version = "1", features = ["derive"] }
+serde_json          = "1"
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["panic_hook"]
+# Install a console.error panic hook so panics show up in browser devtools.
+panic_hook = ["dep:console_error_panic_hook"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3"]
