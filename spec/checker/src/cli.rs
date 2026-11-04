@@ -910,11 +910,19 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["unform"], words: &[], operands: "FORM.json", min: 1, max: 1, help: "the canonical source of a Form's terms (inverse of `rce emit form`)" },
     Command {
         path: &["repair"],
-        words: &[Word::mode("json"), Word::set("bound", &["N"]), Word::set("known", &["GOOD"])],
+        words: &[Word::mode("json"), Word::set("bound", &["N"]), Word::set("known", &["GOOD"]), Word::set("proposals", &["PROPOSALS"])],
         operands: "FILE [MODULE...]",
         min: 1,
         max: MANY,
-        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; proposals PROPOSALS, programs written outside RCE\n(rce-proposals/1): rung f judges them by the same gate when a to e close nothing, in the mode of its row in 10.13\n(observe: report what would be admitted, close nothing); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+    },
+    Command {
+        path: &["repair", "criterion"],
+        words: &[Word::mode("json")],
+        operands: "REGISTRATION CORPUS RECORDS",
+        min: 3,
+        max: 3,
+        help: "evaluate the registered criterion for promoting rung f of rce repair from observe to auto (10.13, RF-6):\nthe corpus the registration fixes by its SHA-256, one rce repair json record per task; prints the counts and whether it holds",
     },
     Command {
         path: &["mutants"],
@@ -1710,22 +1718,48 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             OK
         }
         ["repair"] => {
-            // rce repair [json] [bound N] [known GOOD] FILE [MODULE...]   (10.13): words, then operands (PC-1)
+            // rce repair [json] [bound N] [known GOOD] [proposals PROPOSALS] FILE [MODULE...]   (10.13): words, then operands (PC-1)
             let (json, ops) = (p.has("json"), rest);
             let bound = p.count("bound", crate::repair::DEFAULT_BOUND, "a count of candidates")?;
             let known = match p.value("known") {
                 Some(g) => Some(crate::repair::known(g, &read_file(g)?)?),
                 None => None,
             };
+            // RF-1: proposals written outside RCE enter only as this file;
+            // RF-3: rung f runs in the mode of its row, never one a word sets
+            let proposals = match p.value("proposals") {
+                Some(f) => Some(crate::proposals::read(f, &read_file(f)?)?),
+                None => None,
+            };
+            let outside = proposals.as_ref().map(|ps| crate::repair::Outside { proposals: ps, mode: crate::proposals::mode() });
             let src = read_file(&ops[0])?;
             let others = load(&ops[1..])?;
-            let o = crate::repair::repair(&ops[0], &src, &others, known.as_ref(), bound);
+            let o = crate::repair::repair_with(&ops[0], &src, &others, known.as_ref(), outside, bound);
             if json {
                 writeln!(out, "{}", crate::repair::report_json(&ops[0], &o)).map_err(w)?;
             } else {
                 write!(out, "{}", crate::repair::report(&ops[0], &o)).map_err(w)?;
             }
-            if o.closed { OK } else { REQUIRES_CHANGE }
+            // RF-4: a program the ladder leaves open is one finding that
+            // requires change; each observed proposal is counted as observed
+            let att = crate::admission::Attention {
+                requires_change: usize::from(!o.closed),
+                observed: o.proposals.as_ref().map_or(0, |r| r.observed),
+                ..Default::default()
+            };
+            writeln!(err, "{}", att.line()).map_err(w)?;
+            att.status()
+        }
+        ["repair", "criterion"] => {
+            // rce repair criterion [json] REGISTRATION CORPUS RECORDS   (10.13, RF-6)
+            let (reg, corpus, recs) = (read_file(&rest[0])?, read_file(&rest[1])?, read_file(&rest[2])?);
+            let v = crate::proposals::evaluate(&reg, &corpus, &recs).map_err(|e| if e.starts_with("RF-5") { format!("{}: {e}", rest[0]) } else { e })?;
+            if p.has("json") {
+                write!(out, "{}", crate::proposals::evaluation_json(&v)).map_err(w)?;
+            } else {
+                write!(out, "{}", crate::proposals::evaluation_report(&v)).map_err(w)?;
+            }
+            if v["holds"] == true { OK } else { REQUIRES_CHANGE }
         }
         ["mutants"] => {
             // rce mutants [json] [bound N] FILE [MODULE...]   (6.12): words, then operands (PC-1)

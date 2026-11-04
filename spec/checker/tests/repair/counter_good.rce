@@ -1,0 +1,17 @@
+# counter.rce as it was meant: its known-good version.
+intent "a counter that steps by two and shows its value"
+    example Inc -> 2
+    example Inc, Inc -> 4
+
+state Counter
+    n: u8 = 0
+
+struct Shown
+    value: u8
+
+event Inc
+event Show
+
+step Counter on Inc -> n + 2
+step Counter on Show
+    emit Shown(value: n)
