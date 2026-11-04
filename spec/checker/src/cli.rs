@@ -276,8 +276,15 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             crate::emit::verilog::emit(&crate::program(src)?)
         }
         "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
+        "wasm" => {
+            let d = diagnostics(src, &HashSet::new());
+            if !d.is_empty() {
+                return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+            }
+            crate::wasm_term::emit(&crate::program(src)?)
+        }
         t => Err(format!(
-            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog; the core evaluator's output is `rce run-core FILE`)"
+            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog, wasm; the core evaluator's output is `rce run-core FILE`)"
         )),
     }
 }
@@ -820,7 +827,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "TARGET FILE",
         min: 2,
         max: 2,
-        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module)",
+        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module),\nwasm (each graph term as a WebAssembly program module calling the kernel library once per node, 10.18)",
     },
     Command { path: &["graph", "ops"], words: &[], operands: "", min: 0, max: 0, help: "the operations of std.tensor (6.13): name, level, what each computes" },
     Command {
@@ -834,11 +841,11 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["graph", "inspect"], words: &[], operands: "FILE", min: 1, max: 1, help: "the header, sections and graph term of the .fg FILE; its hash and its term are checked (W7)" },
     Command {
         path: &["graph", "run"],
-        words: &[],
+        words: &[Word::mode("wasm")],
         operands: "FILE INPUTS",
         min: 2,
         max: 2,
-        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13)",
+        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13); with wasm: through the term's WebAssembly program module and\nthe kernel library under wasmi (10.18)",
     },
     Command {
         path: &["lift", "gguf"],
@@ -1572,7 +1579,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program that requires change is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "core", "rust", "python", "js", "scala", "verilog"].contains(&rest[0].as_str())
+                if ["form", "core", "rust", "python", "js", "scala", "verilog", "wasm"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                     && !e.starts_with("not covered by the lowering")
                     && !e.starts_with("internal:")
@@ -1632,7 +1639,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let dir = std::path::Path::new(&rest[0]).parent().unwrap_or(std::path::Path::new("."));
             crate::graph::add_store(&dir.join("blobs"));
             let bytes = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
-            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { crate::graph::run_fg(&bytes, &rest[1]) };
+            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { {
+                let w = |k: &str, g: &rce_graph::graph::FunctionGraph, t: &rce_graph::term::TermTypes, v: &[crate::interp::V]| crate::wasm_term::run(k, g, t, v).map(|r| r.result);
+                crate::graph::run_fg(&bytes, &rest[1], if p.has("wasm") { Some(&w) } else { None })
+            } };
             match r {
                 Ok(s) => {
                     write!(out, "{s}").map_err(w)?;

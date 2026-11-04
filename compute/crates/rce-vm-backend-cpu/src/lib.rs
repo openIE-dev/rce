@@ -25,7 +25,7 @@ pub mod value;
 pub use device::{DeviceId, DeviceMem, DeviceTensor, DownloadToHost};
 pub use error::{InterpretError, Result};
 pub use interpret::{
-    interpret, interpret_program, interpret_reference, interpret_with_config,
+    interpret, interpret_program, interpret_reference, interpret_with_config, reference_node, reference_order,
     interpret_with_leaves, Inputs, InterpretConfig,
 };
 pub use leaf::LeafDispatch;

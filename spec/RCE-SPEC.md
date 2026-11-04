@@ -3907,6 +3907,7 @@ the proposal `spec/proposals/one-emitter.md`, ONE-3).
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
 | `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
 | `verilog` | the step function δ as one synthesizable Verilog-2005 module (IEEE 1364-2005), for the subset of the proposal `spec/proposals/emit-verilog.md` (informative) |
+| `wasm` | each graph term of FILE (6.13) as one WebAssembly text module that runs the term node by node through the kernel library (10.18) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
@@ -5229,6 +5230,77 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
 values and no weight bytes, which a term needs, and several of their
 operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
 have no operation in `std.tensor`.
+
+### 10.18 `rce emit wasm FILE` and `rce graph run wasm FILE INPUTS`: graph terms in WebAssembly
+
+Terms used here. A *realisation* of a graph term is a computation of the
+term other than the reference evaluation (GT-6); it is judged against the
+reference node by node, each node at its level (GT-4). The *kernel library*
+is the WebAssembly module `compute/crates/rce-emit-wasm/kernels/rce-kernels.wasm`:
+the CPU backend's one-node step of the reference evaluation
+(`rce_vm_backend_cpu::reference_node`), compiled to WebAssembly by
+`scripts/build-wasm-kernels.sh` from `compute/crates/rce-wasm-kernels`. A
+*program module* is the WebAssembly text that `rce emit wasm` prints: it
+holds no arithmetic of its own and calls the kernel library once per node.
+A *slot* is a numbered tensor held by the kernel library.
+
+`rce emit wasm FILE` prints one program module for the graph terms of the
+admitted module FILE, with one exported function `term_KEY` per term, KEY
+its content hash (GT-2). A program with no graph term requires change
+(status 1). `rce graph run wasm FILE INPUTS` runs the term of a `.fg` file
+through its program module and the kernel library under the `wasmi`
+interpreter and prints what `rce graph run FILE INPUTS` (10.16) prints.
+Example: on the term of `compute/examples/dense.rce`, both print
+`[1.5,0.0]`.
+
+- **EW-1 (one call per node).** The program module calls the kernel
+  library once per node, in the order of the reference evaluation
+  (`reference_order`: Kahn's algorithm, the ready nodes in ascending
+  index, on the term with each blob node standing alone, as the reference
+  evaluates it). Each call passes the node's descriptor (its operation,
+  output type, operand slots and output slot) from a data segment of the
+  program module. A comment above each call names the node, its operation
+  and its level, and the custom section `rce.levels` lists every node's
+  level.
+- **EW-2 (the pinned library).** The kernel library is committed with its
+  BLAKE3 digest (`rce-kernels.wasm.blake3`); the program module imports it
+  under the module name `rce-kernels/DIGEST`, so a program module links
+  only to the library it was printed for. `rce` refuses a library whose
+  bytes are not its digest. `scripts/build-wasm-kernels.sh check` rebuilds
+  it and fails when the rebuild differs from the pin.
+- **EW-3 (the reference step).** Each node is computed by the reference
+  evaluation's own step, so an `exact` node is the reference's value bit
+  for bit, the transcendentals included (6.3 F9: the correctly rounded
+  `exp`, `tanh` and `erf` of `math.rce`). The earlier emitter's
+  approximate exponential is retired: no program module reaches an
+  approximation.
+- **EW-4 (judged at each level).** The value of every node is read back
+  from its slot and judged against the reference's value of that node: an
+  `exact` node bit for bit, a `within N` node within N units in the last
+  place, a `lossy` node by its type. The judgement is of the realisation;
+  the reference stays the meaning (GT-6).
+- **EW-5 (weights by digest).** The bytes of a blob (GT-9) are put into a
+  slot, and the kernel library computes their BLAKE3 digest before the
+  node reads them; bytes whose digest is not the one the term names stop
+  the term (status 4 of the library), whatever store supplied them.
+- **EW-6 (the same answers).** A non-finite value stops the term at that
+  node with `trap: non-finite float`, as the reference does; floating
+  point runs only on an engine that passes the HC-13 probe. The result of
+  `rce graph run wasm` is the result of `rce graph run`, trap included.
+
+**Conformance.** Each rule is checked by these tests of
+`spec/checker/tests/emit_wasm.rs`:
+
+| Rule | Test |
+|---|---|
+| EW-1 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_examples_is_the_reference_at_its_level` |
+| EW-2 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only` |
+| EW-3 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-4 | `every_node_of_the_examples_is_the_reference_at_its_level`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-5 | `a_blob_whose_bytes_are_not_its_digest_is_refused` |
+| EW-6 | `the_commands` |
+
+The design is in `spec/proposals/emit-wasm.md`.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
