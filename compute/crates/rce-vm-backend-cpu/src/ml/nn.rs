@@ -107,6 +107,16 @@ pub fn e_erf<T: Real>(x: T) -> T {
     T::of(crmath::erf(x.wide()))
 }
 
+/// `S(x)`: math.sin of x, rounded once to e.
+pub fn e_sin<T: Real>(x: T) -> T {
+    T::of(crmath::sin(x.wide()))
+}
+
+/// `C(x)`: math.cos of x, rounded once to e.
+pub fn e_cos<T: Real>(x: T) -> T {
+    T::of(crmath::cos(x.wide()))
+}
+
 /// sigmoid: x >= 0: 1 / (1 + E(-x)); x < 0: E(x) / (1 + E(x)).
 pub fn sigmoid<T: Real>(x: T) -> T {
     if x >= T::ZERO {
@@ -639,6 +649,46 @@ pub fn int_check(node_id: usize, x: &HostTensor, elem: &str) -> Result<()> {
         int_value(node_id, v as i64, elem)?;
     }
     Ok(())
+}
+
+/// `rope(x, pos, freqs)`: the rotary position embedding of adjacent pairs.
+/// x (s, ..., d) of f32 or f64, d even; pos (s) i32, the position of each
+/// index of the first axis; freqs (d / 2) of x's type. For each index r of
+/// the first axis and each pair i: a = (pos_r as e) freqs_i, c = C(a),
+/// n = S(a); each row of d along the last axis has its pair
+/// (x_2i, x_2i+1) replaced by (x_2i c - x_2i+1 n, x_2i n + x_2i+1 c).
+pub fn rope(node_id: usize, args: &[Value]) -> Result<Value> {
+    arity(node_id, "rope", args, &[3])?;
+    let x = arg_tensor(node_id, &args[0])?;
+    let pos = arg_tensor(node_id, &args[1])?;
+    let fr = arg_tensor(node_id, &args[2])?;
+    let r = x.shape.len();
+    let d = x.shape.last().copied().unwrap_or(0);
+    if r < 2 || d % 2 != 0 || pos.dtype != DType::I32 || pos.shape != [x.shape[0]] || fr.dtype != x.dtype || fr.shape != [d / 2] {
+        return Err(mismatch(node_id, format!("rope: x {:?} {}, pos {:?} {}, freqs {:?} {}", x.shape, x.dtype.name(), pos.shape, pos.dtype.name(), fr.shape, fr.dtype.name())));
+    }
+    fn go<T: Real>(x: &HostTensor, pos: &[i32], fr: &HostTensor) -> Result<Value> {
+        let (xs, fs) = (T::read(x)?, T::read(fr)?);
+        let d = *x.shape.last().unwrap_or(&2);
+        let per = xs.len() / x.shape[0];
+        let mut out = xs.clone();
+        for (ri, p) in pos.iter().enumerate() {
+            let cs: Vec<(T, T)> = fs.iter().map(|f| {
+                let a = T::of(*p as f64) * *f;
+                (e_cos(a), e_sin(a))
+            }).collect();
+            for row in (ri * per..(ri + 1) * per).step_by(d) {
+                for (i, (c, n)) in cs.iter().enumerate() {
+                    let (a, b) = (xs[row + 2 * i], xs[row + 2 * i + 1]);
+                    out[row + 2 * i] = a * *c - b * *n;
+                    out[row + 2 * i + 1] = a * *n + b * *c;
+                }
+            }
+        }
+        T::write(x.shape.clone(), &out).map(Value::Tensor)
+    }
+    let p = pos.as_i32()?;
+    float_dispatch!(node_id, "rope", x, go(&x, &p, &fr))
 }
 
 #[cfg(test)]

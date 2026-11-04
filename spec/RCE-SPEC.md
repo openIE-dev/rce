@@ -2481,7 +2481,8 @@ the row names the types (N4: no promotion). Arithmetic is that of `e`: each
 `+ - * /` and `sqrt` is one operation of `e` (binary32 for `f32`), rounded
 once to nearest even, with no fused multiply-add. E(x), T(x) and R(x) are
 `math.exp`, `math.tanh` and `math.erf` (6.3 F9) of the element as binary64,
-which is exact, rounded once to `e`; for `f64` they are those functions,
+which is exact, rounded once to `e`, and S(x) and C(x) those of `math.sin`
+and `math.cos`; for `f64` they are those functions,
 and for `f32` the binary32 value nearest the binary64 one, which is the
 correctly rounded binary32 function except where the binary64 value is a
 binary32 midpoint. A sum runs in increasing index from +0.0 (from 0 for
@@ -2515,13 +2516,20 @@ realisation can reproduce the reference's bits.
 | `tensor.embed(table, ids)` | table `[[e; d]; n]` of a float type, ids a tensor of `i32`, to ids' shape followed by d | the rows the ids name; an id outside 0 to n − 1 traps `index ID out of range` | exact |
 | `tensor.matmul_q8_0(x, q, d)` | x `[[f32; k]; m]`, q `[[i8; k]; n]`, d `[[f32; k/32]; n]`, k a multiple of 32, to `[[f32; n]; m]` | y_ij = the sum over blocks b of d_jb · s_b, s_b the sum of (q_jt as f32) · x_it over the block's 32 positions in increasing t | exact |
 | `tensor.matmul_q4_0(x, q, d)` | as `matmul_q8_0`, each q in −8 to 7 (else the trap `Q4_0 value V outside -8..7`) | as `matmul_q8_0`, each block summed in the order 0, 16, 1, 17, …, 15, 31 | exact |
+| `tensor.matmul_q4_k(x, q, s, o)` | x `[[f32; k]; m]`, q `[[i8; k]; n]` in 0 to 15 (else the trap `Q4_K value V outside 0..15`), s and o `[[f32; k/32]; n]`, k a multiple of 256, to `[[f32; n]; m]`; the value at position t of row j is s_jb · q_jt − o_jb, b = t / 32 (GT-10) | for each pair of sub-blocks (2g, 2g + 1): u = the sum of (q_jt as f32) · x_it and a = the sum of x_it over each one's 32 positions in increasing t; y_ij = y_ij + (((s · u − o · a) of 2g + s · u of 2g + 1) − o · a of 2g + 1), in increasing g from +0.0 | exact |
+| `tensor.matmul_q5_k(x, q, s, o)` | as `matmul_q4_k`, q in 0 to 31 | as `matmul_q4_k` | exact |
+| `tensor.matmul_q6_k(x, q, s)` | x `[[f32; k]; m]`, q `[[i8; k]; n]` in −32 to 31, s `[[f32; k/16]; n]`, k a multiple of 256, to `[[f32; n]; m]`; the value at position t is s_jb · q_jt, b = t / 16 | per half of 128 positions of each super-block of 256, for l from 0 to 31, the positions l, l + 32, l + 64, l + 96 of the half in that order: y_ij = y_ij + (s_jb · (q_jt as f32)) · x_it, from +0.0 | exact |
+| `tensor.rope(x, pos, freqs)` | x `[s, …, d]` of a float type, d even, pos `[i32; s]`, freqs `[e; d/2]`, to x's shape | per index r of the first axis and pair i: a = (pos_r as `e`) · freqs_i, c = C(a), n = S(a); in each row of d along the last axis, (x_2i, x_2i+1) becomes (x_2i · c − x_2i+1 · n, x_2i · n + x_2i+1 · c) | exact |
 | `tensor.round_bf16(t)` | a float tensor to one of its shape | each element rounded once to the nearest bfloat16 value (8 significant bits, the exponent range of binary32), ties to even | lossy |
 | `tensor.round_q8_0(t)`, `tensor.round_q4_0(t)` | an `f32` tensor whose last length is a multiple of 32 to one of its shape | each block of 32 along the last axis replaced by the values its Q8_0 or Q4_0 quantization represents, quantized as GGUF's reference quantizers do (`rce_vm_backend_cpu::ml::nn::quantize_block`) | lossy |
+| `tensor.round_q4_k(t)`, `tensor.round_q5_k(t)`, `tensor.round_q6_k(t)` | an `f32` tensor whose last length is a multiple of 256 to one of its shape | each super-block of 256 along the last axis replaced by the values its Q4_K, Q5_K or Q6_K quantization by RCE's reference quantizer (GT-10) represents | lossy |
 | `a + b`, `a - b`, `a * b`, `a / b` | two tensors of one shape to one of that shape | element by element in row-major order; for integers each result is checked against `e` and `/` truncates | exact |
 
-The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0` and
-`matmul_q4_0` are those of the portable kernels of `rce-op-nn-prims`,
-`rce-op-attention` and `rce-op-qmm`, so those kernels differ from the
+The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0`,
+`matmul_q4_0`, `matmul_q4_k`, `matmul_q5_k` and `matmul_q6_k` are those of
+the portable kernels of `rce-op-nn-prims`, `rce-op-attention` and
+`rce-op-qmm` (for the K formats, its serial row kernels `dot_row_q4_k`,
+`dot_row_q5_k` and `dot_row_q6_k`), so those kernels differ from the
 reference only where they take `exp` or `tanh` from the platform (and, for
 `layernorm`, on a row of only −0.0, whose sum they start from −0.0). No
 operation has a `within N` level of its own: `within N` is what a program
@@ -2612,6 +2620,37 @@ store holds the blob DIGEST`), as a missing file does; it is not a trap of
 the program. The host loads every blob a program names when it starts and
 records the digests and lengths it loaded in D (`host.Blobs`, Appendix E)
 before any input. `rce lift gguf` (10.17) writes such programs.
+
+**GT-10 (the K formats).** Terms used here. A *super-block* is 256
+consecutive values along a matrix's last axis. Q4_K and Q5_K divide it
+into 8 *sub-blocks* of 32 and Q6_K into 16 of 16. A term holds a matrix of
+a K format as its values q, an `i8` tensor in position order, and per
+sub-block a scale s (and, for Q4_K and Q5_K, an offset o), `f32` tensors;
+the value at a position is s · q − o (Q6_K: s · q), one binary32
+multiplication and one subtraction. In a GGUF file s is d · sc and o is
+dmin · m, d and dmin binary16 and sc and m 6-bit integers (Q6_K: sc an
+`i8`), so each s and o is a binary32 value exactly and the term's values
+are the file's (10.17 LIFT-6). The products are exact (GT-4). The rounding
+operations `round_q4_k`, `round_q5_k` and `round_q6_k` lower precision and
+use RCE's reference quantizer (`rce_vm_backend_cpu::ml::kquant::quantize_k`),
+each operation binary32 and `round` half away from zero:
+
+- Q4_K and Q5_K, with nmax 15 and 31: per sub-block b, lo = min(0, its
+  least value), hi = its largest value, w_b = (hi − lo) / nmax and
+  v_b = −lo; d and dmin are (the largest w_b) / 63 and (the largest v_b) / 63
+  rounded to binary16; sc_b = min(63, round(w_b / d)), 0 when d = 0, and
+  m_b likewise from v_b and dmin; with s = d · sc_b and o = dmin · m_b, each
+  q = min(nmax, max(0, round((x + o) / s))), 0 when s = 0.
+- Q6_K: per sub-block b of 16, w_b = (its first value of largest
+  magnitude) / −32; d = (the largest |w_b|) / 127 rounded to binary16;
+  sc_b = min(127, max(−128, round(w_b / d))), 0 when d = 0; with
+  s = d · sc_b, each q = min(31, max(−32, round(x / s))), 0 when s = 0.
+
+This quantizer is RCE's, stated so that a rounding is a function of its
+operand's bits; it is simpler than the search of GGUF's own K quantizers,
+so a file written by another tool may hold other values for the same
+weights. A lifted program holds the file's values and has no rounding
+operation, so the difference never reaches one.
 
 **W7 (graph terms in the core).** A core module read back from JSON
 (`rce emit core FILE`, `rce run-core FILE`) requires change, with the rule
@@ -2748,7 +2787,8 @@ The Form
   literal from 1 to 2^31 − 1 (6.13, GT-1 to GT-4).
 - W-GRAPH-3 An operation whose level is weaker than the level in force
   where it stands, that is, a level the program does not declare: a
-  `tensor.round_bf16`, `tensor.round_q8_0` or `tensor.round_q4_0` outside a
+  `tensor.round_bf16`, `tensor.round_q8_0`, `tensor.round_q4_0`,
+  `tensor.round_q4_k`, `tensor.round_q5_k` or `tensor.round_q6_k` outside a
   `tensor.lossy` (6.13, GT-3).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
   moved inside a loop, or placed in a collection, field, payload, channel or
@@ -5035,13 +5075,14 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   norm and the output projection (`output.weight`, or the token embedding
   when the file has none). The program has one event, `Tokens(ids: [i32;
   C])` with C the file's context length, and keeps the logits of the last
-  sequence in its state. Another architecture is refused with its name
-  (status 2).
+  sequence in its state. The architecture `llama` is lifted as LIFT-5
+  states. Another architecture is refused with its name (status 2).
 - **LIFT-2 (weights).** F32 and F16 tensors become `f32` blobs (every
   binary16 value is a binary32 value). Q8_0 and Q4_0 matrices become their
   quantized values, an `i8` blob, and their block scales, an `f32` blob,
   exactly as the file holds them (Q4_0 nibbles minus 8, low nibbles first),
-  for `matmul_q8_0` and `matmul_q4_0`. Another type is refused.
+  for `matmul_q8_0` and `matmul_q4_0`. Q4_K, Q5_K and Q6_K matrices
+  become blobs as LIFT-6 states. Another type is refused.
 - **LIFT-3 (layout).** GGUF lists a tensor's lengths fastest first: a
   matrix of lengths (k, n) is n rows of k, the shape `[n, k]`, and a
   projection of x by it is x Wᵀ (`matmul_q8_0(x, q, d)`, or `matmul(x,
@@ -5060,6 +5101,39 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   realisation of the lifted program; a program that accepts it declares
   `tensor.within(N, …)` around the operation, and a run whose distance
   exceeds N is judged as not realising it.
+
+- **LIFT-5 (llama).** The architecture `llama` is lifted from the keys
+  `llama.embedding_length`, `block_count`, `attention.head_count`,
+  `attention.head_count_kv` (the query heads when absent),
+  `context_length`, `attention.layer_norm_rms_epsilon` and
+  `rope.freq_base` (10000 when absent): the embedding of the input ids
+  (`token_embd`); per block an
+  RMS norm (`rmsnorm`), the projections q, k and v reshaped to
+  `[C, heads, hd]`, the rotary position embedding of adjacent pairs
+  (`rope`, positions 0 to C − 1) on q and k, causal attention heads first
+  with the query heads a multiple of the key and value heads (grouped-query
+  attention, GQA: query head h reads key and value head h / (hq / hk)),
+  the output projection and a residual sum; an RMS norm and the
+  feed-forward layer SwiGLU, `(silu(f Wgᵀ) * f Wuᵀ) Wdᵀ`, and a residual
+  sum; a final RMS norm and the output projection (`output.weight`, or the
+  embedding table when the file has none). The rotary frequencies
+  base^(−2i / hd), i from 0 to hd / 2 − 1, are computed once by the lift
+  in binary64 and rounded once to `f32`, and enter the program as a blob,
+  so the program's arithmetic is all GT-4's. A head of odd length, or
+  query heads that are not a multiple of the key heads, is refused.
+- **LIFT-6 (the K formats).** Q4_K, Q5_K and Q6_K matrices become their
+  values, an `i8` blob in position order, and their sub-block scales
+  d · sc (and offsets dmin · m), `f32` blobs, for `matmul_q4_k`,
+  `matmul_q5_k` and `matmul_q6_k` (GT-10); each scale and offset is a
+  binary32 value exactly, so the values the program holds are those
+  `rce-ingest-gguf` reads from the file, bit for bit. Rows of a length not
+  a multiple of 256 are refused. On a two-block llama model of width 256
+  with 4 query heads over 2 key and value heads, written in the test from
+  a fixed seed with products in Q4_K, Q5_K, Q6_K, Q8_0 and F16
+  (`spec/checker/tests/lift_llama.rs`), the lifted program's logits equal
+  a forward pass written in Rust bit for bit, and `rce-op-qmm`'s K-format
+  products reproduce every bit of the reference on 41,472 elements, serial
+  and dispatched (Apple M5 Max, aarch64).
 
 `rce lift fx` is not a command yet: the PyTorch FX graphs that
 `rce-ingest-fx` reads carry no shapes for their inputs and intermediate

@@ -1363,13 +1363,14 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   norm and the output projection (`output.weight`, or the token embedding
   when the file has none). The program has one event, `Tokens(ids: [i32;
   C])` with C the file's context length, and keeps the logits of the last
-  sequence in its state. Another architecture is refused with its name
-  (status 2).
+  sequence in its state. The architecture `llama` is lifted as LIFT-5
+  states. Another architecture is refused with its name (status 2).
 - **LIFT-2 (weights).** F32 and F16 tensors become `f32` blobs (every
   binary16 value is a binary32 value). Q8_0 and Q4_0 matrices become their
   quantized values, an `i8` blob, and their block scales, an `f32` blob,
   exactly as the file holds them (Q4_0 nibbles minus 8, low nibbles first),
-  for `matmul_q8_0` and `matmul_q4_0`. Another type is refused.
+  for `matmul_q8_0` and `matmul_q4_0`. Q4_K, Q5_K and Q6_K matrices
+  become blobs as LIFT-6 states. Another type is refused.
 - **LIFT-3 (layout).** GGUF lists a tensor's lengths fastest first: a
   matrix of lengths (k, n) is n rows of k, the shape `[n, k]`, and a
   projection of x by it is x Wᵀ (`matmul_q8_0(x, q, d)`, or `matmul(x,
@@ -1388,6 +1389,39 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   realisation of the lifted program; a program that accepts it declares
   `tensor.within(N, …)` around the operation, and a run whose distance
   exceeds N is judged as not realising it.
+
+- **LIFT-5 (llama).** The architecture `llama` is lifted from the keys
+  `llama.embedding_length`, `block_count`, `attention.head_count`,
+  `attention.head_count_kv` (the query heads when absent),
+  `context_length`, `attention.layer_norm_rms_epsilon` and
+  `rope.freq_base` (10000 when absent): the embedding of the input ids
+  (`token_embd`); per block an
+  RMS norm (`rmsnorm`), the projections q, k and v reshaped to
+  `[C, heads, hd]`, the rotary position embedding of adjacent pairs
+  (`rope`, positions 0 to C − 1) on q and k, causal attention heads first
+  with the query heads a multiple of the key and value heads (grouped-query
+  attention, GQA: query head h reads key and value head h / (hq / hk)),
+  the output projection and a residual sum; an RMS norm and the
+  feed-forward layer SwiGLU, `(silu(f Wgᵀ) * f Wuᵀ) Wdᵀ`, and a residual
+  sum; a final RMS norm and the output projection (`output.weight`, or the
+  embedding table when the file has none). The rotary frequencies
+  base^(−2i / hd), i from 0 to hd / 2 − 1, are computed once by the lift
+  in binary64 and rounded once to `f32`, and enter the program as a blob,
+  so the program's arithmetic is all GT-4's. A head of odd length, or
+  query heads that are not a multiple of the key heads, is refused.
+- **LIFT-6 (the K formats).** Q4_K, Q5_K and Q6_K matrices become their
+  values, an `i8` blob in position order, and their sub-block scales
+  d · sc (and offsets dmin · m), `f32` blobs, for `matmul_q4_k`,
+  `matmul_q5_k` and `matmul_q6_k` (GT-10); each scale and offset is a
+  binary32 value exactly, so the values the program holds are those
+  `rce-ingest-gguf` reads from the file, bit for bit. Rows of a length not
+  a multiple of 256 are refused. On a two-block llama model of width 256
+  with 4 query heads over 2 key and value heads, written in the test from
+  a fixed seed with products in Q4_K, Q5_K, Q6_K, Q8_0 and F16
+  (`spec/checker/tests/lift_llama.rs`), the lifted program's logits equal
+  a forward pass written in Rust bit for bit, and `rce-op-qmm`'s K-format
+  products reproduce every bit of the reference on 41,472 elements, serial
+  and dispatched (Apple M5 Max, aarch64).
 
 `rce lift fx` is not a command yet: the PyTorch FX graphs that
 `rce-ingest-fx` reads carry no shapes for their inputs and intermediate
@@ -1468,4 +1502,4 @@ The design is in `spec/proposals/emit-wasm.md`.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 8f55e2266b20d718832d756675942b819a4238771c601606ed7a49d727146108 -->
+<!-- body-sha256: 8e57bcb58a24847100ec380689bafef7db51dd4c88c3f872c5e7b69cf8229f3e -->
