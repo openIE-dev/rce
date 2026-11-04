@@ -373,7 +373,7 @@ class Macmon:
             n = len(self.samples)
             first = self.samples[0][0] if n else None
             last = self.samples[-1][1] if n else None
-        return {"kind": "reported", "sampler": "macmon %s (pipe, no root)" % self.version, "argv": self.argv,
+        return {"kind": "reported", "sampler": "%s (pipe, no root)" % (self.version if self.version.startswith("macmon") else "macmon " + self.version), "argv": self.argv,
                 "counter": " + ".join(MACMON_KEYS) + " (W, the average over each sample) times the sample's span",
                 "interval": "%d ms; each sample spans from the previous sample's timestamp to its own; "
                             "each window takes the share of every sample that overlaps it" % self.interval_ms,
