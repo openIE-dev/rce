@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-IFLET-1
+fn main()
+    if let some(v) = some(3) and true
+        emit v.tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-iflet-1-change
+# area: types-checking
+# clauses: [W-IFLET-1]
+# expect: change
+# diagnostic: W-IFLET-1
+# provenance: harvested from spec/examples-0.9/change/iflet_operand_not_comparison.rce: rce check reports W-IFLET-1 first
+#---

@@ -1,0 +1,11 @@
+extern "C" fn c_rand() -> u32
+
+fn roll() -> u32 = c_rand()
+#--- rce-test
+# id: types-checking/wellformedness/w-world-1-change
+# area: types-checking
+# clauses: [W-WORLD-1]
+# expect: change
+# diagnostic: W-WORLD-1
+# provenance: harvested from spec/examples/change/types/extern_in_pure.rce: rce check reports W-WORLD-1 first
+#---

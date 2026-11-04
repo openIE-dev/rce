@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-IFC-6
+fn main()
+    let token: i64 @ {nope} = 7
+    let _ = token
+#--- rce-test
+# id: types-checking/wellformedness/w-ifc-6-change
+# area: types-checking
+# clauses: [W-IFC-6]
+# expect: change
+# diagnostic: W-IFC-6
+# provenance: harvested from spec/examples-0.9/change/ifc_undeclared_label.rce: rce check reports W-IFC-6 first
+#---

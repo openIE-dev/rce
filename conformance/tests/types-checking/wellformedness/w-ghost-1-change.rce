@@ -1,0 +1,14 @@
+# rce-version: 0.9
+# expect: W-GHOST-1
+ghost fn sq(x: i64) -> i64 = x * x
+
+fn main()
+    emit sq(3).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-ghost-1-change
+# area: types-checking
+# clauses: [W-GHOST-1]
+# expect: change
+# diagnostic: W-GHOST-1
+# provenance: harvested from spec/examples-0.9/change/ghost_fn_called.rce: rce check reports W-GHOST-1 first
+#---

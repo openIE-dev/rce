@@ -1,0 +1,22 @@
+# rce-version: 0.9
+# expect: W-IFC-5
+struct Declass
+
+label pii by Declass
+
+state Log
+    shown: i64 = 0
+
+event Reveal(code: i64 @ {pii}, approved: bool, cap: Cap[Declass])
+
+step Log on Reveal(code: c, approved: ok, cap: _)
+    if ok
+        emit (release c).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-ifc-5-change
+# area: types-checking
+# clauses: [W-IFC-5]
+# expect: change
+# diagnostic: W-IFC-5
+# provenance: harvested from spec/examples-0.9/change/ifc_release_untrusted_decision.rce: rce check reports W-IFC-5 first
+#---

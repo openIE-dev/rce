@@ -1,0 +1,20 @@
+# W-GRAPH-2: exp is an operation on f32 or f64 tensors, and the counts
+# are i32.
+use std.tensor
+
+state Counts
+    c: [i32; 3] = [1, 2, 3]
+    y: [i32; 3] = [0, 0, 0]
+
+event Go
+
+step Counts on Go
+    y = tensor.exp(c)
+#--- rce-test
+# id: types-checking/wellformedness/w-graph-2-change
+# area: types-checking
+# clauses: [W-GRAPH-2]
+# expect: change
+# diagnostic: W-GRAPH-2
+# provenance: harvested from spec/examples/change/types/graph_integer.rce: rce check reports W-GRAPH-2 first
+#---

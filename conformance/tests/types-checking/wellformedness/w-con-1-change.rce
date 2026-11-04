@@ -1,0 +1,17 @@
+# rce-version: 0.9
+# expect: W-CON-1
+fn f(x: i64) -> i64
+    requires x > 5
+    requires x < 3
+    return x
+
+fn main()
+    emit f(1).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-con-1-change
+# area: types-checking
+# clauses: [W-CON-1]
+# expect: change
+# diagnostic: W-CON-1
+# provenance: harvested from spec/examples-0.9/change/contract_unsatisfiable.rce: rce check reports W-CON-1 first
+#---

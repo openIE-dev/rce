@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-CTFN-1
+ct fn both(a: bool @ {secret}, b: bool) -> bool
+    return a and b
+
+fn main()
+    let _ = both(true, false)
+#--- rce-test
+# id: types-checking/wellformedness/w-ctfn-1-change
+# area: types-checking
+# clauses: [W-CTFN-1]
+# expect: change
+# diagnostic: W-CTFN-1
+# provenance: harvested from spec/examples-0.9/change/ct_and_on_secret.rce: rce check reports W-CTFN-1 first
+#---

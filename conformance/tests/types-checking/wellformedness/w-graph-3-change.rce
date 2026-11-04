@@ -1,0 +1,19 @@
+# W-GRAPH-3: round_bf16 lowers precision (level lossy), and no
+# tensor.lossy around it declares that level.
+use std.tensor
+
+state Layer
+    y: [f64; 2] = [0.0, 0.0]
+
+event Input(x: [f64; 2])
+
+step Layer on Input(x)
+    y = tensor.round_bf16(x)
+#--- rce-test
+# id: types-checking/wellformedness/w-graph-3-change
+# area: types-checking
+# clauses: [W-GRAPH-3]
+# expect: change
+# diagnostic: W-GRAPH-3
+# provenance: harvested from spec/examples/change/types/graph_level.rce: rce check reports W-GRAPH-3 first
+#---

@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-RES-1
+fn main()
+    host.revoke(1)
+    emit 0
+#--- rce-test
+# id: types-checking/wellformedness/w-res-1-change
+# area: types-checking
+# clauses: [W-RES-1]
+# expect: change
+# diagnostic: W-RES-1
+# provenance: harvested from spec/examples-0.9/change/cap_host_revoke_gated.rce: rce check reports W-RES-1 first
+#---
