@@ -1,0 +1,16 @@
+fn f(n: u64) -> u64 bound 10
+    decreases n
+    if n == 0
+        return 0
+    return f(n / 2)
+
+fn main()
+    emit f(2).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/p4-decreases-outside-fragment
+# area: types-checking
+# clauses: [P4]
+# expect: change
+# diagnostic: W-DEC-1
+# provenance: targeted: spec/examples-0.9/change/decreases_outside_fragment.rce; P4: W-DEC-1 decides this fragment
+#---

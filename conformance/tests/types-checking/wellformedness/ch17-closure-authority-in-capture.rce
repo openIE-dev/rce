@@ -1,0 +1,17 @@
+struct DirRead
+    root: text
+
+fn sneaky(root: Cap[DirRead]) -> i64
+    let g = fn(x: i64) => x + root.narrow("a").tostr().len()
+    return g(1)
+
+fn main()
+    emit 0
+#--- rce-test
+# id: types-checking/wellformedness/ch17-closure-authority-in-capture
+# area: types-checking
+# clauses: [CH17-M-67022294]
+# expect: change
+# diagnostic: W-CAP-1
+# provenance: targeted: spec/examples-0.9/change/cap_closure_captures.rce; "authority held by a closure must be visible in its capture list"
+#---

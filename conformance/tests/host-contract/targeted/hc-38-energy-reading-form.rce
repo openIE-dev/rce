@@ -1,0 +1,19 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-38-energy-reading-form
+# area: host-contract
+# clauses: [HC-38]
+# expect: cli
+# argv: ["host", "run", "energy", "main.rce", "D", "Inc, Inc"]
+# status: 0
+# output_has:
+#   - "rce host: energy: "
+#   - replay with adapters disconnected gives the live state_hash
+# output_lacks:
+#   - is not a reading
+#   - host fault
+# provenance: targeted: HC-38 and D.11, class (c) host claim. The host either records host.Energy or says why, and the replay that follows validates the entry's form (six members, basis reported or measured, joules finite and >= 0, entries [first, last] before its seq). No joule value is asserted; a value is a measurement and needs hardware (LL-2).
+#---

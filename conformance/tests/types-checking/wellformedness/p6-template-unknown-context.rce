@@ -1,0 +1,11 @@
+fn main()
+    let x = 1
+    emit Foo.t"a {x}"
+#--- rce-test
+# id: types-checking/wellformedness/p6-template-unknown-context
+# area: types-checking
+# clauses: [P6]
+# expect: change
+# diagnostic: W-TPL-1
+# provenance: targeted: spec/examples-0.9/change/template_unknown_context.rce; P6: only text and the six named contexts are implemented
+#---

@@ -1,0 +1,12 @@
+fn main()
+    if let some(v) = some(3) and let some(w) = some(4)
+        emit (v + w).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/p5-iflet-chain-reserved
+# area: types-checking
+# clauses: [P5]
+# expect: change
+# diagnostic: any
+# provenance: targeted: spec/examples-0.9/change/iflet_chain_let.rce; P5: a chain with a second let is reserved, not implemented
+# note: the clause fixes only that the chain is not accepted; the conform adapter reports W-SYN-1 where spec/examples-0.9 expects W-RES-1 (rce check), so the test asks for a change, not a code
+#---
