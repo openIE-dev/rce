@@ -446,6 +446,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rce-energy"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "rce-fgm"
 version = "0.1.0"
 dependencies = [
@@ -544,6 +553,7 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "libc",
+ "rce-energy",
  "rce-fgm",
  "rce-format",
  "rce-graph",

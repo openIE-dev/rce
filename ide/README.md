@@ -71,7 +71,9 @@ the second line. With no readable counter (no `/sys/class/powercap`, or
 `measure` prints `energy: unmeasured: no counter available (...)` (or `counter
 read failed`, `the counter did not move`) and the energy gate has no figure
 (`energy: no measurement`, which fails only under `strict`); it never falls
-back to the simulated figure. The code is `crates/rce-ide/src/reading.rs`.
+back to the simulated figure. The code is `compute/crates/rce-energy/src/reading.rs`, the module
+`reading` of RCE's one meter library, which the host also uses for
+`host.Energy` (HC-38).
 
 On macOS, `measure` reads IOReport with no root and no setup:
 `/usr/lib/libIOReport.dylib` is opened at run time, and the `package`

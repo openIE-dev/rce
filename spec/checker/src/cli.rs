@@ -748,7 +748,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 11] = [
+const GRANTS: [Word; 12] = [
     Word::set("fs", &["DIR"]),
     // HC-33: user and group ids to names, from the account databases
     Word::mode("names"),
@@ -762,26 +762,28 @@ const GRANTS: [Word; 11] = [
     Word::mode("pty"),
     // HC-29: the frame sink, one line per frame the program emits
     Word::set("frames", &["FILE"]),
+    // HC-38: read the package energy counter over the run into host.Energy
+    Word::mode("energy"),
 ];
 
 /// The grants, then `http`, `presented`, `rap` and `callback`, which only
 /// the host loop takes.
-const fn serve_words() -> [Word; 15] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 15];
+const fn serve_words() -> [Word; 16] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 16];
     let mut i = 0;
-    while i < 11 {
+    while i < 12 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[12] = Word::set("presented", &["FILE"]);
+    w[13] = Word::set("presented", &["FILE"]);
     // HC-34: the program as a tool of RAP runtimes, and the addresses its
     // results may be POSTed to (HC-5: no callback address is ambient)
-    w[13] = Word::set("rap", &["HOST:PORT"]);
-    w[14] = Word::many("callback", &["HOST:PORT"]);
+    w[14] = Word::set("rap", &["HOST:PORT"]);
+    w[15] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 15] = serve_words();
+const SERVE_WORDS: [Word; 16] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -921,7 +923,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38)",
     },
     Command {
         path: &["host", "serve"],
@@ -2104,6 +2106,16 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(id) = &tls_id {
                 h.tls_identity(&crate::tls::hex(&id.public))?;
             }
+            // HC-38: with `energy`, the package counter is read from here to
+            // the end of the run; with no counter, the reason goes to stderr
+            // and D gets no reading (never a figure of 0 J)
+            let mut energy = None::<(rce_energy::reading::Sampling, u64)>;
+            if p.has("energy") {
+                match rce_energy::reading::Sampling::start_as(&rce_energy::reading::Env::system(), "rce host") {
+                    Ok(s) => energy = Some((s, h.len())),
+                    Err(u) => eprintln!("rce host: {}", u.line()),
+                }
+            }
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
@@ -2148,6 +2160,10 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 // HC-5a: what is read after entering: the wasm root, and the
                 // account databases only under `names` (HC-33)
                 let mut reads = crate::sandbox::Reads { roots: wasm_root.iter().map(|p| p.as_path()).collect(), files: vec![] };
+                // HC-38: the counters the energy reading keeps reading
+                if energy.is_some() && std::path::Path::new(rce_energy::reading::POWERCAP).exists() {
+                    reads.roots.push(std::path::Path::new(rce_energy::reading::POWERCAP));
+                }
                 if names {
                     reads.files.extend(crate::adapters::ACCOUNT_DBS.iter().map(std::path::Path::new).filter(|p| p.exists()));
                 }
@@ -2165,6 +2181,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             st.idle(h.len(), h.state_hash());
             if sub == "serve" {
                 let code = serve_loop(&mut h, &src, out, err, http.as_mut(), rap.as_mut(), st, &mut frames, acks)?;
+                energy_reading(&mut h, energy.take(), err)?;
                 let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
                 let code = validate_run(&m, log, &live, code, err)?;
@@ -2217,6 +2234,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 out.flush().map_err(w)?;
                 st.idle(h.len(), h.state_hash());
             }
+            energy_reading(&mut h, energy.take(), err)?;
             // HC-28: the host's status goes to stderr; stdout is the listing
             // of the entries and the final state
             writeln!(err, "{}", durable_line(&h)).map_err(w)?;
@@ -2874,6 +2892,23 @@ fn spawn_stop_thread(tx: std::sync::mpsc::Sender<Inbound>) {
 /// verified (HS-4) and replayed with every adapter disconnected (HC-8,
 /// T37); the run counts only when replay gives the live state hash. The
 /// report goes to stderr so stdout stays the program's output.
+/// HC-38: take the last read of the run's energy sampling and append it to
+/// D as `host.Energy` over the entries the run appended; say on stderr what
+/// was recorded, or why nothing was.
+fn energy_reading(h: &mut crate::host::Host<'_>, sampling: Option<(rce_energy::reading::Sampling, u64)>, err: &mut dyn Write) -> Result<(), String> {
+    let Some((s, first)) = sampling else { return Ok(()) };
+    let w = |e: std::io::Error| e.to_string();
+    match s.finish() {
+        Ok(r) if h.len() > first => {
+            let source = r.kind().trim_start_matches("reported: ").to_string();
+            h.energy(&source, &r.term, first)?;
+            writeln!(err, "rce host: energy: {} J reported ({source}) over entries {first} to {}, recorded as host.Energy at seq {}", r.term.j(), h.len() - 2, h.len() - 1).map_err(w)
+        }
+        Ok(_) => writeln!(err, "rce host: energy: the run appended no entry, so no reading is recorded").map_err(w),
+        Err(u) => writeln!(err, "rce host: {}", u.line()).map_err(w),
+    }
+}
+
 fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Write) -> Result<i32, String> {
     let text = std::fs::read_to_string(log).map_err(|e| format!("validate {log}: {e}"))?;
     match crate::host::replay_report(m, &text) {

@@ -507,11 +507,14 @@ holds), and are checked where a term is built and where a record is read:
 
 The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
 stored receipt changes meaning; no receipt in the repository holds a
-reading today. A standalone reading is printed by the IDE build's
+reading today; a host run granted `energy` records one in D as
+`host.Energy` (HC-38). A standalone reading is printed by the IDE build's
 `rce test measure` (RAPL, `reported`) and by its `rce test measured J
 PROVENANCE.json` and `reported J PROVENANCE.json` (a figure from another
 meter, refused without a valid provenance), and checked there by
-`Provenance` in `ide/crates/rce-ide/src/reading.rs`. Implemented by `Term`, `Provenance` and `Amortization` in
+`Provenance` in `compute/crates/rce-energy/src/reading.rs`, RCE's one meter
+library, whose readings the host also records in D as `host.Energy`
+(HC-38). Implemented by `Term`, `Provenance` and `Amortization` in
 `src/runtime/break_even.rs` (no constructor makes a reading without
 provenance and amortization), tested there (`p4_*`, `p6_*`).
 
@@ -522,4 +525,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: ffe2dfa4730d866160b6fe25fdd4b8437490fd871080a348cbf352c51bca1e52 -->
+<!-- body-sha256: e9fca13cead3058f887e28b011357754ad29da33e835cc087164aea48d5a541e -->

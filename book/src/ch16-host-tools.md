@@ -383,6 +383,27 @@ button with no `tabindex` (2.1.1). No `example` or `check` line has to call
 `ui.rules`, and a program none of whose examples emits a frame requires
 change until one does, since its frames would otherwise go unjudged.
 
+## Energy of a run: `energy`
+
+The grant `energy` makes `rce host run` and `rce host serve` read the
+machine's package energy counter while they run: RAPL on Linux, IOReport
+on macOS, the same counters `rce test measure` reads. When the run ends,
+the host appends one entry `host.Energy` to D with the joules, the basis
+`reported` (an on-chip counter, not a meter on the supply), the provenance
+that Appendix D.11 requires (which counter, over what interval and when,
+on which machine, inside which boundary, with how many wraparounds), and
+the seqs of the entries it covers:
+
+```
+rce host run energy counter.rce counter.d "Inc, Inc, Dec"
+```
+
+The figure is the package's, so everything else the machine did in the
+interval is in it. A reading changes no state, and `rce host replay`
+checks it against D.11 like any record it reads. On a machine with no
+counter it can read (no RAPL zone, or RAPL readable only by root), the host
+prints why and writes no reading, never 0 J (Appendix E, HC-38).
+
 ## The chat user interface
 
 `apps/chat.rce` is a complete chat program: workspaces, channels and
