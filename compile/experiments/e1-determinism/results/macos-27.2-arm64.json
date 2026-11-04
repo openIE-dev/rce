@@ -13,21 +13,22 @@
    "reason": "erlc not on PATH"
   }
  ],
- "date_utc": "2026-11-02T09:50:01Z",
+ "date_utc": "2026-11-02T15:10:10Z",
  "environment": {
   "LC_ALL": "C",
   "SOURCE_DATE_EPOCH": "1735689600",
   "TZ": "UTC"
  },
  "harness": {
-  "e1.py": "20710174c5fb1b93d7418b0be041900a2728363f22fc06dddc518309a2b717cb",
-  "matrix.json": "150eaa3a3cffc5c8cfb2399bd923fb10963ac1f7069c159e4aa40aefa5ce7a65"
+  "e1.py": "6c688bda9ae506b4f4912830fbbbd186de3e788358ea0dca885a8d10a048d6e2",
+  "matrix.json": "3fa6fe4f5bf8c6d9e87a07dd1ceed7ac15eeec91a2cb97d9ce0648726ecef321"
  },
  "machine": {
-  "cpu": "",
+  "cpu": "Apple M5 Max",
   "cpus": 18,
   "machine": "arm64",
-  "os": "",
+  "model": "Mac17,6",
+  "os": "macOS 27.2 (26B123)",
   "python": "3.15.2",
   "release": "27.2.0",
   "system": "Darwin"
@@ -38,8 +39,45 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 469,
+      "differing_bytes": 468,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-59a122.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-e3f50e.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "273410cdbc7b33d69d6e16d5102bd9c4"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 94,
+       "symbol table": 2
+      },
       "size_a": 33720,
       "size_b": 33736
      },
@@ -50,8 +88,29 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 313,
+      "differing_bytes": 314,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "273410cdbc7b33d69d6e16d5102bd9c4"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 1,
+       "__DWARF,__debug_line_str": 31,
+       "__DWARF,__debug_names": 5,
+       "__DWARF,__debug_str": 56,
+       "__DWARF,__debug_str_offs": 5,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
       "size_a": 9056,
       "size_b": 9088
      },
@@ -66,15 +125,47 @@
    },
    "language": "C",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 0,
    "program": "c/hello.c",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 467,
+      "differing_bytes": 38,
       "file": "hello",
-      "size_a": 33720,
-      "size_b": 33736
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-09eaf6.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.c"
+        ],
+        "uuid": "c3406f19d5623f2c924e18d171f66f00"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-15f844.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.c"
+        ],
+        "uuid": "c3406f19d5623f2c924e18d171f66f00"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 33640,
+      "size_b": 33640
      },
      {
       "differing_bytes": 0,
@@ -83,10 +174,10 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 313,
+      "differing_bytes": 0,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9088
+      "size_a": 8908,
+      "size_b": 8908
      },
      {
       "differing_bytes": 0,
@@ -100,8 +191,103 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 85,
+      "differing_bytes": 38,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-59a122.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-804217.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 33720,
+      "size_b": 33720
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 9056,
+      "size_b": 9056
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 87,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-b4a12d.o",
+          1793632033
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-d06931.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "7a2938d33cea3fb385d9963fc1e706e1"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 33720,
       "size_b": 33720
      },
@@ -114,8 +300,1981 @@
      {
       "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "9f393064d9993985a665f9ce1f4305ed"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "7a2938d33cea3fb385d9963fc1e706e1"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 9056,
       "size_b": 9056
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "hello": "7d7cf4be9a2079f7d5e94dc89495bae484e0dbdb8795e87be45119576811c5ed",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "41b6810168a89e135e8bc454acefe7fac49321b645c9232c809e961c61a5b912",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
+   },
+   "sha256_remapped": {
+    "hello": "f63f1233f4332dd6243b26e251cf5e2db25af307f265df7ef9ebbfc7cb07397f",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "20eea925a6c829cbbcfaa0bb8c76e8a58c46c7eb37460c556a2435d5415c068d",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 472,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-147d2d.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "0466cb01814234a1bd5180ad08534f97"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-968c8b.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "4946707f2a7938ccb734f59bcc4ca16a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 2,
+       "string table": 101,
+       "symbol table": 3
+      },
+      "size_a": 33976,
+      "size_b": 33992
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 846,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "0466cb01814234a1bd5180ad08534f97"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "4946707f2a7938ccb734f59bcc4ca16a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 8,
+       "__DWARF,__debug_line_str": 389,
+       "__DWARF,__debug_names": 10,
+       "__DWARF,__debug_str": 124,
+       "__DWARF,__debug_str_offs": 20,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
+      "size_a": 10572,
+      "size_b": 10604
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 38,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-2dfe31.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "1621250188293ee3bc8f41caf8b5d361"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-79d753.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "1621250188293ee3bc8f41caf8b5d361"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 33912,
+      "size_b": 33912
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "size_a": 10420,
+      "size_b": 10420
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 37,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-147d2d.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "0466cb01814234a1bd5180ad08534f97"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-91585d.o",
+          1793632034
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "0466cb01814234a1bd5180ad08534f97"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 5
+      },
+      "size_a": 33976,
+      "size_b": 33976
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "size_a": 10572,
+      "size_b": 10572
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 85,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-628a95.o",
+          1793632035
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "a0b4a0beee4a3193b24a5d5d8eaf0081"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-e96f77.o",
+          1793632036
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "1c6b0f5fbcbe3c0f994df452c6c56aec"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 62,
+       "string table": 6,
+       "symbol table": 1
+      },
+      "size_a": 33976,
+      "size_b": 33976
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 16,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "a0b4a0beee4a3193b24a5d5d8eaf0081"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "1c6b0f5fbcbe3c0f994df452c6c56aec"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
+      "size_a": 10572,
+      "size_b": 10572
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "sort": "53a4ca9b26b1586da7ee50b86e6e8b622f03b0a0469ebb90e761cc1630b210f9",
+    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
+    "sort.dSYM/Contents/Resources/DWARF/sort": "7133b43455a9daf7032a6bd0dc765b696a078473fe5de83821ef604996d45bba",
+    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
+   },
+   "sha256_remapped": {
+    "sort": "37f721276dbf279ef4d05d6e0cb3386bb72f58aafdcb8d8dee0be019787b8a3c",
+    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
+    "sort.dSYM/Contents/Resources/DWARF/sort": "d038d80b023b60e04e290b46766dc817e8272e777c627bd4fb2276a3e7f70485",
+    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33432,
+      "size_b": 33432
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "C",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33432,
+      "size_b": 33432
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33432,
+      "size_b": 33432
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33432,
+      "size_b": 33432
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "3217b4d230f6972ac17efb051677154b8cc1b86a6c7fbcabab3e1fc718a7772b"
+   },
+   "sha256_remapped": {
+    "hello": "3217b4d230f6972ac17efb051677154b8cc1b86a6c7fbcabab3e1fc718a7772b"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "gcc -O2",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 33624,
+      "size_b": 33624
+     }
+    ],
+    "status": "identical"
+   },
+   "language": "C",
+   "path_copies_cross": 0,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 33624,
+      "size_b": 33624
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 33624,
+      "size_b": 33624
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 33624,
+      "size_b": 33624
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "sort": "c1ebccde3a31c2b2baf910949cd531cf4dda16878aee4cb11bfde93b15c197fa"
+   },
+   "sha256_remapped": {
+    "sort": "c1ebccde3a31c2b2baf910949cd531cf4dda16878aee4cb11bfde93b15c197fa"
+   },
+   "tool": "gcc"
+  },
+  {
+   "config": "clang -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 467,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-38b45e.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-ba5da2.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "16176f29b5873f72bd7003843b20b027"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 94,
+       "symbol table": 2
+      },
+      "size_a": 33720,
+      "size_b": 33736
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 313,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "16176f29b5873f72bd7003843b20b027"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "__DWARF,__debug_line": 1,
+       "__DWARF,__debug_line_str": 31,
+       "__DWARF,__debug_names": 5,
+       "__DWARF,__debug_str": 56,
+       "__DWARF,__debug_str_offs": 5,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
+      "size_a": 9056,
+      "size_b": 9088
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 37,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-5bca21.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.c"
+        ],
+        "uuid": "03de27d03b093283afb4508b29bf7d5d"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-8a37fb.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.c"
+        ],
+        "uuid": "03de27d03b093283afb4508b29bf7d5d"
+       }
+      },
+      "macho_regions": {
+       "code signature": 31,
+       "string table": 6
+      },
+      "size_a": 33640,
+      "size_b": 33640
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 8908,
+      "size_b": 8908
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 38,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-38b45e.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-2d3fcc.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 33720,
+      "size_b": 33720
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 9056,
+      "size_b": 9056
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 87,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-01608a.o",
+          1793632039
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-ba0b44.o",
+          1793632040
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "c037fb45fb7a3979ade454bbfce4398c"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 6,
+       "symbol table": 1
+      },
+      "size_a": 33720,
+      "size_b": 33720
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 16,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "254b44cabd973a72898dba6d74ba9499"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "c037fb45fb7a3979ade454bbfce4398c"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
+      "size_a": 9056,
+      "size_b": 9056
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "hello": "1e639c9411fd8f4132335e25d6c0b6aec93ad4947f39c9842ba69e6dceb5cdd0",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "57a4796cd219e1ea5b2fb893c001a87110a7cfdec97d28ba1c5e5b8d28854c3b",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
+   },
+   "sha256_remapped": {
+    "hello": "d40ccd480efcfc0c2db949f0d0c0f9c800a66fe661abafb09caa9e7e4027e78b",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "1aaacf2548616a05feda2ac3b59038506b25baf6ed2b0f29c2faaced291f92d1",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 473,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-910458.o",
+          1793632040
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "805f1a2553a33890a082299d7d3fb859"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-533ad0.o",
+          1793632041
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "3d88bb698ae531d7ad08d095b819ebe5"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 2,
+       "string table": 100,
+       "symbol table": 4
+      },
+      "size_a": 33976,
+      "size_b": 33992
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 846,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "805f1a2553a33890a082299d7d3fb859"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "3d88bb698ae531d7ad08d095b819ebe5"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 8,
+       "__DWARF,__debug_line_str": 389,
+       "__DWARF,__debug_names": 10,
+       "__DWARF,__debug_str": 124,
+       "__DWARF,__debug_str_offs": 20,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
+      "size_a": 10572,
+      "size_b": 10604
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 38,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-42e25f.o",
+          1793632041
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "83c58e8af1023d39a1eb5313d2ad6a4f"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-967186.o",
+          1793632041
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "83c58e8af1023d39a1eb5313d2ad6a4f"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 33912,
+      "size_b": 33912
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "size_a": 10420,
+      "size_b": 10420
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 85,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-910458.o",
+          1793632040
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "805f1a2553a33890a082299d7d3fb859"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-0c098e.o",
+          1793632041
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "1765ee0357e33a3da3c6aeec1d6bc97f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 63,
+       "string table": 5,
+       "symbol table": 1
+      },
+      "size_a": 33976,
+      "size_b": 33976
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 16,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "805f1a2553a33890a082299d7d3fb859"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "1765ee0357e33a3da3c6aeec1d6bc97f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
+      "size_a": 10572,
+      "size_b": 10572
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 85,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/sort-e545f0.o",
+          1793632041
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "1765ee0357e33a3da3c6aeec1d6bc97f"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/sort-901f03.o",
+          1793632042
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "4d5257a46cf23cdca1234374a76bc02a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "code signature": 63,
+       "string table": 6,
+       "symbol table": 1
+      },
+      "size_a": 33976,
+      "size_b": 33976
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Info.plist",
+      "size_a": 633,
+      "size_b": 633
+     },
+     {
+      "differing_bytes": 15,
+      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "1765ee0357e33a3da3c6aeec1d6bc97f"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "4d5257a46cf23cdca1234374a76bc02a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15
+      },
+      "size_a": 10572,
+      "size_b": 10572
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
+      "size_a": 88,
+      "size_b": 88
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "sort": "f1ac9f758bace43f2ea737052bb671ad510bdb6c5843adc0935917c823458e81",
+    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
+    "sort.dSYM/Contents/Resources/DWARF/sort": "4e931040640aa94f6c401f14bafd5977bd00554008972231724acc6f642532fd",
+    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
+   },
+   "sha256_remapped": {
+    "sort": "c28e4210e35a06975e22fc3b7953831fce8d8e8e929a324ce7524d0e1b8b3265",
+    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
+    "sort.dSYM/Contents/Resources/DWARF/sort": "03a70a31804ca22bacc4cf4244e2556af5ae3bd91ff1c1280b3fb76ad190d2b3",
+    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g, compile and link split (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 384,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          1793632042
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "c5cec730cbed37b093b1a9b813f392a6"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          1793632042
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "28d0a6349842385c8c7a7f6db3b01286"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 132,
+       "symbol table": 2
+      },
+      "size_a": 33736,
+      "size_b": 33768
+     },
+     {
+      "differing_bytes": 486,
+      "file": "hello.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 1,
+       "__DWARF,__debug_line_str": 31,
+       "__DWARF,__debug_names": 5,
+       "__DWARF,__debug_str": 56,
+       "__DWARF,__debug_str_offs": 5,
+       "load command LC_LINKER_OPTIMIZATION_HINT": 1,
+       "load command LC_SEGMENT_64 ": 19,
+       "load command LC_SYMTAB": 2,
+       "symbol table": 1
+      },
+      "size_a": 2256,
+      "size_b": 2288
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 4,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33592,
+      "size_b": 33592
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2104,
+      "size_b": 2104
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33736,
+      "size_b": 33736
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2256,
+      "size_b": 2256
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 81,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          1793632043
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "5228a28575e13194acb8c92fb6c83222"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          1793632044
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "f27a039970df3b47a3fa99004c6123cc"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "symbol table": 1
+      },
+      "size_a": 33736,
+      "size_b": 33736
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2256,
+      "size_b": 2256
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "hello": "c29af36c5694d2cf1b249227928b57d1a356a6e1a2d069ac52161cfb8a415a8d",
+    "hello.o": "66f6e8b84ce37c9918ebff08f06781d9563e49c75e8b36a604d46737e75e7095"
+   },
+   "sha256_remapped": {
+    "hello": "db8bee2a49cfc02dea3547924e15f38517e3d821f22d95ae25df7ba74e10f282",
+    "hello.o": "87029e79a9d7a1c1c81adb54d9002163e9306c4ef8cd3ff5d5a3ccc548107507"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g, compile and link split (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 397,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          1793632044
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "5dae61642dab30b7a74988ab6f8314c9"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          1793632044
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "7520766db3fa340c856b37a2c5d7bba2"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 138,
+       "symbol table": 4
+      },
+      "size_a": 34008,
+      "size_b": 34040
+     },
+     {
+      "differing_bytes": 1311,
+      "file": "sort.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 8,
+       "__DWARF,__debug_line_str": 389,
+       "__DWARF,__debug_names": 10,
+       "__DWARF,__debug_str": 121,
+       "__DWARF,__debug_str_offs": 20,
+       "load command LC_LINKER_OPTIMIZATION_HINT": 1,
+       "load command LC_SEGMENT_64 ": 21,
+       "load command LC_SYMTAB": 2,
+       "symbol table": 1
+      },
+      "size_a": 4456,
+      "size_b": 4488
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 4,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 80,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "sort.o",
+          1793632044
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "cbf351f2963e38ec84ed251050331797"
+       },
+       "b": {
+        "oso": [
+         [
+          "sort.o",
+          1793632045
+         ]
+        ],
+        "so": [
+         "./",
+         "sort.c"
+        ],
+        "uuid": "b8a34276584a30ffa05bc0448c3acb8f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 63,
+       "symbol table": 1
+      },
+      "size_a": 33848,
+      "size_b": 33848
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4312,
+      "size_b": 4312
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 34008,
+      "size_b": 34008
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4456,
+      "size_b": 4456
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 81,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          1793632045
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "4bc0b0f731e6345b96a2d30b65e6fe78"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          1793632046
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "0c99834b0581325997b485b076e0672d"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "symbol table": 1
+      },
+      "size_a": 34008,
+      "size_b": 34008
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4456,
+      "size_b": 4456
+     }
+    ],
+    "status": "differs"
+   },
+   "sha256": {
+    "sort": "d371b6c4598cbaff604f576ead5b62cdeea3edfff05c4d854ce5a0babb4efc26",
+    "sort.o": "26163e21f39d026362e27f253bec774d70cd1c5bca8a93a9bbb339eb7b0f883d"
+   },
+   "sha256_remapped": {
+    "sort": "7e530f65e0ebb14adefb6ac5ebedf38fbc42263fdd4b4583a8b19c1331553cf6",
+    "sort.o": "9aeba5850d27caa911d847cc0462aa74d9ced6a60a00ea5e75433c05120f4fdd"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 383,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "977065934a3e3e6aad991988a67a41cf"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.c"
+        ],
+        "uuid": "46f36c2cede33f6c934d0e462da4b80f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 132,
+       "symbol table": 2
+      },
+      "size_a": 33736,
+      "size_b": 33768
+     },
+     {
+      "differing_bytes": 486,
+      "file": "hello.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 1,
+       "__DWARF,__debug_line_str": 31,
+       "__DWARF,__debug_names": 5,
+       "__DWARF,__debug_str": 56,
+       "__DWARF,__debug_str_offs": 5,
+       "load command LC_LINKER_OPTIMIZATION_HINT": 1,
+       "load command LC_SEGMENT_64 ": 19,
+       "load command LC_SYMTAB": 2,
+       "symbol table": 1
+      },
+      "size_a": 2256,
+      "size_b": 2288
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 4,
+   "path_copies_remapped": 0,
+   "program": "c/hello.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33592,
+      "size_b": 33592
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2104,
+      "size_b": 2104
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33736,
+      "size_b": 33736
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2256,
+      "size_b": 2256
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 33736,
+      "size_b": 33736
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.o",
+      "size_a": 2256,
+      "size_b": 2256
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "2c27c536093f24ae9c7970455fae6158db433177981c03b40097c1f5e4bd3f29",
+    "hello.o": "66f6e8b84ce37c9918ebff08f06781d9563e49c75e8b36a604d46737e75e7095"
+   },
+   "sha256_remapped": {
+    "hello": "182472c0ecf7e7b9df1f229a981723dfd955cd0b155cc1cfcc4f8e5fce4909f7",
+    "hello.o": "87029e79a9d7a1c1c81adb54d9002163e9306c4ef8cd3ff5d5a3ccc548107507"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "clang -O2 -g, compile and link split, ZERO_AR_DATE=1 (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 397,
+      "file": "sort",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "690b3f79baf832b2870450b8b5b98e6b"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/sort.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "sort.c"
+        ],
+        "uuid": "4ba2fe9160a033acbd47c94e26875014"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 138,
+       "symbol table": 4
+      },
+      "size_a": 34008,
+      "size_b": 34040
+     },
+     {
+      "differing_bytes": 1311,
+      "file": "sort.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 8,
+       "__DWARF,__debug_line_str": 389,
+       "__DWARF,__debug_names": 10,
+       "__DWARF,__debug_str": 121,
+       "__DWARF,__debug_str_offs": 20,
+       "load command LC_LINKER_OPTIMIZATION_HINT": 1,
+       "load command LC_SEGMENT_64 ": 21,
+       "load command LC_SYMTAB": 2,
+       "symbol table": 1
+      },
+      "size_a": 4456,
+      "size_b": 4488
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C",
+   "path_copies_cross": 4,
+   "path_copies_remapped": 0,
+   "program": "c/sort.c",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 33848,
+      "size_b": 33848
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4312,
+      "size_b": 4312
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 34008,
+      "size_b": 34008
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4456,
+      "size_b": 4456
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "sort",
+      "size_a": 34008,
+      "size_b": 34008
+     },
+     {
+      "differing_bytes": 0,
+      "file": "sort.o",
+      "size_a": 4456,
+      "size_b": 4456
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "sort": "33906aa2cdf7175f540fd2396b0c09462da11441f472757a0f1963674a92bff6",
+    "sort.o": "26163e21f39d026362e27f253bec774d70cd1c5bca8a93a9bbb339eb7b0f883d"
+   },
+   "sha256_remapped": {
+    "sort": "2beaa7f4856478e6b2c79fe914510daa2184c063f20d125c6187a3a2672d9d98",
+    "sort.o": "9aeba5850d27caa911d847cc0462aa74d9ced6a60a00ea5e75433c05120f4fdd"
+   },
+   "tool": "clang"
+  },
+  {
+   "config": "g++ -O2 -g",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 578,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-ba5abc.o",
+          1793632050
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "e4fd314dafb53ad6ae3f3184cb7ec29a"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-130cf4.o",
+          1793632051
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "c40d3ed644d333bba89b60c34d1922bd"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 204,
+       "symbol table": 4
+      },
+      "size_a": 36696,
+      "size_b": 36712
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 59030,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "e4fd314dafb53ad6ae3f3184cb7ec29a"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "c40d3ed644d333bba89b60c34d1922bd"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 133,
+       "__DWARF,__debug_line_str": 3709,
+       "__DWARF,__debug_names": 345,
+       "__DWARF,__debug_str": 47598,
+       "__DWARF,__debug_str_offs": 1744,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
+      "size_a": 113188,
+      "size_b": 113220
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "C++",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "cpp/hello.cpp",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 38,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-00624d.o",
+          1793632051
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.cpp"
+        ],
+        "uuid": "6e066ce2baa63861b67f552a83d34c40"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-b33636.o",
+          1793632051
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.cpp"
+        ],
+        "uuid": "6e066ce2baa63861b67f552a83d34c40"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 36616,
+      "size_b": 36616
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 113040,
+      "size_b": 113040
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 89,
+      "size_b": 89
+     }
+    ],
+    "status": "differs"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 38,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-ba5abc.o",
+          1793632050
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "e4fd314dafb53ad6ae3f3184cb7ec29a"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-feb47b.o",
+          1793632050
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "e4fd314dafb53ad6ae3f3184cb7ec29a"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 36696,
+      "size_b": 36696
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 113188,
+      "size_b": 113188
      },
      {
       "differing_bytes": 0,
@@ -131,666 +2290,40 @@
      {
       "differing_bytes": 86,
       "file": "hello",
-      "size_a": 33720,
-      "size_b": 33720
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 16,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9056
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "sha256": {
-    "hello": "1965be73ea50579172eb4983b721873ee6df62f5f04f7c9b7f5ab73d754cafee",
-    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "09ce5de980a4d41377be5798b8ceab8228b792dc02ffcd98cbc4aa00c713659c",
-    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
-   },
-   "sha256_remapped": {
-    "hello": "eb46d19dc7a6452b11160e643a715f1e7b64e26df08643e61d0a45d43f2183a7",
-    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "4403ac83182f49f99084cbb4359b1408801925b4a37886e518dc785ebeab2987",
-    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
-   },
-   "tool": "gcc"
-  },
-  {
-   "config": "gcc -O2 -g",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 472,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33992
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 845,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10604
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "language": "C",
-   "path_copies_cross": 3,
-   "path_copies_remapped": 3,
-   "program": "c/sort.c",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 471,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33992
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 845,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10604
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 37,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33976
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10572
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 87,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33976
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 16,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10572
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "sha256": {
-    "sort": "d2e04b7215899fc96567d64bdc8240f6f28e036726d7aefee4db95910a169b23",
-    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
-    "sort.dSYM/Contents/Resources/DWARF/sort": "fd2409c1b4198af8a5ef8067c9405ed6e88daaadedb8bf4639aa097b80ae77e5",
-    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
-   },
-   "sha256_remapped": {
-    "sort": "a62cf5b6da02a1ecd82e19979113ab49b0cb09468027c317eafe871fffbb69d1",
-    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
-    "sort.dSYM/Contents/Resources/DWARF/sort": "fd2409c1b4198af8a5ef8067c9405ed6e88daaadedb8bf4639aa097b80ae77e5",
-    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
-   },
-   "tool": "gcc"
-  },
-  {
-   "config": "gcc -O2",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "hello",
-      "size_a": 33432,
-      "size_b": 33432
-     }
-    ],
-    "status": "identical"
-   },
-   "language": "C",
-   "path_copies_cross": 0,
-   "path_copies_remapped": 0,
-   "program": "c/hello.c",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "hello",
-      "size_a": 33432,
-      "size_b": 33432
-     }
-    ],
-    "status": "identical"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "hello",
-      "size_a": 33432,
-      "size_b": 33432
-     }
-    ],
-    "status": "identical"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "hello",
-      "size_a": 33432,
-      "size_b": 33432
-     }
-    ],
-    "status": "identical"
-   },
-   "sha256": {
-    "hello": "3217b4d230f6972ac17efb051677154b8cc1b86a6c7fbcabab3e1fc718a7772b"
-   },
-   "sha256_remapped": {
-    "hello": "3217b4d230f6972ac17efb051677154b8cc1b86a6c7fbcabab3e1fc718a7772b"
-   },
-   "tool": "gcc"
-  },
-  {
-   "config": "gcc -O2",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "sort",
-      "size_a": 33624,
-      "size_b": 33624
-     }
-    ],
-    "status": "identical"
-   },
-   "language": "C",
-   "path_copies_cross": 0,
-   "path_copies_remapped": 0,
-   "program": "c/sort.c",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "sort",
-      "size_a": 33624,
-      "size_b": 33624
-     }
-    ],
-    "status": "identical"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "sort",
-      "size_a": 33624,
-      "size_b": 33624
-     }
-    ],
-    "status": "identical"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 0,
-      "file": "sort",
-      "size_a": 33624,
-      "size_b": 33624
-     }
-    ],
-    "status": "identical"
-   },
-   "sha256": {
-    "sort": "c1ebccde3a31c2b2baf910949cd531cf4dda16878aee4cb11bfde93b15c197fa"
-   },
-   "sha256_remapped": {
-    "sort": "c1ebccde3a31c2b2baf910949cd531cf4dda16878aee4cb11bfde93b15c197fa"
-   },
-   "tool": "gcc"
-  },
-  {
-   "config": "clang -O2 -g",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 468,
-      "file": "hello",
-      "size_a": 33720,
-      "size_b": 33736
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 313,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9088
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "language": "C",
-   "path_copies_cross": 3,
-   "path_copies_remapped": 3,
-   "program": "c/hello.c",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 467,
-      "file": "hello",
-      "size_a": 33720,
-      "size_b": 33736
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 313,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9088
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 38,
-      "file": "hello",
-      "size_a": 33720,
-      "size_b": 33720
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9056
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 85,
-      "file": "hello",
-      "size_a": 33720,
-      "size_b": 33720
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 14,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 9056,
-      "size_b": 9056
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "sha256": {
-    "hello": "a2ffab4384d1aa74297da976ea6b8157ab7723da5ad0e839569daf64cc8da364",
-    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "003a58dd47da783902f1201fb4a05f39d48c66edf627e52cac10bbb3076c7fa0",
-    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
-   },
-   "sha256_remapped": {
-    "hello": "c10b50c6cf2fc55469943c4cd7708dab4cd855efd6d46010ef83fd085203c2dc",
-    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "bbdfd34a9c2e47eb40fea6fb45c0794f4955be85270193a951fab499a0315e4a",
-    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
-   },
-   "tool": "clang"
-  },
-  {
-   "config": "clang -O2 -g",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 472,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33992
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 846,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10604
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "language": "C",
-   "path_copies_cross": 3,
-   "path_copies_remapped": 3,
-   "program": "c/sort.c",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 473,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33992
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 846,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10604
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 38,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33976
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10572
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 85,
-      "file": "sort",
-      "size_a": 33976,
-      "size_b": 33976
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Info.plist",
-      "size_a": 633,
-      "size_b": 633
-     },
-     {
-      "differing_bytes": 16,
-      "file": "sort.dSYM/Contents/Resources/DWARF/sort",
-      "size_a": 10572,
-      "size_b": 10572
-     },
-     {
-      "differing_bytes": 0,
-      "file": "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml",
-      "size_a": 88,
-      "size_b": 88
-     }
-    ],
-    "status": "differs"
-   },
-   "sha256": {
-    "sort": "a85282fc50ce561dc922406b0e442ff8ac6e4f8ead3a9262bb233c24b304f852",
-    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
-    "sort.dSYM/Contents/Resources/DWARF/sort": "70c0803e6bed1c1bbc36de83bea8e1a6763169486768f1163ec6beca7f04a4ae",
-    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
-   },
-   "sha256_remapped": {
-    "sort": "c55bef8de6374a8b7e921e3183f1e2733467d8a0f61a4ef7859e85df2034ae53",
-    "sort.dSYM/Contents/Info.plist": "22a3292c3ff2640a8cab4c60dd1d06a1b29da5519df161b57f373564456f48fe",
-    "sort.dSYM/Contents/Resources/DWARF/sort": "70c0803e6bed1c1bbc36de83bea8e1a6763169486768f1163ec6beca7f04a4ae",
-    "sort.dSYM/Contents/Resources/Relocations/aarch64/sort.yml": "866318724485c56350d34dc6403b71766c9c23b8612ecdc8b5cc44016536947b"
-   },
-   "tool": "clang"
-  },
-  {
-   "config": "g++ -O2 -g",
-   "cross_dir": {
-    "files": [
-     {
-      "differing_bytes": 578,
-      "file": "hello",
-      "size_a": 36696,
-      "size_b": 36712
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 59030,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 113188,
-      "size_b": 113220
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "language": "C++",
-   "path_copies_cross": 3,
-   "path_copies_remapped": 3,
-   "program": "cpp/hello.cpp",
-   "remapped": {
-    "files": [
-     {
-      "differing_bytes": 577,
-      "file": "hello",
-      "size_a": 36696,
-      "size_b": 36712
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 59030,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 113188,
-      "size_b": 113220
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir": {
-    "files": [
-     {
-      "differing_bytes": 38,
-      "file": "hello",
-      "size_a": 36696,
-      "size_b": 36696
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Info.plist",
-      "size_a": 634,
-      "size_b": 634
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 113188,
-      "size_b": 113188
-     },
-     {
-      "differing_bytes": 0,
-      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
-      "size_a": 89,
-      "size_b": 89
-     }
-    ],
-    "status": "differs"
-   },
-   "same_dir_clock": {
-    "files": [
-     {
-      "differing_bytes": 87,
-      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-cd8b70.o",
+          1793632052
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "bccde625ddee342298fabdb0a29155b0"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-00aa30.o",
+          1793632053
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "b8415e3fe4bf3844a53ce674156298c0"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 5,
+       "symbol table": 1
+      },
       "size_a": 36696,
       "size_b": 36696
      },
@@ -803,6 +2336,21 @@
      {
       "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "bccde625ddee342298fabdb0a29155b0"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "b8415e3fe4bf3844a53ce674156298c0"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 113188,
       "size_b": 113188
      },
@@ -816,15 +2364,15 @@
     "status": "differs"
    },
    "sha256": {
-    "hello": "ed6e4a68ef05b510a38c1d25782fa164bcd7224b707697fa95cd8e275f4b6f48",
+    "hello": "05ef90a72d06319c1e3292649bfdcf1003661d1aa075e0a7408028d5d5534fc7",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "8a3e9ffcc1a524c09d046cee127fa7b0cdfe3e3fe6fdce3a4f0ab71f1858a2b3",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "aacd79f52df972cca0735d6ede2def733df3842b4cc68f744ee48ed5c4a6e2fe",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
    },
    "sha256_remapped": {
-    "hello": "07ea7de542351c50d83e28eaf17eee3aa8a83f61e33210ce6701b9643e6f34ea",
+    "hello": "6bcbf329b0208aac8c90f92245eef2ee7e88410102ea89fc804f825498ff5b00",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "fc027fa95affe412085f6385d19e2e8d5a3a89067656008d59d01c4d20f8478e",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "283f8b4b38e4db948df60802f7de884c32e6c750c6bffebfa2ebdbeaf3059dd7",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
    },
    "tool": "g++"
@@ -834,8 +2382,45 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 608,
+      "differing_bytes": 610,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-f1d487.o",
+          1793632053
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "1131d9f9f9453f359e972d3b1fdb9ac9"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-a22d57.o",
+          1793632054
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "ab004529684f345cb98e22277976db81"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 203,
+       "symbol table": 4
+      },
       "size_a": 37560,
       "size_b": 37576
      },
@@ -848,6 +2433,27 @@
      {
       "differing_bytes": 125556,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "1131d9f9f9453f359e972d3b1fdb9ac9"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "ab004529684f345cb98e22277976db81"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 139,
+       "__DWARF,__debug_line_str": 3709,
+       "__DWARF,__debug_names": 500,
+       "__DWARF,__debug_str": 108168,
+       "__DWARF,__debug_str_offs": 2112,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
       "size_a": 207940,
       "size_b": 207972
      },
@@ -862,15 +2468,49 @@
    },
    "language": "C++",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 0,
    "program": "cpp/templates.cpp",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 609,
+      "differing_bytes": 116,
       "file": "templates",
-      "size_a": 37560,
-      "size_b": 37576
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-aaad46.o",
+          1793632054
+         ]
+        ],
+        "so": [
+         "./",
+         "templates.cpp"
+        ],
+        "uuid": "7175cf7381c239c0a1343396e9fabcef"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-45b07a.o",
+          1793632055
+         ]
+        ],
+        "so": [
+         "./",
+         "templates.cpp"
+        ],
+        "uuid": "7ff25519d74a3d4d8b23b4b2e10ffc75"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 93,
+       "string table": 6,
+       "symbol table": 1
+      },
+      "size_a": 37480,
+      "size_b": 37480
      },
      {
       "differing_bytes": 0,
@@ -879,10 +2519,25 @@
       "size_b": 638
      },
      {
-      "differing_bytes": 125556,
+      "differing_bytes": 16,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
-      "size_a": 207940,
-      "size_b": 207972
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "7175cf7381c239c0a1343396e9fabcef"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "7ff25519d74a3d4d8b23b4b2e10ffc75"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
+      "size_a": 207792,
+      "size_b": 207792
      },
      {
       "differing_bytes": 0,
@@ -896,8 +2551,40 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 37,
+      "differing_bytes": 38,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-f1d487.o",
+          1793632053
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "1131d9f9f9453f359e972d3b1fdb9ac9"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-19e629.o",
+          1793632053
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "1131d9f9f9453f359e972d3b1fdb9ac9"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
       "size_a": 37560,
       "size_b": 37560
      },
@@ -927,6 +2614,40 @@
      {
       "differing_bytes": 118,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-bda4b3.o",
+          1793632055
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "e0e13315a278399e9c771f921d0d0128"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-f7d077.o",
+          1793632056
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "aa18bd070db43fffb0e20d59373aa718"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 95,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 37560,
       "size_b": 37560
      },
@@ -939,6 +2660,21 @@
      {
       "differing_bytes": 16,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "e0e13315a278399e9c771f921d0d0128"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "aa18bd070db43fffb0e20d59373aa718"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 207940,
       "size_b": 207940
      },
@@ -952,15 +2688,15 @@
     "status": "differs"
    },
    "sha256": {
-    "templates": "e6b6e3035d86752e59145dd3b890bce5b6117dfb7ec3bd8148185d081599d1c5",
+    "templates": "609c84e8076df8fda65493dabe92059da8c0b3cb592a91c5b4c5d4fab0adccaa",
     "templates.dSYM/Contents/Info.plist": "a137b994e43c7adfaa623f7313b5c775297202a3359745ce9769dbec41430f30",
-    "templates.dSYM/Contents/Resources/DWARF/templates": "1a699bd408108bdf0498d9aa86746d0f84652dc8389819921df05e12896f4ad3",
+    "templates.dSYM/Contents/Resources/DWARF/templates": "a5dd7d4048568e40c40b649a5123e31ccedcf35dfb32e14183ee04943ece4ade",
     "templates.dSYM/Contents/Resources/Relocations/aarch64/templates.yml": "8f633e8e8824663046f7ec18dcd1855b687259fdeec5dd196c778e519c7f28f0"
    },
    "sha256_remapped": {
-    "templates": "c8fc6dd8112b4eafed242e6789f51ed6062a7974eb4b7faa2316d603304d7ea6",
+    "templates": "4be38fdc3039d308a5620958f7ea23d45897d6e0df4b228e19d9760bf1354a0f",
     "templates.dSYM/Contents/Info.plist": "a137b994e43c7adfaa623f7313b5c775297202a3359745ce9769dbec41430f30",
-    "templates.dSYM/Contents/Resources/DWARF/templates": "c5515ed345dfe44c4af5253d9dc4d55ad230566c9d225b396b3a7f8436b10a9d",
+    "templates.dSYM/Contents/Resources/DWARF/templates": "4a9e8b802e674578da2fb11ad0a8015a57a279ae2463ce1903dc47dba46cdd2b",
     "templates.dSYM/Contents/Resources/Relocations/aarch64/templates.yml": "8f633e8e8824663046f7ec18dcd1855b687259fdeec5dd196c778e519c7f28f0"
    },
    "tool": "g++"
@@ -972,6 +2708,43 @@
      {
       "differing_bytes": 576,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-05b63a.o",
+          1793632056
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "4be25b0478083e549eb176ee91aaac9f"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-4cbe0d.o",
+          1793632057
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "f49363eb33083167b01740000b948337"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "code signature": 63,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 204,
+       "symbol table": 4
+      },
       "size_a": 36696,
       "size_b": 36712
      },
@@ -984,6 +2757,27 @@
      {
       "differing_bytes": 59029,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "4be25b0478083e549eb176ee91aaac9f"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "f49363eb33083167b01740000b948337"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "__DWARF,__debug_line": 133,
+       "__DWARF,__debug_line_str": 3709,
+       "__DWARF,__debug_names": 345,
+       "__DWARF,__debug_str": 47598,
+       "__DWARF,__debug_str_offs": 1744,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
       "size_a": 113188,
       "size_b": 113220
      },
@@ -998,15 +2792,47 @@
    },
    "language": "C++",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 0,
    "program": "cpp/hello.cpp",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 575,
+      "differing_bytes": 37,
       "file": "hello",
-      "size_a": 36696,
-      "size_b": 36712
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-01b26e.o",
+          1793632058
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.cpp"
+        ],
+        "uuid": "2af0ca7c3d293860b8a4ecae87d97e89"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-6c0c72.o",
+          1793632058
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.cpp"
+        ],
+        "uuid": "2af0ca7c3d293860b8a4ecae87d97e89"
+       }
+      },
+      "macho_regions": {
+       "code signature": 31,
+       "string table": 6
+      },
+      "size_a": 36616,
+      "size_b": 36616
      },
      {
       "differing_bytes": 0,
@@ -1015,10 +2841,10 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 59029,
+      "differing_bytes": 0,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 113188,
-      "size_b": 113220
+      "size_a": 113040,
+      "size_b": 113040
      },
      {
       "differing_bytes": 0,
@@ -1032,8 +2858,42 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 38,
+      "differing_bytes": 86,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-05b63a.o",
+          1793632056
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "4be25b0478083e549eb176ee91aaac9f"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-5f74c6.o",
+          1793632057
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "d6967ffd11ad337886295f242c5d8ca5"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 63,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 36696,
       "size_b": 36696
      },
@@ -1044,8 +2904,23 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 0,
+      "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "4be25b0478083e549eb176ee91aaac9f"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "d6967ffd11ad337886295f242c5d8ca5"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 113188,
       "size_b": 113188
      },
@@ -1061,8 +2936,42 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 85,
+      "differing_bytes": 86,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/hello-05bd65.o",
+          1793632058
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "fea85da9bfdf3caab2a269da151a01c8"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/hello-ae158d.o",
+          1793632059
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.cpp"
+        ],
+        "uuid": "4fa93a2191eb3ff599e845393dfca07e"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 63,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 36696,
       "size_b": 36696
      },
@@ -1073,8 +2982,23 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 15,
+      "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "fea85da9bfdf3caab2a269da151a01c8"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "4fa93a2191eb3ff599e845393dfca07e"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 113188,
       "size_b": 113188
      },
@@ -1088,15 +3012,15 @@
     "status": "differs"
    },
    "sha256": {
-    "hello": "fc15e14b338d1dec6337f58469ee971cd16e3f4b1a449e8810aa2a54217f5134",
+    "hello": "1c56f017a10b87154cafaf0c0bc92b256609a3b5b1403c488de40ee6d645e41a",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "cfa39e919b06ee07e39b1cdecf2a328f03f945b1a0f11190cbcc44ad7fc8d391",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "53463817d3fdbb59516d95ac535b38637d441632d6f47ffee4cd73169695d3ca",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
    },
    "sha256_remapped": {
-    "hello": "01802479a6c57bc95591f10d8b172d07c90995a5c2aff6c0d9c8a65ff27e9868",
+    "hello": "284ad28a53cb22e652c5fd9c4276bf54c20fe4b9e573aee952e98daab54d524f",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "88ab4ad76b428e62f59501c3579ca5c7bf8b5a87f712d62458089d94a0533bc4",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "dff9296e3ed4a1b29ac5f2d6066052c2f8d837579a5a81e20750f84d71bd0bd0",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "64ea8e5f10dd53597ce16a6a8179b83a2c4da197fa230e1eac726ba5b722cf02"
    },
    "tool": "clang++"
@@ -1108,6 +3032,43 @@
      {
       "differing_bytes": 609,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-25b140.o",
+          1793632060
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "15d40a514b9333afbae3b2f2704f665e"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-49852e.o",
+          1793632061
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "e284641466e838ef8f7ffe3daac9d872"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 202,
+       "symbol table": 4
+      },
       "size_a": 37560,
       "size_b": 37576
      },
@@ -1120,6 +3081,27 @@
      {
       "differing_bytes": 125556,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "15d40a514b9333afbae3b2f2704f665e"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "e284641466e838ef8f7ffe3daac9d872"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 139,
+       "__DWARF,__debug_line_str": 3709,
+       "__DWARF,__debug_names": 500,
+       "__DWARF,__debug_str": 108168,
+       "__DWARF,__debug_str_offs": 2112,
+       "load command LC_SEGMENT_64 __DWARF": 9
+      },
       "size_a": 207940,
       "size_b": 207972
      },
@@ -1134,15 +3116,47 @@
    },
    "language": "C++",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 0,
    "program": "cpp/templates.cpp",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 608,
+      "differing_bytes": 38,
       "file": "templates",
-      "size_a": 37560,
-      "size_b": 37576
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-8c3754.o",
+          1793632061
+         ]
+        ],
+        "so": [
+         "./",
+         "templates.cpp"
+        ],
+        "uuid": "71fdda5af89f3c4e9d43264cba353b8a"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-e9bc1d.o",
+          1793632061
+         ]
+        ],
+        "so": [
+         "./",
+         "templates.cpp"
+        ],
+        "uuid": "71fdda5af89f3c4e9d43264cba353b8a"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 37480,
+      "size_b": 37480
      },
      {
       "differing_bytes": 0,
@@ -1151,10 +3165,10 @@
       "size_b": 638
      },
      {
-      "differing_bytes": 125556,
+      "differing_bytes": 0,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
-      "size_a": 207940,
-      "size_b": 207972
+      "size_a": 207792,
+      "size_b": 207792
      },
      {
       "differing_bytes": 0,
@@ -1168,8 +3182,40 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 38,
+      "differing_bytes": 36,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-25b140.o",
+          1793632060
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "15d40a514b9333afbae3b2f2704f665e"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-55b4dc.o",
+          1793632060
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "15d40a514b9333afbae3b2f2704f665e"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 4
+      },
       "size_a": 37560,
       "size_b": 37560
      },
@@ -1199,6 +3245,40 @@
      {
       "differing_bytes": 119,
       "file": "templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/templates-7057c8.o",
+          1793632062
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "09747cb05fc13761b78f47a30d0f4fc1"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/templates-d6f9f0.o",
+          1793632063
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "templates.cpp"
+        ],
+        "uuid": "54288f7c3b9b318bbabf523371161c1e"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 96,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 37560,
       "size_b": 37560
      },
@@ -1211,6 +3291,21 @@
      {
       "differing_bytes": 16,
       "file": "templates.dSYM/Contents/Resources/DWARF/templates",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "09747cb05fc13761b78f47a30d0f4fc1"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "54288f7c3b9b318bbabf523371161c1e"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 207940,
       "size_b": 207940
      },
@@ -1224,15 +3319,15 @@
     "status": "differs"
    },
    "sha256": {
-    "templates": "a7e76d2ba5e32f9c658d2660e8cc12af0c96fbc14248bacfb15f046c165a67a4",
+    "templates": "631040722cc929d8a04242ccf84cac19a9f2e0e30f8d17b90886365820e8f867",
     "templates.dSYM/Contents/Info.plist": "a137b994e43c7adfaa623f7313b5c775297202a3359745ce9769dbec41430f30",
-    "templates.dSYM/Contents/Resources/DWARF/templates": "f62c35d2bdfc1a68ce885303fc4995349fa5593b625036c2cfddacd652849502",
+    "templates.dSYM/Contents/Resources/DWARF/templates": "b3ff2da9f8f5330d1f8ecfe1c4c6152554b801a5ff37dab1d47c0910c43d6b6c",
     "templates.dSYM/Contents/Resources/Relocations/aarch64/templates.yml": "8f633e8e8824663046f7ec18dcd1855b687259fdeec5dd196c778e519c7f28f0"
    },
    "sha256_remapped": {
-    "templates": "3c06e6bf1f601ae37319a8e7fc9454c335657eebd88e601c82b23777653581af",
+    "templates": "e79a23b1da2126227d80e2915cfd1361666a5556846f62f77787ad52f9be32d2",
     "templates.dSYM/Contents/Info.plist": "a137b994e43c7adfaa623f7313b5c775297202a3359745ce9769dbec41430f30",
-    "templates.dSYM/Contents/Resources/DWARF/templates": "11ce2565ff020b7c4af16be1c003d0426ac1a8f78f0f982b65c1b8beaba037fe",
+    "templates.dSYM/Contents/Resources/DWARF/templates": "5085d817ae7c7e771c9099fbf4a9f041a334a7516f65156a8cb2179a80881396",
     "templates.dSYM/Contents/Resources/Relocations/aarch64/templates.yml": "8f633e8e8824663046f7ec18dcd1855b687259fdeec5dd196c778e519c7f28f0"
    },
    "tool": "clang++"
@@ -1242,8 +3337,45 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 3683,
+      "differing_bytes": 3684,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "486c4f5d042532dfacd3ffbda697b276"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "218a4189d14838018963297463783562"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 98,
+       "load command LC_CODE_SIGNATURE": 2,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 298,
+       "symbol table": 4
+      },
       "size_a": 436120,
       "size_b": 436152
      },
@@ -1256,6 +3388,27 @@
      {
       "differing_bytes": 1588,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "486c4f5d042532dfacd3ffbda697b276"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "218a4189d14838018963297463783562"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 17,
+       "__DWARF,__apple_namespac": 11,
+       "__DWARF,__apple_types": 6,
+       "__DWARF,__debug_info": 48,
+       "__DWARF,__debug_str": 978,
+       "load command LC_SEGMENT_64 __DWARF": 10
+      },
       "size_a": 130967,
       "size_b": 130983
      },
@@ -1270,15 +3423,52 @@
    },
    "language": "Rust",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 1,
    "program": "rust/hello.rs",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 3683,
+      "differing_bytes": 3630,
       "file": "hello",
-      "size_a": 436120,
-      "size_b": 436152
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "./hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "aa05cc1dabfb309fab8f89e16b363e52"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "./hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "143f9e48aa7231dda33c318c0e272d0f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 169,
+       "symbol table": 1
+      },
+      "size_a": 436040,
+      "size_b": 436056
      },
      {
       "differing_bytes": 0,
@@ -1287,10 +3477,25 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 1588,
+      "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 130967,
-      "size_b": 130983
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "aa05cc1dabfb309fab8f89e16b363e52"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "143f9e48aa7231dda33c318c0e272d0f"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
+      "size_a": 130892,
+      "size_b": 130892
      },
      {
       "differing_bytes": 0,
@@ -1360,15 +3565,15 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "3cda2cb59a6396e4ba364dbc50a47a02c3ea093a4325165537add6986626c9ae",
+    "hello": "d5fe6e2ca5e73ebc302f376eea115af2e424f2f6e195f827b46146baf35c4fd2",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "bf095e4867ed6b97779de323a71828be7d6544efbf7fd166345ecb482380bbe1",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "5a70f44bb16949e00fc0df1fa0f43656afa78d817d557e045758e25afccb17af",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "01c1560f6991f297b90a8f73b6c5ab08d70944dbfdd1baaed64015be92ff2f07"
    },
    "sha256_remapped": {
-    "hello": "3cda2cb59a6396e4ba364dbc50a47a02c3ea093a4325165537add6986626c9ae",
+    "hello": "71ae062a2c19cdefedc8a813aae9e02ef8da83f3f45b7f06f09b69cc9f6aaceb",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "bf095e4867ed6b97779de323a71828be7d6544efbf7fd166345ecb482380bbe1",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "70ec442cf844ba727b5c211a9b12827bb52d62b794a9143fac58a48a611f2e78",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "01c1560f6991f297b90a8f73b6c5ab08d70944dbfdd1baaed64015be92ff2f07"
    },
    "tool": "rustc"
@@ -1380,6 +3585,43 @@
      {
       "differing_bytes": 3872,
       "file": "generic",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "f51eebe006d5321f8ec37237f95f012a"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "776d082c4c123c6ca2ff6ba91c381f24"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 337,
+       "symbol table": 3
+      },
       "size_a": 456024,
       "size_b": 456056
      },
@@ -1392,6 +3634,27 @@
      {
       "differing_bytes": 101634,
       "file": "generic.dSYM/Contents/Resources/DWARF/generic",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "f51eebe006d5321f8ec37237f95f012a"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "776d082c4c123c6ca2ff6ba91c381f24"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 456,
+       "__DWARF,__apple_namespac": 88,
+       "__DWARF,__apple_types": 371,
+       "__DWARF,__debug_info": 3808,
+       "__DWARF,__debug_str": 82533,
+       "load command LC_SEGMENT_64 __DWARF": 11
+      },
       "size_a": 340577,
       "size_b": 340593
      },
@@ -1406,15 +3669,52 @@
    },
    "language": "Rust",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 1,
    "program": "rust/generic.rs",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 3872,
+      "differing_bytes": 3820,
       "file": "generic",
-      "size_a": 456024,
-      "size_b": 456056
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "./generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "2f10c230ae9a31b28068d641df3fa48e"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "./generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "af0f87ff1e4638bb80fa776d5b8ee698"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 194,
+       "symbol table": 1
+      },
+      "size_a": 455944,
+      "size_b": 455960
      },
      {
       "differing_bytes": 0,
@@ -1423,10 +3723,25 @@
       "size_b": 636
      },
      {
-      "differing_bytes": 101634,
+      "differing_bytes": 15,
       "file": "generic.dSYM/Contents/Resources/DWARF/generic",
-      "size_a": 340577,
-      "size_b": 340593
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "2f10c230ae9a31b28068d641df3fa48e"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "af0f87ff1e4638bb80fa776d5b8ee698"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 15
+      },
+      "size_a": 340502,
+      "size_b": 340502
      },
      {
       "differing_bytes": 0,
@@ -1496,15 +3811,15 @@
     "status": "identical"
    },
    "sha256": {
-    "generic": "d029a0bab3e3f55270cc7acc82dcdbde76f2650cfbf8269cb13c3b7e20636268",
+    "generic": "809ff3124229452d7e58cde3958d432023dd710993e61d8b3465a59636ca08cd",
     "generic.dSYM/Contents/Info.plist": "ee5884b34738d8f5317651ecfa2a8a42a69c9fa9dce7e823572a41f39fea0379",
-    "generic.dSYM/Contents/Resources/DWARF/generic": "5fee79bf48034dc26969fa23179085f713c03fe4ab9d88f2d14c3753543f7835",
+    "generic.dSYM/Contents/Resources/DWARF/generic": "3e95b32c36c5c1201669f80430aac6ef28da7f23c960d8dafe1fd4491f5f3889",
     "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml": "cafd4051c92f963769e9bb897e9af359c28bfe6b3a3de55010c099124bed3bd6"
    },
    "sha256_remapped": {
-    "generic": "d029a0bab3e3f55270cc7acc82dcdbde76f2650cfbf8269cb13c3b7e20636268",
+    "generic": "5e696c2bbd5bdbec9cfaca41794532d586354e38e6f8dd9656cc05e84880d34f",
     "generic.dSYM/Contents/Info.plist": "ee5884b34738d8f5317651ecfa2a8a42a69c9fa9dce7e823572a41f39fea0379",
-    "generic.dSYM/Contents/Resources/DWARF/generic": "5fee79bf48034dc26969fa23179085f713c03fe4ab9d88f2d14c3753543f7835",
+    "generic.dSYM/Contents/Resources/DWARF/generic": "11ab9a8b7898cf5fbcb5bac24d5b882fa76ade4091aa4ed867e94d8aa562a9e4",
     "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml": "cafd4051c92f963769e9bb897e9af359c28bfe6b3a3de55010c099124bed3bd6"
    },
    "tool": "rustc"
@@ -1626,12 +3941,426 @@
    "tool": "rustc"
   },
   {
+   "config": "rustc -O -g, oso_prefix (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 3684,
+      "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "486c4f5d042532dfacd3ffbda697b276"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/hello.hello.dd67f66bf00b31f4-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/hello.rs/@/",
+         "hello.dd67f66bf00b31f4-cgu.0"
+        ],
+        "uuid": "218a4189d14838018963297463783562"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 98,
+       "load command LC_CODE_SIGNATURE": 2,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 298,
+       "symbol table": 4
+      },
+      "size_a": 436120,
+      "size_b": 436152
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 1588,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "486c4f5d042532dfacd3ffbda697b276"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "218a4189d14838018963297463783562"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 17,
+       "__DWARF,__apple_namespac": 11,
+       "__DWARF,__apple_types": 6,
+       "__DWARF,__debug_info": 48,
+       "__DWARF,__debug_str": 978,
+       "load command LC_SEGMENT_64 __DWARF": 10
+      },
+      "size_a": 130967,
+      "size_b": 130983
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 1081,
+      "size_b": 1081
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "rust/hello.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 435960,
+      "size_b": 435960
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 130892,
+      "size_b": 130892
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 1081,
+      "size_b": 1081
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 436120,
+      "size_b": 436120
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 130967,
+      "size_b": 130967
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 1081,
+      "size_b": 1081
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "hello",
+      "size_a": 436120,
+      "size_b": 436120
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Info.plist",
+      "size_a": 634,
+      "size_b": 634
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "size_a": 130967,
+      "size_b": 130967
+     },
+     {
+      "differing_bytes": 0,
+      "file": "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml",
+      "size_a": 1081,
+      "size_b": 1081
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "hello": "d5fe6e2ca5e73ebc302f376eea115af2e424f2f6e195f827b46146baf35c4fd2",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "5a70f44bb16949e00fc0df1fa0f43656afa78d817d557e045758e25afccb17af",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "01c1560f6991f297b90a8f73b6c5ab08d70944dbfdd1baaed64015be92ff2f07"
+   },
+   "sha256_remapped": {
+    "hello": "12f28285a8b0736f55e7b5fb593c62ffe64fa20e1e9bcc4c69e8488d60d3b759",
+    "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "cc5126523fd0742e6d9c48db9b1044a7a0f26f97b38c523c28af6e36cf9f3b32",
+    "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "01c1560f6991f297b90a8f73b6c5ab08d70944dbfdd1baaed64015be92ff2f07"
+   },
+   "tool": "rustc"
+  },
+  {
+   "config": "rustc -O -g, oso_prefix (macOS)",
+   "cross_dir": {
+    "files": [
+     {
+      "differing_bytes": 3872,
+      "file": "generic",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "f51eebe006d5321f8ec37237f95f012a"
+       },
+       "b": {
+        "oso": [
+         [
+          "{dir}/generic.generic.708561c3b29279fc-cgu.0.rcgu.o",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}/generic.rs/@/",
+         "generic.708561c3b29279fc-cgu.0"
+        ],
+        "uuid": "776d082c4c123c6ca2ff6ba91c381f24"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 97,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 337,
+       "symbol table": 3
+      },
+      "size_a": 456024,
+      "size_b": 456056
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Info.plist",
+      "size_a": 636,
+      "size_b": 636
+     },
+     {
+      "differing_bytes": 101634,
+      "file": "generic.dSYM/Contents/Resources/DWARF/generic",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "f51eebe006d5321f8ec37237f95f012a"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "776d082c4c123c6ca2ff6ba91c381f24"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 456,
+       "__DWARF,__apple_namespac": 88,
+       "__DWARF,__apple_types": 371,
+       "__DWARF,__debug_info": 3808,
+       "__DWARF,__debug_str": 82533,
+       "load command LC_SEGMENT_64 __DWARF": 11
+      },
+      "size_a": 340577,
+      "size_b": 340593
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml",
+      "size_a": 1988,
+      "size_b": 1988
+     }
+    ],
+    "status": "differs"
+   },
+   "language": "Rust",
+   "path_copies_cross": 3,
+   "path_copies_remapped": 0,
+   "program": "rust/generic.rs",
+   "remapped": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 455880,
+      "size_b": 455880
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Info.plist",
+      "size_a": 636,
+      "size_b": 636
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/DWARF/generic",
+      "size_a": 340502,
+      "size_b": 340502
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml",
+      "size_a": 1988,
+      "size_b": 1988
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 456024,
+      "size_b": 456024
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Info.plist",
+      "size_a": 636,
+      "size_b": 636
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/DWARF/generic",
+      "size_a": 340577,
+      "size_b": 340577
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml",
+      "size_a": 1988,
+      "size_b": 1988
+     }
+    ],
+    "status": "identical"
+   },
+   "same_dir_clock": {
+    "files": [
+     {
+      "differing_bytes": 0,
+      "file": "generic",
+      "size_a": 456024,
+      "size_b": 456024
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Info.plist",
+      "size_a": 636,
+      "size_b": 636
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/DWARF/generic",
+      "size_a": 340577,
+      "size_b": 340577
+     },
+     {
+      "differing_bytes": 0,
+      "file": "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml",
+      "size_a": 1988,
+      "size_b": 1988
+     }
+    ],
+    "status": "identical"
+   },
+   "sha256": {
+    "generic": "809ff3124229452d7e58cde3958d432023dd710993e61d8b3465a59636ca08cd",
+    "generic.dSYM/Contents/Info.plist": "ee5884b34738d8f5317651ecfa2a8a42a69c9fa9dce7e823572a41f39fea0379",
+    "generic.dSYM/Contents/Resources/DWARF/generic": "3e95b32c36c5c1201669f80430aac6ef28da7f23c960d8dafe1fd4491f5f3889",
+    "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml": "cafd4051c92f963769e9bb897e9af359c28bfe6b3a3de55010c099124bed3bd6"
+   },
+   "sha256_remapped": {
+    "generic": "a5f25c5fd17af1ae07b2ec535af1cf6b10591a1297a18abe65267a510b6fde74",
+    "generic.dSYM/Contents/Info.plist": "ee5884b34738d8f5317651ecfa2a8a42a69c9fa9dce7e823572a41f39fea0379",
+    "generic.dSYM/Contents/Resources/DWARF/generic": "5d91d0e9114d21651ac1e5499a388b1466f973e6ccd4ee4181e8b265faa1b317",
+    "generic.dSYM/Contents/Resources/Relocations/aarch64/generic.yml": "cafd4051c92f963769e9bb897e9af359c28bfe6b3a3de55010c099124bed3bd6"
+   },
+   "tool": "rustc"
+  },
+  {
    "config": "go build",
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1075534,
+      "differing_bytes": 943777,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "198d0d0decf633bdbda4ef901e294c63"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "ffbbe844fbdf34638ff16b4924401ef5"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 9,
+       "__DWARF,__zdebug_info": 242400,
+       "__DWARF,__zdebug_line": 114074,
+       "__TEXT,__gopclntab": 377749,
+       "__TEXT,__text": 80,
+       "code signature": 8989,
+       "load command LC_SEGMENT_64 __DWARF": 6,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 3,
+       "segment __TEXT, other": 16,
+       "symbol table": 4
+      },
       "size_a": 2429714,
       "size_b": 2429714
      }
@@ -1676,7 +4405,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "c5462be2cb510cfdf9722cdaf875f9c840527dae25642b8ca4d78b8f557b255f"
+    "hello": "4481fab7f9dd141907951fdbf1ff15b1323a4c709436ef09bd19df088cfb4dc9"
    },
    "sha256_remapped": {
     "hello": "390bebd6abeab71e5f5d2277c34d9abe677f82028efede880d3fad0330dd0289"
@@ -1695,8 +4424,34 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1089596,
+      "differing_bytes": 1089593,
       "file": "maps",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "2151c9846ad73f7093b66d6da0c4d82a"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "1ff44c6d301a3ae7a6ce4da2de873d47"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 8,
+       "__DWARF,__zdebug_info": 233345,
+       "__DWARF,__zdebug_line": 116449,
+       "__TEXT,__gopclntab": 381824,
+       "__TEXT,__text": 79,
+       "code signature": 10063,
+       "load command LC_SEGMENT_64 __DWARF": 13,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 18,
+       "segment __TEXT, other": 16,
+       "symbol table": 3
+      },
       "size_a": 2448274,
       "size_b": 2448274
      }
@@ -1741,7 +4496,7 @@
     "status": "identical"
    },
    "sha256": {
-    "maps": "7bff4c1fc3e9575482c0e7cd6b45556ab44b9fc300e6a4fb7a4a6a624655dd05"
+    "maps": "1fa94b7ede004aca025b088072ca2e3e0f34fd697b02af9895f054f731616fab"
    },
    "sha256_remapped": {
     "maps": "29722fea946345981b62660ad15703685e64b22050dd42674395cb3bc3e1ed16"
@@ -1760,8 +4515,34 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1075124,
+      "differing_bytes": 943513,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "6725f4d6a6c33bea9cfb6fb04d110fa8"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "6a3d166b2fac380dbe38b2f7bf360a08"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 9,
+       "__DWARF,__zdebug_info": 241815,
+       "__DWARF,__zdebug_line": 114074,
+       "__TEXT,__gopclntab": 377750,
+       "__TEXT,__text": 78,
+       "code signature": 8998,
+       "load command LC_SEGMENT_64 __DWARF": 6,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 1,
+       "segment __TEXT, other": 16,
+       "symbol table": 4
+      },
       "size_a": 2429746,
       "size_b": 2429746
      }
@@ -1775,8 +4556,25 @@
    "remapped": {
     "files": [
      {
-      "differing_bytes": 120,
+      "differing_bytes": 118,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "e8e83dd184c137ee9d99e3b3590d2e90"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "e71bcbbe071233c49f62a57093740fc3"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__TEXT,__text": 38,
+       "code signature": 64
+      },
       "size_a": 2396690,
       "size_b": 2396690
      }
@@ -1806,10 +4604,10 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "20946fd0c13c3b1a9b6af0297f4b44d38439771da10cc2e1f6f392a46d42d012"
+    "hello": "f1093dfc07edd533c6247c6f2d75dfbe70a3e40ab7beedade2df3a29582e659c"
    },
    "sha256_remapped": {
-    "hello": "da2b8432ebde8d3df435982872c5904308f719e76b8b68f7cba3f7a454f5e7f0"
+    "hello": "2c36fb52a82947d7225adec08f69d3644a27c3ad46779b27d7fe16742390e135"
    },
    "tool": "go",
    "trace": {
@@ -1817,8 +4615,8 @@
      "GODEBUG": "gocachehash=1"
     },
     "lines_naming_dir": [
-     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_/private{dir}\\\"\\n\"",
-     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_/private{dir}\\\"\\n\""
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
     ],
     "same_after_naming": true
    }
@@ -1828,8 +4626,34 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1089588,
+      "differing_bytes": 1089593,
       "file": "maps",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "af736483cd8a37ddbd4fbdb2b3d4453a"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "813d9590c6763079875f5cdba2886130"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 8,
+       "__DWARF,__zdebug_info": 241255,
+       "__DWARF,__zdebug_line": 116449,
+       "__TEXT,__gopclntab": 381824,
+       "__TEXT,__text": 80,
+       "code signature": 10072,
+       "load command LC_SEGMENT_64 __DWARF": 13,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 19,
+       "segment __TEXT, other": 16,
+       "symbol table": 3
+      },
       "size_a": 2448322,
       "size_b": 2448322
      }
@@ -1845,6 +4669,23 @@
      {
       "differing_bytes": 119,
       "file": "maps",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "54df1b6db1033bd3a9c8fac4ff438563"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "3bce5420441e3e4f8b42ce38182f51aa"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__TEXT,__text": 39,
+       "code signature": 64
+      },
       "size_a": 2431762,
       "size_b": 2431762
      }
@@ -1874,10 +4715,10 @@
     "status": "identical"
    },
    "sha256": {
-    "maps": "11619466f43c2179fab158afefb15ab7181904370efff045de2742684a9cc5b0"
+    "maps": "4045f26a32361687cf8ce41b4c8b48783c4e07c8dddf548e764958d3ffddb818"
    },
    "sha256_remapped": {
-    "maps": "940bd7c2f8ef8737f854800c2541971c8c05f02a5ab6ff9b08b1e48fa4a63f60"
+    "maps": "19c7f1fd62d5ed492147296dcb283a3d716c340ecca7f1bd2207e938703bd07d"
    },
    "tool": "go",
    "trace": {
@@ -1885,8 +4726,8 @@
      "GODEBUG": "gocachehash=1"
     },
     "lines_naming_dir": [
-     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_/private{dir}\\\"\\n\"",
-     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_/private{dir}\\\"\\n\""
+     "HASH[build command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\"",
+     "HASH[link command-line-arguments]: \"omitdebug false standard false local true prefix \\\"_{dir}\\\"\\n\""
     ],
     "same_after_naming": true
    }
@@ -1896,8 +4737,34 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1075375,
+      "differing_bytes": 1075861,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "a4e2d155c3b930a582e8636c6610d8ee"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "d20f7d9677a2322cb517e214dc2b1fd1"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 9,
+       "__DWARF,__zdebug_info": 240756,
+       "__DWARF,__zdebug_line": 114209,
+       "__TEXT,__gopclntab": 377760,
+       "__TEXT,__text": 78,
+       "code signature": 9981,
+       "load command LC_SEGMENT_64 __DWARF": 16,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 54,
+       "segment __TEXT, other": 16,
+       "symbol table": 4
+      },
       "size_a": 2429746,
       "size_b": 2429746
      }
@@ -1942,7 +4809,7 @@
     "status": "identical"
    },
    "sha256": {
-    "hello": "f8d607fe8dd2c0aa600f72029a8c3b514010de0b1274ae5d2c74144f3c2a6895"
+    "hello": "9265d54ed8c771dca8d3128961785decc3ba1363bdd427474917af3ee327faac"
    },
    "sha256_remapped": {
     "hello": "c27615f647433d4b1e1d135326995495430ae5495d1c4d1ac7ac28ddb069831a"
@@ -1961,8 +4828,34 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 1089997,
+      "differing_bytes": 1089915,
       "file": "maps",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "fbc0ec768fab32eea78c1b5448cccef1"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "b4ab8d73b42f3da2b863e43af16c7899"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DATA,__go_module": 9,
+       "__DWARF,__zdebug_info": 272638,
+       "__DWARF,__zdebug_line": 116511,
+       "__TEXT,__gopclntab": 381841,
+       "__TEXT,__text": 79,
+       "code signature": 10065,
+       "load command LC_SEGMENT_64 __DWARF": 16,
+       "load command LC_SEGMENT_64 __TEXT": 1,
+       "outside segments": 74,
+       "segment __TEXT, other": 16,
+       "symbol table": 3
+      },
       "size_a": 2448322,
       "size_b": 2448322
      }
@@ -2007,7 +4900,7 @@
     "status": "identical"
    },
    "sha256": {
-    "maps": "b1cad44dfd517876413a353e64ae617b84adc6743442518ad121ac1486b96d92"
+    "maps": "269155f163e47e2ca015bf041e168ad4d78e548758ca5beeac89d5c68ce6083e"
    },
    "sha256_remapped": {
     "maps": "d2b5c1d4d6702efb89000e2f84b3fbc456fe0c668944a25fc5de27fc461d48a9"
@@ -2026,8 +4919,45 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 436,
+      "differing_bytes": 438,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//cceclZZu.o",
+          1793632162
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "986dd5c044dd34209380f25a7360a49c"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccxsxdjX.o",
+          1793632163
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "49558c518b4f36ad8f51bcc4f27e3b5a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 68,
+       "symbol table": 5
+      },
       "size_a": 34168,
       "size_b": 34184
      },
@@ -2038,8 +4968,30 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 378,
+      "differing_bytes": 379,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "986dd5c044dd34209380f25a7360a49c"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "49558c518b4f36ad8f51bcc4f27e3b5a"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 2,
+       "__DWARF,__apple_types": 2,
+       "__DWARF,__debug_info": 6,
+       "__DWARF,__debug_line": 2,
+       "__DWARF,__debug_line_str": 33,
+       "__DWARF,__debug_str": 77,
+       "load command LC_SEGMENT_64 __DWARF": 13
+      },
       "size_a": 13741,
       "size_b": 13773
      },
@@ -2054,15 +5006,47 @@
    },
    "language": "Fortran",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 1,
    "program": "fortran/hello.f90",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 436,
+      "differing_bytes": 38,
       "file": "hello",
-      "size_a": 34168,
-      "size_b": 34184
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//ccM2zucb.o",
+          1793632163
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.f90"
+        ],
+        "uuid": "2dffec4bdf5e353291837ffdfee8b788"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccKad5Nh.o",
+          1793632163
+         ]
+        ],
+        "so": [
+         "./",
+         "hello.f90"
+        ],
+        "uuid": "2dffec4bdf5e353291837ffdfee8b788"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
+      "size_a": 34088,
+      "size_b": 34088
      },
      {
       "differing_bytes": 0,
@@ -2071,10 +5055,27 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 378,
+      "differing_bytes": 202,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
-      "size_a": 13741,
-      "size_b": 13773
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "2dffec4bdf5e353291837ffdfee8b788"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "2dffec4bdf5e353291837ffdfee8b788"
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 2,
+       "__DWARF,__debug_line_str": 33,
+       "load command LC_SEGMENT_64 __DWARF": 10
+      },
+      "size_a": 13666,
+      "size_b": 13682
      },
      {
       "differing_bytes": 0,
@@ -2088,8 +5089,42 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 38,
+      "differing_bytes": 87,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//cceclZZu.o",
+          1793632162
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "986dd5c044dd34209380f25a7360a49c"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//cc1WbyBR.o",
+          1793632163
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "ff7e198614e23950a9a7a0efa494d988"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 34168,
       "size_b": 34168
      },
@@ -2100,8 +5135,23 @@
       "size_b": 634
      },
      {
-      "differing_bytes": 0,
+      "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "986dd5c044dd34209380f25a7360a49c"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "ff7e198614e23950a9a7a0efa494d988"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 13741,
       "size_b": 13741
      },
@@ -2117,8 +5167,42 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 87,
+      "differing_bytes": 85,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//cch8YNlM.o",
+          1793632163
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "ff7e198614e23950a9a7a0efa494d988"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccOdnN4q.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "hello.f90"
+        ],
+        "uuid": "2a0787eff4243b16869cedf252ca5b44"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 63,
+       "string table": 5,
+       "symbol table": 1
+      },
       "size_a": 34168,
       "size_b": 34168
      },
@@ -2131,6 +5215,21 @@
      {
       "differing_bytes": 16,
       "file": "hello.dSYM/Contents/Resources/DWARF/hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "ff7e198614e23950a9a7a0efa494d988"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "2a0787eff4243b16869cedf252ca5b44"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 13741,
       "size_b": 13741
      },
@@ -2144,15 +5243,15 @@
     "status": "differs"
    },
    "sha256": {
-    "hello": "b639388d9f3959d5790a4339f8ab13e69e8bcc8e4e1e76b9bcec91fd2af8ca77",
+    "hello": "37bcd88306e27d091cf21e1bee1e2e4e4a3412345dd70888dff01fdb6eb44bf5",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "8541c92dc2f5ab405f4b70da11280ffe3445139c794e76431dd020f940554e3c",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "e3e040e6a979922afccf80a1ae9461c31ad6587da7eb4ea47b35a53bc7544e51",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "77e674910c9178ce1d0205180b75b4f16a6791d6421033638c463e5da6ca6c9e"
    },
    "sha256_remapped": {
-    "hello": "a35d29a39628ca3c26f5dcc188ff5c8cc9366fc094c1cee04668adabadc7d661",
+    "hello": "39e373469b279c4d42fbf330cc9628796e6f989b5f9a1028463a66563e08c8d0",
     "hello.dSYM/Contents/Info.plist": "9eaaa3e3e1df1877800c431358e95fc8d842f6d3f676274b4c7aa37325babcea",
-    "hello.dSYM/Contents/Resources/DWARF/hello": "8541c92dc2f5ab405f4b70da11280ffe3445139c794e76431dd020f940554e3c",
+    "hello.dSYM/Contents/Resources/DWARF/hello": "362681be86a6dabf3c626a95b67f3094634b75c7351e6034bdef77dbaef2412e",
     "hello.dSYM/Contents/Resources/Relocations/aarch64/hello.yml": "77e674910c9178ce1d0205180b75b4f16a6791d6421033638c463e5da6ca6c9e"
    },
    "tool": "gfortran"
@@ -2162,8 +5261,45 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 440,
+      "differing_bytes": 439,
       "file": "kernels",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//ccZPQKNv.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "46563cc57aa131c9b47fd27ccda3a993"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccISLiSF.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "2cca1c0a71a93f53a4cfba2806d922c2"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 65,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 69,
+       "symbol table": 3
+      },
       "size_a": 34376,
       "size_b": 34392
      },
@@ -2174,8 +5310,30 @@
       "size_b": 636
      },
      {
-      "differing_bytes": 575,
+      "differing_bytes": 577,
       "file": "kernels.dSYM/Contents/Resources/DWARF/kernels",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "46563cc57aa131c9b47fd27ccda3a993"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "2cca1c0a71a93f53a4cfba2806d922c2"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__apple_names": 4,
+       "__DWARF,__apple_types": 4,
+       "__DWARF,__debug_info": 20,
+       "__DWARF,__debug_line": 2,
+       "__DWARF,__debug_line_str": 34,
+       "__DWARF,__debug_str": 154,
+       "load command LC_SEGMENT_64 __DWARF": 13
+      },
       "size_a": 15675,
       "size_b": 15707
      },
@@ -2196,15 +5354,49 @@
    },
    "language": "Fortran",
    "path_copies_cross": 3,
-   "path_copies_remapped": 3,
+   "path_copies_remapped": 1,
    "program": "fortran/kernels.f90",
    "remapped": {
     "files": [
      {
-      "differing_bytes": 439,
+      "differing_bytes": 87,
       "file": "kernels",
-      "size_a": 34376,
-      "size_b": 34392
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//ccUxrk87.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "./",
+         "kernels.f90"
+        ],
+        "uuid": "a27e7b7a2740338ea2c94e8a8b5d036b"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//cczoisuR.o",
+          1793632166
+         ]
+        ],
+        "so": [
+         "./",
+         "kernels.f90"
+        ],
+        "uuid": "7c5b2775c3f6352d96caa17eda22b550"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 6,
+       "symbol table": 1
+      },
+      "size_a": 34296,
+      "size_b": 34296
      },
      {
       "differing_bytes": 0,
@@ -2213,10 +5405,28 @@
       "size_b": 636
      },
      {
-      "differing_bytes": 575,
+      "differing_bytes": 315,
       "file": "kernels.dSYM/Contents/Resources/DWARF/kernels",
-      "size_a": 15675,
-      "size_b": 15707
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "a27e7b7a2740338ea2c94e8a8b5d036b"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "7c5b2775c3f6352d96caa17eda22b550"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__DWARF,__debug_line": 2,
+       "__DWARF,__debug_line_str": 34,
+       "load command LC_SEGMENT_64 __DWARF": 11
+      },
+      "size_a": 15600,
+      "size_b": 15616
      },
      {
       "differing_bytes": 0,
@@ -2238,6 +5448,38 @@
      {
       "differing_bytes": 38,
       "file": "kernels",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//ccZPQKNv.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "46563cc57aa131c9b47fd27ccda3a993"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccHcUJSi.o",
+          1793632165
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "46563cc57aa131c9b47fd27ccda3a993"
+       }
+      },
+      "macho_regions": {
+       "code signature": 32,
+       "string table": 6
+      },
       "size_a": 34376,
       "size_b": 34376
      },
@@ -2271,8 +5513,42 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 86,
+      "differing_bytes": 87,
       "file": "kernels",
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "/var/tmp//ccLYnR5K.o",
+          1793632166
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "757272bbcb973b308118d0cfeac32236"
+       },
+       "b": {
+        "oso": [
+         [
+          "/var/tmp//ccGvccHa.o",
+          1793632167
+         ]
+        ],
+        "so": [
+         "{dir}/",
+         "kernels.f90"
+        ],
+        "uuid": "99f54fd201ea3afb8fb7c995c92be8ec"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 64,
+       "string table": 6,
+       "symbol table": 1
+      },
       "size_a": 34376,
       "size_b": 34376
      },
@@ -2285,6 +5561,21 @@
      {
       "differing_bytes": 16,
       "file": "kernels.dSYM/Contents/Resources/DWARF/kernels",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "757272bbcb973b308118d0cfeac32236"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "99f54fd201ea3afb8fb7c995c92be8ec"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16
+      },
       "size_a": 15675,
       "size_b": 15675
      },
@@ -2304,16 +5595,16 @@
     "status": "differs"
    },
    "sha256": {
-    "kernels": "690675d9626b4b7c7a1485c0eea7c6f1886f380b3bf557bd25ca7502cf34d4bf",
+    "kernels": "5430f3d0870066fcdd1ce52898184b884d3924101103844d1b2801717dfa1252",
     "kernels.dSYM/Contents/Info.plist": "61de1604b343f015c9f638b2ab077542702d9d0f04a40373cb0c572974f381db",
-    "kernels.dSYM/Contents/Resources/DWARF/kernels": "86eddf60f142556d1de1f6110b505895753c7934d899285f521f95f6e0668fc4",
+    "kernels.dSYM/Contents/Resources/DWARF/kernels": "145f70f98408f3aed8f24259d9c8d29327cb1c5c55d352ff42bd0ebf9cfd37b3",
     "kernels.dSYM/Contents/Resources/Relocations/aarch64/kernels.yml": "9ce6a0be0744e1a8d92998261061f080f544fca953278871375dff45f2222135",
     "kernels.mod": "5ded69166042d7364cb4002fa50e45a453475fca966f4388db29570152d4ece8"
    },
    "sha256_remapped": {
-    "kernels": "c78d553c4455b6ec2a42ab03f23baab71bdf006420520fa55af4c3bd15acdc49",
+    "kernels": "c1b926e030e861299837341900ae0b6a43b6807a18ac0718ee53b4fe12d5c28f",
     "kernels.dSYM/Contents/Info.plist": "61de1604b343f015c9f638b2ab077542702d9d0f04a40373cb0c572974f381db",
-    "kernels.dSYM/Contents/Resources/DWARF/kernels": "1128c894fcad3a8b1fe82273267575771173951a876bfd48d483d77961182361",
+    "kernels.dSYM/Contents/Resources/DWARF/kernels": "a418e43d6f3b5363d908060e4bf191aa8fe0ae10e5529896c65dfb71b6ada6cb",
     "kernels.dSYM/Contents/Resources/Relocations/aarch64/kernels.yml": "9ce6a0be0744e1a8d92998261061f080f544fca953278871375dff45f2222135",
     "kernels.mod": "5ded69166042d7364cb4002fa50e45a453475fca966f4388db29570152d4ece8"
    },
@@ -2583,10 +5874,59 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 28099,
+      "differing_bytes": 28114,
       "file": "hello",
-      "size_a": 2001576,
-      "size_b": 2001592
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-mf5wpa1z/tmp/7f1393ae31d8097c/hello_zcu.o",
+          1793632180
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-opruyi73/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "5d9d46b5f50b31ee9957eb7ab668234d"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-l0b8j3k2/tmp/2504b3c8c0ca7481/hello_zcu.o",
+          1793632185
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-iqchdov5/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "7c00e7494f223f28abc20211029b7d3c"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 257,
+       "load command LC_CODE_SIGNATURE": 1,
+       "load command LC_SEGMENT_64 __LINKEDIT": 1,
+       "load command LC_SYMTAB": 1,
+       "string table": 21995,
+       "symbol table": 2145
+      },
+      "size_a": 2001592,
+      "size_b": 2001608
      }
     ],
     "status": "differs"
@@ -2602,10 +5942,56 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 402,
+      "differing_bytes": 374,
       "file": "hello",
-      "size_a": 2001576,
-      "size_b": 2001576
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-mf5wpa1z/tmp/7f1393ae31d8097c/hello_zcu.o",
+          1793632180
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-opruyi73/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "5d9d46b5f50b31ee9957eb7ab668234d"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-fsdp9xiw/tmp/56c994b6de75a9e0/hello_zcu.o",
+          1793632183
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-54x56ys5/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "f846595ec8ec3c22bd75c7409cf40364"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 127,
+       "string table": 230,
+       "symbol table": 1
+      },
+      "size_a": 2001592,
+      "size_b": 2001592
      }
     ],
     "status": "differs"
@@ -2613,16 +5999,62 @@
    "same_dir_clock": {
     "files": [
      {
-      "differing_bytes": 396,
+      "differing_bytes": 177,
       "file": "hello",
-      "size_a": 2001576,
-      "size_b": 2001576
+      "macho_debug_map": {
+       "a": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-z3m3wsb8/tmp/944e8d432d00b386/hello_zcu.o",
+          1793632188
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-7c7qswyd/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "1d20890440a93c219eea0e53691a7711"
+       },
+       "b": {
+        "oso": [
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-8r_46kln/tmp/e530bf9ac8c9665d/hello_zcu.o",
+          1793632191
+         ],
+         [
+          "{tmpdir}/e1-nr9pa72w/fresh-n7yfkztl/o/ea0a296de0504d5b66e1c10e0da0dc15/libcompiler_rt.a(compiler_rt_zcu.o)",
+          0
+         ]
+        ],
+        "so": [
+         "{dir}",
+         "hello",
+         "/opt/homebrew/Cellar/zig/0.17.0/lib/zig",
+         "compiler_rt"
+        ],
+        "uuid": "c7efd270ab1933039938b405b2953022"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "code signature": 128,
+       "string table": 32,
+       "symbol table": 1
+      },
+      "size_a": 2001592,
+      "size_b": 2001592
      }
     ],
     "status": "differs"
    },
    "sha256": {
-    "hello": "524837bbe8dcd0a68691dc3ff27a77bb1d69e1c2b93a0260dd3d8de8ddf0d9be"
+    "hello": "4652a270abba7b608c344deed0ecebcb67c94e12b7d9c86e31dd9c922e20450d"
    },
    "sha256_remapped": null,
    "tool": "zig"
@@ -2800,6 +6232,24 @@
      {
       "differing_bytes": 50,
       "file": "hello",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": "e273c3ac467f317dbfcb8351fa2e49b8"
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": "96b37418d8c73681b59c779eff38c7e1"
+       }
+      },
+      "macho_regions": {
+       "LC_UUID": 16,
+       "__TEXT,__cstring": 1,
+       "__TEXT,__text": 1,
+       "code signature": 32
+      },
       "size_a": 34456,
       "size_b": 34456
      }
@@ -2837,6 +6287,24 @@
      {
       "differing_bytes": 669,
       "file": "hello.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 3,
+       "__DWARF,__debug_line_str": 42,
+       "load command LC_SEGMENT_64 ": 8,
+       "load command LC_SYMTAB": 2
+      },
       "size_a": 2864,
       "size_b": 2880
      }
@@ -2870,6 +6338,24 @@
      {
       "differing_bytes": 669,
       "file": "hello.o",
+      "macho_debug_map": {
+       "a": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       },
+       "b": {
+        "oso": [],
+        "so": [],
+        "uuid": null
+       }
+      },
+      "macho_regions": {
+       "__DWARF,__debug_line": 3,
+       "__DWARF,__debug_line_str": 42,
+       "load command LC_SEGMENT_64 ": 8,
+       "load command LC_SYMTAB": 2
+      },
       "size_a": 2864,
       "size_b": 2880
      }
@@ -2938,13 +6424,13 @@
     "hello": "660df16cec15e32807065a5b5061f2324b4417481e4787db0ecfce8d5946f75d",
     "hello.cmi": "1d78b13b6474ea6a0fe8b62ea98647da849c61a580210c3d251961b248834398",
     "hello.cmx": "e94cba6388b654cb2d99cbca935bc9d00d33ecc7433a5f9dd949ae6592e428eb",
-    "hello.o": "807407029f1d4e0c057d117eadd79c156c74fc5ec0f456e11ac7540e58013965"
+    "hello.o": "e1ba51b99eb461a2854a78595217005fe55e577d4b055a487dbcb96782dc179d"
    },
    "sha256_remapped": {
     "hello": "660df16cec15e32807065a5b5061f2324b4417481e4787db0ecfce8d5946f75d",
     "hello.cmi": "1d78b13b6474ea6a0fe8b62ea98647da849c61a580210c3d251961b248834398",
     "hello.cmx": "e94cba6388b654cb2d99cbca935bc9d00d33ecc7433a5f9dd949ae6592e428eb",
-    "hello.o": "807407029f1d4e0c057d117eadd79c156c74fc5ec0f456e11ac7540e58013965"
+    "hello.o": "e1ba51b99eb461a2854a78595217005fe55e577d4b055a487dbcb96782dc179d"
    },
    "tool": "ocamlopt"
   },
@@ -2953,7 +6439,7 @@
    "cross_dir": {
     "files": [
      {
-      "differing_bytes": 54459,
+      "differing_bytes": 54458,
       "file": "saxpy.ll",
       "size_a": 58262,
       "size_b": 58278
@@ -2965,7 +6451,7 @@
       "size_b": 3764
      },
      {
-      "differing_bytes": 2814,
+      "differing_bytes": 2802,
       "file": "sumsq.s",
       "size_a": 3342,
       "size_b": 3358
@@ -2980,7 +6466,7 @@
    "remapped": {
     "files": [
      {
-      "differing_bytes": 114,
+      "differing_bytes": 104,
       "file": "saxpy.ll",
       "size_a": 30605,
       "size_b": 30605
@@ -3003,19 +6489,19 @@
    "same_dir": {
     "files": [
      {
-      "differing_bytes": 127,
+      "differing_bytes": 101,
       "file": "saxpy.ll",
       "size_a": 58262,
       "size_b": 58262
      },
      {
-      "differing_bytes": 6,
+      "differing_bytes": 0,
       "file": "sumsq.ll",
       "size_a": 3748,
       "size_b": 3748
      },
      {
-      "differing_bytes": 15,
+      "differing_bytes": 0,
       "file": "sumsq.s",
       "size_a": 3342,
       "size_b": 3342
@@ -3047,19 +6533,19 @@
     "status": "differs"
    },
    "sha256": {
-    "saxpy.ll": "ef8d1c8e19ee610f89c3bdf7f76165a9fc7d62161b02dabe6be14aaa7febd770",
-    "sumsq.ll": "d47d2e63c95599184ae15c825449238ad061c82e668e59c3061c7a944991e4a9",
-    "sumsq.s": "92c5d6bba1d072514775231621add49caa9a0063856203199a0e70a405bfaebc"
+    "saxpy.ll": "7930c0cae723091dcec36ec4ee5f1bf6df34731ab8af762f8d4e10abd35a3eb3",
+    "sumsq.ll": "74c47e5148c476d63fd6338df4453f68500023d7394ca1b316824a7cf7a4bb5f",
+    "sumsq.s": "05a322718bde16119cc26617dc28de2491fc0a1e76ed5cddb253533eb38de9e7"
    },
    "sha256_remapped": {
-    "saxpy.ll": "8bc8b360486c45f6e7c3e4640adf9c05962ba2939e782b90b00d3832b26b73d4",
+    "saxpy.ll": "8b3819bebc7eeae88f2eaa0230e5f96162d6bb19be1d9b9b2b69192ce3b665b0",
     "sumsq.ll": "b711a227f7b1a866d1d6995cbb9bfe282160cdf0ba19139bf64202f58f9e7a02",
     "sumsq.s": "a45ea8fb632bd9823256c7c4e23056b0cdc10c4d7ea454ab6bd506d0afc0324b"
    },
    "tool": "julia"
   }
  ],
- "schema": "rce-compile-e1-results/1",
+ "schema": "rce-compile-e1-results/2",
  "toolchains": {
   "clang": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
   "clang++": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
