@@ -24,6 +24,7 @@ members = [
     "crates/rce-emit-stablehlo",
     "crates/rce-emit-triton",
     "crates/rce-emit-wasm",
+    "crates/rce-wasm-kernels",
     "crates/rce-emit-wgsl",
     "crates/rce-encodec",
     "crates/rce-energy-xover",
