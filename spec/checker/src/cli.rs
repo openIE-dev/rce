@@ -263,6 +263,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             if !d.is_empty() {
                 return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
             }
+            graph_terms_printed_by(target, src)?;
             let lang = crate::emit::Lang::parse(target).expect("target");
             crate::emit::emit(&crate::program(src)?, lang)
         }
@@ -271,6 +272,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             if !d.is_empty() {
                 return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
             }
+            graph_terms_printed_by(target, src)?;
             crate::emit::verilog::emit(&crate::program(src)?)
         }
         "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
@@ -280,8 +282,22 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
     }
 }
 
+/// A program with graph terms (6.13) is printed by the targets that print
+/// them: `core` today; `rust`, `python`, `js`, `scala` and `verilog` print
+/// a graph term once their tables have graph rows.
+fn graph_terms_printed_by(target: &str, src: &str) -> Result<(), String> {
+    if let Ok(m) = crate::parse::parse(src)
+        && crate::graph::visible_name(&m).is_some()
+    {
+        return Err(format!(
+            "not supported by the emitter for {target}: the program has graph terms (6.13, `use std.tensor`); `rce emit core FILE` prints them"
+        ));
+    }
+    Ok(())
+}
+
 /// The core of FILE: FILE is a core module (`"format": "rce-core/1"`),
-/// checked by W1 to W6 when it is read, or an RCE module, checked and
+/// checked by W1 to W7 when it is read, or an RCE module, checked and
 /// lowered (ONE-1).
 fn core_module(src: &str) -> Result<crate::one::ir::Module, String> {
     if let Ok(v) = serde_json::from_str::<Value>(src)
@@ -732,7 +748,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 11] = [
+const GRANTS: [Word; 12] = [
     Word::set("fs", &["DIR"]),
     // HC-33: user and group ids to names, from the account databases
     Word::mode("names"),
@@ -746,26 +762,28 @@ const GRANTS: [Word; 11] = [
     Word::mode("pty"),
     // HC-29: the frame sink, one line per frame the program emits
     Word::set("frames", &["FILE"]),
+    // HC-38: read the package energy counter over the run into host.Energy
+    Word::mode("energy"),
 ];
 
 /// The grants, then `http`, `presented`, `rap` and `callback`, which only
 /// the host loop takes.
-const fn serve_words() -> [Word; 15] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 15];
+const fn serve_words() -> [Word; 16] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 16];
     let mut i = 0;
-    while i < 11 {
+    while i < 12 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[12] = Word::set("presented", &["FILE"]);
+    w[13] = Word::set("presented", &["FILE"]);
     // HC-34: the program as a tool of RAP runtimes, and the addresses its
     // results may be POSTed to (HC-5: no callback address is ambient)
-    w[13] = Word::set("rap", &["HOST:PORT"]);
-    w[14] = Word::many("callback", &["HOST:PORT"]);
+    w[14] = Word::set("rap", &["HOST:PORT"]);
+    w[15] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 15] = serve_words();
+const SERVE_WORDS: [Word; 16] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -803,6 +821,32 @@ pub const COMMANDS: &[Command] = &[
         min: 2,
         max: 2,
         help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module)",
+    },
+    Command { path: &["graph", "ops"], words: &[], operands: "", min: 0, max: 0, help: "the operations of std.tensor (6.13): name, level, what each computes" },
+    Command {
+        path: &["graph", "terms"],
+        words: &[],
+        operands: "FILE DIR",
+        min: 2,
+        max: 2,
+        help: "write every graph term of the admitted FILE as DIR/KEY.fg (KEY its content hash, 6.13) and list them:\nkey, line, operation, typing and levels",
+    },
+    Command { path: &["graph", "inspect"], words: &[], operands: "FILE", min: 1, max: 1, help: "the header, sections and graph term of the .fg FILE; its hash and its term are checked (W7)" },
+    Command {
+        path: &["graph", "run"],
+        words: &[],
+        operands: "FILE INPUTS",
+        min: 2,
+        max: 2,
+        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13)",
+    },
+    Command {
+        path: &["lift", "gguf"],
+        words: &[],
+        operands: "FILE STORE",
+        min: 2,
+        max: 2,
+        help: "an RCE program from the GGUF FILE (10.17): its forward pass as graph terms over std.tensor, printed;\nits weights put into the store directory STORE as blobs named by their digests (6.13 GT-9). Save the program\nbeside STORE named `blobs`",
     },
     Command {
         path: &["run-core"],
@@ -887,7 +931,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38)",
     },
     Command {
         path: &["host", "serve"],
@@ -985,7 +1029,13 @@ pub fn main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     }
 }
 
+/// A program file's text. Its graph terms read weights from the store
+/// `blobs` beside it (6.13, GT-9), so that store is added here.
 fn read_file(p: &str) -> Result<String, String> {
+    if p.ends_with(".rce") {
+        let dir = std::path::Path::new(p).parent().unwrap_or(std::path::Path::new("."));
+        crate::graph::add_store(&dir.join("blobs"));
+    }
     std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"))
 }
 
@@ -1550,6 +1600,50 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
+        ["graph", "ops"] => {
+            write!(out, "{}", crate::graph::ops_table()).map_err(w)?;
+            OK
+        }
+        ["graph", "terms"] => {
+            let src = read_file(&rest[0])?;
+            let d = diagnostics(&src, &HashSet::new());
+            if !d.is_empty() {
+                writeln!(err, "{}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+                return Ok(REQUIRES_CHANGE);
+            }
+            let m = crate::program(&src)?;
+            write!(out, "{}", crate::graph::write_terms(&m, &rest[1])?).map_err(w)?;
+            OK
+        }
+        ["lift", "gguf"] => {
+            let bytes = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
+            match crate::lift_gguf::lift(&bytes, &rce_fgm::Store::new(&rest[1])) {
+                Ok(s) => {
+                    write!(out, "{s}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(err, "{}: {e}", rest[0]).map_err(w)?;
+                    USAGE
+                }
+            }
+        }
+        ["graph", "inspect"] | ["graph", "run"] => {
+            let dir = std::path::Path::new(&rest[0]).parent().unwrap_or(std::path::Path::new("."));
+            crate::graph::add_store(&dir.join("blobs"));
+            let bytes = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
+            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { crate::graph::run_fg(&bytes, &rest[1]) };
+            match r {
+                Ok(s) => {
+                    write!(out, "{s}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(err, "{e}").map_err(w)?;
+                    if e.starts_with("requires change") || e.starts_with("W7") { REQUIRES_CHANGE } else { USAGE }
+                }
+            }
+        }
         ["run-core"] => match run_core(&read_file(&rest[0])?) {
             Ok(s) => {
                 write!(out, "{s}").map_err(w)?;
@@ -2046,6 +2140,16 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(id) = &tls_id {
                 h.tls_identity(&crate::tls::hex(&id.public))?;
             }
+            // HC-38: with `energy`, the package counter is read from here to
+            // the end of the run; with no counter, the reason goes to stderr
+            // and D gets no reading (never a figure of 0 J)
+            let mut energy = None::<(rce_energy::reading::Sampling, u64)>;
+            if p.has("energy") {
+                match rce_energy::reading::Sampling::start_as(&rce_energy::reading::Env::system(), "rce host") {
+                    Ok(s) => energy = Some((s, h.len())),
+                    Err(u) => eprintln!("rce host: {}", u.line()),
+                }
+            }
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
@@ -2090,6 +2194,10 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 // HC-5a: what is read after entering: the wasm root, and the
                 // account databases only under `names` (HC-33)
                 let mut reads = crate::sandbox::Reads { roots: wasm_root.iter().map(|p| p.as_path()).collect(), files: vec![] };
+                // HC-38: the counters the energy reading keeps reading
+                if energy.is_some() && std::path::Path::new(rce_energy::reading::POWERCAP).exists() {
+                    reads.roots.push(std::path::Path::new(rce_energy::reading::POWERCAP));
+                }
                 if names {
                     reads.files.extend(crate::adapters::ACCOUNT_DBS.iter().map(std::path::Path::new).filter(|p| p.exists()));
                 }
@@ -2107,6 +2215,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             st.idle(h.len(), h.state_hash());
             if sub == "serve" {
                 let code = serve_loop(&mut h, &src, out, err, http.as_mut(), rap.as_mut(), st, &mut frames, acks)?;
+                energy_reading(&mut h, energy.take(), err)?;
                 let (live, n) = (h.state_hash().to_string(), h.len());
                 drop(h);
                 let code = validate_run(&m, log, &live, code, err)?;
@@ -2159,6 +2268,7 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
                 out.flush().map_err(w)?;
                 st.idle(h.len(), h.state_hash());
             }
+            energy_reading(&mut h, energy.take(), err)?;
             // HC-28: the host's status goes to stderr; stdout is the listing
             // of the entries and the final state
             writeln!(err, "{}", durable_line(&h)).map_err(w)?;
@@ -2248,7 +2358,11 @@ pub fn unform(json: &str) -> Result<String, String> {
     let v: Value = serde_json::from_str(json).map_err(|e| format!("form json: {e}"))?;
     let t = v.get("terms").ok_or("the Form has no `terms` (emit it with `rce emit form`)")?;
     let mut m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
-    m.items.retain(|i| !matches!(i, Item::Use(..)));
+    // The terms hold the definitions of every library module the program
+    // uses, so its `use` lines would name them twice. `std.tensor` has no
+    // definitions to hold: its calls are graph terms (6.13), so its `use`
+    // stays.
+    m.items.retain(|i| !matches!(i, Item::Use(p, ..) if p.join(".") != crate::graph::MODULE));
     let m = crate::v09::restore_world(m)?;
     Ok(crate::unparse::unparse(&m))
 }
@@ -2812,6 +2926,23 @@ fn spawn_stop_thread(tx: std::sync::mpsc::Sender<Inbound>) {
 /// verified (HS-4) and replayed with every adapter disconnected (HC-8,
 /// T37); the run counts only when replay gives the live state hash. The
 /// report goes to stderr so stdout stays the program's output.
+/// HC-38: take the last read of the run's energy sampling and append it to
+/// D as `host.Energy` over the entries the run appended; say on stderr what
+/// was recorded, or why nothing was.
+fn energy_reading(h: &mut crate::host::Host<'_>, sampling: Option<(rce_energy::reading::Sampling, u64)>, err: &mut dyn Write) -> Result<(), String> {
+    let Some((s, first)) = sampling else { return Ok(()) };
+    let w = |e: std::io::Error| e.to_string();
+    match s.finish() {
+        Ok(r) if h.len() > first => {
+            let source = r.kind().trim_start_matches("reported: ").to_string();
+            let (first, last, seq) = h.energy(&source, &r.term, first)?;
+            writeln!(err, "rce host: energy: {} J reported ({source}) over entries {first} to {last}, recorded as host.Energy at seq {seq}", r.term.j()).map_err(w)
+        }
+        Ok(_) => writeln!(err, "rce host: energy: the run appended no entry, so no reading is recorded").map_err(w),
+        Err(u) => writeln!(err, "rce host: {}", u.line()).map_err(w),
+    }
+}
+
 fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Write) -> Result<i32, String> {
     let text = std::fs::read_to_string(log).map_err(|e| format!("validate {log}: {e}"))?;
     match crate::host::replay_report(m, &text) {

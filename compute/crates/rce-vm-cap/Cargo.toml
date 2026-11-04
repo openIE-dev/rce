@@ -1,0 +1,20 @@
+[package]
+name        = "rce-vm-cap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce capability runtime — CapTable, capability handles, delegation chains, dispatch enforcement for GraphNode::CapabilityRef nodes."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-graph = { workspace = true }
+serde                = { version = "1", features = ["derive"] }
+serde_bytes          = "0.11"
+thiserror            = { workspace = true }
+ed25519-dalek        = { workspace = true }
+rand_core            = { version = "0.6", features = ["getrandom"] }
+blake3               = { workspace = true }
+hex                  = "0.4"
+ciborium             = { workspace = true }
+
+[dev-dependencies]

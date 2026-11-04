@@ -1,0 +1,39 @@
+# One causal attention block over the embeddings of three tokens: two
+# heads of width 2, RMSNorm, a SiLU feed-forward layer and the residual
+# sums. Each `tensor` expression is one graph term (spec 6.13), evaluated
+# by the CPU backend in a fixed order; exp is RCE's correctly rounded
+# math.exp, so `rce trace` gives the same state hashes on every run. The
+# value of y in the first example was computed independently by
+# block_check.py (binary64 in the order of GT-4, exp in exact decimal).
+use std.tensor
+
+intent "a causal attention block whose output follows each token sequence"
+    example Tokens(ids: [0, 1, 2]) -> y == [[1.7891564914526399, -1.4204358619685098, 2.9093170428544135, 0.4870781517431899], [0.4150957436679805, 0.2618694553127048, 1.6953271249309754, 0.327939040691702], [2.345630896370684, 1.6553693497889532, 0.6081914826121743, -0.3892683945130795]]
+    example Tokens(ids: [4, 4, 4]), Tokens(ids: [3, 0, 1]) -> seen == 2
+    example Tokens(ids: [5, 0, 1]) -> kept: trap("index 5 out of range")
+
+state Block
+    emb: [[f64; 4]; 5] = [[0.5, -0.25, 1.0, 0.0], [-1.0, 0.5, 0.25, 0.75], [0.0, 1.0, -0.5, 0.25], [0.25, 0.25, 0.25, -1.0], [1.5, -0.5, 0.0, 0.5]]
+    wq: [[f64; 4]; 4] = [[0.5, 0.0, -0.25, 0.25], [0.0, 0.5, 0.25, 0.0], [0.25, -0.5, 0.5, 0.0], [-0.25, 0.0, 0.0, 0.5]]
+    wk: [[f64; 4]; 4] = [[0.25, 0.5, 0.0, -0.5], [0.5, 0.0, 0.5, 0.25], [0.0, 0.25, -0.25, 0.5], [0.5, -0.25, 0.0, 0.0]]
+    wv: [[f64; 4]; 4] = [[1.0, 0.0, 0.0, 0.5], [0.0, 1.0, 0.5, 0.0], [0.0, -0.5, 1.0, 0.0], [0.5, 0.0, 0.0, 1.0]]
+    wo: [[f64; 4]; 4] = [[0.5, 0.25, 0.0, 0.0], [0.0, 0.5, 0.25, 0.0], [0.0, 0.0, 0.5, 0.25], [0.25, 0.0, 0.0, 0.5]]
+    g1: [f64; 4] = [1.0, 0.5, 2.0, 1.0]
+    g2: [f64; 4] = [0.5, 1.0, 1.0, 2.0]
+    w1: [[f64; 6]; 4] = [[0.5, -0.5, 0.25, 0.0, 1.0, -0.25], [0.25, 0.5, -0.5, 0.75, 0.0, 0.5], [-0.25, 0.0, 0.5, 0.5, -1.0, 0.25], [1.0, 0.25, 0.0, -0.5, 0.5, 0.0]]
+    w2: [[f64; 4]; 6] = [[0.5, 0.0, 0.25, -0.5], [0.0, 0.5, 0.0, 0.25], [0.25, -0.25, 0.5, 0.0], [-0.5, 0.25, 0.0, 0.5], [0.0, 0.5, -0.25, 0.25], [0.25, 0.0, 0.5, 0.0]]
+    y: [[f64; 4]; 3] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+    seen: u64 = 0
+
+event Tokens(ids: [i32; 3])
+
+step Block on Tokens(ids)
+    let x = tensor.embed(emb, ids)
+    let n = tensor.rmsnorm(x, g1, 0.00001)
+    let q = tensor.permute(tensor.reshape(tensor.matmul(n, wq), [3, 2, 2]), [1, 0, 2])
+    let k = tensor.permute(tensor.reshape(tensor.matmul(n, wk), [3, 2, 2]), [1, 0, 2])
+    let v = tensor.permute(tensor.reshape(tensor.matmul(n, wv), [3, 2, 2]), [1, 0, 2])
+    let a = tensor.reshape(tensor.permute(tensor.attention_causal(q, k, v), [1, 0, 2]), [3, 4])
+    let h = tensor.add(x, tensor.matmul(a, wo))
+    y = tensor.add(h, tensor.matmul(tensor.silu(tensor.matmul(tensor.rmsnorm(h, g2, 0.00001), w1)), w2))
+    seen += 1

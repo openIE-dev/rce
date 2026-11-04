@@ -55,7 +55,8 @@ jobs:
       - name: Clippy on the browser IDE
         run: cargo clippy --release -p rce-ide --lib --target wasm32-unknown-unknown -- -D warnings
 
-  # The macOS meter (crates/ide-energy/src/ioreport.rs: IOReport opened with
+  # The macOS meter (compute/crates/rce-energy/src/ioreport.rs, the IDE's
+  # ide_energy: IOReport opened with
   # dlopen, CoreFoundation, IOKit) compiles only on macOS, which the jobs
   # above never build. This job builds the IDE `rce` on Apple silicon, runs
   # the tests and lints of the two crates that read the counters, and runs
@@ -78,9 +79,13 @@ jobs:
           key: macos
       - name: Build the IDE rce
         run: cargo build --release -p rce-ide --bin rce
-      - name: Tests (ide-energy, rce-ide)
-        run: cargo test --release -p ide-energy -p rce-ide --no-fail-fast
-      - name: Clippy (ide-energy, rce-ide)
-        run: cargo clippy --release -p ide-energy -p rce-ide --all-targets -- -D warnings
+      - name: Tests (rce-energy, rce-ide)
+        run: |
+          cargo test --release -p rce-ide --no-fail-fast
+          cargo test --release --manifest-path ../compute/crates/rce-energy/Cargo.toml --no-fail-fast
+      - name: Clippy (rce-energy, rce-ide)
+        run: |
+          cargo clippy --release -p rce-ide --all-targets -- -D warnings
+          cargo clippy --release --manifest-path ../compute/crates/rce-energy/Cargo.toml --all-targets -- -D warnings
       - name: rce test measure
         run: scripts/measure-check.sh target/release/rce

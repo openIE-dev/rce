@@ -35,10 +35,29 @@ wat = "=1.262.0"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rcgen = { version = "0.13", default-features = false, features = ["ring", "crypto"] }
 ring = "0.17"
+# The graph term of the core (spec 6.13): RCE's FunctionGraph, its `.fg`
+# content hash, and the CPU backend that evaluates it as the reference.
+rce-graph = { path = "../../compute/crates/rce-graph" }
+rce-format = { path = "../../compute/crates/rce-format", features = ["with-rce-graph"] }
+rce-vm-backend-cpu = { path = "../../compute/crates/rce-vm-backend-cpu" }
+# GT-9: the content-addressed store of tensor data that graph terms name
+# their weights in; `rce lift gguf` reads GGUF files into it
+rce-fgm = { path = "../../compute/crates/rce-fgm" }
+rce-ingest-gguf = { path = "../../compute/crates/rce-ingest-gguf" }
+# HC-38: RCE's one meter library; with the grant `energy` the host reads the
+# package counter over a run and records it in D as `host.Energy` (D.11)
+rce-energy = { path = "../../compute/crates/rce-energy" }
 
 [target.'cfg(unix)'.dependencies]
 # PTY adapter (src/adapters.rs): openpty, poll, non-blocking read
 libc = "0.2"
+
+[dev-dependencies]
+# tests/lift_gguf.rs: the kernels of RCE's host adapters, judged against the
+# reference evaluation of a lifted program at each node's level (6.13 GT-3)
+rce-op-qmm = { path = "../../compute/crates/rce-op-qmm" }
+rce-op-nn-prims = { path = "../../compute/crates/rce-op-nn-prims" }
+rce-op-attention = { path = "../../compute/crates/rce-op-attention" }
 
 [build-dependencies]
 cc = { version = "1", optional = true }

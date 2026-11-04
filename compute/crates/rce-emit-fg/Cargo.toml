@@ -1,0 +1,21 @@
+[package]
+name        = "rce-emit-fg"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce writer — FunctionGraph → .fg binary + optional safetensors sidecar. Sibling to rce-emit-{onnx,stablehlo,mlir-linalg,wgsl,triton}; emits rce's own canonical format."
+
+[features]
+default = []
+# Add Ed25519 signing (Signatures section).
+sign = ["rce-format/sign"]
+
+[dependencies]
+rce-format = { workspace = true, features = ["with-rce-graph"] }
+rce-weight-loader = { workspace = true }
+rce-graph = { workspace = true }
+thiserror            = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

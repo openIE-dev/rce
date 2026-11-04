@@ -504,6 +504,49 @@ pub fn fabric_caps() -> String {
     format!("{{\"counters\":null,\"cpu\":{{\"arch\":\"{}\",\"features\":[{}]}},\"gpus\":null,\"memory\":null,\"npus\":null}}", std::env::consts::ARCH, cpu.join(","))
 }
 
+/// HC-38: the members of a `host.Energy` payload, in byte order.
+pub const ENERGY_FIELDS: [&str; 6] = ["amortization", "basis", "entries", "joules", "provenance", "source"];
+
+/// HC-38: check a `host.Energy` payload at `seq` by D.11: only the six
+/// members; a basis that says something was read (`reported` or
+/// `measured`); joules finite and >= 0; a provenance valid by rule 1, with
+/// no unknown field; an amortization of rule 3; and entries `[first, last]`
+/// with first <= last < seq, the entries the reading covers.
+pub fn energy_check(p: &Value, seq: u64) -> Result<(), String> {
+    let bad = |why: String| format!("host.Energy at seq {seq} is not a reading (D.11): {why}");
+    let o = p.as_object().ok_or_else(|| bad("the payload is not an object".into()))?;
+    let mut keys: Vec<&str> = o.keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    if keys != ENERGY_FIELDS {
+        return Err(bad(format!("its members are {keys:?}, not {ENERGY_FIELDS:?}")));
+    }
+    match p["basis"].as_str() {
+        Some("reported") | Some("measured") => {}
+        b => return Err(bad(format!("basis {b:?}: a reading is `reported` or `measured`"))),
+    }
+    match p["joules"].as_f64() {
+        Some(j) if j.is_finite() && j >= 0.0 => {}
+        _ => return Err(bad(format!("joules {} is not a finite figure >= 0", p["joules"]))),
+    }
+    if p["source"].as_str().is_none_or(|s| s.is_empty()) {
+        return Err(bad("source is empty".into()));
+    }
+    rce_energy::reading::Provenance::parse(&p["provenance"].to_string()).map_err(bad)?;
+    let a = &p["amortization"];
+    let ok = match a["kind"].as_str() {
+        Some("per_call") | Some("per_solved_task") => a.as_object().is_some_and(|m| m.len() == 1),
+        Some("batch_mean") => a.as_object().is_some_and(|m| m.len() == 2) && a["n"].as_u64().is_some_and(|n| n >= 1),
+        _ => false,
+    };
+    if !ok {
+        return Err(bad(format!("amortization {a} is not one of D.11 rule 3")));
+    }
+    match (p["entries"][0].as_u64(), p["entries"][1].as_u64(), p["entries"].as_array().map(|x| x.len())) {
+        (Some(f), Some(l), Some(2)) if f <= l && l < seq => Ok(()),
+        _ => Err(bad(format!("entries {} are not [first, last] with first <= last < {seq}", p["entries"]))),
+    }
+}
+
 fn host_event(kind: &str, payload: &str) -> String {
     format!("{{\"payload\":{payload},\"type\":\"host.{kind}\"}}")
 }
@@ -1684,10 +1727,29 @@ impl<'a> Host<'a> {
         Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), unanswered: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
     }
 
+    /// GT-9: the host loads every blob the program's graph terms name from
+    /// the store, each checked against its digest, and records in D the
+    /// digests and lengths it loaded (`host.Blobs`), before any input. A
+    /// blob no store holds stops the start: the program cannot run.
+    fn blobs_entry(&mut self) -> Result<(), String> {
+        let ds = crate::graph::blob_digests(self.m);
+        if ds.is_empty() {
+            return Ok(());
+        }
+        let mut items = vec![];
+        for d in &ds {
+            let b = crate::graph::blob_bytes(d)?;
+            items.push(format!("{{\"bytes\":{},\"digest\":\"{d}\"}}", b.len()));
+        }
+        self.append(host_event("Blobs", &format!("{{\"blobs\":[{}]}}", items.join(","))))?;
+        Ok(())
+    }
+
     fn start_entries(&mut self) -> Result<(), String> {
         let caps = self.store.caps();
         self.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         self.append(host_event("FabricCaps", &fabric_caps()))?;
+        self.blobs_entry()?;
         let http = self.adapters.iter().any(|a| a.kind() == "HttpRespond");
         for (e, k) in binds(self.m, &self.bound, http) {
             self.append(host_event("Bind", &format!("{{\"event\":\"{e}\",\"kind\":\"{k}\"}}")))?;
@@ -1763,6 +1825,7 @@ impl<'a> Host<'a> {
         }
         h.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         h.append(host_event("FabricCaps", &fabric_caps()))?;
+        h.blobs_entry()?;
         h.restarted()?;
         h.drain()?;
         h.confirm()?;
@@ -3205,11 +3268,13 @@ impl<'a> Host<'a> {
     fn fold_sched(&mut self, e: &Entry) -> Result<(), String> {
         let k = e.kind();
         let v: Value = match k.as_str() {
-            "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" | "host.Calibrated" | "host.Exact" | "host.Placed" => serde_json::from_str(&e.event).map_err(|x| x.to_string())?,
+            "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" | "host.Calibrated" | "host.Exact" | "host.Placed" | "host.Energy" => serde_json::from_str(&e.event).map_err(|x| x.to_string())?,
             _ => return Ok(()),
         };
         let p = v["payload"].clone();
         match k.as_str() {
+            // HC-38: a reading is checked where a record is read (D.11)
+            "host.Energy" => energy_check(&p, e.seq)?,
             "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" => {
                 self.apply_main(k.as_str(), &p)?;
             }
@@ -3851,6 +3916,32 @@ impl<'a> Host<'a> {
     pub fn exact(&mut self, payload_json: &str) -> Result<(), String> {
         self.append(host_event("Exact", payload_json))?;
         self.confirm()
+    }
+
+    /// HC-38: `host.Energy`, a package counter reading over the entries
+    /// `first..=last` of this run, in the D.11 form of a `reported` term
+    /// with its provenance and amortization. Changes no state; δ never
+    /// reads it. Returns the entries it covers and its own seq, which the
+    /// host's terminal line names (the confirmation after it has the next).
+    pub fn energy(&mut self, source: &str, term: &rce_energy::reading::Term, first: u64) -> Result<(u64, u64, u64), String> {
+        let seq = self.len();
+        if first >= seq {
+            return Err(format!("host.Energy: no entry of D from seq {first} to cover"));
+        }
+        let last = seq - 1;
+        let t: Value = serde_json::from_str(&term.json()).map_err(|e| e.to_string())?;
+        let p = serde_json::json!({
+            "amortization": t["amortization"],
+            "basis": t["basis"],
+            "entries": [first, last],
+            "joules": t["j"],
+            "provenance": t["provenance"],
+            "source": source,
+        });
+        energy_check(&p, seq)?;
+        self.append(host_event("Energy", &crate::interp::canon_json(&p)))?;
+        self.confirm()?;
+        Ok((first, last, seq))
     }
 
     pub fn wall_time(&mut self, ns: u64) -> Result<(), String> {

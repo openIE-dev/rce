@@ -86,8 +86,35 @@ The Form
 - W-MUT-2 (recommended; never requires change) A mutant of the program
   that no obligation kills and that `rce equiv` does not judge equivalent
   (6.12): `rce mutants` reports it with its diff and a witness (10.14).
+- W-UI-1 A module that emits frames (Appendix E, HC-29) whose frames do
+  not meet `ui.rules`: the frames each `example`'s run derives, judged as
+  one trace, leave a success criterion of WCAG 2.2 level A or AA failing
+  or undecided, or they cannot be judged (no example derives a frame, an
+  emitted `Frame` is not a frame, or judging them exceeds the fuel bound).
+  No `example` or `check` line names `ui.rules`; each finding is one
+  report that names its criterion (E.4f).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
+- W-GRAPH-1 A `tensor` operation or a lane-wise operator inside a graph
+  term on operands of shapes it does not take: a matrix product whose
+  inner lengths differ, an operand of the wrong rank, two tensors of
+  different shapes or of shapes that do not broadcast, an attention whose
+  keys and queries differ in width or whose heads do not divide, a reshape
+  that changes the element count, an axis beyond the rank, a list that is
+  not a permutation of the axes, a block format whose length is not a
+  multiple of 32 (6.13, GT-4).
+- W-GRAPH-2 An operand of a graph term that is not a tensor of `f32`,
+  `f64`, `i8` or `i32` with every length at least 1, operands of two
+  element types, an operation of floats on integers, ids that are not
+  `i32`, a quantized product whose operands are not `f32`, `i8` and `f32`,
+  a name `std.tensor` does not define, the wrong number of operands, a
+  labelled operand, an axis, epsilon, shape or permutation that is not a
+  literal of its kind, or a `tensor.within` bound that is not an integer
+  literal from 1 to 2^31 − 1 (6.13, GT-1 to GT-4).
+- W-GRAPH-3 An operation whose level is weaker than the level in force
+  where it stands, that is, a level the program does not declare: a
+  `tensor.round_bf16`, `tensor.round_q8_0` or `tensor.round_q4_0` outside a
+  `tensor.lossy` (6.13, GT-3).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
   moved inside a loop, or placed in a collection, field, payload, channel or
   iterator (5.12).
@@ -254,7 +281,11 @@ written and one recorded never change it.
 | W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-MUT-1 | requires change | An obligation that no single edit makes fail carries zero bits about the program within the edits; whether it is strengthened or removed is the author's statement. |
 | W-MUT-2 | recommended | The program is admitted; which of the two behaviours is meant is a choice of intent only the author can make, so `rce mutants` recommends an obligation that tells the survivor apart (it judges the whole mutant set, which `rce check` does not). |
+| W-UI-1 | requires change | A frame is the program's output to a person; where its nodes, names, keys and colours go has more than one answer, and the part of a criterion no rule decides is a person's statement (an `attest-ID` attribute), so the program or its view changes. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
+| W-GRAPH-1 | requires change | Which shapes the operation was meant to take is the author's statement. |
+| W-GRAPH-2 | requires change | The tensor type of the operand, or a conversion, is the author's choice. |
+| W-GRAPH-3 | requires change | Declaring the weaker level, or another operation, is the author's statement. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
 | W-ITER-1 | requires change | Collecting the iterator, or another structure, is the author's choice. |
@@ -330,4 +361,4 @@ written and one recorded never change it.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: 33553bc8097859e1c55d50f9f06fa6e9079b95ff459292281e405d6dfeed7cb1 -->
+<!-- body-sha256: bf95e883b04eb30e2fad219152cf8c423ac1cee471aeb8df16e472deb2f130f1 -->

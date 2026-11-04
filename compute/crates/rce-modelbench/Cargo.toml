@@ -1,0 +1,19 @@
+[package]
+name        = "rce-modelbench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cross-model benchmark for the pattern-lang exploration: every rce runtime on a common factual prompt — params, arch, bpw, factual-correctness, tok/s. Synthesises the 'what can small models do' thesis into one table."
+
+[[bin]]
+name = "rce-modelbench"
+path = "src/main.rs"
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-lfm2 = { workspace = true }
+rce-tinyllama = { workspace = true }
+rce-bitnet = { workspace = true }
+rce-qwen3 = { workspace = true }
+rce-hunyuan = { workspace = true }
+rce-eurobert = { workspace = true }

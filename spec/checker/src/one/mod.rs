@@ -3,7 +3,7 @@
 //!
 //! - `ir`: the data types of the core (section 3.2)
 //! - `json`: its JSON form and the keys of its groups (3.4, W5)
-//! - `wf`: its well-formedness check, W1 to W6 (3.3)
+//! - `wf`: its well-formedness check, W1 to W6 (3.3) and W7 (spec 6.13)
 //! - `eval`: an evaluator of the core, behind `rce run-core`: one
 //!   implementation under test, compared with the reference like any other
 //! - `trace`: the reference trace, the expected bytes every printed program

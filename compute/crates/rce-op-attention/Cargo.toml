@@ -1,0 +1,19 @@
+[package]
+name        = "rce-op-attention"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce OpDispatch leaf for fused scaled-dot-product attention. Routes the entire transpose+matmul+scale+softmax+matmul chain to a single kernel call (BLAS sgemm + inlined softmax) — the architecturally correct shape for transformer inference where decode-mode shapes (Q=1×head_dim) are dispatch-bound."
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-vm-core = { workspace = true }
+rce-graph = { workspace = true }
+rce-op-blas = { workspace = true }
+tracing              = { workspace = true }
+bytemuck             = { workspace = true }
+
+[build-dependencies]
+
+# Inherits the BLAS link line (Accelerate / OpenBLAS) from
+# `rce-op-blas`'s build.rs — we don't double-link here.

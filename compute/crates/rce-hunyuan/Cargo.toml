@@ -1,0 +1,14 @@
+[package]
+name        = "rce-hunyuan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hunyuan-dense inference runtime on the rce substrate. Llama-2-style GQA + per-head QK-norm applied AFTER RoPE (the key divergence from qwen3) + NeoX RoPE + tied lm_head. Drives tencent/Hy-MT1.5-1.8B-1.25bit (STQ1_0 'Sherry' codec) — closes the 7th pattern-lang low-bit file."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }

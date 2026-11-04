@@ -1,0 +1,26 @@
+[package]
+name        = "rce-mamba2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure Mamba-2 inference runtime on the rce substrate. No attention, no FFN — every block is a Mamba-2 SSM mixer with residual. Reuses the SSM scan from rce-op-ssm and the conv1d / matmul leaves. Validates the substrate on a non-hybrid arch (the third after Jamba and Nemotron-H)."
+
+[[bin]]
+name = "mamba2-chat"
+path = "src/bin/chat.rs"
+
+[[bin]]
+name = "mamba2-profile"
+path = "src/bin/profile.rs"
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-ssm = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-blas = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-nn-prims = { workspace = true }
+rce-graph = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }

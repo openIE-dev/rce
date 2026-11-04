@@ -1,0 +1,14 @@
+[package]
+name = "rce-emit-mlir-linalg"
+publish = false
+description = "Emit MLIR linalg/arith/math/tensor dialect text from RCE's FunctionGraph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_emit_mlir_linalg"
+
+[dependencies]
+rce-graph = { workspace = true }
+thiserror = { workspace = true }

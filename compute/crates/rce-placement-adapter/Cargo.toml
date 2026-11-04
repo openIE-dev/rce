@@ -1,0 +1,25 @@
+[package]
+name        = "rce-placement-adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Production-shape qmm adapter that dispatches through rce-placement: each call runs on the lowest-joule backend for its op and shape (CPU qmm or native Metal Q8_0)."
+
+[dependencies]
+rce-op-qmm = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+rce-placement = { workspace = true }
+rce-vm-scheduler = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+# Real hardware energy telemetry — macOS IOReport (~1 mJ), Linux RAPL
+# (1 µJ), universal TDP fallback. `SubstrateEnergyMeter` (this crate)
+# is the EnergyMeter↔EnergyTelemetry adapter.
+rce-energy = { workspace = true }
+# Native Metal Q8_0 backend: the GPU side of the cost-routed qmm
+# (higher per-call overhead than CPU qmm, lower per-FLOP).
+rce-op-qmm-metal = { workspace = true }
+
+[dev-dependencies]
+# For the federation integration test that drives DigestRegistry with
+# real PlacementQmmAdapter transcript digests.
+rce-federation = { workspace = true }

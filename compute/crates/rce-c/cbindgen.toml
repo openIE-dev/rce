@@ -1,0 +1,35 @@
+language = "C"
+header = """
+/*
+ * rce.h — stable C ABI for the rce Graph VM.
+ *
+ * Generated from crates/rce-c — do not edit by hand.
+ *
+ * Build:   cargo build --release -p rce-c
+ * Library: target/release/librce.{a,so,dylib}
+ *
+ * License: MIT OR Apache-2.0 (matches the RCE repository).
+ */
+"""
+include_guard = "RCE_H"
+include_version = true
+no_includes = false
+sys_includes = ["stdint.h", "stddef.h"]
+documentation = true
+documentation_style = "doxy"
+style = "type"
+
+[parse]
+parse_deps = false
+
+[parse.expand]
+crates = []
+
+[fn]
+prefix = ""
+postfix = ""
+
+[enum]
+# Prefix variant names with the enum name so `Ok` becomes `RceStatus_Ok`
+# and doesn't collide with random C macros from system headers.
+prefix_with_name = true

@@ -1,0 +1,8 @@
+[package]
+name        = "rce-placement"
+version.workspace = true
+edition.workspace = true
+description = "Stage 3+4 prototype: CostTable + Backend impls + a cost-model-driven placement pass that replaces first-claim-wins for RCE. The keystone of docs/rce-unified-ir-and-energy-routing.md."
+
+[dependencies]
+rce-vm-core = { workspace = true }

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>rce Graph VM — browser demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d10;
+    --panel: #14181d;
+    --line: #2a313a;
+    --text: #e6e8eb;
+    --muted: #9aa3ad;
+    --accent: #4ad6a6;
+    --warn: #f0b34a;
+    --err: #ef6f6c;
+  }
+  body {
+    font-family: ui-monospace, SFMono-Regular, "Menlo", Consolas, monospace;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 1rem; }
+  h2 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--muted); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin: 0.5rem 0;
+  }
+  pre {
+    background: #0a0c0e;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+  button {
+    background: var(--accent);
+    color: #0b0d10;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-right: 0.5rem;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .ok { color: var(--accent); }
+  .warn { color: var(--warn); }
+  .err { color: var(--err); }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.85rem; }
+  input[type="text"] {
+    background: #0a0c0e;
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+  }
+</style>
+</head>
+<body>
+<h1>rce Graph VM — browser demo</h1>
+
+<div class="panel">
+  <div id="status" class="muted">loading wasm…</div>
+  <div id="adapter" class="muted small"></div>
+</div>
+
+<h2>Model: 2-layer MLP (mlp.fg + mlp.safetensors)</h2>
+<div class="panel">
+  <div id="mlp_meta" class="muted small">—</div>
+  <div class="row" style="margin-top: 0.75rem;">
+    <input type="text" id="mlp_input" value="[[1, 2, 3, 4]]" />
+  </div>
+  <div class="row" style="margin-top: 0.5rem;">
+    <button id="mlp_cpu">run on CPU</button>
+    <button id="mlp_wgpu">run on WebGPU</button>
+  </div>
+  <pre id="mlp_out">(no output yet)</pre>
+</div>
+
+<h2>Model: fused attention head (attn_fused.fg, dim=4)</h2>
+<div class="panel">
+  <div id="attn_meta" class="muted small">—</div>
+  <div class="small muted" style="margin-top: 0.5rem;">
+    Inputs: q, k, v as 3×4 f32 matrices. Output: 3×4 attention head result.
+  </div>
+  <div class="row" style="margin-top: 0.5rem;">
+    <button id="attn_cpu">run on CPU</button>
+    <button id="attn_wgpu">run on WebGPU (fused kernel)</button>
+  </div>
+  <pre id="attn_out">(no output yet)</pre>
+</div>
+
+<h2>About</h2>
+<div class="panel small muted">
+  <p>This page loads <code>@rce/runtime</code> (a wasm-bindgen wrapper around
+  the same Rust crates that power the <code>rce</code> CLI) and runs two
+  real <code>.fg</code> modules end-to-end in your browser.</p>
+  <p>The CPU path uses the <code>rce-vm-backend-cpu</code> interpreter compiled
+  to <code>wasm32-unknown-unknown</code>. The WebGPU path uses
+  <code>rce-vm-backend-wgpu</code> through wgpu's WebGPU target — same
+  Rust source as the native Metal / Vulkan / DX12 build.</p>
+  <p>WebGPU requires Chrome stable (M113+), Safari Technology Preview, or Firefox Nightly.
+  If <code>navigator.gpu</code> is missing, only the CPU button works.</p>
+</div>
+
+<script type="module">
+import init, { Vm, Module } from "../pkg/rce_vm_web.20112643f20a.js";
+
+const statusEl = document.getElementById("status");
+const adapterEl = document.getElementById("adapter");
+
+async function main() {
+  await init();
+  statusEl.textContent = "wasm loaded";
+  statusEl.classList.remove("muted");
+  statusEl.classList.add("ok");
+
+  // Fetch fixtures.
+  const [fgMlp, stMlp, fgAttn] = await Promise.all([
+    fetch("./mlp.fg").then(r => r.arrayBuffer()),
+    fetch("./mlp.safetensors").then(r => r.arrayBuffer()),
+    fetch("./attn_fused.fg").then(r => r.arrayBuffer()),
+  ]);
+
+  const mlpModule = Module.load(new Uint8Array(fgMlp), new Uint8Array(stMlp));
+  const attnModule = Module.load(new Uint8Array(fgAttn), null);
+
+  document.getElementById("mlp_meta").textContent =
+    `module: ${mlpModule.name}, ${mlpModule.node_count} nodes, params: ${mlpModule.params}`;
+  document.getElementById("attn_meta").textContent =
+    `module: ${attnModule.name}, ${attnModule.node_count} nodes, params: ${attnModule.params}`;
+
+  const cpuVm = new Vm();           // CPU only
+
+  let wgpuVm = null;
+  if (navigator.gpu) {
+    try {
+      wgpuVm = new Vm();
+      const info = await wgpuVm.initWgpu();
+      adapterEl.textContent = `WebGPU adapter: ${info}`;
+      adapterEl.classList.remove("muted");
+      adapterEl.classList.add("ok");
+    } catch (e) {
+      adapterEl.textContent = `WebGPU init failed: ${e}`;
+      adapterEl.classList.add("warn");
+      wgpuVm = null;
+    }
+  } else {
+    adapterEl.textContent = "navigator.gpu not available — CPU only";
+    adapterEl.classList.add("warn");
+  }
+
+  function disableWgpuIfMissing(btn) {
+    if (!wgpuVm) btn.disabled = true;
+  }
+
+  // ── MLP ────────────────────────────────────────────────────────────
+  const mlpInput = document.getElementById("mlp_input");
+  const mlpOut = document.getElementById("mlp_out");
+
+  document.getElementById("mlp_cpu").addEventListener("click", () => {
+    const t0 = performance.now();
+    try {
+      const out = cpuVm.run(mlpModule, JSON.stringify({ x: JSON.parse(mlpInput.value) }));
+      const dt = (performance.now() - t0).toFixed(2);
+      mlpOut.textContent = `[CPU, ${dt} ms]\n${out}`;
+    } catch (e) {
+      mlpOut.textContent = `error: ${e}`;
+    }
+  });
+
+  const mlpWgpuBtn = document.getElementById("mlp_wgpu");
+  disableWgpuIfMissing(mlpWgpuBtn);
+  mlpWgpuBtn.addEventListener("click", () => {
+    const t0 = performance.now();
+    try {
+      const out = wgpuVm.run(mlpModule, JSON.stringify({ x: JSON.parse(mlpInput.value) }));
+      const dt = (performance.now() - t0).toFixed(2);
+      mlpOut.textContent = `[WebGPU, ${dt} ms]\n${out}`;
+    } catch (e) {
+      mlpOut.textContent = `error: ${e}`;
+    }
+  });
+
+  // ── Attention ──────────────────────────────────────────────────────
+  const attnInputs = JSON.stringify({
+    q: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
+    k: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
+    v: [[10, 20, 30, 40], [1, 2, 3, 4], [100, 200, 300, 400]],
+  });
+  const attnOut = document.getElementById("attn_out");
+
+  document.getElementById("attn_cpu").addEventListener("click", () => {
+    const t0 = performance.now();
+    try {
+      const out = cpuVm.run(attnModule, attnInputs);
+      const dt = (performance.now() - t0).toFixed(2);
+      attnOut.textContent = `[CPU, ${dt} ms]\n${out}`;
+    } catch (e) {
+      attnOut.textContent = `error: ${e}`;
+    }
+  });
+
+  const attnWgpuBtn = document.getElementById("attn_wgpu");
+  disableWgpuIfMissing(attnWgpuBtn);
+  attnWgpuBtn.addEventListener("click", () => {
+    const t0 = performance.now();
+    try {
+      const out = wgpuVm.run(attnModule, attnInputs);
+      const dt = (performance.now() - t0).toFixed(2);
+      attnOut.textContent = `[WebGPU, ${dt} ms]\n${out}`;
+    } catch (e) {
+      attnOut.textContent = `error: ${e}`;
+    }
+  });
+}
+
+main().catch(e => {
+  statusEl.textContent = `init failed: ${e}`;
+  statusEl.classList.add("err");
+});
+</script>
+</body>
+</html>

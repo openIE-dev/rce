@@ -1,0 +1,11 @@
+# W-GRAPH-1: the matrix has 3 columns and the vector 2 elements.
+use std.tensor
+
+state Layer
+    w: [[f64; 3]; 2] = [[0.5, -0.5, 0.5], [-1.0, 1.0, -1.0]]
+    y: [f64; 2] = [0.0, 0.0]
+
+event Input(x: [f64; 2])
+
+step Layer on Input(x)
+    y = tensor.matvec(w, x)

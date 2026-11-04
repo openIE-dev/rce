@@ -1,0 +1,14 @@
+[package]
+name        = "rce-motionbert"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MotionBERT 2D→3D human pose lifting on rce — rce's first attention-based ONNX-sourced crate. Dual-stream spatio-temporal transformer (5 ST + 5 TS blocks; learnable cross-stream weighting per block) over [T=243, J=17, 2] → [T, J, 3]."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-op-conv2d = { workspace = true }
+rayon               = { workspace = true }
+
+[dev-dependencies]
+rce-weight-loader = { workspace = true }

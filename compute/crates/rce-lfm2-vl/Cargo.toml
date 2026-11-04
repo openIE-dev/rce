@@ -1,0 +1,15 @@
+[package]
+name        = "rce-lfm2-vl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LFM2.5-VL multimodal runtime on the rce substrate. rce's first VISION path: SigLIP ViT (16px patches, LayerNorm+GELU+biases) + 2×2 pixel-unshuffle patch-merge + LFM2 MLP projector → 64 image embeddings spliced into the rce-lfm2 decoder at the <image> token. Closes the LMM leg of pattern-lang phase 2."
+
+[dependencies]
+rce-lfm2 = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+half                 = { workspace = true }
+image                = { workspace = true }

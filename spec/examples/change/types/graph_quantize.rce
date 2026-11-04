@@ -1,0 +1,12 @@
+# W-GRAPH-3: round_q8_0 replaces each block of 32 by the values of its
+# Q8_0 quantization (level lossy), and no tensor.lossy around it declares
+# that level.
+use std.tensor
+
+state Weights
+    w: [[f32; 32]; 1] = [[0.0 as f32; 32]]
+
+event Quantize
+
+step Weights on Quantize
+    w = tensor.round_q8_0(w)

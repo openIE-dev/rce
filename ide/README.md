@@ -16,7 +16,7 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
   E_sim, E_meas with source tag `rapl|nvml|powermetrics|jetson|estimated-remote`, delta,
   checker verdict, policy hash), BLAKE3 hash chain, ed25519 signature. JSONL ledger,
   verified in full on open. Mappers from `mol.receipt.v1` and mei-studio `mei-receipt` JSON.
-- `crates/ide-energy`: `Simulator` trait and a linear simulator with per-gear/model
+- `../compute/crates/rce-energy` (named `ide_energy` here, RCE's one meter library): `Simulator` trait and a linear simulator with per-gear/model
   coefficients fitted by least squares; `Meter` trait with Linux RAPL (powercap
   `energy_uj`, wraparound handled), NVML behind `--features nvml`, and macOS / Jetson
   backends that return `Unsupported`; time-window attribution; k-sigma anomaly test.
@@ -71,7 +71,9 @@ the second line. With no readable counter (no `/sys/class/powercap`, or
 `measure` prints `energy: unmeasured: no counter available (...)` (or `counter
 read failed`, `the counter did not move`) and the energy gate has no figure
 (`energy: no measurement`, which fails only under `strict`); it never falls
-back to the simulated figure. The code is `crates/rce-ide/src/reading.rs`.
+back to the simulated figure. The code is `compute/crates/rce-energy/src/reading.rs`, the module
+`reading` of RCE's one meter library, which the host also uses for
+`host.Energy` (HC-38).
 
 On macOS, `measure` reads IOReport with no root and no setup:
 `/usr/lib/libIOReport.dylib` is opened at run time, and the `package`

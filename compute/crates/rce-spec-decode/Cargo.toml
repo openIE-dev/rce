@@ -1,0 +1,6 @@
+[package]
+name        = "rce-spec-decode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Speculative decoding scaffolding for rce-* runtimes. Implements the EAGLE-3 draft-then-verify protocol: a small draft model proposes K candidate next-tokens, the target model evaluates all K in parallel (batched forward), and the protocol accepts the longest prefix whose draft logits match the target distribution to a confidence threshold. Production papers report 2.5-5× single-stream tok/s at batch=1 (where vLLM/SGLang don't benefit) — exactly rce's regime. Today's deliverable: protocol traits (DraftModel, TargetModel), the accept-or-reject loop, and a self-spec stub that uses target-as-draft for testing. Future bricks: integrate a real draft model (e.g., TinyLlama as draft for Gemma 4)."

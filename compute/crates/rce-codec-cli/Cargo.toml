@@ -1,0 +1,18 @@
+[package]
+name        = "rce-codec-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Unified roundtrip CLI for the rce neural audio codecs (snac, encodec, wavtokenizer)."
+
+[dependencies]
+rce-snac = { workspace = true }
+rce-encodec = { workspace = true }
+rce-wavtokenizer = { workspace = true }
+rce-wav2vec2 = { workspace = true }   # for the WAV reader + polyphase resampler
+clap   = { workspace = true }
+anyhow = { workspace = true }
+
+[[bin]]
+name = "codec-cli"
+path = "src/main.rs"

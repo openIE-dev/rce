@@ -1,0 +1,276 @@
+# RCE compute: the crates of RCE's graph term, its backends, emitters,
+# ingest, placement, serving and models, as one workspace (INTEGRATION.md).
+[workspace]
+resolver = "3"
+
+members = [
+    "crates/rce-energy",
+    "crates/rce-bamba",
+    "crates/rce-bert",
+    "crates/rce-bitnet",
+    "crates/rce-c",
+    "crates/rce-canary",
+    "crates/rce-chat",
+    "crates/rce-clip-vit-l",
+    "crates/rce-codec-cli",
+    "crates/rce-conformance",
+    "crates/rce-cosmos3",
+    "crates/rce-depth-anything",
+    "crates/rce-dia",
+    "crates/rce-edsr",
+    "crates/rce-emit-fg",
+    "crates/rce-emit-mlir-linalg",
+    "crates/rce-emit-onnx",
+    "crates/rce-emit-stablehlo",
+    "crates/rce-emit-triton",
+    "crates/rce-emit-wasm",
+    "crates/rce-emit-wgsl",
+    "crates/rce-encodec",
+    "crates/rce-energy-xover",
+    "crates/rce-eurobert",
+    "crates/rce-f5tts",
+    "crates/rce-federation",
+    "crates/rce-federation-http",
+    "crates/rce-fgm",
+    "crates/rce-format",
+    "crates/rce-fusion",
+    "crates/rce-gemma4",
+    "crates/rce-gemma4-audio",
+    "crates/rce-gemma4-vl",
+    "crates/rce-granite",
+    "crates/rce-hifigan",
+    "crates/rce-hunyuan",
+    "crates/rce-ingest-fx",
+    "crates/rce-ingest-gguf",
+    "crates/rce-jamba",
+    "crates/rce-jamba-bench",
+    "crates/rce-lfm2",
+    "crates/rce-lfm2-audio",
+    "crates/rce-lfm2-vl",
+    "crates/rce-llava",
+    "crates/rce-mamba1",
+    "crates/rce-mamba2",
+    "crates/rce-modelbench",
+    "crates/rce-moonshine",
+    "crates/rce-motionbert",
+    "crates/rce-nemotron",
+    "crates/rce-op-amx",
+    "crates/rce-op-attention",
+    "crates/rce-op-attn",
+    "crates/rce-op-blas",
+    "crates/rce-op-conv1d",
+    "crates/rce-op-conv2d",
+    "crates/rce-op-cuda",
+    "crates/rce-op-lstm",
+    "crates/rce-op-metal",
+    "crates/rce-op-moe",
+    "crates/rce-op-mps",
+    "crates/rce-op-nn-prims",
+    "crates/rce-op-qmm",
+    "crates/rce-op-qmm-metal",
+    "crates/rce-op-ssm",
+    "crates/rce-placement",
+    "crates/rce-placement-adapter",
+    "crates/rce-placement-demo",
+    "crates/rce-prefix-cache",
+    "crates/rce-qwen3",
+    "crates/rce-qwen35",
+    "crates/rce-qwen35-moe",
+    "crates/rce-qwen36",
+    "crates/rce-qwen36-moe",
+    "crates/rce-sd15-unet",
+    "crates/rce-sd15-vae",
+    "crates/rce-serve",
+    "crates/rce-silicon-spec",
+    "crates/rce-snac",
+    "crates/rce-spec-decode",
+    "crates/rce-tinyllama",
+    "crates/rce-umt5-xxl-encoder",
+    "crates/rce-vm-backend-cpu",
+    "crates/rce-vm-backend-wasm",
+    "crates/rce-vm-backend-wgpu",
+    "crates/rce-vm-cap",
+    "crates/rce-vm-core",
+    "crates/rce-vm-scheduler",
+    "crates/rce-vm-web",
+    "crates/rce-vocos",
+    "crates/rce-wan22-ti2v",
+    "crates/rce-wav2vec2",
+    "crates/rce-wavtokenizer",
+    "crates/rce-weight-loader",
+    "crates/rce-whisper",
+    "crates/rce-zaya1",
+    "crates/rce-graph",
+]
+exclude = ["crates/rce-vjepa"]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2024"
+rust-version = "1.96"
+license      = "MIT OR Apache-2.0"
+repository   = "https://github.com/openIE-dev/rce"
+
+[workspace.dependencies]
+rce-energy               = { version = "0.1.0", path = "crates/rce-energy" }
+rce-bamba                    = { version = "0.1.0", path = "crates/rce-bamba" }
+rce-bert                     = { version = "0.1.0", path = "crates/rce-bert" }
+rce-bitnet                   = { version = "0.1.0", path = "crates/rce-bitnet" }
+rce-c                        = { version = "0.1.0", path = "crates/rce-c" }
+rce-canary                   = { version = "0.1.0", path = "crates/rce-canary" }
+rce-chat                     = { version = "0.1.0", path = "crates/rce-chat" }
+rce-clip-vit-l               = { version = "0.1.0", path = "crates/rce-clip-vit-l" }
+rce-codec-cli                = { version = "0.1.0", path = "crates/rce-codec-cli" }
+rce-conformance              = { version = "0.1.0", path = "crates/rce-conformance" }
+rce-cosmos3                  = { version = "0.1.0", path = "crates/rce-cosmos3" }
+rce-depth-anything           = { version = "0.1.0", path = "crates/rce-depth-anything" }
+rce-dia                      = { version = "0.1.0", path = "crates/rce-dia" }
+rce-edsr                     = { version = "0.1.0", path = "crates/rce-edsr" }
+rce-emit-fg                  = { version = "0.1.0", path = "crates/rce-emit-fg" }
+rce-emit-mlir-linalg         = { version = "0.1.0", path = "crates/rce-emit-mlir-linalg" }
+rce-emit-onnx                = { version = "0.1.0", path = "crates/rce-emit-onnx" }
+rce-emit-stablehlo           = { version = "0.1.0", path = "crates/rce-emit-stablehlo" }
+rce-emit-triton              = { version = "0.1.0", path = "crates/rce-emit-triton" }
+rce-emit-wasm                = { version = "0.1.0", path = "crates/rce-emit-wasm" }
+rce-emit-wgsl                = { version = "0.1.0", path = "crates/rce-emit-wgsl" }
+rce-encodec                  = { version = "0.1.0", path = "crates/rce-encodec" }
+rce-energy-xover             = { version = "0.1.0", path = "crates/rce-energy-xover" }
+rce-eurobert                 = { version = "0.1.0", path = "crates/rce-eurobert" }
+rce-f5tts                    = { version = "0.1.0", path = "crates/rce-f5tts" }
+rce-federation               = { version = "0.1.0", path = "crates/rce-federation" }
+rce-federation-http          = { version = "0.1.0", path = "crates/rce-federation-http" }
+rce-fgm                      = { version = "0.1.0", path = "crates/rce-fgm" }
+rce-format                   = { version = "0.1.0", path = "crates/rce-format" }
+rce-fusion                   = { version = "0.1.0", path = "crates/rce-fusion" }
+rce-gemma4                   = { version = "0.1.0", path = "crates/rce-gemma4" }
+rce-gemma4-audio             = { version = "0.1.0", path = "crates/rce-gemma4-audio" }
+rce-gemma4-vl                = { version = "0.1.0", path = "crates/rce-gemma4-vl" }
+rce-granite                  = { version = "0.1.0", path = "crates/rce-granite" }
+rce-hifigan                  = { version = "0.1.0", path = "crates/rce-hifigan" }
+rce-hunyuan                  = { version = "0.1.0", path = "crates/rce-hunyuan" }
+rce-ingest-fx                = { version = "0.1.0", path = "crates/rce-ingest-fx" }
+rce-ingest-gguf              = { version = "0.1.0", path = "crates/rce-ingest-gguf" }
+rce-jamba                    = { version = "0.1.0", path = "crates/rce-jamba" }
+rce-jamba-bench              = { version = "0.1.0", path = "crates/rce-jamba-bench" }
+rce-lfm2                     = { version = "0.1.0", path = "crates/rce-lfm2" }
+rce-lfm2-audio               = { version = "0.1.0", path = "crates/rce-lfm2-audio" }
+rce-lfm2-vl                  = { version = "0.1.0", path = "crates/rce-lfm2-vl" }
+rce-llava                    = { version = "0.1.0", path = "crates/rce-llava" }
+rce-mamba1                   = { version = "0.1.0", path = "crates/rce-mamba1" }
+rce-mamba2                   = { version = "0.1.0", path = "crates/rce-mamba2" }
+rce-modelbench               = { version = "0.1.0", path = "crates/rce-modelbench" }
+rce-moonshine                = { version = "0.1.0", path = "crates/rce-moonshine" }
+rce-motionbert               = { version = "0.1.0", path = "crates/rce-motionbert" }
+rce-nemotron                 = { version = "0.1.0", path = "crates/rce-nemotron" }
+rce-op-amx                   = { version = "0.1.0", path = "crates/rce-op-amx" }
+rce-op-attention             = { version = "0.1.0", path = "crates/rce-op-attention" }
+rce-op-attn                  = { version = "0.1.0", path = "crates/rce-op-attn" }
+rce-op-blas                  = { version = "0.1.0", path = "crates/rce-op-blas" }
+rce-op-conv1d                = { version = "0.1.0", path = "crates/rce-op-conv1d" }
+rce-op-conv2d                = { version = "0.1.0", path = "crates/rce-op-conv2d" }
+rce-op-cuda                  = { version = "0.1.0", path = "crates/rce-op-cuda" }
+rce-op-lstm                  = { version = "0.1.0", path = "crates/rce-op-lstm" }
+rce-op-metal                 = { version = "0.1.0", path = "crates/rce-op-metal" }
+rce-op-moe                   = { version = "0.1.0", path = "crates/rce-op-moe" }
+rce-op-mps                   = { version = "0.1.0", path = "crates/rce-op-mps" }
+rce-op-nn-prims              = { version = "0.1.0", path = "crates/rce-op-nn-prims" }
+rce-op-qmm                   = { version = "0.1.0", path = "crates/rce-op-qmm" }
+rce-op-qmm-metal             = { version = "0.1.0", path = "crates/rce-op-qmm-metal" }
+rce-op-ssm                   = { version = "0.1.0", path = "crates/rce-op-ssm" }
+rce-placement                = { version = "0.1.0", path = "crates/rce-placement" }
+rce-placement-adapter        = { version = "0.1.0", path = "crates/rce-placement-adapter" }
+rce-placement-demo           = { version = "0.1.0", path = "crates/rce-placement-demo" }
+rce-prefix-cache             = { version = "0.1.0", path = "crates/rce-prefix-cache" }
+rce-qwen3                    = { version = "0.1.0", path = "crates/rce-qwen3" }
+rce-qwen35                   = { version = "0.1.0", path = "crates/rce-qwen35" }
+rce-qwen35-moe               = { version = "0.1.0", path = "crates/rce-qwen35-moe" }
+rce-qwen36                   = { version = "0.1.0", path = "crates/rce-qwen36" }
+rce-qwen36-moe               = { version = "0.1.0", path = "crates/rce-qwen36-moe" }
+rce-sd15-unet                = { version = "0.1.0", path = "crates/rce-sd15-unet" }
+rce-sd15-vae                 = { version = "0.1.0", path = "crates/rce-sd15-vae" }
+rce-serve                    = { version = "0.1.0", path = "crates/rce-serve" }
+rce-silicon-spec             = { version = "0.1.0", path = "crates/rce-silicon-spec" }
+rce-snac                     = { version = "0.1.0", path = "crates/rce-snac" }
+rce-spec-decode              = { version = "0.1.0", path = "crates/rce-spec-decode" }
+rce-tinyllama                = { version = "0.1.0", path = "crates/rce-tinyllama" }
+rce-umt5-xxl-encoder         = { version = "0.1.0", path = "crates/rce-umt5-xxl-encoder" }
+rce-vjepa                    = { version = "0.1.0", path = "crates/rce-vjepa" }
+rce-vm-backend-cpu           = { version = "0.1.0", path = "crates/rce-vm-backend-cpu" }
+rce-vm-backend-wasm          = { version = "0.1.0", path = "crates/rce-vm-backend-wasm" }
+rce-vm-backend-wgpu          = { version = "0.1.0", path = "crates/rce-vm-backend-wgpu" }
+rce-vm-cap                   = { version = "0.1.0", path = "crates/rce-vm-cap" }
+rce-vm-core                  = { version = "0.1.0", path = "crates/rce-vm-core" }
+rce-vm-scheduler             = { version = "0.1.0", path = "crates/rce-vm-scheduler" }
+rce-vm-web                   = { version = "0.1.0", path = "crates/rce-vm-web" }
+rce-vocos                    = { version = "0.1.0", path = "crates/rce-vocos" }
+rce-wan22-ti2v               = { version = "0.1.0", path = "crates/rce-wan22-ti2v" }
+rce-wav2vec2                 = { version = "0.1.0", path = "crates/rce-wav2vec2" }
+rce-wavtokenizer             = { version = "0.1.0", path = "crates/rce-wavtokenizer" }
+rce-weight-loader            = { version = "0.1.0", path = "crates/rce-weight-loader" }
+rce-whisper                  = { version = "0.1.0", path = "crates/rce-whisper" }
+rce-zaya1                    = { version = "0.1.0", path = "crates/rce-zaya1" }
+rce-graph                      = { version = "0.1.0", path = "crates/rce-graph" }
+anyhow    = "1"
+axum        = { version = "0.8", features = ["macros", "ws", "multipart"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+blake3  = "1"
+bytemuck = { version = "1.25", features = ["derive"] }
+ciborium   = "0.2"
+clap = { version = "4", features = ["derive"] }
+ed25519-dalek   = { version = "2", features = ["serde", "rand_core"] }
+futures           = "0.3"
+half     = { version = "2", features = ["serde"] }
+image = "0.25"
+matrixmultiply = "0.3"
+memmap2 = "0.9"
+metal   = "0.33"
+ort          = { version = "=2.0.0-rc.11", default-features = false }
+pollster = "0.4"
+prost       = "0.14"
+rayon       = "1"
+rcgen   = "0.14"
+reqwest = { version = "0.13", features = [
+    "json", "query", "form", "cookies", "stream", "gzip", "blocking",
+] }
+rustfft     = "6.4"
+rustls  = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls-pemfile  = "2"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile  = "3"
+thiserror = "2"
+tokenizers              = { version = "0.22", default-features = false, features = ["onig"] }
+tokio = { version = "1", features = [
+    "rt-multi-thread", "macros", "sync", "io-util",
+    "fs", "signal", "time", "net", "process",
+] }
+tokio-stream      = "0.1"
+tonic-prost-build = "0.14"
+tower       = { version = "0.5", features = ["full"] }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+wasmtime        = "43"
+wgpu     = "29.0"
+regex = "1"
+proptest = "1"
+
+[workspace.lints.rust]
+dead_code           = "allow"
+unused_variables    = "allow"
+unused_imports      = "allow"
+unused_mut          = "allow"
+private_interfaces  = "allow"
+unused_must_use     = "allow"
+unused_comparisons  = "allow"
+unreachable_code    = "allow"
+
+[workspace.lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ['cfg(target_feature, values("memory64"))', 'cfg(kani)']
+
+[workspace.lints.clippy]
+unwrap_used    = "warn"
+expect_used    = "warn"
+panic          = "warn"
+todo           = "warn"
+unimplemented  = "warn"

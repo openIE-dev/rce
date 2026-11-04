@@ -1,0 +1,16 @@
+[package]
+name        = "rce-umt5-xxl-encoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for UMT5-XXL encoder (~5B params, 24 layers × dim 4096 × 64 heads, GeGLU FFN, T5-style relative position bias). Text encoder feeding rce-wan22-ti2v cross-attention."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+anyhow              = { workspace = true }
+tokenizers          = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

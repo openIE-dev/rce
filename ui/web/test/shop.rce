@@ -2,10 +2,10 @@ module shop
 use ui.view
 
 intent "a shopping list whose every step emits a frame (HC-29), for the DOM renderer's test: items are added, removed, moved up, renamed and marked, so ui.view.diff gives every kind of operation; Break shows the list with one defect that ui.rules finds (contrast, an unnamed button, a focusable control hidden from assistive technology, a widget that cannot be focused), and Fix removes it"
-    example Add(k: "a", t: "Apples") -> order.len() == 1
-    example Add(k: "a", t: "Apples"), Add(k: "b", t: "Bread"), Up(k: "b") -> order[0] == "b"
-    example Add(k: "a", t: "Apples"), Remove(k: "a") -> order.len() == 0
-    example Break(what: "contrast"), Fix -> defect == ""
+    example Add(k: "a", t: "Apples"), Focus -> order.len() == 1
+    example Add(k: "a", t: "Apples"), Focus, Add(k: "b", t: "Bread"), Up(k: "b") -> order[0] == "b"
+    example Add(k: "a", t: "Apples"), Focus, Remove(k: "a") -> order.len() == 0
+    example Fix, Focus, Break(what: "none"), Fix -> defect == ""
 
 struct Frame
     view: View

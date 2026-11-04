@@ -1,0 +1,25 @@
+[package]
+name = "rce-weight-loader"
+publish = false
+description = "Safetensors reader that produces rce_graph::graph::TensorLiteralData entries"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rce_weight_loader"
+
+[features]
+default = ["mmap"]
+# `mmap` enables `SafetensorsFile::load(path)` which mmaps the file. Disable
+# for browser/wasm32 builds; `from_bytes(...)` works without it.
+mmap = ["dep:memmap2"]
+
+[dependencies]
+memmap2    = { version = "0.9", optional = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,0 +1,23 @@
+[package]
+name        = "rce-llava"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LLaVA-style vision-language composition substrate: 2-layer MLP projector from CLIP vision features into an LM's embedding space, plus the orchestration pattern for vision-token injection into autoregressive text generation."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+anyhow              = { workspace = true }
+
+[dev-dependencies]
+rce-clip-vit-l = { workspace = true }
+rce-tinyllama = { workspace = true }
+rce-qwen35 = { workspace = true }
+rce-qwen36 = { workspace = true }
+rce-gemma4 = { workspace = true }
+image               = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

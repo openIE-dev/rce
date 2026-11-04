@@ -1,0 +1,22 @@
+[package]
+name        = "rce-op-qmm-metal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RCE native Metal qmm kernel — block-dequant GEMV in MSL. First format: Q8_0. The Apple-silicon GPU qmm slot that lets rce-placement-adapter cost-route between CPU (op-qmm) and native Metal (this crate)."
+
+[dependencies]
+rce-op-qmm = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+
+# macOS / iOS only — other targets compile to a stub returning None
+# from `MetalQmmContext::new`, so workspace stays cross-target clean.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+metal          = { workspace = true }
+objc           = "0.2.7"
+foreign-types  = "0.5"
+
+[dev-dependencies]
+half = { workspace = true }
+
+[build-dependencies]

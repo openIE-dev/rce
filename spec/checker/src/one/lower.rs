@@ -73,8 +73,21 @@ pub fn lower(m: &ast::Module) -> R<Module> {
     let insts = std::mem::take(&mut ty.insts);
     let mut lw = Lw::new(m, t, ty)?;
     lw.insts = insts;
+    lw.graph_terms = graph_terms(m);
     let entry = lw.module()?;
     lw.f.finish(entry)
+}
+
+/// The graph terms of `m` (6.13) by the address of the callee of the
+/// `tensor` call each is rooted at: the checker builds them from the
+/// operands' static types, the same terms `rce check` built.
+fn graph_terms(m: &ast::Module) -> HashMap<usize, crate::graph::Term> {
+    if crate::graph::visible_name(m).is_none() {
+        return HashMap::new();
+    }
+    let mut c = crate::check::Checker::new();
+    c.check_module(m, &Default::default());
+    c.graph_terms
 }
 
 /// A value: an atom and the type of the values it holds. A value whose core
@@ -320,6 +333,9 @@ struct Lw<'m> {
     /// whether the module has a budget, the only place where cost (C.6)
     /// is observed: then cost is charged where the reference charges it
     costs: bool,
+    /// the graph terms of the module (6.13), by the address of the callee
+    /// of the `tensor` call each is rooted at
+    graph_terms: HashMap<usize, crate::graph::Term>,
 }
 
 impl<'m> Lw<'m> {
@@ -337,7 +353,7 @@ impl<'m> Lw<'m> {
                 loop_limit = *n;
             }
         }
-        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit(), gen_stacks: HashMap::new(), costs: has_budget(m) };
+        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit(), gen_stacks: HashMap::new(), costs: has_budget(m), graph_terms: HashMap::new() };
         let mut evs = vec![];
         for e in lw.t.events.clone() {
             evs.push(lw.ct(&RType::Named(e))?);
@@ -2763,6 +2779,39 @@ impl<'m> Lw<'m> {
         }
     }
 
+    /// A graph term (6.13, GT-5 to GT-7): its operands lowered left to
+    /// right, depth first, then `vN = graph K(a…)`, charged as the
+    /// reference interpreter charges it. The term joins the module's
+    /// `graphs`; the group's key covers K.
+    fn graph_call(&mut self, fx: &mut Fx, f: &Expr, op: &str, args: &[Arg], rt: RType) -> R<Val> {
+        let Some(term) = self.graph_terms.get(&addr(f)).cloned() else {
+            return no(format!("a tensor call at line {} the checker built no graph term for", f.line()));
+        };
+        let name = self.t.tensor.clone().unwrap_or_default();
+        let operands = crate::graph::operands(op, args, &name);
+        if operands.len() != term.types.params.len() {
+            return no("a graph term whose operands are not its parameters");
+        }
+        let mut atoms = vec![];
+        for (x, pt) in operands.into_iter().zip(&term.types.params) {
+            let v = self.expr(fx, x)?;
+            let want = super::wf::tensor_ty(pt)?;
+            let have = self.ct(&v.t)?;
+            if have != want {
+                return no(format!("a tensor operand of core type {have:?} where the term takes {want:?}"));
+            }
+            atoms.push(v.a);
+        }
+        fx.b.tick(1 + term.work);
+        self.charge_k(fx, crate::conc::C_CALL.saturating_add(2 * i128::from(term.work)))?;
+        let ret = super::wf::tensor_ty(&term.types.result)?;
+        let a = fx.b.graph(term.key.clone(), ret, atoms);
+        let graph = serde_json::to_value(&term.graph).map_err(|e| e.to_string())?;
+        let types = serde_json::to_value(&term.types).map_err(|e| e.to_string())?;
+        self.f.graphs.insert(term.key.clone(), GraphTerm { graph, types });
+        Ok(Val { a, t: rt })
+    }
+
     /// The arguments of a call, each fitted to its parameter (interp `call_fn`).
     fn args(&mut self, fx: &mut Fx, f: &FnDecl, args: &[Arg]) -> R<Vec<Atom>> {
         let ps: Vec<ast::Ty> = f.sig.params.iter().filter_map(|p| if let Param::Named { ty, .. } = p { Some(ty.clone()) } else { None }).collect();
@@ -3030,6 +3079,7 @@ impl<'m> Lw<'m> {
                 Ok(Val { a, t: rt })
             }
             Some(Callee::Closure(l)) => self.closure_call(fx, f, args, l, rt),
+            Some(Callee::Graph(op)) => self.graph_call(fx, f, &op, args, rt),
             Some(Callee::Trap(msg)) => {
                 self.trap(fx, Atom::bytes(msg.as_bytes()))?;
                 Ok(Val { a: fx.b.unit()?, t: RType::Never })

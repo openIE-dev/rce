@@ -121,7 +121,7 @@ the printed output of `rce-spec-check`, compared with this text by
 0 conflicts (118 rules, 581 productions, 1206 states);
 with C.2 and F.13, 0 conflicts (123 rules, 611 productions,
 1273 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
-13/13 requiring change; checker 62/62 accepted, 13/13 and 66/66 requiring change (17 of them
+13/13 requiring change; checker 62/62 accepted, 13/13 and 73/73 requiring change (18 of them
 inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -141,4 +141,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: ebccae41a8e68e329210c1334e50703923037434dd0352d5607fa704f099fbe4 -->
+<!-- body-sha256: c7fd2060f48c6da332c48fbdcb5fe22dd969eff13bc12d3f7829cc79abee82e3 -->

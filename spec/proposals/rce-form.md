@@ -6,14 +6,14 @@ Sources, all read only:
 
 - `openIE-dev/rce` at `origin/main` ace40713. No file under `spec/checker` differs between d91a9fc8 and ace40713, so a citation of the checker holds at both.
 - The branch `claude/one-emitter` of this repository at 123f5eee ("the branch"), which holds the core of `one-emitter.md`, its well-formedness check, its lowering and its evaluator under `spec/checker/src/one/`, with the differential tests `tests/one_lower.rs` and `tests/one_conformance.rs`. A path written `one/…` is a file of that directory on the branch.
-- flowG's public kernel vocabulary (`openIE-dev/flow-g`): 22 primitives in 6 categories and 11 wire kinds, with their names and kernel numbers.
+- RCE's kernel vocabulary, first written under the name flowG (`openIE-dev/flow-g`): 22 primitives in 6 categories and 11 wire kinds, with their names and kernel numbers.
 
 In plain words:
 
 1. The Form of RCE (the Reality Code Engine), P = (S, E, δ, D, λ) of 6.1 (states, events, a total step function, a hash-chained log, outputs), stays the meaning of every program, unchanged. This proposal fixes one encoding of it, `rce-form/1`. It is the only thing that is hashed: a frame of tables for the state, the events, the steps, the errors and the declared types, and content-addressed definitions (each named by the SHA-256 of its bytes) whose bodies are graphs over five node kinds.
-2. The five node kinds keep the numbers that flowG's kernel (its vocabulary of 22 primitives and 11 wire kinds, above) gives them: Bind 0, Apply 1, Branch 3, Iterate 4 and Halt 13 (flowG's ErrorPropagate). Wires (the edges that carry values between nodes) carry no kind. Each of flowG's wire kinds is derived from a value's type and the port it enters, so no wire can be labelled wrongly.
+2. The five node kinds keep the numbers that RCE's kernel (its vocabulary of 22 primitives and 11 wire kinds, above) gives them: Bind 0, Apply 1, Branch 3, Iterate 4 and Halt 13 (the kernel's ErrorPropagate). Wires (the edges that carry values between nodes) carry no kind. Each of the kernel's wire kinds is derived from a value's type and the port it enters, so no wire can be labelled wrongly.
 3. One owned value (a value used at most once), the order value, threads every effect and every halt. It holds the fuel (RCE's budget of evaluation steps), the cost counters (the work counts of C.6), the outputs gathered so far and the cells that hold evaluated constants, for one input that a host (the program that runs a module and feeds it inputs, Appendix E) delivers, or for one observation (one block of the reference trace of item 6, below). It never enters the state, the log or the outputs, so nothing outlives an input except the state.
-4. Every other notation is a view of the encoding: a function that presents it in another notation and is never hashed. The core `rce-core/1` of `one-emitter.md`, a small typed statement language, is the schedule view that printers read; RCE text is the view that RCE's own print table (the rows that print the core as a language's text, ONE-6) prints; the flowG view restores all 22 kernel kinds and all 11 wire kinds and has an inverse, so an edit drawn on a graph is a candidate program for the gate, the checker's decision, which applies it (it then complies with the Form) or finds that it requires change, with its reason.
+4. Every other notation is a view of the encoding: a function that presents it in another notation and is never hashed. The core `rce-core/1` of `one-emitter.md`, a small typed statement language, is the schedule view that printers read; RCE text is the view that RCE's own print table (the rows that print the core as a language's text, ONE-6) prints; the graph view restores all 22 kernel kinds and all 11 wire kinds and has an inverse, so an edit drawn on a graph is a candidate program for the gate, the checker's decision, which applies it (it then complies with the Form) or finds that it requires change, with its reason.
 5. A language is data: a pinned grammar, a lift table (the rows that map the language's syntax onto the encoding), a print table, and a runtime library (RCE definitions that state the language's values and built-in operations exactly). Nothing is approximated. What a table cannot carry exactly requires change, with its reason.
 6. Acceptance is by definition and exact comparison. Every row cites the passage of the language's defining reference that it implements and states how it follows from it. A lifted program's observations (the canonical records of its runs) equal, byte for byte, those of the language's own implementation run under its pins (its fixed release, environment and clock); an emitted program prints, byte for byte, the reference trace: the bytes RCE's reference interpreter prints for each constant, check, zero-argument function and example of a module and for its `fn main`, each followed by the fuel it used.
 7. Where it stands: of the form layer the catalogue of operations exists, as data checked against this proposal (`spec/data/form-catalogue.json`, §4), and so does the form module of the checker (`spec/checker/src/form/`), which decodes a module, makes it canonical, computes its keys and runs the gate FG1 to FG15 (`rce form-check FORM [VECTORS]`), its Form evaluator running the admission vectors of FG15 but not yet the catalogue's vectors. Lift, emit, the schedule, the construction and the views do not exist. The core, its lowering (the translation of RCE text into the core) and its evaluator exist on the branch, where the lowering reproduces the reference interpreter's trace on 56 of the 60 single-file examples of `spec/examples` (the other 4 require change, each naming the construct it stops at) and on at least 1,435 conformance tests.
@@ -23,7 +23,7 @@ In plain words:
 **Conventions.**
 
 - A bare section number such as 6.1, C.6 or E.2 names a section of the specification (the chapters of `spec/book/`, generated into `spec/RCE-SPEC.md`). Rules and theorems of the specification keep their names: T2, W-TY-2, HC-7a, N9, F1 to F9, and E1, the rule of 6.2 that fuel exhaustion cannot be caught.
-- §n names section n of this proposal. A reference to a later section says "below". The sections are: §1 Terms; §2 The decision; §3 Types; §4 The catalogue; §5 The order value; §6 Nodes; §7 Domain facts; §8 Port modes, linearity and wire kinds; §9 The frame; §10 Encoding and identity; §11 The gate; §12 flowG's kinds and the view; §13 The schedule and the construction; §14 Closure; §15 What is closed and what is open; §16 Lift; §17 The Lift IR (intermediate representation) and stage B; §18 The lift report; §19 Emit; §20 Acceptance; §21 The toolchain; §22 What admission needs; §23 Changes if accepted; §24 What stays open.
+- §n names section n of this proposal. A reference to a later section says "below". The sections are: §1 Terms; §2 The decision; §3 Types; §4 The catalogue; §5 The order value; §6 Nodes; §7 Domain facts; §8 Port modes, linearity and wire kinds; §9 The frame; §10 Encoding and identity; §11 The gate; §12 The kernel's kinds and the view; §13 The schedule and the construction; §14 Closure; §15 What is closed and what is open; §16 Lift; §17 The Lift IR (intermediate representation) and stage B; §18 The lift report; §19 Emit; §20 Acceptance; §21 The toolchain; §22 What admission needs; §23 Changes if accepted; §24 What stays open.
 - ONE-n names a rule of `one-emitter.md`, and W1 to W6 its well-formedness rules of the core (ONE-3).
 - Label families this proposal introduces, each numbered in the order a reader meets it and defined in the section named, below: domain facts DF1 to DF8 (§7), canonical rules C1 to C11 (§10), gate rules FG1 to FG15 (§11), the transforms of stage B, B1 to B7 (§17), and corpus rules K1 to K7 (§20).
 
@@ -76,9 +76,9 @@ In plain words:
 - **Concept record**: the names, source spans, origin, printing hints and labels kept beside a module and never hashed into it (§10, below).
 - **Schedule**: the deterministic map from a Form to core statements. **Construction**: the map from core statements back to a canonical Form. **View**: a total, deterministic function that presents a Form in another notation.
 
-**flowG.**
+**The kernel.**
 
-- **flowG**: the parent of RCE, its first pass at one shared form between intent and silicon (`SURFACE.md`), published as `openIE-dev/flow-g`. **The kernel**: flowG's closed vocabulary, 22 primitives in 6 categories and 11 wire kinds. **The flowG view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
+- **The kernel**: RCE's closed vocabulary for a program drawn as a graph, 22 primitives in 6 categories and 11 wire kinds, first written under the name flowG and published as `openIE-dev/flow-g` (`SURFACE.md`). **The graph view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
 
 **Lift and emit.**
 
@@ -96,7 +96,7 @@ In plain words:
 
 1. **One meaning.** The Form of 6.1 is kept byte for byte: the canonical signature, the D entry `{seq, event, prev_hash, state_hash, hash}`, the positional form, canonical JSON with its 77 vectors (`spec/data/canonical-json-vectors.json`), and the edge rules N1 to N11 and F1 to F9 of 6.3. It changes only through three open questions of §24 (below): nested options in the positional form, the enforcement of VALUE_LIMIT, and the shape of lifted commands.
 2. **One encoding, `rce-form/1`.** A module is the frame plus content-addressed definitions whose bodies are regions over five node kinds. Only this encoding is hashed.
-3. **Views, derived and never hashed.** `rce-core/1` is the schedule view, read by printers and the core evaluator. RCE text is the view that RCE's print table prints. Every language L is a view through its print table. The flowG view names the kernel's 22 kinds and 11 wire kinds and has an inverse.
+3. **Views, derived and never hashed.** `rce-core/1` is the schedule view, read by printers and the core evaluator. RCE text is the view that RCE's print table prints. Every language L is a view through its print table. The graph view names the kernel's 22 kinds and 11 wire kinds and has an inverse.
 4. **Lift and emit are tables over the encoding** (§16 to §19, below).
 5. **One reference for a Form's meaning.** This proposal states the meaning of nodes, of the order value and of the frame. A small Form evaluator (`spec/checker/src/form/eval.rs`, new) implements it and reuses the core evaluator's code for every primitive, so each primitive has one implementation, checked by its catalogue vectors; only the evaluation of nodes, regions and the frame is new. On RCE's corpus three computations must agree byte for byte, observation by observation: the reference interpreter on the RCE text, the Form evaluator on the lifted Form, and the core evaluator on the schedule. A disagreement is a defect in one of them. Two alternatives were considered and set aside. Raising a Form to RCE's syntax tree and running the reference is not total for Forms lifted from other languages (heap values, step-split regions, dynamic-value sums), and a raised tree skips RCE's parse-time rules unless it is printed and parsed again. Taking the core evaluator on the schedule as the definition would let the schedule judge itself.
 
@@ -107,7 +107,7 @@ In plain words:
 - **Convergence.** In a graph, independent pure operations have no order, so two programs that differ only in the order of independent pure statements have one key; the statement core gives them two. That all syntax converges to one form is a statement about identity, so identity must forget what surfaces disagree on and meaning does not depend on.
 - **Sharing.** Equal pure computations whose inputs and outputs are all plain are one node (C4, §10, below).
 - **Sound facts.** Domain facts are stated on values that cannot change (§7, below), so they cannot go stale. W4 of the core once kept a fact inside a loop for a global that a call in the loop sets; it now ties each fact to the value a place held, so a `set`, a call and a loop head whose body sets or calls end it (`one/wf.rs`). The encoding has no globals, so that case cannot be written.
-- **Lineage and targets.** The graph is flowG's form, and dataflow is what spatial targets (graphics processors, hardware) consume.
+- **Lineage and targets.** The graph is the form the kernel was first written in, and dataflow is what spatial targets (graphics processors, hardware) consume.
 - **Nothing is lost.** The core is derived from the graph by a linear schedule and read back by a linear construction (§13, below), so the one-emitter work (the lowering, the core evaluator, the runtime in the core, the table design) is kept, not replaced.
 
 **The how.** How a module is carried out on a target (where each value lives, how its checks are printed, its layout, schedule, workers, fabric, cost and energy) is proposed in `rce-form-how.md` as a checked realization record kept beside the module and never in its key, together with eight meaning additions to this encoding that must land before the module key, the catalogue key and the lift tables' keys are first fixed.
@@ -191,7 +191,7 @@ generic (1): copy
 order value (9): emit fuel.tick cost.charge cost.try_charge cost.spent cost.deadline cost.set_deadline memo.get memo.put
 ```
 
-**What the catalogue is not.** It is not the place for library operations. A language's operations, and flowG's operation vocabulary, become runtime-library definitions written down to the catalogue (as F9 has it for mathematics: transcendentals are correctly rounded RCE code, or absent), capabilities, or constructs that require change. Each of flowG's operations goes to exactly one of four places: a catalogue entry at a type, a runtime definition, a capability, or requires change with its reason. That table is generated from flowG's operation list, and generation fails when an operation has no place. A capability reference that a source resolves only at run time requires change with the reason `capability` until its signature is pinned by key (format `rce-cap/1`, §21, below).
+**What the catalogue is not.** It is not the place for library operations. A language's operations, and the kernel's operation vocabulary, become runtime-library definitions written down to the catalogue (as F9 has it for mathematics: transcendentals are correctly rounded RCE code, or absent), capabilities, or constructs that require change. Each of the kernel's operations goes to exactly one of four places: a catalogue entry at a type, a runtime definition, a capability, or requires change with its reason. That table is generated from the kernel's operation list, and generation fails when an operation has no place. A capability reference that a source resolves only at run time requires change with the reason `capability` until its signature is pinned by key (format `rce-cap/1`, §21, below).
 
 ## 5. The order value and its two runners
 
@@ -215,7 +215,7 @@ The host rule differs from the reference interpreter's host in one respect. The 
 
 ## 6. Nodes (closed: five kinds)
 
-A node is `[k, attrs, ins, regions]`. The kind numbers are flowG's kernel numbers, so the flowG view and the lineage are kept.
+A node is `[k, attrs, ins, regions]`. The kind numbers are the kernel's numbers, so the graph view and the lineage are kept.
 
 | k | Kind | attrs | ins | regions | outputs | Meaning |
 |---|---|---|---|---|---|---|
@@ -263,9 +263,9 @@ This is W4, restated on values that cannot change.
 
 **Linearity.** ω is used exactly once: every output and region input of type `order` is the source of exactly one input, or is an output of its region. Every other output and region input of an owned type is used at most once, a region output counting as a use; one that nothing uses is dropped where its region ends (the core's `drop`, which the schedule writes and the construction reads back as no use). Plain values may be used any number of times. A drop needs no node, so the encoding holds none, and a region that ends in a Halt drops what it holds, as W3 lets a halting path do. Because ω is used exactly once, the effects and halts of a region form one chain.
 
-**The eleven wire kinds, as derived labels.** flowG's kernel has 11 wire kinds. Each is a label derived from a source's type and the mode of the port it enters, never stored.
+**The eleven wire kinds, as derived labels.** The kernel has 11 wire kinds. Each is a label derived from a source's type and the mode of the port it enters, never stored.
 
-| flowG wire kind | Class | Holds for an edge when | RCE counterpart |
+| Kernel wire kind | Class | Holds for an edge when | Surface counterpart |
 |---|---|---|---|
 | Move | edge | the type is owned and the port consumes it | the ownership kind Move, W-OWN-1 (5.5) |
 | Borrow | edge | the type is owned and the port is read-return | `&τ` (5.6) |
@@ -287,7 +287,7 @@ So the statement that an invalid wire cannot be drawn holds of the encoding: the
 
 The frame is a set of closed tables, the same in every program and every language.
 
-| Table | Content | Form part | flowG kind it absorbs |
+| Table | Content | Form part | Kernel kind it absorbs |
 |---|---|---|---|
 | `types` | the declared types of §3, minimised and ordered by C8 (§10, below) | the types of S, E and bodies | TypeDefine (20) |
 | `regions` | per region: `"state"` or `"actor"`, then its fields `[T, VALUE]`, each with its initial value evaluated at comptime (5.10); actor regions add a mailbox and a held-message queue | S and its initial state | FeedbackDelay (21) |
@@ -426,9 +426,9 @@ A module requires change at the first rule that fails, and the checker names the
 
 The rules of section 7 that concern RCE's surface (lexical rules, names, hygiene) stay on RCE text. The rules about meaning (W-OWN, W-REC, W-ITER-1, W-INT-1 and the rules of Appendix F that survive erasure) are restated by FG1 to FG15. W-STEP-2, under which a module requires change when it has an event that no step and no actor handler can ever match, also stays on RCE text, as an authoring rule: in a Form such an event is applied with the identity update of the frame rule (6.4), and a lifted program may declare events it ignores, as a statechart does. `compliance.md` reads that rule the same way.
 
-## 12. flowG's 22 kinds and 11 wire kinds: the view and its inverse
+## 12. The kernel's 22 kinds and 11 wire kinds: the view and its inverse
 
-This proposal takes the kernel's vocabulary as the vocabulary in which every Form can be drawn and edited, and requires the conversion between it and the encoding to be generated, checked and invertible, so that saving after loading is the identity. It carries all 22 kinds and all 11 wire kinds, and draws one line: the encoding holds the five kinds that carry meaning; the flowG view restores every one of the 22 names and the 11 wire kinds from the encoding, the concept record and the lift report; and the view has an inverse, so the 22-kind graph is an editing vocabulary, not only a picture.
+This proposal takes the kernel's vocabulary as the vocabulary in which every Form can be drawn and edited, and requires the conversion between it and the encoding to be generated, checked and invertible, so that saving after loading is the identity. It carries all 22 kinds and all 11 wire kinds, and draws one line: the encoding holds the five kinds that carry meaning; the graph view restores every one of the 22 names and the 11 wire kinds from the encoding, the concept record and the lift report; and the view has an inverse, so the 22-kind graph is an editing vocabulary, not only a picture.
 
 **The 22 kinds,** numbered and grouped in the kernel's six categories: computation (0 to 9), resource (10 to 12), error and contract (13 and 14), concurrency (15 to 18), data and state (19 and 20), and temporal (21).
 
@@ -1056,7 +1056,7 @@ lean        = { version = "v4.12.0" }
 | `rce-lift-report/1` | a lift's outcomes, reasons, cones and counts (§18) | this proposal | its SHA-256 identifies the lift |
 | `rce-build-config/1` | a project's build configuration as data (§18) | this proposal | yes |
 | `rce-emit-receipt/1` | an emit's input keys, the SHA-256 of its text, its status and the table's level | this proposal | its own key |
-| `rce-graph-view/1` | the flowG view (§12) | this proposal | no (derived) |
+| `rce-graph-view/1` | the graph view (§12) | this proposal | no (derived) |
 | `rce-cap/1` | a capability signature: name, version, core types, effects, contexts | Appendix E, extended | yes |
 | `rce-core/1` | the core, the schedule view; `rce-core/2` when the host statement is added | `one-emitter.md` | yes: group keys |
 | `rce-ref-trace/1` | the reference trace, headed by the module key when the input is a Form | this proposal | its SHA-256 names it in evidence records |

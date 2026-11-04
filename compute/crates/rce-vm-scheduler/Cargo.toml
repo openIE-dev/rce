@@ -1,0 +1,15 @@
+[package]
+name        = "rce-vm-scheduler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce async scheduler — tokio work-stealing dispatcher; parallel node execution across CPU/wgpu/leaf backends"
+
+[dependencies]
+rce-vm-backend-cpu = { workspace = true }
+rce-graph = { workspace = true }
+tokio                = { workspace = true, features = ["rt-multi-thread", "sync", "macros"] }
+thiserror            = { workspace = true }
+
+[dev-dependencies]
+rce-vm-backend-wgpu = { workspace = true }

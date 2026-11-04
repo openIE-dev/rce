@@ -124,7 +124,7 @@ the printed output of `rce-spec-check`, compared with this text by
 0 conflicts (118 rules, 581 productions, 1206 states);
 with C.2 and F.13, 0 conflicts (123 rules, 611 productions,
 1273 states), accepting the 18 Appendix F examples; grammar 62/62 accepted,
-13/13 requiring change; checker 62/62 accepted, 13/13 and 66/66 requiring change (17 of them
+13/13 requiring change; checker 62/62 accepted, 13/13 and 73/73 requiring change (18 of them
 inadmissible). Until 2026-10-12 the same grammar was held in
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -681,7 +681,10 @@ by its file path relative to the package root with `/` read as `.` and the
 `.rce` extension removed. `use p.q` makes module `p.q` visible under the name
 `q`; `use p.q as r` under `r`. Items are private to their module unless marked
 `pub`. Import cycles require change (W-MOD-2). The modules `std.text`,
-`std.collections` and `std.math` are built in and always resolvable (S4), and
+`std.collections`, `std.math` and `std.tensor` (the graph term, 6.13: the
+products, activations, normalisations, attention, embedding lookup and
+block-quantized products of tensors of `f32`, `f64`, `i8` and `i32`) are
+built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
 pinned by hash in its manifest, and pinned by a program as the dependency
 `stdlib`, F.5.3): `use enc`, `use data.events` and the
@@ -1759,7 +1762,12 @@ exactly.
     `cos`; any other (`pow`, `tan`, `atan2`, ...) is absent until it meets
     the same rule. A result that overflows traps (F4); `log` of x ≤ 0
     traps (also `log2`, `log10`). Device versions stay output only or
-    verified (HC-13).
+    verified (HC-13). The graph term's operations `exp`, `tanh`,
+    `sigmoid`, `silu`, `gelu`, `gelu_tanh`, `softmax` and `attention`
+    (6.13, GT-4) use `math.exp`, `math.tanh` and `math.erf`; the reference
+    evaluation computes them with `compute/crates/rce-vm-backend-cpu/src/crmath.rs`,
+    the same method over the same integers in Rust, reading its constants
+    from `math.rce` (GT-6).
   Float *text* (the result of `tostr` and of `Show` on a float,
   `interp::float_text`) is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
@@ -2400,6 +2408,227 @@ the program), or deciding it would cost more than the bound.
 where `rce equiv` finds one, the shortest event sequence after which the
 program and the mutant give different outputs.
 
+### 6.13 Graph terms and tensor values
+
+A step's numeric body may be a *graph term*: a FunctionGraph, the graph
+form of the crate `rce-graph` (nodes, wires between ports, one output
+node), applied to tensors. A graph term is part of δ like any other
+expression: it reads its operands, gives one value, and that value is
+written to the state or emitted by the ordinary statements of 6.4. Nothing
+about S, E, D or λ changes. This section defines the terms, the one
+library module that writes them, their meaning, the canonical form of
+their values and the rules that guard them. Example: in
+`compute/examples/dense.rce` the step body `y = tensor.relu(tensor.matvec(w, x) + b)`
+is one graph term of five operation nodes, and `rce trace` gives the same
+state hashes on every run; `compute/examples/block.rce` is a causal
+attention block over embeddings, with two heads, RMSNorm and a SiLU
+feed-forward layer, in eight terms.
+
+**GT-1 (tensors).** A *tensor* is a nested fixed-length array of `f32`,
+`f64`, `i8` or `i32` (5.1): `[[f64; 3]; 2]` is a tensor of *element type*
+`f64` and *shape* (2, 3), the lengths from the outside in. Every length is
+at least 1. A tensor is an ordinary value of 6.1, so no type is added. A
+*scalar* of a term is a value of the element type, the result of an
+operation that reduces a tensor to one element (`tensor.sum`). Integer
+tensors hold token ids and the quantized values of block formats; their
+arithmetic is RCE's integer arithmetic (6.3 N2).
+
+**GT-2 (the term and its key).** `use std.tensor` makes the built-in
+module `std.tensor` visible as `tensor` (4.1). A call `tensor.op(...)` is
+the *root* of a graph term: the term is the maximal expression made of
+`tensor` calls and lane-wise `+ - * /` between tensors under the root;
+every other subexpression under it is an *operand*. The term is a
+FunctionGraph whose parameters `p0`, `p1`, ... are the operands in the order
+a reader meets them (left to right, depth first), together with its
+*typing*: the element type and shape of each parameter and of the result,
+and the level (GT-3) of each operation node. Its *key* is the BLAKE3
+(a cryptographic hash with a 256-bit digest) content hash of its `.fg` file: a
+`Graph` section holding the graph and a `TypeTable` section holding the
+typing, each in CBOR (Concise Binary Object Representation, RFC 8949), hashed as the format of
+`compute/crates/rce-format` hashes every section. A term holds no
+declared name and no tensor bytes: its data enter only as operands (state
+fields, payload fields, constants). So the key is name-free (T7) and
+covers the whole body. In the core `rce-core/1` (10.12), the statement
+`vN = graph K(a...)` applies the term with key K, which the module declares
+in its `graphs` table; the key of the group that holds the statement (W5)
+covers K, and the program hash (CC-1, 10.8) covers the key of every term of
+the program.
+
+**GT-3 (levels).** Every operation node carries one of three *levels*.
+They are the levels of the RCE Compile study's experiment E3
+(`compile/CHARTER.md` 4.3), and each states what a *realisation* of the
+node (another backend, an emitted kernel, a fusion) must reproduce of the
+reference's result (GT-6):
+
+- `exact`: the reference's bits;
+- `within N`: each element within N units in the last place (ULP) of its
+  element type of the reference's element, N from 1 to 2^31 − 1;
+- `lossy`: no equality is claimed; the operation lowers precision, and a
+  realisation of it is a change of the program, recorded as one.
+
+Each operation admits a strongest level (GT-4). The *level in force* is
+`exact`, unless `tensor.within(N, t)`, N an integer literal, or
+`tensor.lossy(t)` around the operation declares another for every
+operation in t; an inner declaration takes the place of an outer one. A
+node carries the level in force, which may be weaker than its operation's
+level and never stronger. E3's fourth level, bitwise within an
+accumulation class, is `exact` here: each operation fixes its order of
+operations (GT-4), so its accumulation class has one member.
+
+**GT-4 (operations).** `rce graph ops` prints this table. `e` is the
+element type, the same for every tensor operand of one operation unless
+the row names the types (N4: no promotion). Arithmetic is that of `e`: each
+`+ - * /` and `sqrt` is one operation of `e` (binary32 for `f32`), rounded
+once to nearest even, with no fused multiply-add. E(x), T(x) and R(x) are
+`math.exp`, `math.tanh` and `math.erf` (6.3 F9) of the element as binary64,
+which is exact, rounded once to `e`; for `f64` they are those functions,
+and for `f32` the binary32 value nearest the binary64 one, which is the
+correctly rounded binary32 function except where the binary64 value is a
+binary32 midpoint. A sum runs in increasing index from +0.0 (from 0 for
+integers). An axis, an epsilon, a shape or a permutation is a literal, so
+the term's key covers it; an epsilon is rounded to `e`. Every operation of
+this table but the three that lower precision is `exact`: its order of
+operations is fixed and each of its roundings is correctly rounded, so a
+realisation can reproduce the reference's bits.
+
+| Operation | Operands and result | Order of operations | Level |
+|---|---|---|---|
+| `tensor.matmul(a, b)` | `[[e; k]; m]`, `[[e; n]; k]` to `[[e; n]; m]` | each element adds its k products in increasing k, starting from +0.0 | exact |
+| `tensor.matvec(a, x)` | `[[e; k]; m]`, `[e; k]` to `[e; m]` | `matmul` with x as one column | exact |
+| `tensor.transpose(a)` | `[[e; n]; m]` to `[[e; m]; n]` | no arithmetic | exact |
+| `tensor.permute(t, [a1, …])` | a tensor to its axes in the order a1, … (a permutation of 0 to r − 1) | no arithmetic | exact |
+| `tensor.reshape(t, [d1, …])` | a tensor to the same elements in row-major order with shape (d1, …) | no arithmetic; the element counts are equal | exact |
+| `tensor.concat(a, b, AXIS)` | two tensors equal in every length but AXIS to a then b along AXIS | no arithmetic | exact |
+| `tensor.add(a, b)`, `tensor.mul(a, b)` | two tensors whose shapes broadcast (aligned from the last length, each pair equal or one of them 1) to the broadcast shape | element by element | exact |
+| `tensor.sum(t)` | a tensor to a scalar of `e` | every element added in row-major order; an integer partial sum outside `e` traps | exact |
+| `tensor.relu(t)` | a tensor to one of its shape | each element x: x when x > 0, else +0.0 | exact |
+| `tensor.exp(t)`, `tensor.tanh(t)` | a float tensor to one of its shape | E(x), T(x) | exact |
+| `tensor.sigmoid(t)` | as `exp` | 1 / (1 + E(−x)) for x ≥ 0; E(x) / (1 + E(x)) for x < 0 | exact |
+| `tensor.silu(t)` | as `exp` | x / (1 + E(−x)) for x ≥ 0; (x · E(x)) / (1 + E(x)) for x < 0 | exact |
+| `tensor.gelu(t)` | as `exp` | (x · 0.5) · (1 + R(x · c)), c = 0.7071067811865476 | exact |
+| `tensor.gelu_tanh(t)` | as `exp` | (0.5 · x) · (1 + T(c1 · (x + c2 · ((x · x) · x)))), c1 = 0.7978845608028654, c2 = 0.044715 | exact |
+| `tensor.softmax(t, AXIS)` | a float tensor to one of its shape | per slice along AXIS: m its maximum, e_i = E(x_i − m), s = the sum of e_i, y_i = e_i / s | exact |
+| `tensor.rmsnorm(x, w, EPS)` | x a float tensor, w `[e; d]`, d x's last length, to x's shape | per row of d elements: ss = the sum of x_i · x_i; inv = 1 / sqrt(ss / d + EPS); y_i = (x_i · inv) · w_i | exact |
+| `tensor.layernorm(x, w, b, EPS)` | as `rmsnorm`, b `[e; d]` | per row: μ = (the sum of x_i) / d; v = (the sum of (x_i − μ) · (x_i − μ)) / d; inv = 1 / sqrt(v + EPS); y_i = ((x_i − μ) · inv) · w_i + b_i | exact |
+| `tensor.attention(q, k, v)` | q `[[e; d]; sq]`, k `[[e; d]; sk]`, v `[[e; dv]; sk]` to `[[e; dv]; sq]`; or heads first, `[h, s, d]`, the heads of q a multiple of those of k and v (query head i reads key and value head i / (hq / hk)) | per query row: a_j = q · k_j (in increasing index); with s = 1/√d (binary64, rounded to `e`), m the maximum of a_j · s, p_j = E(a_j · s − m), Σ = the sum of p_j, p_j = p_j · (1 / Σ); y_t = the sum over j of p_j · v_jt | exact |
+| `tensor.attention_causal(q, k, v)` | as `attention`, sq ≤ sk | as `attention`, query row i over the keys j ≤ i + sk − sq | exact |
+| `tensor.embed(table, ids)` | table `[[e; d]; n]` of a float type, ids a tensor of `i32`, to ids' shape followed by d | the rows the ids name; an id outside 0 to n − 1 traps `index ID out of range` | exact |
+| `tensor.matmul_q8_0(x, q, d)` | x `[[f32; k]; m]`, q `[[i8; k]; n]`, d `[[f32; k/32]; n]`, k a multiple of 32, to `[[f32; n]; m]` | y_ij = the sum over blocks b of d_jb · s_b, s_b the sum of (q_jt as f32) · x_it over the block's 32 positions in increasing t | exact |
+| `tensor.matmul_q4_0(x, q, d)` | as `matmul_q8_0`, each q in −8 to 7 (else the trap `Q4_0 value V outside -8..7`) | as `matmul_q8_0`, each block summed in the order 0, 16, 1, 17, …, 15, 31 | exact |
+| `tensor.round_bf16(t)` | a float tensor to one of its shape | each element rounded once to the nearest bfloat16 value (8 significant bits, the exponent range of binary32), ties to even | lossy |
+| `tensor.round_q8_0(t)`, `tensor.round_q4_0(t)` | an `f32` tensor whose last length is a multiple of 32 to one of its shape | each block of 32 along the last axis replaced by the values its Q8_0 or Q4_0 quantization represents, quantized as GGUF's reference quantizers do (`rce_vm_backend_cpu::ml::nn::quantize_block`) | lossy |
+| `a + b`, `a - b`, `a * b`, `a / b` | two tensors of one shape to one of that shape | element by element in row-major order; for integers each result is checked against `e` and `/` truncates | exact |
+
+The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0` and
+`matmul_q4_0` are those of the portable kernels of `rce-op-nn-prims`,
+`rce-op-attention` and `rce-op-qmm`, so those kernels differ from the
+reference only where they take `exp` or `tanh` from the platform (and, for
+`layernorm`, on a row of only −0.0, whose sum they start from −0.0). No
+operation has a `within N` level of its own: `within N` is what a program
+declares where it accepts a realisation that differs from the reference by
+up to N units in the last place.
+
+**GT-5 (order of evaluation).** The operands are evaluated left to right,
+depth first, as the arguments of a call are (6.2), and then the term. A
+trap or failure of an operand is the step's, as for any expression; the
+term itself traps only as GT-6 states.
+
+**GT-6 (the reference evaluation).** The reference interpreter evaluates
+a term with RCE's CPU backend (`compute/crates/rce-vm-backend-cpu`,
+`interpret_reference`): the nodes in one fixed topological order (Kahn's
+algorithm, the ready nodes taken in ascending index), each by a
+single-threaded kernel with the order of GT-4, one IEEE 754 rounding per
+operation and no fused multiply-add. An `f32` operation is the binary32
+operation, which for `+ - * /` equals computing in binary64 and rounding
+once (6.3 N7), since 53 ≥ 2 × 24 + 2. After each node every float element
+of its value is tested: NaN or an infinity stops the evaluation with the
+trap `non-finite float` (6.3 N3), and so does a float division by zero. A
+node whose element type is `i8` or `i32` (an `i8` tensor is held in `i32`
+lanes) computes each element exactly and traps with RCE's integer traps
+(6.3 N2: `overflow: V is outside T`, `division by zero`); an embedding
+lookup traps on an id out of range. E, T and R are computed by
+`crmath.rs` of the backend, which evaluates `math.rce`'s `exp`, `tanh` and
+`erf` by the same method (Ziv's strategy over exact integers, the same
+integers in base 2^32 limbs where `math.rce` uses 2^30) and reads ln 2 and
+2/√π from `math.rce`. The decision, and its reason: running `math.rce` in
+the reference interpreter for each element takes about 7 ms per `exp` and
+30 ms per `erf` on the machine this was measured on, which no tensor of a
+model can afford, while a correctly rounded value is unique, so a port
+that is correctly rounded gives `math.rce`'s bits. That it is: the port
+equals the MPFR-checked vectors of `stdlib/tests/math` (6,631 `exp`,
+15,099 `tanh` and 14,761 `erf` lines) and an oracle in exact decimal
+arithmetic on 1,951 arguments with edge cases
+(`compute/crates/rce-vm-backend-cpu/tests/crmath.rs`), and every
+elementwise operation equals its definition written in RCE over
+`math.rce`, run by the reference interpreter
+(`spec/checker/tests/graph/defs.rce`).
+The result is therefore a function of the operands' bits, so `rce run`,
+`rce test`, `rce trace`, the host and replay give the same bytes on every
+run. This is tested (`spec/checker/tests/graph_term.rs`), not yet proved
+in Lean. The core evaluator (`rce run-core`) evaluates `graph` statements
+with the same backend and is compared with the reference trace like every
+other core construct.
+
+**GT-7 (charges).** An application of a term takes one tick and C_CALL
+cost units, and then, for each scalar operation of its nodes, one tick and
+two cost units (6.7, C.6.4): 2mnk operations for a matrix product and a
+quantized one; for an attention of h heads, 2·h·sq·sk·(d + dv) +
+3·h·sq·sk; for a softmax three, and for a normalisation four, per element;
+none for a reshape; the element count of the result for the other
+operations. A term that would take fuel or a budget past its limit traps as
+any expression does.
+
+**GT-8 (the canonical form of tensor values).** A tensor embeds in the
+Form as nested lists: a tensor of shape (d₁, …, d_r), r ≥ 1, is the list of
+its d₁ subtensors of shape (d₂, …, d_r), and a tensor of rank 0, a scalar,
+is a float. Each element is written by rule 3 of 6.1.1. An `f32` element is
+its binary32 value read exactly as binary64, so `0.1 as f32` is written
+`0.10000000149011612`. -0.0 keeps its sign, and NaN and infinities never
+occur (GT-6). The positional form (T7) of a tensor is the same list, since
+a tensor holds no names. So the state hash, the entry hash of D and every
+trace cover tensors with no rule beyond 6.1.1. Example: the state of
+`dense.rce` after `Input(x: [1.0, 2.0, 3.0])` is hashed as
+`[[[[0.5,-0.5,0.5],[-1.0,1.0,-1.0]],[0.5,-0.25],[1.5,0.0],1]]`. A tensor
+whose list form exceeds VALUE_LIMIT cannot be held in the state (N9); an
+encoding of large tensors by a hash of their bytes is not part of this
+section.
+
+**GT-9 (weights by digest).** A term names a tensor of data it does not
+compute, a weight, by the content of its bytes: `tensor.blob_f32(DIGEST,
+[d1, …])`, and `blob_f64`, `blob_i8`, `blob_i32`, with DIGEST a text literal
+of 64 lowercase hexadecimal digits and the shape a literal. Its value is
+the tensor whose bytes, its elements in row-major order each in
+little-endian bytes (an `i8` in one byte, two's complement), have the
+BLAKE3 hash DIGEST; their number must be the shape's element count times
+the element's size. The digest is a literal of the term, so the term's
+key, and with it the program hash, covers the weight, and a program names
+its weights by content, never by path. The bytes come from a *store*: a
+directory holding each blob as the file DIGEST
+(`compute/crates/rce-fgm`), checked against its digest when read. The
+toolchain reads the store `blobs` beside the program file it is given;
+since a blob is the bytes its digest names, any store that holds it gives
+the same value. A blob no store holds stops the evaluation (`graph term: no
+store holds the blob DIGEST`), as a missing file does; it is not a trap of
+the program. The host loads every blob a program names when it starts and
+records the digests and lengths it loaded in D (`host.Blobs`, Appendix E)
+before any input. `rce lift gguf` (10.17) writes such programs.
+
+**W7 (graph terms in the core).** A core module read back from JSON
+(`rce emit core FILE`, `rce run-core FILE`) requires change, with the rule
+W7 and the term's key, when a term's key is not the content hash of its
+graph and typing, when an operation node carries no level or a level
+stronger than its operation admits, when the graph is not well formed or
+its shapes do not type, or when a `graph` statement names a term the module
+does not declare or gives operands of other types than the term's
+parameters. W7 joins W1 to W6 of the one-emitter proposal (ONE-3).
+
+The source rules are W-GRAPH-1 (shape), W-GRAPH-2 (operand) and
+W-GRAPH-3 (level) of section 7. `rce emit core` prints graph terms;
+`rust`, `python`, `js`, `scala` and `verilog` report status 2 for a program
+with graph terms until their print tables have rows for them. `rce graph`
+(10.16) writes a program's terms as `.fg` files, inspects them and
+evaluates them.
+
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
 ---
@@ -2492,8 +2721,35 @@ The Form
 - W-MUT-2 (recommended; never requires change) A mutant of the program
   that no obligation kills and that `rce equiv` does not judge equivalent
   (6.12): `rce mutants` reports it with its diff and a witness (10.14).
+- W-UI-1 A module that emits frames (Appendix E, HC-29) whose frames do
+  not meet `ui.rules`: the frames each `example`'s run derives, judged as
+  one trace, leave a success criterion of WCAG 2.2 level A or AA failing
+  or undecided, or they cannot be judged (no example derives a frame, an
+  emitted `Frame` is not a frame, or judging them exceeds the fuel bound).
+  No `example` or `check` line names `ui.rules`; each finding is one
+  report that names its criterion (E.4f).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
+- W-GRAPH-1 A `tensor` operation or a lane-wise operator inside a graph
+  term on operands of shapes it does not take: a matrix product whose
+  inner lengths differ, an operand of the wrong rank, two tensors of
+  different shapes or of shapes that do not broadcast, an attention whose
+  keys and queries differ in width or whose heads do not divide, a reshape
+  that changes the element count, an axis beyond the rank, a list that is
+  not a permutation of the axes, a block format whose length is not a
+  multiple of 32 (6.13, GT-4).
+- W-GRAPH-2 An operand of a graph term that is not a tensor of `f32`,
+  `f64`, `i8` or `i32` with every length at least 1, operands of two
+  element types, an operation of floats on integers, ids that are not
+  `i32`, a quantized product whose operands are not `f32`, `i8` and `f32`,
+  a name `std.tensor` does not define, the wrong number of operands, a
+  labelled operand, an axis, epsilon, shape or permutation that is not a
+  literal of its kind, or a `tensor.within` bound that is not an integer
+  literal from 1 to 2^31 − 1 (6.13, GT-1 to GT-4).
+- W-GRAPH-3 An operation whose level is weaker than the level in force
+  where it stands, that is, a level the program does not declare: a
+  `tensor.round_bf16`, `tensor.round_q8_0` or `tensor.round_q4_0` outside a
+  `tensor.lossy` (6.13, GT-3).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
   moved inside a loop, or placed in a collection, field, payload, channel or
   iterator (5.12).
@@ -2660,7 +2916,11 @@ written and one recorded never change it.
 | W-LAW-1 | requires change | A law that fails or is undecided states a property the program does not show; whether the program, the law or an attestation changes is the author's statement. |
 | W-MUT-1 | requires change | An obligation that no single edit makes fail carries zero bits about the program within the edits; whether it is strengthened or removed is the author's statement. |
 | W-MUT-2 | recommended | The program is admitted; which of the two behaviours is meant is a choice of intent only the author can make, so `rce mutants` recommends an obligation that tells the survivor apart (it judges the whole mutant set, which `rce check` does not). |
+| W-UI-1 | requires change | A frame is the program's output to a person; where its nodes, names, keys and colours go has more than one answer, and the part of a criterion no rule decides is a person's statement (an `attest-ID` attribute), so the program or its view changes. |
 | W-SIMD-1 | requires change | The lengths and lane types are the author's. |
+| W-GRAPH-1 | requires change | Which shapes the operation was meant to take is the author's statement. |
+| W-GRAPH-2 | requires change | The tensor type of the operand, or a conversion, is the author's choice. |
+| W-GRAPH-3 | requires change | Declaring the weaker level, or another operation, is the author's statement. |
 | W-LIN-1 | requires change | Where the linear value is consumed is the author's statement. |
 | W-DEV-1 | requires change | Splitting the host and device parts is a choice of structure. |
 | W-ITER-1 | requires change | Collecting the iterator, or another structure, is the author's choice. |
@@ -4822,8 +5082,9 @@ it is still admitted.
   replaced by its definition hash, as 10.8 hashes an unnamed item), its
   `result` (`holds`, or `attested` for a law), its `fuel` (an example or a
   check, 6.7) or its `states` and `steps` (a law that holds, 6.11) or its
-  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), and, when the mutation
-  gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
+  `attestation` (`WHO;YYYY-MM-DD;COVER`, 6.11), for an example whose run
+  derived frames, `frames`, the number that W-UI-1 judged (Appendix E,
+  E.4f), and, when the mutation gate judged it, `mutation`: whether W-MUT-1 measures it, the mutants of
   its reach and whether one was killed (6.12); `mutation`, the mutants
   judged and the whole mutant set; `attestations`, every attestation that
   admitted a law, sorted; `observed`, per rule in observe mode the number
@@ -4901,6 +5162,73 @@ rules of 7.1 is checked by these tests of `spec/checker/tests/`:
 The design and its source, the mandate and accept modes of DeepSeek's
 `dsh-superagent-prototype` (MIT), are in
 `spec/proposals/admission-receipts.md`.
+
+### 10.16 `rce graph ops`, `rce graph terms FILE DIR`, `rce graph inspect FILE`, `rce graph run FILE INPUTS`: graph terms
+
+The commands on the graph terms of 6.13 and their `.fg` files.
+`rce graph ops` prints the operations of `std.tensor` with their levels
+(GT-4). `rce graph terms FILE DIR` writes each graph term of the admitted
+module FILE as `DIR/KEY.fg`, KEY its content hash (GT-2), and prints one
+line per term: key, line, operation, typing and levels. `rce graph inspect
+FILE` reads a `.fg` file, verifies its content hash, checks its term by W7,
+and prints its header, sections and nodes with their levels. `rce graph run
+FILE INPUTS` evaluates the term of a `.fg` file by the reference evaluation
+(GT-6) on INPUTS, a JSON array with one tensor per parameter, and prints the
+result in canonical JSON (GT-8), or `trap: non-finite float`. A file whose
+hash does not hold, or whose term W7 does not admit, requires change
+(status 1). Example: `rce graph run KEY.fg '[[[0.5,-0.5,0.5],[-1.0,1.0,-1.0]],[1.0,2.0,3.0],[0.5,-0.25]]'`
+on the term of `compute/examples/dense.rce` prints `[1.5,0.0]`.
+
+### 10.17 `rce lift gguf FILE STORE`: a program from a GGUF file
+
+`rce lift gguf FILE STORE` reads the GGUF file FILE and prints an RCE
+program whose step is the model's forward pass as graph terms over
+`std.tensor` (6.13), and puts each of its weights into the store directory
+STORE as a blob (GT-9). Saved beside STORE as `blobs`, the program is
+checked, run, tested, traced and hosted like any other; nothing of FILE is
+read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
+`rce test m/toy.rce`.
+
+- **LIFT-1 (architectures).** The architecture `gpt2` is lifted: token and
+  position embeddings summed; per block a layer norm, causal multi-head
+  attention whose fused projection `attn_qkv` is split into its three row
+  ranges (each its own blob, so no term slices a tensor), the output
+  projection and a residual sum, a layer norm, a `gelu_tanh` feed-forward
+  layer and a residual sum, every projection with its bias; a final layer
+  norm and the output projection (`output.weight`, or the token embedding
+  when the file has none). The program has one event, `Tokens(ids: [i32;
+  C])` with C the file's context length, and keeps the logits of the last
+  sequence in its state. Another architecture is refused with its name
+  (status 2).
+- **LIFT-2 (weights).** F32 and F16 tensors become `f32` blobs (every
+  binary16 value is a binary32 value). Q8_0 and Q4_0 matrices become their
+  quantized values, an `i8` blob, and their block scales, an `f32` blob,
+  exactly as the file holds them (Q4_0 nibbles minus 8, low nibbles first),
+  for `matmul_q8_0` and `matmul_q4_0`. Another type is refused.
+- **LIFT-3 (layout).** GGUF lists a tensor's lengths fastest first: a
+  matrix of lengths (k, n) is n rows of k, the shape `[n, k]`, and a
+  projection of x by it is x Wᵀ (`matmul_q8_0(x, q, d)`, or `matmul(x,
+  transpose(W))` for f32).
+- **LIFT-4 (levels).** Every operation of a lifted program is at its
+  strongest level (GT-4): the quantization of its weights happened when the
+  file was written and is not an operation of the program. The kernels of
+  RCE's host adapters are judged against it node by node
+  (`spec/checker/tests/lift_gguf.rs`, a two-block model of width 32 with
+  Q8_0 and Q4_0 products): `rce-ingest-gguf`'s rows, `rce-op-nn-prims`'s
+  layer norm and `rce-op-qmm`'s Q8_0 and Q4_0 products reproduce every bit;
+  `rce-op-attention`, which takes `exp` from the platform, reproduced every
+  bit of its 1,024 elements there, and `rce-op-nn-prims`'s `gelu`, which
+  takes `tanh` from the platform, differed by up to 7 units in the last
+  place on 2,048 elements (glibc, x86-64). So that `gelu` kernel is not a
+  realisation of the lifted program; a program that accepts it declares
+  `tensor.within(N, …)` around the operation, and a run whose distance
+  exceeds N is judged as not realising it.
+
+`rce lift fx` is not a command yet: the PyTorch FX graphs that
+`rce-ingest-fx` reads carry no shapes for their inputs and intermediate
+values and no weight bytes, which a term needs, and several of their
+operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
+have no operation in `std.tensor`.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
@@ -6293,11 +6621,14 @@ holds), and are checked where a term is built and where a record is read:
 
 The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
 stored receipt changes meaning; no receipt in the repository holds a
-reading today. A standalone reading is printed by the IDE build's
+reading today; a host run granted `energy` records one in D as
+`host.Energy` (HC-38). A standalone reading is printed by the IDE build's
 `rce test measure` (RAPL, `reported`) and by its `rce test measured J
 PROVENANCE.json` and `reported J PROVENANCE.json` (a figure from another
 meter, refused without a valid provenance), and checked there by
-`Provenance` in `ide/crates/rce-ide/src/reading.rs`. Implemented by `Term`, `Provenance` and `Amortization` in
+`Provenance` in `compute/crates/rce-energy/src/reading.rs`, RCE's one meter
+library, whose readings the host also records in D as `host.Energy`
+(HC-38). Implemented by `Term`, `Provenance` and `Amortization` in
 `src/runtime/break_even.rs` (no constructor makes a reading without
 provenance and amortization), tested there (`p4_*`, `p6_*`).
 
@@ -7268,6 +7599,64 @@ delivers depends on the adapters it is granted.
   it looked: pixels and the timing of presentation stay outside D.
   Reference: `spec/checker/src/frame.rs`, `Host::presented`.
 
+  *Frames at admission (W-UI-1).* A module *emits frames* when it declares
+  the output struct `Frame` with a field `view` of type `View` and has a
+  step. Admission holds its frames to `ui.rules` with no `example` or
+  `check` line of its own, once its examples, checks and laws hold, and
+  before the mutation gate (6.12):
+
+  - *Which frames.* The frames of each `example` of the module, as a host
+    derives them from a D that holds that example's events as its program
+    entries: the event at position k (from 0) has seq k, each event is one
+    run of δ with its own fuel (HC-7a), a kept step emits nothing, and the
+    step word and time of each frame are derived as above. The frames are
+    a function of the program text, so every tool derives the same ones.
+  - *How they are judged.* The frames of one example are one trace, given
+    to `rules.findings` and to `rules.report` (`stdlib/lib/ui/rules.rce`),
+    each run within one fuel budget (6.7), exactly as
+    `rce host replay frames` judges a session. A criterion whose verdict is
+    `fails` or `undecided` is unmet (`rules.unmet`): each of its findings
+    at a node that claims no exception (`exempt`) is one report, and a
+    criterion with no such finding (one undecided until a person attests
+    it, `attest-ID`) is one report with the verdict's reason.
+  - *Undecided frames.* An emitted `Frame` that is not a frame, a judgement
+    that exceeds its fuel budget or traps, and a module none of whose
+    examples derives a frame leave the frames undecided. Undecided frames
+    require change, as an undecided law does (W-LAW-1): admission never
+    reads a frame it could not judge as one that meets.
+  - *Reports.* One line per finding, on the example's line (on the line of
+    `struct Frame` when no example derives a frame), naming the rule, the
+    frame, its seq and step word, and the criterion. For
+    `spec/examples/change/admission/frame_no_tabindex.rce`, among others:
+    `line 6: W-UI-1 frame 1 of the example (seq 0, start): WCAG 2.1.1 fails at node 1 (keyboard): node 1 (key toggle) is interactive but not focusable (tabindex) and has no aria-keyshortcuts`.
+    Each line is one finding that requires change in the attention count
+    of 7.1, so `rce check`, `rce test`, `rce check write` and
+    `rce check receipt`, `rce index` and the language server, which share
+    one admission (`spec/checker/src/admission.rs`), report the same lines.
+    A receipt (10.15) records, for each example whose run derived frames,
+    their number as `frames`.
+
+  A module that emits no frame is not affected; a module that builds views
+  and judges them in its own `check` lines (the `door` program of
+  `spec/proposals/human-interface.md`) still does so through W-INT-1.
+
+  *Decision on open question Q3 of `spec/proposals/human-interface.md`
+  (2026-11-03).* A module that emits `Frame` is held to `ui.rules` by the
+  checker, with no example line, rather than opting in through a library
+  call. In hindsight, every finding `ui.rules` reports on a session was
+  determined by the program text before any person met the frame, so a
+  rule read only after deployment comes later than the information
+  allows. In physical terms, a frame is the program's output to a person:
+  the last value the program determines before light or sound reaches
+  that person, and nothing after it is the program's to correct. In terms
+  of information, a finding the checker can derive from the text carries
+  information about the program whether or not its author asked for it,
+  and a rule that is opted into discards that information exactly where
+  no one asked; so the finding must not depend on the author opting in.
+  The rules, the frames and the fuel bound were already exact; only where
+  the finding is read moves, into admission. Reference: `frame::gate` in
+  `spec/checker/src/frame.rs`; `spec/checker/tests/ui_rules_admission.rs`.
+
 ### E.4g Directories, entries, the zone and account names (HC-30 to HC-33)
 
 A listing such as `ls -l` (`programs/systems/ls.rce`) reads a directory's
@@ -7534,6 +7923,52 @@ is the fold of D. The design and its source are in
   Reference: `host::compact_text`, `host::compact_file`,
   `host::prove_file`, `Host::checkpoint_value`, `Host::load_checkpoint`.
 
+### E.4j Energy readings (HC-38)
+
+A host run consumes energy, and D.11 says what a reading of it is: a
+figure with a basis and a provenance that make it reproducible and
+comparable. This section puts such a reading in D, beside the entries it
+covers.
+
+- **HC-38 A package counter reading enters D as `host.Energy`, in the
+  D.11 form, under the grant `energy`.** With the setting word `energy`,
+  `rce host run` and `rce host serve` open the machine's package energy
+  counter once D is open: Linux powercap RAPL (the package zones) or
+  macOS IOReport (CPU + GPU + ANE), the counters `rce test measure`
+  reads, from RCE's one meter library (`compute/crates/rce-energy`,
+  module `reading`). The host reads the counter once a second during the
+  run, so that every wraparound is counted, and when the run ends it
+  appends one entry `host.Energy` with the payload {`amortization`,
+  `basis`, `entries`, `joules`, `provenance`, `source`}:
+  - `joules`: the counter's delta over the run;
+  - `basis`: `reported` (an on-chip counter, D.11);
+  - `provenance`: the nine fields of D.11 rule 1, with `sampler` naming
+    `rce host`;
+  - `amortization`: {`kind`: `per_call`}, since one run is one call;
+  - `entries`: [first, last], the seqs of the entries the run appended
+    before the reading;
+  - `source`: the counter read, in words.
+
+  The joules are the package's, not the program's share: everything the
+  machine ran in the interval is in them. With no counter that can be
+  read, a failed read, or a counter that did not move, the host writes no
+  reading and says why on its terminal (HC-28); a figure of 0 J is never
+  written. A reading changes no state: δ never reads it, and replay gives
+  the same state with or without it. Replay checks every `host.Energy`
+  entry where D is read (D.11: "checked where a record is read"). Each of
+  the following is a host fault, and replay stops at that seq:
+  - a member other than the six;
+  - a basis that is not `reported` or `measured`;
+  - a figure that is not finite and >= 0;
+  - a provenance that fails rule 1 or has an unknown field;
+  - an amortization outside rule 3;
+  - entries that are not [first, last] with first <= last < the entry's
+    own seq.
+
+  Without the grant the host reads no counter, so the D of a run without
+  it does not depend on the machine's meters (HC-5). Under the sandbox
+  (HC-5a), the powercap tree is the one read the grant adds.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -7546,11 +7981,12 @@ JSON. The host entries are:
 | `host.Synced` | upto (seq) | after a barrier succeeded; every entry up to seq is durable |
 | `host.StorageFault` | seq, error text | output only: written to the outside, never appended, since the admitter has stopped |
 | `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
+| `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
 | `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
-| `host.Energy` | source, basis, joules | when a counter is read (D.11) |
+| `host.Energy` | amortization, basis, entries, joules, provenance, source | at the end of a run granted `energy` whose counter was read (HC-38, D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
 | `host.Window` | count, id, term, upto (tick) | when a window closes (HC-17) |
 | `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
@@ -7579,9 +8015,10 @@ A program receives the content of a host entry only through a binding
 the program declares, with the same payload, delivered as the program
 declares it (E.4c). δ itself never reads a host entry.
 
-**Implementation status of the energy entries (informative).** No host or
-checker code in this repository writes `host.Energy`, so no D holds an
-energy reading. `host.Calibrated` records a fabric's overhead and
+**Implementation status of the energy entries (informative).**
+`rce host run energy` and `rce host serve energy` write `host.Energy`
+(HC-38); without the grant, or with no counter that can be read, D holds
+no reading. `host.Calibrated` records a fabric's overhead and
 throughput for placement (HC-12), not joules, and the reference host
 writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
 joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
@@ -7808,12 +8245,14 @@ is cited by a test.
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
 | HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports`, `stdout_carries_only_the_programs_output` |
 | HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
+| W-UI-1, HC-29 | frames are held to ui.rules at admission | `tests/ui_rules_admission.rs`: `a_compliant_module_is_admitted`, `a_button_without_tabindex_requires_change_with_no_ui_rules_line`, `a_module_that_emits_no_frame_is_not_affected`, `a_module_whose_examples_derive_no_frame_is_undecided`, `a_frame_that_is_not_one_is_undecided`, `every_tool_reports_the_same_findings`, `the_receipt_records_the_rule_and_the_frames` |
 | HC-30, HC-10a | directory names as exact bytes, written exactly by Display | `tests/host_fs.rs`: `directory_names_arrive_as_their_exact_bytes`, `ls_lists_through_the_host_as_coreutils_does` |
 | HC-31 | lstat and readlink without following, checked on the directory that holds the entry | `tests/host_fs.rs`: `lstat_and_readlink_do_not_follow_and_replay`; `tests/host_adapters.rs`: `file_effects_stay_under_the_granted_root` |
 | HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |
 | HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
+| HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)

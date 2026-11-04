@@ -1,0 +1,16 @@
+[package]
+name        = "rce-lfm2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Liquid AI LFM2 inference runtime on the rce substrate. Hybrid arch: short-conv mixer layers (double-gated causal-conv) + GQA-attention mixer layers (with per-head QK-norm) + SwiGLU FFN at every layer. Mixer kind per layer is determined by `n_head_kv(il) == 0` (shortconv) per the vendored llama.cpp `llm_build_lfm2`. `token_embd_norm` IS the final output_norm (llama-arch comment: \"fix for wrong tensor name\"); lm_head tied to `token_embd` when no `output.weight`. Reuses rce's proven leaves: `conv1d_causal_step`, attention, RoPE pattern from rce-bamba, SwiGLU FFN."
+
+[dependencies]
+rce-ingest-gguf = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+rce-op-conv1d = { workspace = true }
+rce-op-qmm = { workspace = true }
+rce-op-attn = { workspace = true }
+memmap2              = { workspace = true }
+tracing              = { workspace = true }
+rayon                = { workspace = true }

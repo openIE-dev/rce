@@ -1,0 +1,18 @@
+[package]
+name        = "rce-chat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compose wav2vec2 (ASR) + cosmos3 (reasoner) into a speech-in → text-answer CLI."
+
+[dependencies]
+rce-wav2vec2 = { workspace = true }
+rce-moonshine = { workspace = true }
+rce-cosmos3 = { workspace = true }
+tokenizers     = { workspace = true }
+clap   = { workspace = true }
+anyhow = { workspace = true }
+
+[[bin]]
+name = "rce-chat"
+path = "src/main.rs"

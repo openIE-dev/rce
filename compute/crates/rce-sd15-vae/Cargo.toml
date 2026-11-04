@@ -1,0 +1,15 @@
+[package]
+name        = "rce-sd15-vae"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for the Stable Diffusion 1.5 AutoencoderKL VAE (~50M params, 4-channel latent at 8× spatial downsampling, GroupNorm + SiLU)."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+anyhow              = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

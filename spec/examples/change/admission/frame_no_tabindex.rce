@@ -1,0 +1,28 @@
+# W-UI-1: the button raises an action but has no tabindex, so no key reaches it (WCAG 2.1.1)
+module door_frames
+use ui.view
+
+intent "a door panel that emits one frame per step"
+    example Open -> opened
+
+struct Frame
+    view: View
+
+state Door
+    opened: bool = false
+
+event Open
+
+step Door on Open
+    opened = true
+    emit Frame(view: panel())
+
+fn panel() -> View
+    var v = view.view_new("div", "")
+    for kv in [["lang", "en"], ["title", "Door"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"]]
+        view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
+    let b = view.add_el(&mut v, 0, "button", "toggle")
+    for kv in [["role", "button"], ["w", "44"], ["h", "44"], ["action", "Close"]]
+        view.set_attr(&mut v, b, copy(kv[0]), copy(kv[1]))
+    let _ = view.add_text(&mut v, b, "Close")
+    return v

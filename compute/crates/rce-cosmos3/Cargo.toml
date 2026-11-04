@@ -1,0 +1,38 @@
+[package]
+name        = "rce-cosmos3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce wiring for NVIDIA Cosmos 3 Nano (16B mixture-of-transformers omnimodel). Phase 1: Qwen3-VL-8B text reasoner only; Phase 2+: vision encoder, sound tokenizer, diffusion generator, VAE."
+
+[dependencies]
+rce-weight-loader = { workspace = true }
+rce-ingest-gguf = { workspace = true }
+rce-op-conv2d = { workspace = true }
+rce-op-metal = { workspace = true, optional = true }
+rce-vm-backend-cpu = { workspace = true, optional = true }
+rayon               = { workspace = true }
+half                = { workspace = true }
+serde_json          = { workspace = true }
+image               = { workspace = true }
+tokenizers          = { workspace = true }
+clap                = { workspace = true }
+anyhow              = { workspace = true }
+
+[features]
+default = []
+# Gate the diffusion / VAE / sound tokenizer scaffold (Phase 4 Stage 0+).
+# Builds clean without; with the feature the `phase4` module is exposed and
+# its synthetic-e2e test runs.
+phase4 = []
+# Phase 4 Stage 5: Metal GPU acceleration via rce-op-metal.  Implies
+# `phase4`; brings in rce-op-metal + rce-vm-backend-cpu so the
+# OmniBlock matmuls can be routed through Apple Silicon's GPU.
+metal = ["phase4", "dep:rce-op-metal", "dep:rce-vm-backend-cpu"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "cosmos3-cli"
+path = "src/bin/cosmos3_cli.rs"

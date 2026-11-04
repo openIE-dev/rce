@@ -71,7 +71,7 @@ fn round_trip(m: &Module) {
 fn module_of(fns: Vec<Fn>, globals: Vec<(Ty, Option<Lit>)>) -> Module {
     let (g, class) = one::json::canonical_group(&fns);
     let key = one::json::group_key(&g);
-    Module { globals, defs: [(key.clone(), g)].into_iter().collect(), entry: (key, class[0]), names: serde_json::json!({}) }
+    Module { globals, defs: [(key.clone(), g)].into_iter().collect(), entry: (key, class[0]), names: serde_json::json!({}), graphs: Default::default() }
 }
 
 fn entry(body: Vec<Stmt>) -> Fn {
@@ -349,7 +349,7 @@ fn json_form() {
     let key = one::json::group_key(&g);
     let want: String = Sha256::digest(one::json::canon(&one::json::group_json(&g)).as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(key, want);
-    let m = Module { globals: vec![(Ty::Bool, Some(Lit::Bool(false))), (Ty::list(Ty::Bytes), None)], defs: [(key.clone(), g)].into_iter().collect(), entry: (key, 0), names: serde_json::json!({"fns": {}}) };
+    let m = Module { globals: vec![(Ty::Bool, Some(Lit::Bool(false))), (Ty::list(Ty::Bytes), None)], defs: [(key.clone(), g)].into_iter().collect(), entry: (key, 0), names: serde_json::json!({"fns": {}}), graphs: Default::default() };
     let t = one::json::module_text(&m);
     assert!(one::json::module_from_text(&t).unwrap() == m);
     assert!(t.contains(r#"["int","-5","300"]"#) && t.contains(r#"["k",["f64"],"8000000000000000"]"#) && t.contains(r#""61220a""#), "{t}");
@@ -396,7 +396,7 @@ fn every_runtime_loop_has_a_bounded_shape() {
     let callee = |r: &FnRef| sym_id(r).map(|i| f.sigs[i].1.clone());
     let (mut loops, mut bad) = (0, vec![]);
     for (id, func) in f.fns.iter().enumerate() {
-        let shapes = shape::loops(func.as_ref().unwrap(), &globals, &callee).unwrap();
+        let shapes = shape::loops(func.as_ref().unwrap(), &globals, &callee, &|_: &str| None).unwrap();
         for (k, r) in shapes.into_iter().enumerate() {
             loops += 1;
             if let Err(e) = r {
@@ -439,7 +439,7 @@ fn loop_shapes() {
         b.ret(u);
         b.finish()
     };
-    let shapes = |f: &Fn| shape::loops(f, &[], &|_: &FnRef| None).unwrap();
+    let shapes = |f: &Fn| shape::loops(f, &[], &|_: &FnRef| None, &|_: &str| None).unwrap();
     let r = shapes(&doubling(false));
     assert!(matches!(r.as_slice(), [Err(why)] if why.starts_with("neither a count nor a measure")), "{r:?}");
     assert_eq!(shapes(&doubling(true)), vec![Ok(Shape::Count)]);

@@ -4,7 +4,7 @@
 //! the reference interpreter (`trace::reference`), never from here.
 //!
 //! It runs a core module that has passed the well-formedness check (W1 to
-//! W6, `wf.rs`) and returns the bytes the module writes to standard output.
+//! W7, `wf.rs`) and returns the bytes the module writes to standard output.
 //! Each primitive is total on its stated domain; the evaluator reports an
 //! application outside the domain as an internal error, because W4 places a
 //! domain test before every partial application and a well-formed module
@@ -112,6 +112,7 @@ enum P<'a> {
     Ret(&'a Atom),
     Halt(&'a Atom),
     Out(&'a Atom),
+    Graph(u32, &'a str, &'a [Atom]),
 }
 
 struct PFn<'a> {
@@ -142,9 +143,36 @@ fn prepare<'a>(b: &'a [Stmt], next: &mut u32) -> Vec<P<'a>> {
             Stmt::Ret(a) => P::Ret(a),
             Stmt::Halt(a) => P::Halt(a),
             Stmt::Out(a) => P::Out(a),
+            Stmt::Graph(k, a) => P::Graph(at, k, a),
         });
     }
     out
+}
+
+/// A tensor of the core (a nested list of floats) as the reference
+/// interpreter holds it, for the graph term's evaluation (6.13).
+/// A tensor operand of a graph term as the reference interpreter holds it;
+/// `elem` is the parameter's element type.
+fn to_interp(v: &Val, elem: &str) -> crate::interp::V {
+    use crate::interp::V;
+    match v {
+        Val::F(x) if elem == "f32" => V::F32(*x),
+        Val::F(x) => V::F(*x),
+        Val::Int(n) if elem == "i8" => V::Int(*n, "i8"),
+        Val::Int(n) => V::Int(*n, "i32"),
+        Val::List(xs) | Val::Arr(xs) => V::List(xs.iter().map(|x| to_interp(x, elem)).collect::<Vec<V>>().into()),
+        _ => V::Unit,
+    }
+}
+
+fn of_interp(v: &crate::interp::V) -> Result<Val, String> {
+    use crate::interp::V;
+    match v {
+        V::F(x) | V::F32(x) => Ok(Val::F(*x)),
+        V::Int(n, _) => Ok(Val::Int(*n)),
+        V::List(xs) => Ok(Val::List(xs.iter().map(of_interp).collect::<Result<_, _>>()?)),
+        o => Err(format!("a graph term gave {o:?}")),
+    }
 }
 
 /// The result of running a core module: its standard output, and the halt
@@ -301,6 +329,23 @@ impl<'a> Eval<'a> {
             }
             P::Var(at, a) => {
                 let v = self.atom(a, fr, true)?;
+                Self::put(fr, *at, v);
+            }
+            P::Graph(at, k, args) => {
+                // 6.13: the term evaluated by the reference evaluation of
+                // the CPU backend; a trap of it is a halt with its text
+                let vs = self.atoms(args, fr, &[])?;
+                let t = self.m.graphs.get(*k).ok_or_else(|| bad(format!("no graph term {k}")))?;
+                let (g, ty) = super::wf::graph_term(k, t).map_err(bad)?;
+                let mut ins = vec![];
+                for (v, pt) in vs.iter().zip(&ty.params) {
+                    ins.push(to_interp(v, &pt.dtype));
+                }
+                let v = match crate::graph::evaluate_graph(&g, &ty, &ins) {
+                    Ok(v) => of_interp(&v).map_err(bad)?,
+                    Err(m) if crate::graph::is_trap(&m) => return Err(Flow::Halt(Val::Sum(0, Box::new(Val::bytes(m.as_bytes()))))),
+                    Err(m) => return Err(bad(m)),
+                };
                 Self::put(fr, *at, v);
             }
             P::Set(p, a) => {

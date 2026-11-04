@@ -1,0 +1,9 @@
+[package]
+name        = "rce-qwen35-moe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qwen 3.5 MoE inference runtime on the rce substrate (35B-A3B / 122B-A10B / 397B-A17B). GGUF `general.architecture = qwen35moe` — the SAME hybrid Gated DeltaNet + Gated Attention mixer + sparse-MoE FFN (routed experts top-k softmax + always-on shared expert) as Qwen 3.6-35B-A3B. The forward pass is byte-identical to `rce-qwen36-moe`; this crate re-exports that runtime under Qwen35Moe names and validates the Qwen 3.5 MoE checkpoints. Expert counts, layer split, and MTP/nextn-head exclusion are all derived from GGUF metadata, so one code path serves every MoE member of the family."
+
+[dependencies]
+rce-qwen36-moe = { workspace = true }

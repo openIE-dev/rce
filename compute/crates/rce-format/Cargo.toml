@@ -1,0 +1,36 @@
+[package]
+name        = "rce-format"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rce .fg binary format — parser, serializer, header/TOC/section spec implementation"
+
+[features]
+default       = []
+# Convenience helpers that read/write `rce_graph::graph::FunctionGraph`
+# via the canonical CBOR encoding. Off by default to keep the format
+# crate dependency-light for embedded use.
+with-rce-graph = ["dep:rce-graph"]
+# Enable Ed25519 signing/verification helpers.
+sign           = ["dep:ed25519-dalek", "dep:rand_core"]
+# mmap-backed weight sidecar reader (.fgw)
+mmap           = ["dep:memmap2"]
+
+[dependencies]
+serde       = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+ciborium    = { workspace = true }
+blake3      = { workspace = true }
+thiserror   = { workspace = true }
+byteorder   = "1"
+hex         = "0.4"
+
+# optional
+ed25519-dalek = { workspace = true, optional = true }
+rand_core     = { version = "0.6", features = ["getrandom"], optional = true }
+memmap2       = { workspace = true, optional = true }
+rce-graph = { workspace = true, optional = true  }
+
+[dev-dependencies]
+serde_json    = "1"

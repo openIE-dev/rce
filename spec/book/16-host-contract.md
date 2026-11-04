@@ -956,6 +956,64 @@ delivers depends on the adapters it is granted.
   it looked: pixels and the timing of presentation stay outside D.
   Reference: `spec/checker/src/frame.rs`, `Host::presented`.
 
+  *Frames at admission (W-UI-1).* A module *emits frames* when it declares
+  the output struct `Frame` with a field `view` of type `View` and has a
+  step. Admission holds its frames to `ui.rules` with no `example` or
+  `check` line of its own, once its examples, checks and laws hold, and
+  before the mutation gate (6.12):
+
+  - *Which frames.* The frames of each `example` of the module, as a host
+    derives them from a D that holds that example's events as its program
+    entries: the event at position k (from 0) has seq k, each event is one
+    run of δ with its own fuel (HC-7a), a kept step emits nothing, and the
+    step word and time of each frame are derived as above. The frames are
+    a function of the program text, so every tool derives the same ones.
+  - *How they are judged.* The frames of one example are one trace, given
+    to `rules.findings` and to `rules.report` (`stdlib/lib/ui/rules.rce`),
+    each run within one fuel budget (6.7), exactly as
+    `rce host replay frames` judges a session. A criterion whose verdict is
+    `fails` or `undecided` is unmet (`rules.unmet`): each of its findings
+    at a node that claims no exception (`exempt`) is one report, and a
+    criterion with no such finding (one undecided until a person attests
+    it, `attest-ID`) is one report with the verdict's reason.
+  - *Undecided frames.* An emitted `Frame` that is not a frame, a judgement
+    that exceeds its fuel budget or traps, and a module none of whose
+    examples derives a frame leave the frames undecided. Undecided frames
+    require change, as an undecided law does (W-LAW-1): admission never
+    reads a frame it could not judge as one that meets.
+  - *Reports.* One line per finding, on the example's line (on the line of
+    `struct Frame` when no example derives a frame), naming the rule, the
+    frame, its seq and step word, and the criterion. For
+    `spec/examples/change/admission/frame_no_tabindex.rce`, among others:
+    `line 6: W-UI-1 frame 1 of the example (seq 0, start): WCAG 2.1.1 fails at node 1 (keyboard): node 1 (key toggle) is interactive but not focusable (tabindex) and has no aria-keyshortcuts`.
+    Each line is one finding that requires change in the attention count
+    of 7.1, so `rce check`, `rce test`, `rce check write` and
+    `rce check receipt`, `rce index` and the language server, which share
+    one admission (`spec/checker/src/admission.rs`), report the same lines.
+    A receipt (10.15) records, for each example whose run derived frames,
+    their number as `frames`.
+
+  A module that emits no frame is not affected; a module that builds views
+  and judges them in its own `check` lines (the `door` program of
+  `spec/proposals/human-interface.md`) still does so through W-INT-1.
+
+  *Decision on open question Q3 of `spec/proposals/human-interface.md`
+  (2026-11-03).* A module that emits `Frame` is held to `ui.rules` by the
+  checker, with no example line, rather than opting in through a library
+  call. In hindsight, every finding `ui.rules` reports on a session was
+  determined by the program text before any person met the frame, so a
+  rule read only after deployment comes later than the information
+  allows. In physical terms, a frame is the program's output to a person:
+  the last value the program determines before light or sound reaches
+  that person, and nothing after it is the program's to correct. In terms
+  of information, a finding the checker can derive from the text carries
+  information about the program whether or not its author asked for it,
+  and a rule that is opted into discards that information exactly where
+  no one asked; so the finding must not depend on the author opting in.
+  The rules, the frames and the fuel bound were already exact; only where
+  the finding is read moves, into admission. Reference: `frame::gate` in
+  `spec/checker/src/frame.rs`; `spec/checker/tests/ui_rules_admission.rs`.
+
 ### E.4g Directories, entries, the zone and account names (HC-30 to HC-33)
 
 A listing such as `ls -l` (`programs/systems/ls.rce`) reads a directory's
@@ -1222,6 +1280,52 @@ is the fold of D. The design and its source are in
   Reference: `host::compact_text`, `host::compact_file`,
   `host::prove_file`, `Host::checkpoint_value`, `Host::load_checkpoint`.
 
+### E.4j Energy readings (HC-38)
+
+A host run consumes energy, and D.11 says what a reading of it is: a
+figure with a basis and a provenance that make it reproducible and
+comparable. This section puts such a reading in D, beside the entries it
+covers.
+
+- **HC-38 A package counter reading enters D as `host.Energy`, in the
+  D.11 form, under the grant `energy`.** With the setting word `energy`,
+  `rce host run` and `rce host serve` open the machine's package energy
+  counter once D is open: Linux powercap RAPL (the package zones) or
+  macOS IOReport (CPU + GPU + ANE), the counters `rce test measure`
+  reads, from RCE's one meter library (`compute/crates/rce-energy`,
+  module `reading`). The host reads the counter once a second during the
+  run, so that every wraparound is counted, and when the run ends it
+  appends one entry `host.Energy` with the payload {`amortization`,
+  `basis`, `entries`, `joules`, `provenance`, `source`}:
+  - `joules`: the counter's delta over the run;
+  - `basis`: `reported` (an on-chip counter, D.11);
+  - `provenance`: the nine fields of D.11 rule 1, with `sampler` naming
+    `rce host`;
+  - `amortization`: {`kind`: `per_call`}, since one run is one call;
+  - `entries`: [first, last], the seqs of the entries the run appended
+    before the reading;
+  - `source`: the counter read, in words.
+
+  The joules are the package's, not the program's share: everything the
+  machine ran in the interval is in them. With no counter that can be
+  read, a failed read, or a counter that did not move, the host writes no
+  reading and says why on its terminal (HC-28); a figure of 0 J is never
+  written. A reading changes no state: δ never reads it, and replay gives
+  the same state with or without it. Replay checks every `host.Energy`
+  entry where D is read (D.11: "checked where a record is read"). Each of
+  the following is a host fault, and replay stops at that seq:
+  - a member other than the six;
+  - a basis that is not `reported` or `measured`;
+  - a figure that is not finite and >= 0;
+  - a provenance that fails rule 1 or has an unknown field;
+  - an amortization outside rule 3;
+  - entries that are not [first, last] with first <= last < the entry's
+    own seq.
+
+  Without the grant the host reads no counter, so the D of a run without
+  it does not depend on the machine's meters (HC-5). Under the sandbox
+  (HC-5a), the powercap tree is the one read the grant adds.
+
 ### E.5 Host entries
 
 A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
@@ -1234,11 +1338,12 @@ JSON. The host entries are:
 | `host.Synced` | upto (seq) | after a barrier succeeded; every entry up to seq is durable |
 | `host.StorageFault` | seq, error text | output only: written to the outside, never appended, since the admitter has stopped |
 | `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
+| `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
 | `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
-| `host.Energy` | source, basis, joules | when a counter is read (D.11) |
+| `host.Energy` | amortization, basis, entries, joules, provenance, source | at the end of a run granted `energy` whose counter was read (HC-38, D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
 | `host.Window` | count, id, term, upto (tick) | when a window closes (HC-17) |
 | `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
@@ -1267,9 +1372,10 @@ A program receives the content of a host entry only through a binding
 the program declares, with the same payload, delivered as the program
 declares it (E.4c). δ itself never reads a host entry.
 
-**Implementation status of the energy entries (informative).** No host or
-checker code in this repository writes `host.Energy`, so no D holds an
-energy reading. `host.Calibrated` records a fabric's overhead and
+**Implementation status of the energy entries (informative).**
+`rce host run energy` and `rce host serve energy` write `host.Energy`
+(HC-38); without the grant, or with no counter that can be read, D holds
+no reading. `host.Calibrated` records a fabric's overhead and
 throughput for placement (HC-12), not joules, and the reference host
 writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
 joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
@@ -1496,12 +1602,14 @@ is cited by a test.
 | HC-27 | a log is bound to the program that wrote it | `tests/host_program_bind.rs`: `a_log_runs_and_replays_only_with_the_program_that_wrote_it` |
 | HC-28 | the host reports its status; the report is not an effect | `tests/host_status.rs`: `host_run_prints_status_records_in_order_on_stderr`, `host_serve_reports_idle_working_and_done`, `no_escape_byte_without_a_terminal`, `d_is_byte_identical_with_and_without_reports`, `stdout_carries_only_the_programs_output` |
 | HC-29 | frames are derived from D; a renderer's confirmation is an input | `tests/host_frames.rs`: `frames_replay_byte_identically`, `ui_rules_report_is_the_same_on_live_and_replayed_frames`, `step_words_and_times_are_derived_from_d`, `presented_confirmation_round_trips`, `serve_reads_a_renderers_confirmations`, `ui_web_fixture_is_current`; the unit tests of `src/frame.rs` check BLAKE3 on its official vectors and both digests against `ui.view` |
+| W-UI-1, HC-29 | frames are held to ui.rules at admission | `tests/ui_rules_admission.rs`: `a_compliant_module_is_admitted`, `a_button_without_tabindex_requires_change_with_no_ui_rules_line`, `a_module_that_emits_no_frame_is_not_affected`, `a_module_whose_examples_derive_no_frame_is_undecided`, `a_frame_that_is_not_one_is_undecided`, `every_tool_reports_the_same_findings`, `the_receipt_records_the_rule_and_the_frames` |
 | HC-30, HC-10a | directory names as exact bytes, written exactly by Display | `tests/host_fs.rs`: `directory_names_arrive_as_their_exact_bytes`, `ls_lists_through_the_host_as_coreutils_does` |
 | HC-31 | lstat and readlink without following, checked on the directory that holds the entry | `tests/host_fs.rs`: `lstat_and_readlink_do_not_follow_and_replay`; `tests/host_adapters.rs`: `file_effects_stay_under_the_granted_root` |
 | HC-32 | the clock and the zone's offset as logged answers | `tests/host_fs.rs`: `clock_and_offset_are_logged_answers`, `offset_follows_the_zone_at_each_instant` |
 | HC-33 | account names under the `names` grant | `tests/host_fs.rs`: `account_names_come_from_the_databases_and_replay`, `names_grant_reads_the_databases_and_the_sandbox_says_so` |
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
+| HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
@@ -1585,4 +1693,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 361c1a2e61f65ea68cc85befcd1826ef819a2cddf233ccfcdf5caabec40103b2 -->
+<!-- body-sha256: 1d597eda0733fc8e9b586c21d0d4b2714df4b326e1ac6569bce4e4ad33a8b43a -->
