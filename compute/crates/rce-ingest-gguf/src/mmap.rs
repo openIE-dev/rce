@@ -24,7 +24,11 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
-use memmap2::{Advice, Mmap, UncheckedAdvice};
+use memmap2::Mmap;
+// `madvise` exists only on Unix; elsewhere every hint below is a no-op,
+// which is allowed: the kernel is free to ignore a hint anyway.
+#[cfg(unix)]
+use memmap2::{Advice, UncheckedAdvice};
 
 /// Open `path` and `mmap` it with `MADV_SEQUENTIAL` set immediately,
 /// so the in-load weight scan doesn't pessimize the page cache.
@@ -39,6 +43,7 @@ pub fn mmap_load_sequential(path: impl AsRef<Path>) -> std::io::Result<Arc<Mmap>
     // SAFETY: see fn-level doc.
     let mmap = unsafe { Mmap::map(&file)? };
     // Errors are non-fatal — the kernel is free to ignore the hint.
+    #[cfg(unix)]
     let _ = mmap.advise(Advice::Sequential);
     Ok(Arc::new(mmap))
 }
@@ -48,11 +53,19 @@ pub fn mmap_load_sequential(path: impl AsRef<Path>) -> std::io::Result<Arc<Mmap>
 /// This is the second half of the `mmap_load_sequential` pair —
 /// without it, the kernel may keep dropping pages we still want.
 pub fn advise_post_load(mmap: &Mmap, advice: PostLoadAdvice) -> std::io::Result<()> {
-    let a = match advice {
-        PostLoadAdvice::Normal => Advice::Normal,
-        PostLoadAdvice::Random => Advice::Random,
-    };
-    mmap.advise(a)
+    #[cfg(unix)]
+    {
+        let a = match advice {
+            PostLoadAdvice::Normal => Advice::Normal,
+            PostLoadAdvice::Random => Advice::Random,
+        };
+        mmap.advise(a)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (mmap, advice);
+        Ok(())
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -88,7 +101,15 @@ impl<'a> LayerAdvice<'a> {
     /// Hint that we will need bytes in `[start, start + len)` soon
     /// (relative to `data_start`).
     pub fn will_need(&self, start: usize, len: usize) -> std::io::Result<()> {
-        self.mmap.advise_range(Advice::WillNeed, self.data_start + start, len)
+        #[cfg(unix)]
+        {
+            self.mmap.advise_range(Advice::WillNeed, self.data_start + start, len)
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (start, len);
+            Ok(())
+        }
     }
 
     /// Hint that bytes in `[start, start + len)` are no longer in the
@@ -102,12 +123,18 @@ impl<'a> LayerAdvice<'a> {
     /// mappings.
     pub unsafe fn dont_need(&self, start: usize, len: usize) -> std::io::Result<()> {
         // SAFETY: caller-asserted no concurrent writer; see fn doc.
+        #[cfg(unix)]
         unsafe {
             self.mmap.unchecked_advise_range(
                 UncheckedAdvice::DontNeed,
                 self.data_start + start,
                 len,
             )
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (start, len);
+            Ok(())
         }
     }
 }

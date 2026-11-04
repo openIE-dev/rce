@@ -17,6 +17,12 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 # AST terms of the Form (W2b): derive only
 serde = { version = "1", features = ["derive"] }
 stacker = "0.1"
+# The graph term (spec 6.13): typing, keys and the reference evaluation, as in
+# the native checker
+rce-graph = { path = "../../compute/crates/rce-graph" }
+rce-format = { path = "../../compute/crates/rce-format", features = ["with-rce-graph"] }
+rce-vm-backend-cpu = { path = "../../compute/crates/rce-vm-backend-cpu" }
+rce-fgm = { path = "../../compute/crates/rce-fgm" }
 
 [profile.release]
 opt-level = "s"

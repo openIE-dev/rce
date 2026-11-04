@@ -5,7 +5,7 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 | File | Body SHA-256 | Read-receipt question |
 |---|---|---|
-| `00-overview.md` | `7ddf2201bb112be0f2ee2ad57b25ca8e423a774f0d18077a6e32696684d7563b` | In the overview's tiny example, what is the name of the event? |
+| `00-overview.md` | `c7fd2060f48c6da332c48fbdcb5fe22dd969eff13bc12d3f7829cc79abee82e3` | In the overview's tiny example, what is the name of the event? |
 | `01-notation.md` | `a521503afcfbe33debdf95f67ba7d2b35759e82e0c4f7ec2a5157fa2585874d1` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
 | `02-lexical.md` | `95ca24c86bef9bf604a6d38f5c4fb6c263cac070bbd3c9d0a7bb88b47dc9c08b` | Which code point is the horizontal tab, as written in this section? |
 | `03-syntax.md` | `310b9dcdde1089d3f6c550f8bb7c5fe29e8e631d6897e12e614f3a7359b48450` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 57e9f4cd155f08d920bb4cd9038915a772a89f22b709345163cdc7514a75d65b -->
+<!-- body-sha256: b948e8ec1e565d5ae31fc30f89563c04d0ff9f7ec8b2906da96f2341b0b3b22a -->

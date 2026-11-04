@@ -160,12 +160,12 @@ impl FallbackTdp {
 
     fn cpu_seconds(&self) -> f64 {
         // /proc/self/stat fields 14 and 15: user and system time in clock ticks (100 Hz).
-        if let Ok(s) = fs::read_to_string("/proc/self/stat") {
-            if let Some(rest) = s.rsplit_once(')').map(|(_, r)| r) {
-                let f: Vec<&str> = rest.split_whitespace().collect();
-                if let (Some(u), Some(k)) = (f.get(11).and_then(|x| x.parse::<f64>().ok()), f.get(12).and_then(|x| x.parse::<f64>().ok())) {
-                    return (u + k) / 100.0;
-                }
+        if let Ok(s) = fs::read_to_string("/proc/self/stat")
+            && let Some(rest) = s.rsplit_once(')').map(|(_, r)| r)
+        {
+            let f: Vec<&str> = rest.split_whitespace().collect();
+            if let (Some(u), Some(k)) = (f.get(11).and_then(|x| x.parse::<f64>().ok()), f.get(12).and_then(|x| x.parse::<f64>().ok())) {
+                return (u + k) / 100.0;
             }
         }
         self.start.elapsed().as_secs_f64()
