@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+fn wrap(v: i64) -> i64
+    v % 4
+step S on Inc -> wrap(n + 1)
+step S on Dec -> wrap(n + 3)
+#--- rce-test
+# id: properties/ch17-hash-name-free
+# area: properties
+# clauses: [CH17-M-d10b1b54, T50]
+# expect: cli
+# seq: [{"write": "v0.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) -> i64\n    v % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"argv": ["hash", "v0.rce"]}, {"write": "v1.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn cyc(v: i64) -> i64\n    v % 4\nstep S on Inc -> cyc(n + 1)\nstep S on Dec -> cyc(n + 3)\n"}, {"argv": ["hash", "v1.rce"]}, {"write": "v2.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(w: i64) -> i64\n    w % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"argv": ["hash", "v2.rce"]}, {"write": "v3.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn q(x: i64) -> i64\n    x % 4\nstep S on Inc -> q(n + 1)\nstep S on Dec -> q(n + 3)\n"}, {"argv": ["hash", "v3.rce"]}]
+# status: 0
+# equal_groups: ["([0-9a-f]{64})  program"]
+# provenance: property: T7 extended to items, bounded exhaustive over 4 renamings of the fn name and parameter: the program definition hash printed by rce hash is the same for all 4.
+#---

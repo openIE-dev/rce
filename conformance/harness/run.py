@@ -27,7 +27,7 @@ results file also records the adapter's `hello` answer, which names the
 implementation and, for an emitter, the checker that emitted and the
 target's toolchain.
 """
-import concurrent.futures as cf, hashlib, json, os, pathlib, select, shlex, subprocess, sys, time
+import concurrent.futures as cf, hashlib, json, os, pathlib, re, select, shlex, subprocess, sys, time
 from types import SimpleNamespace
 TIMEOUT = float(os.environ.get("RCE_TEST_TIMEOUT", "120"))
 sys.path.insert(0, os.path.dirname(__file__))
@@ -370,6 +370,18 @@ def judge_cli(t, spec):
         n = len([l for l in p.stdout.splitlines() if l.strip()])
         if n != m["lines"]:
             return "fail", f"{n} stdout lines != {m['lines']}: {out[-300:]}"
+    # A property over several runs: every match of each regex's first group
+    # in the output is the same text, and there are at least two (the runs
+    # being compared), e.g. a state_hash before and after a rewrite.
+    for rx in m.get("equal_groups", []) or []:
+        got = re.findall(rx, out)
+        if len(got) < 2 or len(set(got)) != 1:
+            return "fail", f"equal_groups {rx!r}: {got[:8]}"
+    # Values that must all differ (an injective encoding over the bound).
+    for rx in m.get("distinct_groups", []) or []:
+        got = re.findall(rx, out)
+        if len(got) < 2 or len(set(got)) != len(got):
+            return "fail", f"distinct_groups {rx!r}: {got[:8]}"
     return "pass", ""
 
 STOP = None  # set when stop-on-fail: (threading.Event, ids to ignore)

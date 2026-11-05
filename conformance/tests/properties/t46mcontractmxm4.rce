@@ -1,0 +1,19 @@
+state S
+    n: i64 = 0
+event Go(x: i64)
+fn half(x: i64) -> i64
+    requires x > 0
+    ensures result >= 0
+    x / 2
+step S on Go(x: v)
+    n = half(v)
+#--- rce-test
+# id: properties/t46mcontractmxm4
+# area: properties
+# clauses: [T46]
+# expect: cli
+# seq: [{"argv": ["host", "run", "main.rce", "D", "Go(x: -4)"]}]
+# output_has:
+#   - "kept: trap("
+# provenance: property: T46, bounded exhaustive over x in -4..4 (this test x = -4): the oracle says the call returns iff x > 0, with n = x / 2; otherwise the event is kept with the requires record.
+#---
