@@ -79,7 +79,7 @@ test that runs at that point, `requires` on entry and `ensures` at every
 `return`. There is no build in which contracts are switched off. A clause
 that does not hold traps, and the trap names which clause failed, by its
 kind, its position in the function (counting from 0) and the hash of the
-function:
+function. Some calls are decided before the program runs:
 
 ```rce
 {{#include ../listings/ch04/change/broken_contract.rce}}
@@ -90,11 +90,16 @@ $ rce check broken_contract.rce
 {{#include ../listings/ch04/change/broken_contract.out}}
 ```
 
-The second clause, `amount <= balance`, is index 1. A trap inside a step
-keeps the state, as chapter 6 explains. The checker does not yet prove a
-contract before the program runs: it enforces it when the function is
-called, and the emitters of chapter 15 do not yet translate a function with
-a contract.
+Here every argument of the call is a literal, so the checker evaluates the
+`requires` clauses with `balance = 3` and `amount = 10` before anything
+runs. The second clause, `amount <= balance`, is false under those values,
+and the checker reports the call itself (rule `W-CON-1`, F.6.2): the caller
+must establish a function's `requires` wherever the fragment decides it.
+When the arguments are not all literals, the clause is enforced at run time
+instead: it traps, and the trap names the clause by its kind, its index and
+the hash of the function. A trap inside a step keeps the state, as chapter 6
+explains. The emitters of chapter 15 do not yet translate a function with a
+contract.
 
 ## What you learned
 
