@@ -113,7 +113,8 @@ The Form
   literal from 1 to 2^31 − 1 (6.13, GT-1 to GT-4).
 - W-GRAPH-3 An operation whose level is weaker than the level in force
   where it stands, that is, a level the program does not declare: a
-  `tensor.round_bf16`, `tensor.round_q8_0` or `tensor.round_q4_0` outside a
+  `tensor.round_bf16`, `tensor.round_q8_0`, `tensor.round_q4_0`,
+  `tensor.round_q4_k`, `tensor.round_q5_k` or `tensor.round_q6_k` outside a
   `tensor.lossy` (6.13, GT-3).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
   moved inside a loop, or placed in a collection, field, payload, channel or
@@ -361,4 +362,4 @@ written and one recorded never change it.
 
 **Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
-<!-- body-sha256: bf95e883b04eb30e2fad219152cf8c423ac1cee471aeb8df16e472deb2f130f1 -->
+<!-- body-sha256: 32d6996acd42399995cd76082e4c7d9b6bd5fc0bfdcb298c3624a6282123e130 -->
