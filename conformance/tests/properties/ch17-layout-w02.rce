@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+fn wrap(v: i64) -> i64
+    v % 4
+step S on Inc -> wrap(n + 1)
+step S on Dec -> wrap(n + 3)
+#--- rce-test
+# id: properties/ch17-layout-w02
+# area: properties
+# clauses: [CH17-M-f213d82f]
+# expect: cli
+# seq: [{"write": "v0.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) -> i64\n    v % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"write": "v1.rce", "text": "state S\n\n    n: i64 = 0\n\nevent Inc\n\nevent Dec\n\nfn wrap(v: i64) -> i64\n\n    v % 4\n\nstep S on Inc -> wrap(n + 1)\n\nstep S on Dec -> wrap(n + 3)\n\n"}, {"write": "v2.rce", "text": "state   S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) -> i64\n    v % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"write": "v3.rce", "text": "\n\nstate S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) -> i64\n    v % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n\n\n"}, {"write": "v4.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) ->  i64\n    v % 4\nstep S on Inc ->  wrap(n + 1)\nstep S on Dec ->  wrap(n + 3)\n"}, {"argv": ["trace", "v0.rce", "Inc, Inc"]}, {"argv": ["trace", "v1.rce", "Inc, Inc"]}, {"argv": ["trace", "v2.rce", "Inc, Inc"]}, {"argv": ["trace", "v3.rce", "Inc, Inc"]}, {"argv": ["trace", "v4.rce", "Inc, Inc"]}]
+# status: 0
+# equal_groups: ["\"state_hash\":\"([0-9a-f]{64})\"\\}\\]\\}\\]\\}"]
+# provenance: property: T1 and (e), bounded exhaustive: 5 layouts of one program (blank lines, spacing, leading and trailing lines) traced on every word over {Inc, Dec} of length 1 to 3 (14 words, one test each); the final state_hash is the same in every layout. Word 2: Inc Inc.
+#---

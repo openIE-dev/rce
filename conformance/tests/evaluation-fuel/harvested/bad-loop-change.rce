@@ -10,7 +10,7 @@ fn g(a: &L, b: &L) -> i64
 #--- rce-test
 # id: evaluation-fuel/harvested/bad-loop-change
 # area: evaluation-fuel
-# clauses: [CH08-M-286d2fd4, CH08-M-cbd85cbd, CH09-M-82e65964, CH11-M-7fed7576, W-REC-1]
+# clauses: [CH08-M-286d2fd4, CH08-M-cbd85cbd, CH09-M-82e65964, W-REC-1]
 # expect: change
 # diagnostic: W-REC-1
 # provenance: harvested checker/tests/mutual/bad_loop.rce

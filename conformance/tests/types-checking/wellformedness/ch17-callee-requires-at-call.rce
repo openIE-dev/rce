@@ -1,0 +1,16 @@
+state S
+    n: i64 = 0
+event Go
+fn half(x: i64) -> i64
+    requires x > 0
+    x / 2
+step S on Go
+    n = half(0)
+#--- rce-test
+# id: types-checking/wellformedness/ch17-callee-requires-at-call
+# area: types-checking
+# clauses: [CH17-M-a720cd01]
+# expect: change
+# diagnostic: W-CON-1
+# provenance: targeted: F.6.2, a call whose literal argument the fragment decides makes the callee's requires false, so the caller cannot prove it and the call requires change
+#---

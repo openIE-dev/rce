@@ -11,7 +11,7 @@ fn block_sum(x: [f64; 8]) -> f64
 #--- rce-test
 # id: concurrency/harvested/01-workgroup-accept
 # area: concurrency
-# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T23]
+# clauses: [CH02-M-49e71b96, CH03-M-28cdd241, T10, T23]
 # expect: accept
 # provenance: harvested conc06b/accept/01_workgroup.rce
 #---

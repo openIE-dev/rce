@@ -1,0 +1,30 @@
+protocol Ask
+    send i64
+    recv i64
+
+protocol Answer
+    recv i64
+    send i64
+
+fn server(s: session Answer)
+    let x = <- s
+    s <- x + 1
+
+fn main()
+    var v: i64 = 0
+    let (c0, s0) = chan[session Ask](1)
+    spawn server(s0)
+    c0 <- v
+    v = <- c0
+    emit v
+#--- rce-test
+# id: properties/t28a-chain-1
+# area: properties
+# clauses: [T28a]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "emit 1"
+# provenance: property: T28a, bounded exhaustive over chains of 1 to 3 sessions driven by one coordinator (this test 1); the configuration of message-only participants always steps to the end and the coordinator receives v = 1 in send order. Global type syntax is not in the grammar, so the participants are written as their projections.
+#---

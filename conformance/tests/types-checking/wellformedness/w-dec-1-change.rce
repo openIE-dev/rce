@@ -1,0 +1,13 @@
+fn walk(n: u64) -> u64 bound 100
+    decreases n
+    if n == 0
+        return 0
+    return 1 + walk(n + 1)
+#--- rce-test
+# id: types-checking/wellformedness/w-dec-1-change
+# area: types-checking
+# clauses: [W-DEC-1]
+# expect: change
+# diagnostic: W-DEC-1
+# provenance: harvested from book/listings/ch13/change/wrong_measure.rce: rce check reports W-DEC-1 first
+#---

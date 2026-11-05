@@ -1,0 +1,16 @@
+# rce-version: 0.9
+# expect: W-IFC-2
+label pii
+
+fn main()
+    let n: i64 @ {pii} = 3
+    for i in 0..n
+        emit i.tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-ifc-2-change
+# area: types-checking
+# clauses: [W-IFC-2]
+# expect: change
+# diagnostic: W-IFC-2
+# provenance: harvested from spec/examples-0.9/change/ifc_loop_bound.rce: rce check reports W-IFC-2 first
+#---

@@ -23,7 +23,7 @@ fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len_bytes()
 #--- rce-test
 # id: text-unicode/harvested/56-utf8-ex2
 # area: text-unicode
-# clauses: [CH00-M-61b6ac06, CH05-M-84afe529, CH07-M-0a0bd71f, N7, N8, T1, T4, T5, T9]
+# clauses: [CH00-M-61b6ac06, CH05-M-cdd66755, CH07-M-0a0bd71f, N7, N8, T1, T4, T5, T9]
 # expect: run
 # events: Dec(b: [104, 105])
 # outcome: done

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "harness"))
 import rcetest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONSTRUCT = [  # (regex on source, expectation kinds, clauses)
-    (r"\bwith budget\b", ("run", "accept"), ["T34", "CH14-M-6d53e2af"]),
+    (r"\bwith budget\b", ("run", "accept"), ["T34", "CH14-M-129c3319"]),
     (r"\bwith deadline\b|\bdeadline \d", ("run", "accept"), ["T22"]),
     (r"select nondet", ("run", "accept"), ["T21"]),
     (r"\bselect\b", ("accept", "run"), ["T11"]),
@@ -36,11 +36,11 @@ CONSTRUCT = [  # (regex on source, expectation kinds, clauses)
     (r"\bGuarded\[", ("accept",), ["CH06-M-7c164794"]),
     (r"\bchan\[", ("accept", "run"), ["CH06-M-5912c594"]),
     (r"^step .* if ", ("accept", "run", "trace"), ["CH05-M-d8ee78b3"]),
-    (r"^\s*example .*-> kept:", ("accept",), ["CH08-M-51f39d7d"]),
+    (r"^\s*example .*-> kept:", ("accept",), ["CH08-M-9a15157f"]),
     (r"^\s*example .*-> (?!kept)", ("accept",), ["CH08-M-9a15157f"]),
-    (r"^# rce-version:", ("accept",), ["CH02-M-a696f3a3"]),
-    (r"^use ", ("accept",), ["CH04-M-c3c51cd1"]),
-    (r"\.chars\(\)|\.len\(\)|\\u\{", ("run",), ["N7", "CH05-M-84afe529"]),
+    (r"^# rce-version:", ("accept",), ["CH02-M-49e71b96"]),
+    (r"^use ", ("accept",), ["CH04-M-dd9b300f"]),
+    (r"\.chars\(\)|\.len\(\)|\\u\{", ("run",), ["N7", "CH05-M-cdd66755"]),
     (r"\bnone\b", ("run",), ["N10"]),
     (r"\bTick\b|after \d", ("run", "host"), ["N11", "HC-2"]),
     (r"\[\s*\w+\s*\]|\[\w+:\w*\]", ("run",), ["N8"]),
@@ -54,7 +54,7 @@ def tags(src, m):
         if str(m.get("outcome", "")).startswith("kept"): cl |= {"T8"}
         if str(m.get("outcome", "")) == "deadlock": cl |= {"T4"}
         if m.get("schedule_seeds"): cl |= {"T16", "T17", "CH14-M-90d1ad7f"}
-        if m.get("fuel"): cl |= {"T2", "CH14-M-fb31f51f"}
+        if m.get("fuel"): cl |= {"T2", "CH14-M-129c3319"}
     if exp == "trace":
         cl |= {"T3", "CH07-M-265230fb", "CH16-M-bf12d963" if False else "T3"}
         cl |= {"T8"} if "kept" in src or "fail " in src or "else " in src else set()
@@ -73,9 +73,9 @@ def tags(src, m):
         if "admit-order" in str(m.get("id")): cl |= {"T40"}
     prov = str(m.get("provenance", ""))
     if "/mutual/" in prov or "mutual" in prov:
-        cl |= {"CH08-M-286d2fd4", "CH08-M-cbd85cbd", "CH11-M-7fed7576"}
+        cl |= {"CH08-M-286d2fd4", "CH08-M-cbd85cbd", "W-REC-1"}
     if "39_structural_recursion" in prov:
-        cl |= {"CH11-M-7fed7576"}
+        cl |= {"W-REC-1"}
     for rx, kinds, cs in CONSTRUCT:
         if exp in kinds and re.search(rx, src, re.M):
             cl |= set(cs)

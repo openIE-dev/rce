@@ -1,0 +1,20 @@
+ghost fn sq(x: i64) -> i64 = x * x
+
+fn f(x: i64) -> i64
+    ensures result == sq(x)
+    x * x
+
+fn main()
+    emit f(0).tostr()
+#--- rce-test
+# id: properties/t49mghostmerasuremx0
+# area: properties
+# clauses: [T49]
+# expect: cli
+# seq: [{"write": "erased.rce", "text": "fn f(x: i64) -> i64\n    x * x\n\nfn main()\n    emit f(0).tostr()\n"}, {"argv": ["run", "main.rce"]}, {"argv": ["run", "erased.rce"]}]
+# status: 0
+# equal_groups: ["emit \"(-?\\d+)\""]
+# output_has:
+#   - "emit \"0\""
+# provenance: property: T49, bounded exhaustive over x in -3..3 (this test x = 0): the program with a ghost fn in an ensures and the program with the ghost code erased emit the same, x * x = 0.
+#---

@@ -1,0 +1,18 @@
+state S
+    a: i64 = 1
+event Add
+event Dbl
+step S on Add
+    a = a + 1
+step S on Dbl
+    a = a * 2
+#--- rce-test
+# id: properties/t62-dependent-differ
+# area: properties
+# clauses: [T62]
+# expect: cli
+# seq: [{"argv": ["trace", "main.rce", "Add, Dbl"]}, {"argv": ["trace", "main.rce", "Dbl, Add"]}]
+# status: 0
+# distinct_groups: ["\"state_hash\":\"([0-9a-f]{64})\"\\}\\]\\}\\]\\}"]
+# provenance: property: T62 converse, the 2 orders of two events that both write a (a + 1, a * 2) give different final state_hash (oracle 4 and 3).
+#---

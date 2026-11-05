@@ -1,0 +1,15 @@
+state S
+    n: i64 = 0
+event Inc
+fn f(x: i64) -> i64
+    ensures forall i: i64. result >= i
+    0
+step S on Inc -> n + 1
+#--- rce-test
+# id: types-checking/wellformedness/ch17-unbounded-quantifier
+# area: types-checking
+# clauses: [CH17-M-0c74f453]
+# expect: change
+# diagnostic: any
+# provenance: targeted: F.6.3, a quantifier over all of i64 is unbounded and cannot be evaluated, so it requires change
+#---

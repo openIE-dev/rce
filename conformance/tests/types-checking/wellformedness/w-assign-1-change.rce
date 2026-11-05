@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-ASSIGN-1
+fn main()
+    var y = 0
+    y = 1
+    y = 2
+    emit y.tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-assign-1-change
+# area: types-checking
+# clauses: [W-ASSIGN-1]
+# expect: change
+# diagnostic: W-ASSIGN-1
+# provenance: harvested from spec/examples-0.9/change/dead_store.rce: rce check reports W-ASSIGN-1 first
+#---

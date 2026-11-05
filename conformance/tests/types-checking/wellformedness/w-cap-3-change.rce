@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-CAP-3
+struct DirRead
+    path: text
+
+fn main()
+    emit 0
+#--- rce-test
+# id: types-checking/wellformedness/w-cap-3-change
+# area: types-checking
+# clauses: [W-CAP-3]
+# expect: change
+# diagnostic: W-CAP-3
+# provenance: harvested from spec/examples-0.9/change/cap_dir_struct_no_root.rce: rce check reports W-CAP-3 first
+#---

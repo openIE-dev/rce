@@ -1,0 +1,9 @@
+fn size(s: &text) -> usize = s.len()
+#--- rce-test
+# id: types-checking/wellformedness/w-len-1-change
+# area: types-checking
+# clauses: [W-LEN-1]
+# expect: change
+# diagnostic: W-LEN-1
+# provenance: harvested from book/listings/ch08/change/plain_len.rce: rce check reports W-LEN-1 first
+#---

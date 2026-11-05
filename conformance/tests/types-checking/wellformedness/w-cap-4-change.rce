@@ -1,0 +1,10 @@
+fn main()
+    host.revoke(1)
+#--- rce-test
+# id: types-checking/wellformedness/w-cap-4-change
+# area: types-checking
+# clauses: [W-CAP-4, W-CAP-5]
+# expect: change
+# diagnostic: W-RES-1
+# provenance: targeted: F.5.1, host.revoke needs the host log, so the reference checker reserves it (W-RES-1); the caretaker log fold is unit-tested in caretaker.rs
+#---

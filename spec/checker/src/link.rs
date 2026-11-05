@@ -342,7 +342,7 @@ fn binders(m: &Module, out: &mut BTreeSet<String>) {
 }
 
 /// every expression of an item (bodies, guards, constants, checks)
-fn each_expr(it: &Item, f: &mut dyn FnMut(&Expr)) {
+pub(crate) fn each_expr(it: &Item, f: &mut dyn FnMut(&Expr)) {
     fn body(b: &Body, f: &mut dyn FnMut(&Expr)) {
         match b {
             Body::Arrow(e) => crate::check::walk_expr(e, f),

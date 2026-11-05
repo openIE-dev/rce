@@ -1,0 +1,175 @@
+module netecho
+
+intent "TCP, random bytes and blobs as effects: each request has one logged result; received bytes arrive exactly, a kept step and a restart are inputs"
+    example Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x") -> errors == 1
+    example NetRecvDone(req: 1, status: "delivered", data: some([104, 255]), err: ""), NetRecvDone(req: 2, status: "delivered", data: some([226]), err: "") -> got.len() == 3 and got[1] == 255
+    example StepKept(seq: 9, cause: "trap"), Restarted(below: 12) -> kept_outcomes == 1 and restarts == 1 and last == 0
+
+struct NetListen
+    req: u64
+    addr: text
+
+struct NetConnect
+    req: u64
+    addr: text
+
+struct NetAccept
+    req: u64
+    id: u64
+
+struct NetSend
+    req: u64
+    id: u64
+    data: text
+
+struct NetRecv
+    req: u64
+    id: u64
+    max: u64
+
+struct NetClose
+    req: u64
+    id: u64
+
+struct Random
+    req: u64
+    n: u64
+
+struct BlobPut
+    req: u64
+    data: text
+
+struct BlobGet
+    req: u64
+    digest: text
+
+event Listen(addr: text)
+event Connect(addr: text)
+event Accept(id: u64)
+event Send(id: u64, data: text)
+event Recv(id: u64)
+event Close(id: u64)
+event Roll(n: u64)
+event Put(data: text)
+event Get(digest: text)
+event NetListenDone(req: u64, status: text, data: u64?, err: text)
+event NetConnectDone(req: u64, status: text, data: u64?, err: text)
+event NetAcceptDone(req: u64, status: text, data: u64?, err: text)
+event NetSendDone(req: u64, status: text, data: u64?, err: text)
+event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)
+event StepKept(seq: u64, cause: text)
+event Restarted(below: u64)
+event NetCloseDone(req: u64, status: text, data: u64?, err: text)
+event RandomDone(req: u64, status: text, data: text?, err: text)
+event BlobPutDone(req: u64, status: text, data: text?, err: text)
+event BlobGetDone(req: u64, status: text, data: text?, err: text)
+
+state Net
+    next: u64 = 0
+    last: u64 = 0
+    got: List[i64] = []
+    kept_outcomes: u64 = 0
+    restarts: u64 = 0
+    rand: text = ""
+    digest: text = ""
+    blob: text = ""
+    errors: u64 = 0
+
+step Net on Listen(addr: a)
+    next += 1
+    emit NetListen(req: next, addr: a)
+
+step Net on Connect(addr: a)
+    next += 1
+    emit NetConnect(req: next, addr: a)
+
+step Net on Accept(id: i)
+    next += 1
+    emit NetAccept(req: next, id: i)
+
+step Net on Send(id: i, data: d)
+    next += 1
+    emit NetSend(req: next, id: i, data: d)
+
+step Net on Recv(id: i)
+    next += 1
+    emit NetRecv(req: next, id: i, max: 4096)
+
+step Net on Close(id: i)
+    next += 1
+    emit NetClose(req: next, id: i)
+
+step Net on Roll(n: n)
+    next += 1
+    emit Random(req: next, n: n)
+
+step Net on Put(data: d)
+    next += 1
+    emit BlobPut(req: next, data: d)
+
+step Net on Get(digest: d)
+    next += 1
+    emit BlobGet(req: next, digest: d)
+
+step Net on NetListenDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        last = d.or(0)
+    else
+        errors += 1
+
+step Net on NetConnectDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        last = d.or(0)
+    else
+        errors += 1
+
+step Net on NetAcceptDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        last = d.or(0)
+
+step Net on NetSendDone(req: _r, status: s, data: _d, err: _e)
+    if s != "delivered"
+        errors += 1
+
+step Net on NetRecvDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        for x in d.or([])
+            got.push(x)
+
+step Net on NetCloseDone(req: _r, status: s, data: _d, err: _e)
+    if s != "delivered"
+        errors += 1
+
+step Net on RandomDone(req: _r, status: _s, data: d, err: _e)
+    rand = d.or("")
+
+step Net on BlobPutDone(req: _r, status: _s, data: d, err: _e)
+    digest = d.or("")
+
+step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        blob = d.or("")
+    else
+        errors += 1
+
+step Net on StepKept(seq: _q, cause: _c)
+    kept_outcomes += 1
+
+step Net on Restarted(below: _b)
+    restarts += 1
+    last = 0
+#--- rce-test
+# id: host-contract/targeted/hc-23-net-authority-exact-text
+# area: host-contract
+# clauses: [HC-23]
+# expect: cli
+# seq: [{"argv": ["host", "run", "net", "127.0.0.1:47341", "main.rce", "D", "Listen(addr: \"127.0.0.1:47341\"), Connect(addr: \"127.0.0.1:47342\"), Connect(addr: \"localhost:47341\"), Send(id: 99, data: \"x\")"]}]
+# status: 0
+# output_has:
+#   - "NetListenDone(req: 1, status: \"delivered\", data: some(1)"
+#   - "NetConnectDone(req: 2, status: \"failed\", data: none, err: \"address `127.0.0.1:47342` is not granted\")"
+#   - "NetConnectDone(req: 3, status: \"failed\", data: none, err: \"address `localhost:47341` is not granted\")"
+#   - "NetSendDone(req: 4, status: \"failed\", data: none, err: \"no connection 99\")"
+#   - "0 kept"
+# provenance: targeted: HC-23, under `net 127.0.0.1:47341` a listen on that address is delivered, a connect to an address not granted fails, the same port named as localhost fails (exact text, HC-5), and an id the adapter did not issue fails; each request has one result
+#---

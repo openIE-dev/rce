@@ -1,0 +1,17 @@
+state Page
+    html: Text[Html] = Html.lit("<p></p>")
+event C(body: text)
+step Page on C(body: b)
+    html = Html.lit("<p>") + Html.encode(b) + Html.lit("</p>")
+    emit html
+#--- rce-test
+# id: properties/t44-html-encode-s0
+# area: properties
+# clauses: [T44]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce", "C(body: \"&\\\"\\\"' a<&\")"]}]
+# status: 0
+# output_has:
+#   - "  emit \"<p>&amp;&quot;&quot;&#39; a&lt;&amp;</p>\""
+# provenance: property: T44, seeded: 6 strings of length 8 over {a < > & " ' space} drawn with random.Random(44) (this test string 0); the oracle html.escape (quote on, ' as &#39;) gives the rendered text, whose only < and > are the literal <p> and </p>.
+#---

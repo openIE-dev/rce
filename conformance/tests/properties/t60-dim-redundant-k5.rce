@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+    m: i64 = 0
+event Inc
+step S on Inc
+    n = (n + 1) % 5
+    m = (m + 1) % 5
+#--- rce-test
+# id: properties/t60-dim-redundant-k5
+# area: properties
+# clauses: [T60]
+# expect: cli
+# seq: [{"argv": ["dim", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "states explored     5        bound reached: no"
+# provenance: property: T60, bounded exhaustive over k in 2..5 (this test k = 5): two fields that always hold the same value mod 5 reach 5 states, and dim reports the states explored as 5 (oracle: the reachable set is {(i, i) : 0 <= i < 5}).
+#---

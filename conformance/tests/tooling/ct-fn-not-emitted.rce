@@ -1,0 +1,17 @@
+ct fn both(a: bool, b: bool) -> bool
+    return ct_choose(a, b, false)
+
+fn main()
+    emit both(true, false).tostr()
+#--- rce-test
+# id: tooling/ct-fn-not-emitted
+# area: tooling
+# clauses: [W-CTFN-2]
+# expect: cli
+# argv: ["emit", "python", "main.rce"]
+# status: 1
+# output_has:
+#   - W-CTFN-2
+#   - ct fn is not emitted for this target
+# provenance: targeted: F.5.4, an emitter for a target with no constant-time guarantee does not print a ct fn
+#---

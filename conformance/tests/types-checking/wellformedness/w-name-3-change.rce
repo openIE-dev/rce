@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-NAME-3
+const limit = 3
+
+fn main()
+    let limit = 4
+    emit limit.tostr()
+#--- rce-test
+# id: types-checking/wellformedness/w-name-3-change
+# area: types-checking
+# clauses: [W-NAME-3]
+# expect: change
+# diagnostic: W-NAME-3
+# provenance: harvested from spec/examples-0.9/change/shadow_module.rce: rce check reports W-NAME-3 first
+#---

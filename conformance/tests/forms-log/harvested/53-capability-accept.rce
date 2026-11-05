@@ -22,7 +22,7 @@ step Ledger on Spend(amount: a) -> spent + a
 #--- rce-test
 # id: forms-log/harvested/53-capability-accept
 # area: forms-log
-# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH06-M-7c164794, CH08-M-9a15157f, T10]
+# clauses: [CH02-M-49e71b96, CH03-M-28cdd241, CH06-M-7c164794, CH08-M-9a15157f, T10]
 # expect: accept
 # provenance: harvested examples/53_capability.rce
 #---

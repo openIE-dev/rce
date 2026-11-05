@@ -25,7 +25,7 @@ step Account on Withdraw(amount: a)
 #--- rce-test
 # id: forms-log/harvested/04-bank-account-accept
 # area: forms-log
-# clauses: [CH03-M-28cdd241, CH05-M-d8ee78b3, CH08-M-51f39d7d, CH08-M-9a15157f, T10]
+# clauses: [CH03-M-28cdd241, CH05-M-d8ee78b3, CH08-M-9a15157f, T10]
 # expect: accept
 # provenance: harvested examples/04_bank_account.rce
 #---

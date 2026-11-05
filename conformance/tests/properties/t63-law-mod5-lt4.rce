@@ -1,0 +1,18 @@
+state S
+    n: u8 = 0
+event Tick
+step S on Tick
+    n = (n + 1) % 5
+
+law small
+    always n < 4
+#--- rce-test
+# id: properties/t63-law-mod5-lt4
+# area: properties
+# clauses: [T63]
+# expect: cli
+# seq: [{"argv": ["law", "main.rce"]}]
+# output_has:
+#   - "fails"
+# provenance: property: T63, bounded exhaustive over k in 2..6 and bound in {k-1, k} (this test k = 5, bound 4): the oracle says `always n < 4` fails at n = 4 for a counter mod 5; rce law decides the same.
+#---

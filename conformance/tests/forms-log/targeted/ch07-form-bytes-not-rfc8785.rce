@@ -1,0 +1,26 @@
+state S
+    a: f64 = 0.0
+    z: f64 = 0.0
+    s: f64 = 0.0
+    b: f64 = 0.0
+    u: u64 = 0
+    t: text = ""
+event Go
+step S on Go
+    a = 10.0
+    z = -0.0
+    s = 0.000001
+    b = 1e21
+    u = 18446744073709551615
+    t = "\u{8}\u{c}"
+#--- rce-test
+# id: forms-log/targeted/ch07-form-bytes-not-rfc8785
+# area: forms-log
+# clauses: [CH07-M-dec2665b]
+# expect: cli
+# argv: ["trace", "main.rce", "Go"]
+# status: 0
+# output_has:
+#   - "\"state\":[[10.0,-0.0,1e-6,1e21,18446744073709551615,\"\\u0008\\u000c\"]]"
+# provenance: targeted: 6.x canonical JSON, the hashed state shows each case where these bytes differ from RFC 8785: 10.0 not 10, -0.0 not 0, 1e-6 and 1e21 not 0.000001 and 1e+21, u64 max as exact digits, and \u0008 \u000c not \b \f
+#---

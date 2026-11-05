@@ -1,0 +1,12 @@
+fn main()
+    let n = 3
+    emit n.tostr()
+    emit foo.t"n={n}"
+#--- rce-test
+# id: types-checking/wellformedness/w-tpl-1-change
+# area: types-checking
+# clauses: [W-TPL-1]
+# expect: change
+# diagnostic: W-TPL-1
+# provenance: targeted: F.6.1, a template whose renderer is neither text nor a context requires change
+#---

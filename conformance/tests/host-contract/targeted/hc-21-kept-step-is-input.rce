@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+event Boom
+step S on Inc -> n + 1
+step S on Boom -> n / 0
+#--- rce-test
+# id: host-contract/targeted/hc-21-kept-step-is-input
+# area: host-contract
+# clauses: [HC-21]
+# expect: cli
+# argv: ["host", "run", "main.rce", "D", "Inc, Boom, Inc"]
+# output_has:
+#   - "4 Boom kept: trap(division by zero)"
+#   - "S { n = 2 }"
+#   - "1 kept: replay with adapters disconnected gives the live state_hash"
+# provenance: targeted: HC-21, a kept step is appended with the state unchanged and host.StepKept {cause trap}; the kept input stays in D and replay re-derives the live state
+#---

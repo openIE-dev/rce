@@ -1,0 +1,12 @@
+# rce-version: 0.9
+# expect: W-LEX-4
+fn main()
+    emit "a‮b"
+#--- rce-test
+# id: types-checking/wellformedness/w-lex-4-change
+# area: types-checking
+# clauses: [W-LEX-4]
+# expect: change
+# diagnostic: W-LEX-4
+# provenance: harvested from spec/examples-0.9/change/bidi_in_string.rce: rce check reports W-LEX-4 first
+#---
