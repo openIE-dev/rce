@@ -19,6 +19,8 @@ The language commands:
 | `rce change [fuel N] OLD NEW` | classify a change: erratum, meaning change or interface change (chapter 18) |
 | `rce dim [fuel N] [control] [json] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce hash FILE...` | the definition hash of every named item, then the program hash (chapter 18) |
+| `rce repair [json] [bound N] [known GOOD] [proposals PROPOSALS] FILE` | propose a change to a program that requires change, by exact rules the checker judges; then judge PROPOSALS, programs written outside RCE, by the same checker |
+| `rce repair criterion [json] REGISTRATION CORPUS RECORDS` | say whether the registered criterion for applying outside proposals holds on recorded observations |
 | `rce api-diff OLD NEW` | one row per change of the exports, `compatible` or `breaking` |
 | `rce lib [MODULE]` | the built-in standard library, or the source of one module (chapter 12) |
 | `rce manifest DIR` | write the hash-pinned manifest of a directory |
@@ -74,6 +76,21 @@ the program is admitted) or `off`. W-UNUSED-1 and W-DROP-1 are `auto`; a
 rule that becomes rewritable enters as `observe` and is promoted once its
 diffs have been reviewed. A rule that requires change has no mode, so it
 cannot be switched off.
+
+**Proposals from outside.** `rce repair` first tries changes it computes
+by fixed rules (rungs a to e). When none is admitted, `proposals p.json`
+gives it programs written outside RCE, by a model or by a person, each
+with an origin label such as `person`. RCE never calls a model: it reads
+the file, checks each program with the same checker, and refuses one that
+changes an example, check or law. This last rung, f, has a mode like an
+altered rule. Today it is `observe`: each program the checker would admit
+is printed as an `observed` diff with its origin and digest, the file is
+left as it is, and the attention line counts it as observed. Rung f becomes
+`auto`, closing a program with the first admitted proposal, only when a
+criterion registered before any observation holds: at most 2% of the
+programs closed would come from rung f, every observed proposal passes
+the mutation gate, and none contradicts a known-good version.
+`rce repair criterion` evaluates it.
 
 **Admission receipts.** `rce check write counter.receipt counter.rce`
 writes a receipt of why the program was admitted: its name-free hash, the

@@ -27,11 +27,16 @@
 //! | `embedding_lookup` | `(table, ids_i32)`              | tensor  | (`nn`) |
 //! | `matmul_q8_0`, `matmul_q4_0` | `(x, q, d)`           | tensor  | f32 x, i8 q in i32 lanes, f32 block scales (`nn`) |
 //! | `round_q8_0`, `round_q4_0` | `(x,)`                  | tensor  | f32; lowers precision (`nn`) |
+//! | `matmul_q4_k`, `matmul_q5_k` | `(x, q, s, o)`        | tensor  | f32 x, q in i32 lanes, f32 sub-block scales and offsets (`kquant`) |
+//! | `matmul_q6_k`      | `(x, q, s)`                     | tensor  | f32 x, q in i32 lanes, f32 sub-block scales (`kquant`) |
+//! | `round_q4_k`, `round_q5_k`, `round_q6_k` | `(x,)`    | tensor  | f32; lowers precision (`kquant`) |
+//! | `rope`             | `(x, pos_i32, freqs)`           | tensor  | f32/f64; rotary position embedding of adjacent pairs (`nn`) |
 //! | `scalar_mul`       | `(x, scalar)`                   | tensor  | tensor scaled by scalar literal |
 //! | `round_bf16`       | `(x,)`                          | tensor  | f32/f64: each element rounded to the nearest bfloat16, ties to even, kept in its type |
 
 pub mod activation;
 pub mod broadcast;
+pub mod kquant;
 pub mod matmul;
 pub mod nn;
 pub mod reduce;
@@ -68,6 +73,13 @@ pub const OP_MATMUL_Q8_0: &str = "matmul_q8_0";
 pub const OP_MATMUL_Q4_0: &str = "matmul_q4_0";
 pub const OP_ROUND_Q8_0: &str = "round_q8_0";
 pub const OP_ROUND_Q4_0: &str = "round_q4_0";
+pub const OP_MATMUL_Q4_K: &str = "matmul_q4_k";
+pub const OP_MATMUL_Q5_K: &str = "matmul_q5_k";
+pub const OP_MATMUL_Q6_K: &str = "matmul_q6_k";
+pub const OP_ROUND_Q4_K: &str = "round_q4_k";
+pub const OP_ROUND_Q5_K: &str = "round_q5_k";
+pub const OP_ROUND_Q6_K: &str = "round_q6_k";
+pub const OP_ROPE: &str = "rope";
 /// Fused: `softmax((a @ b) * scale, axis=-1)`. CPU path is composition;
 /// wgpu has a single-kernel fused implementation.
 pub const OP_MATMUL_SCALE_SOFTMAX: &str = "matmul_scale_softmax";
@@ -102,6 +114,13 @@ pub fn dispatch_custom(node_id: usize, name: &str, args: &[Value]) -> Result<Val
         OP_MATMUL_Q4_0 => nn::matmul_q(node_id, args, true),
         OP_ROUND_Q8_0 => nn::round_q(node_id, args, false),
         OP_ROUND_Q4_0 => nn::round_q(node_id, args, true),
+        OP_MATMUL_Q4_K => kquant::matmul_k(node_id, args, kquant::KFmt::Q4K),
+        OP_MATMUL_Q5_K => kquant::matmul_k(node_id, args, kquant::KFmt::Q5K),
+        OP_MATMUL_Q6_K => kquant::matmul_k(node_id, args, kquant::KFmt::Q6K),
+        OP_ROUND_Q4_K => kquant::round_k(node_id, args, kquant::KFmt::Q4K),
+        OP_ROUND_Q5_K => kquant::round_k(node_id, args, kquant::KFmt::Q5K),
+        OP_ROUND_Q6_K => kquant::round_k(node_id, args, kquant::KFmt::Q6K),
+        OP_ROPE => nn::rope(node_id, args),
         OP_MATMUL_SCALE_SOFTMAX => matmul_scale_softmax(node_id, args),
         OP_LINEAR => linear(node_id, args),
         OP_ROUND_BF16 => round_bf16(node_id, args),

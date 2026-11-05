@@ -1,0 +1,19 @@
+# Rung f of `rce repair` (10.13): no single edit of the step on Inc meets
+# both examples, so only a proposal closes this program; counter_good.rce is
+# its known-good version (tests/repair_observe.rs).
+intent "a counter that steps by two and shows its value"
+    example Inc -> 2
+    example Inc, Inc -> 4
+
+state Counter
+    n: u8 = 0
+
+struct Shown
+    value: u8
+
+event Inc
+event Show
+
+step Counter on Inc -> n * 3 + 1
+step Counter on Show
+    emit Shown(value: n)

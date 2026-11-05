@@ -276,8 +276,15 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             crate::emit::verilog::emit(&crate::program(src)?)
         }
         "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
+        "wasm" => {
+            let d = diagnostics(src, &HashSet::new());
+            if !d.is_empty() {
+                return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+            }
+            crate::wasm_term::emit(&crate::program(src)?)
+        }
         t => Err(format!(
-            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog; the core evaluator's output is `rce run-core FILE`)"
+            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog, wasm; the core evaluator's output is `rce run-core FILE`)"
         )),
     }
 }
@@ -748,7 +755,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 12] = [
+const GRANTS: [Word; 13] = [
     Word::set("fs", &["DIR"]),
     // HC-33: user and group ids to names, from the account databases
     Word::mode("names"),
@@ -764,26 +771,28 @@ const GRANTS: [Word; 12] = [
     Word::set("frames", &["FILE"]),
     // HC-38: read the package energy counter over the run into host.Energy
     Word::mode("energy"),
+    // HC-39: the cost table graph terms are placed by
+    Word::set("costs", &["FILE"]),
 ];
 
 /// The grants, then `http`, `presented`, `rap` and `callback`, which only
 /// the host loop takes.
-const fn serve_words() -> [Word; 16] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 16];
+const fn serve_words() -> [Word; 17] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 17];
     let mut i = 0;
-    while i < 12 {
+    while i < 13 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[13] = Word::set("presented", &["FILE"]);
+    w[14] = Word::set("presented", &["FILE"]);
     // HC-34: the program as a tool of RAP runtimes, and the addresses its
     // results may be POSTed to (HC-5: no callback address is ambient)
-    w[14] = Word::set("rap", &["HOST:PORT"]);
-    w[15] = Word::many("callback", &["HOST:PORT"]);
+    w[15] = Word::set("rap", &["HOST:PORT"]);
+    w[16] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 16] = serve_words();
+const SERVE_WORDS: [Word; 17] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -820,7 +829,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "TARGET FILE",
         min: 2,
         max: 2,
-        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module)",
+        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module),\nwasm (each graph term as a WebAssembly program module calling the kernel library once per node, 10.18)",
     },
     Command { path: &["graph", "ops"], words: &[], operands: "", min: 0, max: 0, help: "the operations of std.tensor (6.13): name, level, what each computes" },
     Command {
@@ -834,11 +843,11 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["graph", "inspect"], words: &[], operands: "FILE", min: 1, max: 1, help: "the header, sections and graph term of the .fg FILE; its hash and its term are checked (W7)" },
     Command {
         path: &["graph", "run"],
-        words: &[],
+        words: &[Word::mode("wasm")],
         operands: "FILE INPUTS",
         min: 2,
         max: 2,
-        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13)",
+        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13); with wasm: through the term's WebAssembly program module and\nthe kernel library under wasmi (10.18)",
     },
     Command {
         path: &["lift", "gguf"],
@@ -903,11 +912,19 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["unform"], words: &[], operands: "FORM.json", min: 1, max: 1, help: "the canonical source of a Form's terms (inverse of `rce emit form`)" },
     Command {
         path: &["repair"],
-        words: &[Word::mode("json"), Word::set("bound", &["N"]), Word::set("known", &["GOOD"])],
+        words: &[Word::mode("json"), Word::set("bound", &["N"]), Word::set("known", &["GOOD"]), Word::set("proposals", &["PROPOSALS"])],
         operands: "FILE [MODULE...]",
         min: 1,
         max: MANY,
-        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+        help: "propose a change to FILE, which requires change, by exact proposers judged by the checker:\na reuse, b lookup by type, c altered rules (the rewrites of rce fmt), d one small edit, e renames\n(d and e at most N candidates each, default 2000); known GOOD, a known-good version of FILE: when the two\ndiffer in names only, the renaming onto GOOD is judged first; proposals PROPOSALS, programs written outside RCE\n(rce-proposals/1): rung f judges them by the same gate when a to e close nothing, in the mode of its row in 10.13\n(observe: report what would be admitted, close nothing); prints the rung, the canonical diff, the candidates tried and the verdict; 0 models called",
+    },
+    Command {
+        path: &["repair", "criterion"],
+        words: &[Word::mode("json")],
+        operands: "REGISTRATION CORPUS RECORDS",
+        min: 3,
+        max: 3,
+        help: "evaluate the registered criterion for promoting rung f of rce repair from observe to auto (10.13, RF-6):\nthe corpus the registration fixes by its SHA-256, one rce repair json record per task; prints the counts and whether it holds",
     },
     Command {
         path: &["mutants"],
@@ -923,7 +940,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38);\ncosts FILE gives the cost table graph terms are placed by, in predicted joules (HC-39; default: the declared table)",
     },
     Command {
         path: &["host", "serve"],
@@ -1564,7 +1581,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program that requires change is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "core", "rust", "python", "js", "scala", "verilog"].contains(&rest[0].as_str())
+                if ["form", "core", "rust", "python", "js", "scala", "verilog", "wasm"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                     && !e.starts_with("not covered by the lowering")
                     && !e.starts_with("internal:")
@@ -1624,7 +1641,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let dir = std::path::Path::new(&rest[0]).parent().unwrap_or(std::path::Path::new("."));
             crate::graph::add_store(&dir.join("blobs"));
             let bytes = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
-            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { crate::graph::run_fg(&bytes, &rest[1]) };
+            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { {
+                let w = |k: &str, g: &rce_graph::graph::FunctionGraph, t: &rce_graph::term::TermTypes, v: &[crate::interp::V]| crate::wasm_term::run(k, g, t, v).map(|r| r.result);
+                crate::graph::run_fg(&bytes, &rest[1], if p.has("wasm") { Some(&w) } else { None })
+            } };
             match r {
                 Ok(s) => {
                     write!(out, "{s}").map_err(w)?;
@@ -1700,22 +1720,48 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             OK
         }
         ["repair"] => {
-            // rce repair [json] [bound N] [known GOOD] FILE [MODULE...]   (10.13): words, then operands (PC-1)
+            // rce repair [json] [bound N] [known GOOD] [proposals PROPOSALS] FILE [MODULE...]   (10.13): words, then operands (PC-1)
             let (json, ops) = (p.has("json"), rest);
             let bound = p.count("bound", crate::repair::DEFAULT_BOUND, "a count of candidates")?;
             let known = match p.value("known") {
                 Some(g) => Some(crate::repair::known(g, &read_file(g)?)?),
                 None => None,
             };
+            // RF-1: proposals written outside RCE enter only as this file;
+            // RF-3: rung f runs in the mode of its row, never one a word sets
+            let proposals = match p.value("proposals") {
+                Some(f) => Some(crate::proposals::read(f, &read_file(f)?)?),
+                None => None,
+            };
+            let outside = proposals.as_ref().map(|ps| crate::repair::Outside { proposals: ps, mode: crate::proposals::mode() });
             let src = read_file(&ops[0])?;
             let others = load(&ops[1..])?;
-            let o = crate::repair::repair(&ops[0], &src, &others, known.as_ref(), bound);
+            let o = crate::repair::repair_with(&ops[0], &src, &others, known.as_ref(), outside, bound);
             if json {
                 writeln!(out, "{}", crate::repair::report_json(&ops[0], &o)).map_err(w)?;
             } else {
                 write!(out, "{}", crate::repair::report(&ops[0], &o)).map_err(w)?;
             }
-            if o.closed { OK } else { REQUIRES_CHANGE }
+            // RF-4: a program the ladder leaves open is one finding that
+            // requires change; each observed proposal is counted as observed
+            let att = crate::admission::Attention {
+                requires_change: usize::from(!o.closed),
+                observed: o.proposals.as_ref().map_or(0, |r| r.observed),
+                ..Default::default()
+            };
+            writeln!(err, "{}", att.line()).map_err(w)?;
+            att.status()
+        }
+        ["repair", "criterion"] => {
+            // rce repair criterion [json] REGISTRATION CORPUS RECORDS   (10.13, RF-6)
+            let (reg, corpus, recs) = (read_file(&rest[0])?, read_file(&rest[1])?, read_file(&rest[2])?);
+            let v = crate::proposals::evaluate(&reg, &corpus, &recs).map_err(|e| if e.starts_with("RF-5") { format!("{}: {e}", rest[0]) } else { e })?;
+            if p.has("json") {
+                write!(out, "{}", crate::proposals::evaluation_json(&v)).map_err(w)?;
+            } else {
+                write!(out, "{}", crate::proposals::evaluation_report(&v)).map_err(w)?;
+            }
+            if v["holds"] == true { OK } else { REQUIRES_CHANGE }
         }
         ["mutants"] => {
             // rce mutants [json] [bound N] FILE [MODULE...]   (6.12): words, then operands (PC-1)
@@ -2119,6 +2165,12 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
+            // HC-39: the cost table graph terms are placed by, with its source
+            let table = match p.value("costs") {
+                Some(f) => crate::host::CostTable::parse(&read_file(f)?)?,
+                None => crate::host::CostTable::declared(),
+            };
+            h.graph_costs(&table)?;
             // HC-32: which zone rules the offsets in D come from
             if h.binds_kind("LocalOffset") {
                 h.zone(&crate::adapters::zone_record())?;

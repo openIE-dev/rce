@@ -11,11 +11,24 @@
 //!   blocks of causal multi-head attention and a `gelu_tanh` feed-forward
 //!   layer with biases and residual sums, a final layer norm and the output
 //!   projection (tied to the token embedding when the file has no
-//!   `output.weight`). Any other architecture is refused with its name.
+//!   `output.weight`).
+//! - the architecture `llama`: a token embedding, pre-norm blocks of RMS
+//!   norm, causal grouped-query attention (GQA: the query heads a multiple
+//!   of the key and value heads) with the rotary position embedding of
+//!   adjacent pairs (`tensor.rope`) on q and k, and a SwiGLU feed-forward
+//!   layer (`silu(f Wg^T) * (f Wu^T)`, then `Wd`), residual sums, a final
+//!   RMS norm and the output projection (tied when absent). The rotary
+//!   frequencies `base^(-2i/hd)` are computed once by the lift in binary64
+//!   and rounded once to f32, and enter the program as a blob.
+//!   Any other architecture is refused with its name.
 //! - weights of type F32 and F16 (as f32 tensors; every f16 value is an
 //!   f32 value), Q8_0 and Q4_0 (as their quantized values, an `i8` tensor,
 //!   and their block scales, an f32 tensor, exactly as the file holds them,
-//!   for `matmul_q8_0` and `matmul_q4_0`). Any other type is refused.
+//!   for `matmul_q8_0` and `matmul_q4_0`), and Q4_K, Q5_K and Q6_K (as
+//!   their values, an `i8` tensor in position order, and their sub-block
+//!   scales `d sc` and offsets `dmin m`, f32 tensors whose every value is
+//!   exact, for `matmul_q4_k`, `matmul_q5_k` and `matmul_q6_k`). Any other
+//!   type is refused.
 //! - GGUF lists a tensor's lengths fastest first; a matrix of lengths
 //!   (k, n) is n rows of k, the shape `[n, k]`, and `x W^T` is its product.
 //! - The fused projection `attn_qkv` is split into its three row ranges,
@@ -23,6 +36,7 @@
 //!
 //! Every operation is at its strongest level: the quantization happened
 //! when the file was written, so no lossy operation is in the program.
+use rce_vm_backend_cpu::ml::kquant::{self, KFmt};
 use rce_ingest_gguf::{GgufDtype, GgufFile, GgufTensorInfo, GgufValue, tensor_byte_size};
 
 /// The value of an f16 bit pattern as f32, exactly.
@@ -47,6 +61,9 @@ enum Weight {
     F32 { digest: String, shape: Vec<u64> },
     /// a block-quantized matrix: values (i8, [n, k]) and scales (f32, [n, k/32])
     Q { q4: bool, q: String, d: String, n: u64, k: u64 },
+    /// a K-quant matrix: values (i8, [n, k]), sub-block scales and (Q4_K,
+    /// Q5_K) offsets (f32, [n, k/32], or [n, k/16] for Q6_K)
+    K { f: KFmt, q: String, s: String, o: Option<String>, n: u64, k: u64 },
 }
 
 struct Lift<'a> {
@@ -119,7 +136,31 @@ impl Lift<'_> {
                 let d = put(self.store, &rce_fgm::f32_bytes(&ds))?;
                 Ok(Weight::Q { q4, q, d, n: r1 - r0, k })
             }
-            d => Err(format!("the tensor `{name}` is of type {d:?}; F32, F16, Q8_0 and Q4_0 are lifted")),
+            GgufDtype::Q4K | GgufDtype::Q5K | GgufDtype::Q6K => {
+                let f = match t.dtype {
+                    GgufDtype::Q4K => KFmt::Q4K,
+                    GgufDtype::Q5K => KFmt::Q5K,
+                    _ => KFmt::Q6K,
+                };
+                if k % 256 != 0 {
+                    return Err(format!("the tensor `{name}` has rows of {k}, not a multiple of 256"));
+                }
+                let b = self.data(t)?;
+                let per = (k / 256) as usize;
+                let (mut qs, mut ss, mut os) = (vec![], vec![], vec![]);
+                for blk in b.chunks_exact(f.block_bytes()).skip(r0 as usize * per).take((r1 - r0) as usize * per) {
+                    let kb = kquant::unpack(blk, f, f16_to_f32);
+                    let (s, o) = kb.scales();
+                    qs.extend(kb.q.iter().map(|v| *v as i8));
+                    ss.extend(s);
+                    os.extend(o);
+                }
+                let q = put(self.store, &rce_fgm::i8_bytes(&qs))?;
+                let s = put(self.store, &rce_fgm::f32_bytes(&ss))?;
+                let o = if f == KFmt::Q6K { None } else { Some(put(self.store, &rce_fgm::f32_bytes(&os))?) };
+                Ok(Weight::K { f, q, s, o, n: r1 - r0, k })
+            }
+            d => Err(format!("the tensor `{name}` is of type {d:?}; F32, F16, Q8_0, Q4_0, Q4_K, Q5_K and Q6_K are lifted")),
         }
     }
 
@@ -140,7 +181,7 @@ fn shape(s: &[u64]) -> String {
 fn blob(w: &Weight) -> String {
     match w {
         Weight::F32 { digest, shape: s } => format!("tensor.blob_f32(\"{digest}\", {})", shape(s)),
-        Weight::Q { .. } => unreachable!("a quantized weight enters a product only"),
+        Weight::Q { .. } | Weight::K { .. } => unreachable!("a quantized weight enters a product only"),
     }
 }
 
@@ -153,6 +194,11 @@ fn product(x: &str, w: &Weight) -> String {
             if *q4 { "q4_0" } else { "q8_0" },
             k / 32
         ),
+        Weight::K { f, q, s, o, n, k } => {
+            let sub = f.sub() as u64;
+            let o = o.as_ref().map(|o| format!(", tensor.blob_f32(\"{o}\", [{n}, {}])", k / sub)).unwrap_or_default();
+            format!("tensor.{}({x}, tensor.blob_i8(\"{q}\", [{n}, {k}]), tensor.blob_f32(\"{s}\", [{n}, {}]){o})", f.names().0, k / sub)
+        }
     }
 }
 
@@ -171,9 +217,102 @@ pub fn lift(bytes: &[u8], store: &rce_fgm::Store) -> Result<String, String> {
     let file = GgufFile::parse(bytes).map_err(|e| format!("not a GGUF file: {e}"))?;
     let l = Lift { file: &file, bytes, store };
     let arch = file.architecture().unwrap_or("").to_string();
-    if arch != "gpt2" {
-        return Err(format!("the architecture `{arch}` is not lifted; `gpt2` is (10.17 LIFT-1)"));
+    match arch.as_str() {
+        "gpt2" => lift_gpt2(&l),
+        "llama" => lift_llama(&l),
+        _ => Err(format!("the architecture `{arch}` is not lifted; `gpt2` and `llama` are (10.17 LIFT-1)")),
     }
+}
+
+/// The rotary frequencies of a head of `hd`: base^(-2i/hd) for i in
+/// 0..hd/2, each computed in binary64 and rounded once to f32.
+pub fn rope_freqs(base: f32, hd: usize) -> Vec<f32> {
+    (0..hd / 2).map(|i| (base as f64).powf(-((2 * i) as f64) / hd as f64) as f32).collect()
+}
+
+fn lift_llama(l: &Lift) -> Result<String, String> {
+    let (file, store) = (l.file, l.store);
+    let d = l.meta_u("llama.embedding_length")?;
+    let layers = l.meta_u("llama.block_count")?;
+    let heads = l.meta_u("llama.attention.head_count")?;
+    let kvh = l.meta_u("llama.attention.head_count_kv").unwrap_or(heads);
+    let ctx = l.meta_u("llama.context_length")?;
+    let eps = match file.get_metadata("llama.attention.layer_norm_rms_epsilon") {
+        Some(GgufValue::F32(e)) => *e,
+        _ => return Err("the file has no f32 `llama.attention.layer_norm_rms_epsilon`".into()),
+    };
+    let base = match file.get_metadata("llama.rope.freq_base") {
+        Some(GgufValue::F32(b)) => *b,
+        None => 10000.0,
+        _ => return Err("`llama.rope.freq_base` is not an f32".into()),
+    };
+    if heads == 0 || kvh == 0 || d % heads != 0 || heads % kvh != 0 {
+        return Err(format!("{heads} query heads and {kvh} key and value heads over the width {d}: the heads divide the width and the key heads the query heads"));
+    }
+    let hd = d / heads;
+    if hd % 2 != 0 {
+        return Err(format!("a head of {hd} is not of even length; the rotary embedding rotates pairs"));
+    }
+    let vocab = l.info("token_embd.weight")?.dims.get(1).copied().ok_or("token_embd.weight is not a matrix")?;
+    let eps = float_lit(eps);
+    let f32w = |name: &str| -> Result<String, String> { Ok(blob(&l.weight(name, None)?)) };
+    let fr = put(store, &rce_fgm::f32_bytes(&rope_freqs(base, hd as usize)))?;
+    let mut out = String::new();
+    let mut w = |s: String| {
+        out.push_str(&s);
+        out.push('\n');
+    };
+    w("# Lifted by `rce lift gguf` from a GGUF file of the architecture llama:".into());
+    w(format!("# {layers} blocks of width {d}, {heads} query heads and {kvh} key and value heads,"));
+    w(format!("# a vocabulary of {vocab} and a context of {ctx}. Every weight is a blob of"));
+    w("# the store, named by its digest (spec 6.13 GT-9); every operation is at".into());
+    w("# its strongest level.".into());
+    w("use std.tensor".into());
+    w(String::new());
+    let ids0: Vec<String> = (0..ctx).map(|i| (i % vocab).to_string()).collect();
+    w("intent \"the logits of every position of a token sequence\"".into());
+    w(format!("    example Tokens(ids: [{}]) -> seen == 1", ids0.join(", ")));
+    w(String::new());
+    w("state Model".into());
+    w(format!("    logits: [[f32; {vocab}]; {ctx}] = [[0.0 as f32; {vocab}]; {ctx}]"));
+    w("    seen: u64 = 0".into());
+    w(String::new());
+    w(format!("event Tokens(ids: [i32; {ctx}])"));
+    w(String::new());
+    w("step Model on Tokens(ids)".into());
+    let pos: Vec<String> = (0..ctx).map(|i| i.to_string()).collect();
+    w(format!("    let pos: [i32; {ctx}] = [{}]", pos.join(", ")));
+    w(format!("    let fr = tensor.blob_f32(\"{fr}\", [{}])", hd / 2));
+    w(format!("    let x0 = tensor.embed({}, ids)", f32w("token_embd.weight")?));
+    for i in 0..layers {
+        let p = |s: &str| format!("blk.{i}.{s}");
+        w(format!("    # block {i}"));
+        w(format!("    let a{i} = tensor.rmsnorm(x{i}, {}, {eps})", f32w(&p("attn_norm.weight"))?));
+        for (name, h, rope) in [("q", heads, true), ("k", kvh, true), ("v", kvh, false)] {
+            let pr = product(&format!("a{i}"), &l.weight(&p(&format!("attn_{name}.weight")), None)?);
+            let r = format!("tensor.reshape({pr}, [{ctx}, {h}, {hd}])");
+            let r = if rope { format!("tensor.rope({r}, pos, fr)") } else { r };
+            w(format!("    let {name}{i} = tensor.permute({r}, [1, 0, 2])"));
+        }
+        w(format!("    let o{i} = tensor.reshape(tensor.permute(tensor.attention_causal(q{i}, k{i}, v{i}), [1, 0, 2]), [{ctx}, {d}])"));
+        w(format!("    let h{i} = tensor.add(x{i}, {})", product(&format!("o{i}"), &l.weight(&p("attn_output.weight"), None)?)));
+        w(format!("    let f{i} = tensor.rmsnorm(h{i}, {}, {eps})", f32w(&p("ffn_norm.weight"))?));
+        let gate = product(&format!("f{i}"), &l.weight(&p("ffn_gate.weight"), None)?);
+        let up = product(&format!("f{i}"), &l.weight(&p("ffn_up.weight"), None)?);
+        w(format!("    let g{i} = tensor.mul(tensor.silu({gate}), {up})"));
+        w(format!("    let x{} = tensor.add(h{i}, {})", i + 1, product(&format!("g{i}"), &l.weight(&p("ffn_down.weight"), None)?)));
+    }
+    let out_w = if file.tensors.iter().any(|t| t.name == "output.weight") { "output.weight" } else { "token_embd.weight" };
+    w(format!(
+        "    logits = {}",
+        product(&format!("tensor.rmsnorm(x{layers}, {}, {eps})", f32w("output_norm.weight")?), &l.weight(out_w, None)?)
+    ));
+    w("    seen += 1".into());
+    Ok(out)
+}
+
+fn lift_gpt2(l: &Lift) -> Result<String, String> {
+    let (file, store) = (l.file, l.store);
     let d = l.meta_u("gpt2.embedding_length")?;
     let layers = l.meta_u("gpt2.block_count")?;
     let heads = l.meta_u("gpt2.attention.head_count")?;

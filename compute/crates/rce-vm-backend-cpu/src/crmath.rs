@@ -535,6 +535,94 @@ pub fn erf(x: f64) -> f64 {
     f64::NAN
 }
 
+/// 2/pi at 4200 fraction bits (math.rce `c_two_opi`).
+fn c_two_opi() -> &'static N {
+    static C: OnceLock<N> = OnceLock::new();
+    C.get_or_init(|| math_constant("c_two_opi"))
+}
+
+/// pi/2 at 2100 fraction bits (math.rce `c_pio2`).
+fn c_pio2() -> &'static N {
+    static C: OnceLock<N> = OnceLock::new();
+    C.get_or_init(|| math_constant("c_pio2"))
+}
+
+/// The low `s` bits of n (math.rce `n_low`).
+fn low(n: &N, s: i64) -> N {
+    n.sub(&n.shr(s).shl(s))
+}
+
+/// (sin r, cos r) at f fraction bits for 0 <= r <= pi/4, r at f fraction
+/// bits (math.rce `sincos_fix`: Taylor, the alternating series summed as
+/// positive and negative parts).
+fn sincos_fix(r: &N, f: i64) -> (N, N) {
+    let r2 = r.mul(r).shr(f);
+    let series = |first: N, mut k: u64| {
+        let (mut p, mut n) = (first.clone(), N::zero());
+        let mut t = first;
+        let mut plus = false;
+        while !t.is_zero() {
+            t = t.mul(&r2).shr(f).divs((k + 1) * (k + 2));
+            k += 2;
+            if plus { p = p.add(&t) } else { n = n.add(&t) }
+            plus = !plus;
+        }
+        p.sub(&n)
+    };
+    (series(r.clone(), 1), series(N::pow2(f), 0))
+}
+
+/// which 0: sin, 1: cos (math.rce `trig`). Payne-Hanek: x 2/pi mod 4 from
+/// 4200 bits of 2/pi, exact for every finite x, then q pi/2 +- r with
+/// 0 <= r <= pi/4.
+fn trig(x: f64, which: u8) -> f64 {
+    if !x.is_finite() {
+        return f64::NAN;
+    }
+    let ax = x.abs();
+    if ax < 7.450580596923828e-09 {
+        return if which == 1 { 1.0 } else { x };
+    }
+    let (m, e) = mant(ax);
+    let t = N::of(m).mul(c_two_opi());
+    for &f in &ZIV_F {
+        let w = low(&t.shr(4200 - e - f), f + 2);
+        let mut q = w.shr(f).to_u64();
+        let mut h = low(&w, f);
+        let mut minus = false;
+        if h.bit(f - 1) {
+            h = N::pow2(f).sub(&h);
+            q = (q + 1) % 4;
+            minus = true;
+        }
+        let r = h.mul(&c_pio2().shr(2100 - f)).shr(f);
+        let (s, c) = sincos_fix(&r, f);
+        let (use_s, mut neg) = if which == 0 { (q % 2 == 0, q >= 2) } else { (q % 2 == 1, q == 1 || q == 2) };
+        if use_s && minus {
+            neg = !neg;
+        }
+        let v = if use_s { s } else { c };
+        if !v.is_zero() {
+            let (a, b) = ziv(&v, -f);
+            if a == b {
+                let sg = if x < 0.0 && which == 0 { !neg } else { neg };
+                return if sg { -a } else { a };
+            }
+        }
+    }
+    f64::NAN
+}
+
+/// Correctly rounded sin x (math.rce `sin`); NaN for an infinity or NaN.
+pub fn sin(x: f64) -> f64 {
+    trig(x, 0)
+}
+
+/// Correctly rounded cos x (math.rce `cos`); NaN for an infinity or NaN.
+pub fn cos(x: f64) -> f64 {
+    trig(x, 1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1448,7 +1448,7 @@ impl<'a, 'm> Cx<'a, 'm> {
             },
             "add" | "mul" => nest(elem(&t0), rank(&t0).max(rank(&at(1)))),
             "embed" => nest(elem(&t0), rank(&at(1)) + 1),
-            "matmul_q8_0" | "matmul_q4_0" => list(list(RType::F32)),
+            "matmul_q8_0" | "matmul_q4_0" | "matmul_q4_k" | "matmul_q5_k" | "matmul_q6_k" => list(list(RType::F32)),
             "blob_f32" | "blob_f64" | "blob_i8" | "blob_i32" => {
                 let e = match op {
                     "blob_f32" => RType::F32,

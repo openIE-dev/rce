@@ -1,0 +1,10 @@
+# outside.rce as it was meant: its known-good version, a program with no step.
+intent "a greeting and the size of a set"
+    check greet() == "hello"
+    check size(2) >= 0
+
+fn greet() -> text
+    return "hello"
+
+fn size(n: u8) -> u8
+    return n

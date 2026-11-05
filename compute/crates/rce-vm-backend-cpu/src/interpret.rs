@@ -121,17 +121,15 @@ pub fn interpret_reference(graph: &FunctionGraph, inputs: &Inputs) -> Result<Val
     for node_idx in order {
         let node = &graph.nodes[node_idx];
         let value = match node {
-            GraphNode::Apply { op, output_type }
-                if crate::ml::nn::int_range(crate::ml::nn::declared_elem(output_type)).is_some() =>
-            {
-                let args = gather_inputs(node_idx, graph, &values)?;
-                integer_node(node_idx, op, &args, crate::ml::nn::declared_elem(output_type))?
+            GraphNode::Param(_) => {
+                let v = eval_node(node_idx, node, graph, &values, inputs, InterpretConfig::default())?;
+                if !all_finite(&v)? {
+                    return Err(InterpretError::NonFinite(node_idx));
+                }
+                v
             }
-            _ => eval_node(node_idx, node, graph, &values, inputs, InterpretConfig::default())?,
+            _ => reference_node(node_idx, node, gather_inputs(node_idx, graph, &values)?)?,
         };
-        if !all_finite(&value)? {
-            return Err(InterpretError::NonFinite(node_idx));
-        }
         values.insert(node_idx, value);
     }
     values.remove(&graph.output_node).ok_or_else(|| {
@@ -140,6 +138,42 @@ pub fn interpret_reference(graph: &FunctionGraph, inputs: &Inputs) -> Result<Val
             graph.output_node
         ))
     })
+}
+
+/// The order in which the reference evaluation runs the nodes of `graph`
+/// (Kahn's algorithm, the ready nodes in ascending index, then in wire
+/// order). A realisation that runs node by node runs them in this order.
+pub fn reference_order(graph: &FunctionGraph) -> Result<Vec<usize>> {
+    topo_sort(graph)
+}
+
+/// One node of the reference evaluation on the values of its operands in
+/// port order: the step [`interpret_reference`] takes for every node but a
+/// parameter, with its finite check. A realisation that evaluates a term
+/// node by node with this function computes each node bit for bit as the
+/// reference does (the WebAssembly kernel library of `rce emit wasm` is
+/// this function compiled to WebAssembly).
+pub fn reference_node(node_idx: usize, node: &GraphNode, args: Vec<Value>) -> Result<Value> {
+    let value = match node {
+        GraphNode::Apply { op, output_type }
+            if crate::ml::nn::int_range(crate::ml::nn::declared_elem(output_type)).is_some() =>
+        {
+            integer_node(node_idx, op, &args, crate::ml::nn::declared_elem(output_type))?
+        }
+        GraphNode::Apply { op, .. } => apply_value_op(node_idx, op, &args, InterpretConfig::default())?,
+        GraphNode::Literal { value, .. } => Value::Scalar(literal_to_scalar(value)),
+        GraphNode::TensorLiteral(td) => Value::Tensor(tensor_literal_to_host(node_idx, td)?),
+        other => {
+            return Err(InterpretError::Unsupported(format!(
+                "the reference evaluation has no {} node",
+                node_kind_label(other)
+            )))
+        }
+    };
+    if !all_finite(&value)? {
+        return Err(InterpretError::NonFinite(node_idx));
+    }
+    Ok(value)
 }
 
 /// An operation node whose declared element type is an integer type (`i8`,

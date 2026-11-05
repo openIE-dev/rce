@@ -154,7 +154,7 @@ impl TTy {
         Some(TTy { elem: Elem::of(e)?, shape })
     }
 
-    fn of_spec(t: &TensorType) -> Option<TTy> {
+    pub fn of_spec(t: &TensorType) -> Option<TTy> {
         Some(TTy { elem: Elem::of(&t.dtype)?, shape: t.shape.clone() })
     }
 
@@ -190,7 +190,8 @@ const fn op(name: &'static str, args: &'static str, ir: &'static str, level: Lev
 /// of each is one of RCE's CPU backend (`rce_vm_backend_cpu::ml`), whose
 /// order of operations is fixed; `e` is the element type. E, T and R are
 /// `math.exp`, `math.tanh` and `math.erf` of the element as binary64,
-/// rounded once to e (6.3 F9).
+/// rounded once to e (6.3 F9), and S and C those of `math.sin` and
+/// `math.cos`.
 pub const OPS: &[Op] = &[
     op("matmul", "tt", "matmul", Level::Exact, "[[e; k]; m] x [[e; n]; k] -> [[e; n]; m]; each element sums its k products in increasing k from +0.0"),
     op("matvec", "tt", "matmul", Level::Exact, "[[e; k]; m] x [e; k] -> [e; m]; matmul with the vector as one column"),
@@ -216,6 +217,10 @@ pub const OPS: &[Op] = &[
     op("embed", "tt", "embedding_lookup", Level::Exact, "table [[e; d]; n], ids of i32 -> the rows the ids name; an id outside 0..n traps"),
     op("matmul_q8_0", "ttt", "matmul_q8_0", Level::Exact, "x [[f32; k]; m], q [[i8; k]; n], d [[f32; k/32]; n] -> [[f32; n]; m]: Q8_0 blocks of 32"),
     op("matmul_q4_0", "ttt", "matmul_q4_0", Level::Exact, "as matmul_q8_0, q in -8..7, each block summed in the order 0, 16, 1, 17, ..."),
+    op("matmul_q4_k", "tttt", "matmul_q4_k", Level::Exact, "x [[f32; k]; m], q [[i8; k]; n] in 0..15, s and o [[f32; k/32]; n] -> [[f32; n]; m]: each value s q - o; per pair of sub-blocks of 32, y + (((s1 u1 - o1 a1) + s2 u2) - o2 a2), u the sum of q x and a of x; k a multiple of 256"),
+    op("matmul_q5_k", "tttt", "matmul_q5_k", Level::Exact, "as matmul_q4_k, q in 0..31"),
+    op("matmul_q6_k", "ttt", "matmul_q6_k", Level::Exact, "x [[f32; k]; m], q [[i8; k]; n] in -32..31, s [[f32; k/16]; n] -> [[f32; n]; m]: each value s q; per half of 128 of each super-block of 256, for l in 0..31, positions l, l+32, l+64, l+96: y + (s q) x"),
+    op("rope", "ttt", "rope", Level::Exact, "x [s, ..., d], pos [i32; s], freqs [e; d/2]: per index r of the first axis and pair i, a = (pos_r as e) freqs_i, c = C(a), n = S(a); (x_2i, x_2i+1) -> (x_2i c - x_2i+1 n, x_2i n + x_2i+1 c)"),
     op("blob_f32", "hs", "blob", Level::Exact, "DIGEST, [d1, ...] -> the f32 tensor of that shape the store holds as the blob DIGEST (GT-9)"),
     op("blob_f64", "hs", "blob", Level::Exact, "DIGEST, [d1, ...] -> the f64 tensor of that shape the store holds as the blob DIGEST"),
     op("blob_i8", "hs", "blob", Level::Exact, "DIGEST, [d1, ...] -> the i8 tensor of that shape the store holds as the blob DIGEST"),
@@ -223,6 +228,9 @@ pub const OPS: &[Op] = &[
     op("round_bf16", "t", "round_bf16", Level::Lossy, "each element rounded once to the nearest bfloat16 value, ties to even; it lowers precision"),
     op("round_q8_0", "t", "round_q8_0", Level::Lossy, "each block of 32 along the last axis replaced by the values its Q8_0 quantization represents"),
     op("round_q4_0", "t", "round_q4_0", Level::Lossy, "each block of 32 along the last axis replaced by the values its Q4_0 quantization represents"),
+    op("round_q4_k", "t", "round_q4_k", Level::Lossy, "each super-block of 256 along the last axis replaced by the values its Q4_K quantization (RCE's reference quantizer) represents"),
+    op("round_q5_k", "t", "round_q5_k", Level::Lossy, "as round_q4_k, for Q5_K"),
+    op("round_q6_k", "t", "round_q6_k", Level::Lossy, "as round_q4_k, for Q6_K"),
 ];
 
 /// The operation of `std.tensor` named `name` in source.
@@ -521,12 +529,12 @@ impl<E> B<'_, E> {
         let f1 = |m: String| -> BuildErr<E> { Finding::new(line, "W-GRAPH-1", m).into() };
         let f2 = |m: String| -> BuildErr<E> { Finding::new(line, "W-GRAPH-2", m).into() };
         // every tensor operand of these operations has one element type
-        if !matches!(op, "embed" | "matmul_q8_0" | "matmul_q4_0") {
+        if !matches!(op, "embed" | "rope" | "matmul_q8_0" | "matmul_q4_0" | "matmul_q4_k" | "matmul_q5_k" | "matmul_q6_k") {
             for t in ins.iter().skip(1) {
                 same_elem(line, &q, &ins[0].1, &t.1)?;
             }
         }
-        let float_ops = !matches!(op, "transpose" | "permute" | "reshape" | "concat" | "add" | "mul" | "sum" | "embed" | "matmul_q8_0" | "matmul_q4_0");
+        let float_ops = !matches!(op, "transpose" | "permute" | "reshape" | "concat" | "add" | "mul" | "sum" | "embed" | "rope" | "matmul_q8_0" | "matmul_q4_0" | "matmul_q4_k" | "matmul_q5_k" | "matmul_q6_k");
         if float_ops && let Some((_, t)) = ins.iter().find(|(_, t)| !t.elem.is_float()) {
             return Err(f2(format!("`{q}` takes tensors of f32 or f64, found {}", t.show())));
         }
@@ -621,6 +629,40 @@ impl<E> B<'_, E> {
             "relu" | "round_bf16" | "exp" | "tanh" | "sigmoid" | "silu" | "gelu" | "gelu_tanh" => {
                 let ir = op_named(op).map(|o| o.ir).unwrap_or(op);
                 (self.custom(ir, &[x], &tx, numel), tx.clone())
+            }
+            "round_q4_k" | "round_q5_k" | "round_q6_k" => {
+                if tx.elem != Elem::F32 || tx.shape.last().is_none_or(|l| l % 256 != 0) {
+                    return Err(f1(format!("`{q}` takes a tensor of f32 whose last length is a multiple of 256, found {}", tx.show())));
+                }
+                (self.custom(op, &[x], &tx, numel), tx.clone())
+            }
+            "rope" => {
+                let ((pn, tp), (fnn, tf)) = (ins[1].clone(), ins[2].clone());
+                if !tx.elem.is_float() || tp.elem != Elem::I32 || tf.elem != tx.elem {
+                    return Err(f2(format!("`{q}` takes x of f32 or f64, pos of i32 and freqs of x's type, found {}, {} and {}", tx.show(), tp.show(), tf.show())));
+                }
+                let d = tx.shape.last().copied().unwrap_or(0);
+                if tx.rank() < 2 || d % 2 != 0 || tp.shape != [tx.shape[0]] || tf.shape != [d / 2] {
+                    return Err(f1(format!("`{q}`: x {}, pos {}, freqs {}: x [s, ..., d] with d even, pos [i32; s] and freqs [e; d/2]", tx.show(), tp.show(), tf.show())));
+                }
+                (self.custom("rope", &[x, pn, fnn], &tx, 6 * numel), tx.clone())
+            }
+            "matmul_q4_k" | "matmul_q5_k" | "matmul_q6_k" => {
+                let sub = if op == "matmul_q6_k" { 16 } else { 32 };
+                let (qn, tq) = ins[1].clone();
+                let rest: Vec<(usize, TTy)> = ins[2..].to_vec();
+                if tx.elem != Elem::F32 || tq.elem != Elem::I8 || rest.iter().any(|(_, t)| t.elem != Elem::F32) {
+                    return Err(f2(format!("`{q}` takes x of f32, q of i8 and scales of f32, found {}, {} and {}", tx.show(), tq.show(), rest[0].1.show())));
+                }
+                let ok = tx.rank() == 2 && tq.rank() == 2 && tx.shape[1] == tq.shape[1] && tx.shape[1] % 256 == 0 && rest.iter().all(|(_, t)| t.shape == [tq.shape[0], tq.shape[1] / sub]);
+                if !ok {
+                    return Err(f1(format!("`{q}`: x {}, q {}, s {}: x [[f32; k]; m], q [[i8; k]; n] and each scale [[f32; k/{sub}]; n], k a multiple of 256", tx.show(), tq.show(), rest[0].1.show())));
+                }
+                let (m, k, n) = (tx.shape[0], tx.shape[1], tq.shape[0]);
+                let out = TTy { elem: Elem::F32, shape: vec![m, n] };
+                let mut wires = vec![x, qn];
+                wires.extend(rest.iter().map(|(w, _)| *w));
+                (self.custom(op, &wires, &out, 2 * m * n * k + 4 * m * n * (k / sub)), out)
             }
             "round_q8_0" | "round_q4_0" => {
                 if tx.elem != Elem::F32 || tx.shape.last().is_none_or(|l| l % 32 != 0) {
@@ -938,6 +980,49 @@ fn evaluate_resolved(graph: &FunctionGraph, types: &TermTypes, vals: &[V]) -> Re
     }
 }
 
+/// The reference evaluation of a graph term node by node (GT-6), as
+/// [`evaluate_graph`] makes it: its result (Err the trap text) and the
+/// value of every node that completed, by node index. A realisation is
+/// judged against these values node by node at each node's level (EW-4).
+pub fn reference_nodes(graph: &FunctionGraph, types: &TermTypes, vals: &[V]) -> Result<(Result<V, String>, Vec<(usize, HostTensor)>), String> {
+    let g = materialise(graph, false)?;
+    if vals.len() != types.params.len() {
+        return Err(format!("graph term: {} operands for {} parameters", vals.len(), types.params.len()));
+    }
+    let order = rce_vm_backend_cpu::reference_order(&g).map_err(|e| format!("graph term: {e}"))?;
+    let mut values: std::collections::HashMap<usize, BValue> = Default::default();
+    let mut done = vec![];
+    for n in order {
+        let mut ws: Vec<_> = g.wires.iter().filter(|w| w.to == n).collect();
+        ws.sort_by_key(|w| w.port_in_idx);
+        let args: Vec<BValue> = ws.iter().filter_map(|w| values.get(&w.from).cloned()).collect();
+        let r = match &g.nodes[n] {
+            GraphNode::Param(p) => {
+                let i: usize = p.name.strip_prefix('p').and_then(|x| x.parse().ok()).ok_or("graph term: a parameter name")?;
+                let tt = TTy::of_spec(&types.params[i]).ok_or("graph term: a parameter of an unknown element type")?;
+                Ok(BValue::Tensor(to_host(&vals[i], &tt)?))
+            }
+            node => rce_vm_backend_cpu::reference_node(n, node, args),
+        };
+        let v = match r {
+            Ok(v) => v,
+            Err(InterpretError::NonFinite(_) | InterpretError::DivByZero(_)) => return Ok((Err(TRAP_NON_FINITE.into()), done)),
+            Err(InterpretError::Trap(_, t)) => return Ok((Err(t), done)),
+            Err(e) => return Err(format!("graph term: {e}")),
+        };
+        if let BValue::Tensor(t) = &v {
+            done.push((n, t.clone()));
+        }
+        values.insert(n, v);
+    }
+    let rt = TTy::of_spec(&types.result).ok_or("graph term: a result of an unknown element type")?;
+    let out = match values.remove(&g.output_node) {
+        Some(BValue::Tensor(t)) => of_host(&t, &rt),
+        _ => Err("graph term: a result that is not a tensor".into()),
+    };
+    Ok((out, done))
+}
+
 /// The host tensor of a value of type `t`: its elements in row-major order.
 pub fn to_host(v: &V, t: &TTy) -> Result<HostTensor, String> {
     let mut flat = vec![];
@@ -1171,11 +1256,15 @@ pub fn inspect(bytes: &[u8]) -> Result<String, String> {
     Ok(o)
 }
 
-/// `rce graph run FILE INPUTS`: the reference evaluation (GT-6) of the
+/// The evaluation of a term `run_fg` uses: the reference, or a realisation
+/// (`rce graph run wasm`, 10.18), as (key, graph, types, operands) to result.
+pub type Eval<'a> = &'a dyn Fn(&str, &FunctionGraph, &TermTypes, &[V]) -> Result<Result<V, String>, String>;
+
+/// `rce graph run FILE INPUTS`: the reference evaluation (GT-6), or `eval`, of the
 /// graph term in a `.fg` file. INPUTS is a JSON array with one tensor per
 /// parameter, each a nested array of numbers of the parameter's shape; the
 /// result is printed in the canonical JSON of 6.1.1 (GT-8).
-pub fn run_fg(bytes: &[u8], inputs: &str) -> Result<String, String> {
+pub fn run_fg(bytes: &[u8], inputs: &str, eval: Option<Eval>) -> Result<String, String> {
     let (f, g, ty) = read_fg(bytes)?;
     let key = rce_format::hash::hex_encode(&f.header.content_hash);
     let ty = ty.ok_or("requires change: the file has no type table, so its graph is not a graph term (W7)")?;
@@ -1190,11 +1279,20 @@ pub fn run_fg(bytes: &[u8], inputs: &str) -> Result<String, String> {
         let t = TTy::of_spec(p).ok_or("a parameter of an unknown element type")?;
         vals.push(of_json(x, &t)?);
     }
-    match evaluate_graph(&g, &ty, &vals) {
+    let r = match eval {
+        Some(e) => e(&key, &g, &ty, &vals)?,
+        None => evaluate_graph(&g, &ty, &vals),
+    };
+    match r {
         Ok(v) => Ok(canonical(&v) + "\n"),
         Err(m) if is_trap(&m) => Ok(format!("trap: {m}\n")),
         Err(m) => Err(m),
     }
+}
+
+/// The value of type `t` a JSON tensor holds (`rce graph run` INPUTS).
+pub fn value_of_json(x: &serde_json::Value, t: &TTy) -> Result<V, String> {
+    of_json(x, t)
 }
 
 fn of_json(x: &serde_json::Value, t: &TTy) -> Result<V, String> {

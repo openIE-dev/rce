@@ -10,7 +10,7 @@
 //!
 //! What is compiled in (`include_str!`) is `spec/data/spec-tables.json`,
 //! the `methods` and `method_work` members of spec-data.json and the rule
-//! to method map of `w_methods` and the rule to mode map of `w_modes` (7.1), and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
+//! to method map of `w_methods` and the rule to mode map of `w_modes` (7.1), the rung to mode map of `repair_modes` (10.13), and nothing else (`tables_of`), written by `rce-spec-data` next to it so the wasm
 //! build does not carry the grammar tables. `rce-spec-data check` and
 //! `tests/spec_data.rs` fail when either file is stale against the book,
 //! and `tests/spec_read.rs` checks that every table entry is typed and
@@ -32,7 +32,11 @@ pub fn tables_of(spec_data: &str) -> String {
         .as_array()
         .map(|t| t.iter().map(|r| (r["rule"].as_str().unwrap_or("").to_string(), r["mode"].clone())).collect())
         .unwrap_or_default();
-    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"], "w_methods": rules, "w_modes": modes }).to_string()
+    let rungs: serde_json::Map<String, Value> = d["repair_modes"]["table"]
+        .as_array()
+        .map(|t| t.iter().map(|r| (r["rung"].as_str().unwrap_or("").to_string(), r["mode"].clone())).collect())
+        .unwrap_or_default();
+    serde_json::json!({ "methods": d["methods"], "method_work": d["method_work"], "w_methods": rules, "w_modes": modes, "repair_modes": rungs }).to_string()
 }
 
 /// Complexity class of a method (C.6.4).
@@ -113,6 +117,17 @@ pub fn rule_table() -> Vec<(String, String, Option<String>)> {
         .as_object()
         .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string(), modes.get(k).cloned())).collect())
         .unwrap_or_default()
+}
+
+/// The mode of a rung of `rce repair` by the modes table of 10.13 (RF-3):
+/// `off`, `observe` or `auto`. None for a rung the table does not list
+/// (rungs a to e, which are exact and have no mode).
+pub fn rung_mode(rung: &str) -> Option<&'static str> {
+    static M: LazyLock<BTreeMap<String, String>> = LazyLock::new(|| {
+        let d: Value = serde_json::from_str(SPEC_TABLES).expect("spec-tables.json is JSON");
+        d["repair_modes"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect()).unwrap_or_default()
+    });
+    M.get(rung).map(|s| s.as_str())
 }
 
 fn rule_modes() -> &'static BTreeMap<String, String> {

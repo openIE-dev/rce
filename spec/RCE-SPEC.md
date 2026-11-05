@@ -2481,7 +2481,8 @@ the row names the types (N4: no promotion). Arithmetic is that of `e`: each
 `+ - * /` and `sqrt` is one operation of `e` (binary32 for `f32`), rounded
 once to nearest even, with no fused multiply-add. E(x), T(x) and R(x) are
 `math.exp`, `math.tanh` and `math.erf` (6.3 F9) of the element as binary64,
-which is exact, rounded once to `e`; for `f64` they are those functions,
+which is exact, rounded once to `e`, and S(x) and C(x) those of `math.sin`
+and `math.cos`; for `f64` they are those functions,
 and for `f32` the binary32 value nearest the binary64 one, which is the
 correctly rounded binary32 function except where the binary64 value is a
 binary32 midpoint. A sum runs in increasing index from +0.0 (from 0 for
@@ -2515,13 +2516,20 @@ realisation can reproduce the reference's bits.
 | `tensor.embed(table, ids)` | table `[[e; d]; n]` of a float type, ids a tensor of `i32`, to ids' shape followed by d | the rows the ids name; an id outside 0 to n − 1 traps `index ID out of range` | exact |
 | `tensor.matmul_q8_0(x, q, d)` | x `[[f32; k]; m]`, q `[[i8; k]; n]`, d `[[f32; k/32]; n]`, k a multiple of 32, to `[[f32; n]; m]` | y_ij = the sum over blocks b of d_jb · s_b, s_b the sum of (q_jt as f32) · x_it over the block's 32 positions in increasing t | exact |
 | `tensor.matmul_q4_0(x, q, d)` | as `matmul_q8_0`, each q in −8 to 7 (else the trap `Q4_0 value V outside -8..7`) | as `matmul_q8_0`, each block summed in the order 0, 16, 1, 17, …, 15, 31 | exact |
+| `tensor.matmul_q4_k(x, q, s, o)` | x `[[f32; k]; m]`, q `[[i8; k]; n]` in 0 to 15 (else the trap `Q4_K value V outside 0..15`), s and o `[[f32; k/32]; n]`, k a multiple of 256, to `[[f32; n]; m]`; the value at position t of row j is s_jb · q_jt − o_jb, b = t / 32 (GT-10) | for each pair of sub-blocks (2g, 2g + 1): u = the sum of (q_jt as f32) · x_it and a = the sum of x_it over each one's 32 positions in increasing t; y_ij = y_ij + (((s · u − o · a) of 2g + s · u of 2g + 1) − o · a of 2g + 1), in increasing g from +0.0 | exact |
+| `tensor.matmul_q5_k(x, q, s, o)` | as `matmul_q4_k`, q in 0 to 31 | as `matmul_q4_k` | exact |
+| `tensor.matmul_q6_k(x, q, s)` | x `[[f32; k]; m]`, q `[[i8; k]; n]` in −32 to 31, s `[[f32; k/16]; n]`, k a multiple of 256, to `[[f32; n]; m]`; the value at position t is s_jb · q_jt, b = t / 16 | per half of 128 positions of each super-block of 256, for l from 0 to 31, the positions l, l + 32, l + 64, l + 96 of the half in that order: y_ij = y_ij + (s_jb · (q_jt as f32)) · x_it, from +0.0 | exact |
+| `tensor.rope(x, pos, freqs)` | x `[s, …, d]` of a float type, d even, pos `[i32; s]`, freqs `[e; d/2]`, to x's shape | per index r of the first axis and pair i: a = (pos_r as `e`) · freqs_i, c = C(a), n = S(a); in each row of d along the last axis, (x_2i, x_2i+1) becomes (x_2i · c − x_2i+1 · n, x_2i · n + x_2i+1 · c) | exact |
 | `tensor.round_bf16(t)` | a float tensor to one of its shape | each element rounded once to the nearest bfloat16 value (8 significant bits, the exponent range of binary32), ties to even | lossy |
 | `tensor.round_q8_0(t)`, `tensor.round_q4_0(t)` | an `f32` tensor whose last length is a multiple of 32 to one of its shape | each block of 32 along the last axis replaced by the values its Q8_0 or Q4_0 quantization represents, quantized as GGUF's reference quantizers do (`rce_vm_backend_cpu::ml::nn::quantize_block`) | lossy |
+| `tensor.round_q4_k(t)`, `tensor.round_q5_k(t)`, `tensor.round_q6_k(t)` | an `f32` tensor whose last length is a multiple of 256 to one of its shape | each super-block of 256 along the last axis replaced by the values its Q4_K, Q5_K or Q6_K quantization by RCE's reference quantizer (GT-10) represents | lossy |
 | `a + b`, `a - b`, `a * b`, `a / b` | two tensors of one shape to one of that shape | element by element in row-major order; for integers each result is checked against `e` and `/` truncates | exact |
 
-The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0` and
-`matmul_q4_0` are those of the portable kernels of `rce-op-nn-prims`,
-`rce-op-attention` and `rce-op-qmm`, so those kernels differ from the
+The orders of `rmsnorm`, `layernorm`, `attention`, `matmul_q8_0`,
+`matmul_q4_0`, `matmul_q4_k`, `matmul_q5_k` and `matmul_q6_k` are those of
+the portable kernels of `rce-op-nn-prims`, `rce-op-attention` and
+`rce-op-qmm` (for the K formats, its serial row kernels `dot_row_q4_k`,
+`dot_row_q5_k` and `dot_row_q6_k`), so those kernels differ from the
 reference only where they take `exp` or `tanh` from the platform (and, for
 `layernorm`, on a row of only −0.0, whose sum they start from −0.0). No
 operation has a `within N` level of its own: `within N` is what a program
@@ -2612,6 +2620,37 @@ store holds the blob DIGEST`), as a missing file does; it is not a trap of
 the program. The host loads every blob a program names when it starts and
 records the digests and lengths it loaded in D (`host.Blobs`, Appendix E)
 before any input. `rce lift gguf` (10.17) writes such programs.
+
+**GT-10 (the K formats).** Terms used here. A *super-block* is 256
+consecutive values along a matrix's last axis. Q4_K and Q5_K divide it
+into 8 *sub-blocks* of 32 and Q6_K into 16 of 16. A term holds a matrix of
+a K format as its values q, an `i8` tensor in position order, and per
+sub-block a scale s (and, for Q4_K and Q5_K, an offset o), `f32` tensors;
+the value at a position is s · q − o (Q6_K: s · q), one binary32
+multiplication and one subtraction. In a GGUF file s is d · sc and o is
+dmin · m, d and dmin binary16 and sc and m 6-bit integers (Q6_K: sc an
+`i8`), so each s and o is a binary32 value exactly and the term's values
+are the file's (10.17 LIFT-6). The products are exact (GT-4). The rounding
+operations `round_q4_k`, `round_q5_k` and `round_q6_k` lower precision and
+use RCE's reference quantizer (`rce_vm_backend_cpu::ml::kquant::quantize_k`),
+each operation binary32 and `round` half away from zero:
+
+- Q4_K and Q5_K, with nmax 15 and 31: per sub-block b, lo = min(0, its
+  least value), hi = its largest value, w_b = (hi − lo) / nmax and
+  v_b = −lo; d and dmin are (the largest w_b) / 63 and (the largest v_b) / 63
+  rounded to binary16; sc_b = min(63, round(w_b / d)), 0 when d = 0, and
+  m_b likewise from v_b and dmin; with s = d · sc_b and o = dmin · m_b, each
+  q = min(nmax, max(0, round((x + o) / s))), 0 when s = 0.
+- Q6_K: per sub-block b of 16, w_b = (its first value of largest
+  magnitude) / −32; d = (the largest |w_b|) / 127 rounded to binary16;
+  sc_b = min(127, max(−128, round(w_b / d))), 0 when d = 0; with
+  s = d · sc_b, each q = min(31, max(−32, round(x / s))), 0 when s = 0.
+
+This quantizer is RCE's, stated so that a rounding is a function of its
+operand's bits; it is simpler than the search of GGUF's own K quantizers,
+so a file written by another tool may hold other values for the same
+weights. A lifted program holds the file's values and has no rounding
+operation, so the difference never reaches one.
 
 **W7 (graph terms in the core).** A core module read back from JSON
 (`rce emit core FILE`, `rce run-core FILE`) requires change, with the rule
@@ -2748,7 +2787,8 @@ The Form
   literal from 1 to 2^31 − 1 (6.13, GT-1 to GT-4).
 - W-GRAPH-3 An operation whose level is weaker than the level in force
   where it stands, that is, a level the program does not declare: a
-  `tensor.round_bf16`, `tensor.round_q8_0` or `tensor.round_q4_0` outside a
+  `tensor.round_bf16`, `tensor.round_q8_0`, `tensor.round_q4_0`,
+  `tensor.round_q4_k`, `tensor.round_q5_k` or `tensor.round_q6_k` outside a
   `tensor.lossy` (6.13, GT-3).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
   moved inside a loop, or placed in a collection, field, payload, channel or
@@ -3693,7 +3733,10 @@ and shows that the step of the third event keeps the state, with exit status 1.
 2. **No model in the loop.** No subcommand and no language server request
    calls a language model, a remote service or any learned component. A
    diagnostic, a run, a test verdict, an emitted file and a formatted file
-   come only from the rules of sections 2 to 7.
+   come only from the rules of sections 2 to 7. A program written outside
+   RCE, by a model or by a person, enters only as an input file, the
+   proposals file of `rce repair` (10.13, RF-1), and is judged by the same
+   gate as every other candidate.
 3. **One checker.** `rce check`, `rce test`, `rce run`, `rce emit` and the
    language server all use the same parser, type checker and admission gate
    (6.9) as the reference checker `rce-check`. A file accepted by one is
@@ -3904,6 +3947,7 @@ the proposal `spec/proposals/one-emitter.md`, ONE-3).
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
 | `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
 | `verilog` | the step function δ as one synthesizable Verilog-2005 module (IEEE 1364-2005), for the subset of the proposal `spec/proposals/emit-verilog.md` (informative) |
+| `wasm` | each graph term of FILE (6.13) as one WebAssembly text module that runs the term node by node through the kernel library (10.18) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
@@ -4694,7 +4738,7 @@ the lowering of channels, `send`, `spawn`, `select`, actors, protocols,
 nodes and supervisors, and the tick, its phases and the log written as
 core functions, so that `rce run-core` prints the trace of `fn main`.
 
-### 10.13 `rce repair [json] [bound N] [known GOOD] FILE [MODULE...]`: the exact-proposer ladder (informative)
+### 10.13 `rce repair [json] [bound N] [known GOOD] [proposals PROPOSALS] FILE [MODULE...]`: the exact-proposer ladder and rung f (informative)
 
 `rce repair` takes a program FILE that requires change (an example or
 check does not hold, or a static rule reports it) and proposes a changed
@@ -4709,7 +4753,9 @@ example and check, an admitted candidate is one whose examples and checks
 all hold. No rung calls a model (10.1, item 2). A candidate is the
 canonical text of an edited module (the source printer of `unparse.rs`),
 never a text written by hand, and a candidate equal to one already judged
-is judged once.
+is judged once. After the exact rungs, rung f judges candidate programs
+written outside RCE and given to the command as a file (RF-1 to RF-7
+below); the command calls no model for them either.
 
 Terms. A **definition** is a function, a method of an `impl`, a step, an
 actor, a constant or a state declaration. A **site** is one expression
@@ -4797,6 +4843,15 @@ The rungs, in order:
   projection would differ from GOOD in names only, so the search needs no
   preference of its own for GOOD. The edit lists each identifier changed,
   by line of the canonical text.
+- **f. Outside proposals.** When every candidate of rungs a to e, with the
+  renaming onto GOOD, is judged and none is admitted, each program of the
+  file PROPOSALS is judged by the same gate, in the mode of rung f (RF-1
+  to RF-4 below). Rung f is not exact: what it judges is not computed from
+  FILE by a fixed rule, so equal inputs to the ladder do not give it. It is
+  the ladder's *stochastic* rung in the sense of the deterministic-first
+  principle, under which at least 98% of the closes come from exact rungs,
+  at most 2% from stochastic ones, and every stochastic output is gated
+  (hypothesis H6 of `compile/HYPOTHESES.md`).
 
 The order of rungs c, d and e, the three that edit FILE at one site, is
 the order of how many alternatives one edit chooses among, which is both
@@ -4813,11 +4868,13 @@ judges at most two candidates, needs no search, and uses the most
 information: a known-good version of the program.
 
 Rungs a, b and c are not bounded by `bound`: a and b judge at most one
-candidate per donor or catalog hit, and c at most one candidate. No rung
-edits an intent, example, check or law line.
+candidate per donor or catalog hit, and c at most one candidate; rung f
+judges at most N proposals. No rung edits an intent, example, check or
+law line, and rung f refuses a proposal that does (RF-2).
 
 Output: the rung that closed the program (`a reuse`, `b lookup by type`,
-`c altered rules`, `d bounded enumeration`, `e renames`, or `none` when FILE already
+`c altered rules`, `d bounded enumeration`, `e renames`, `f outside proposal
+(stochastic)`, or `none` when FILE already
 complies with the Form), the edit (it names the line of FILE), the diff of the canonical
 texts (`-` the old lines and `+` the new, with line numbers of the
 canonical text), the number of candidates each rung judged with
@@ -4829,7 +4886,8 @@ candidate is admitted, the report on FILE and `not closed FILE`. With
 the repaired text, `model_calls` (always 0), `canonical_same_report`
 (whether the canonical text of FILE gets the report FILE gets, line
 numbers aside) and `attempts`, one record per candidate judged: rung,
-definition, edit and the checker's verdict. Exit status 0 when the
+definition, edit and the checker's verdict, and the members of RF-4. Last,
+on standard error, the attention line of AC-1 (RF-4). Exit status 0 when the
 program is closed or already complies, 1 when it is not closed, 2 on a
 usage error. The command is deterministic: equal inputs give equal
 output bytes and the same exit status.
@@ -4839,6 +4897,153 @@ it the program that was meant. `rce equiv` (10.11) and the program hash of
 `rce hash` (10.8) say whether a repair has the behaviour or the
 definitions of a known original; `scripts/ladder-run.py` reports that
 split for the task sets that `scripts/ladder-tasks.py` writes.
+
+**Rung f (RF-1 to RF-7).** A *proposal* is a candidate program for FILE
+written outside RCE: by a model, hosted or local, or by a person. Its
+*origin* is a label it carries, such as `person` or `local model`. RCE
+reads proposals and never asks for them: the checker calls no model (10.1,
+item 2), and a proposal enters only as a file. Example:
+`rce repair json known good.rce proposals p.json counter.rce` runs rungs a
+to e on `counter.rce` and, when they close nothing, judges each proposal
+of `p.json`; in `observe` mode it reports each one the checker admits and
+leaves the program as it is.
+
+- **RF-1 (proposals are data).** PROPOSALS is the canonical JSON (6.1.1)
+  of the object `{"format": "rce-proposals/1", "proposals": [...]}`,
+  followed by one line end. Each proposal is an object with exactly
+  `origin`, a text of one line that is not empty, and `text`, the program
+  text. A proposal is recorded by its *digest*, the SHA-256 of
+  `rce-proposal/1`, a line end and its text, as the rule-set hash is
+  formed (10.15, AR-1). A file not in this form is a usage error: the
+  command prints `PROPOSALS: RF-1 ...` on standard error and exits 2.
+- **RF-2 (the same gate, after the exact rungs).** Rung f runs only when
+  FILE parses and rungs a to e, with the renaming onto GOOD, have admitted
+  no candidate. It takes the proposals in the order of the file. A
+  proposal whose text does not parse requires change with the parser's
+  report. A proposal that names another module than FILE, or that does
+  not keep what FILE is judged by, requires change under RF-2: its intent,
+  example, check and law items, and the `check`, `requires` and `ensures`
+  statements of each definition, have the canonical texts of FILE's, in
+  any order. A proposal may thus change a definition but never what judges
+  it, as no exact rung does. Every other proposal is judged as its
+  canonical text by the gate of every rung, `check_program`: the admission
+  of `rce check` (6.9, 6.11), which on a text whose obligations hold runs
+  the mutation gate (6.12). A proposal is therefore admitted only when
+  every example, check and law holds and no obligation is vacuous
+  (W-MUT-1), so a close by rung f never rests on an obligation that no
+  edit can make fail. A proposal whose canonical text was judged before
+  (FILE itself, a candidate of an earlier rung or an earlier proposal) is
+  not judged again. At most N proposals are judged (`bound N`).
+- **RF-3 (modes).** Rung f has one mode, given by the table below: `off`,
+  `observe` or `auto`, the modes of the altered rules (7.1, RM-1 to RM-3).
+  The mode is data: the checker reads it from `spec/data/spec-data.json`
+  (`repair_modes`), no program text, comment or command word sets it, and
+  a rung the table does not list is `observe`. `off`: rung f does not run,
+  and the report says so (`skipped f`). `observe`: every proposal is
+  judged, and each one the checker admits is reported as `observed`, with
+  its diff, digest and origin; rung f closes nothing and writes nothing,
+  and the status is that of a program not closed. `auto`: the first
+  admitted proposal closes the program as rung `f`, and the report labels
+  the close stochastic. Rung f entered as `observe`. Promotion to `auto` is
+  a change of its row, allowed only under RF-5 and RF-7.
+
+| Rung | Mode | Reason |
+|---|---|---|
+| f | observe | Entered as `observe`: a proposal written outside RCE is reported, never applied, until the criterion registered for its promotion holds on a recorded evaluation (RF-5, RF-7). No evaluation is recorded. |
+
+- **RF-4 (the record).** The text report adds `f N` to `tried`, a
+  `proposals` line (given, judged, admitted and observed, the mode, and the
+  SHA-256 of PROPOSALS) and one `observed` block per observed proposal:
+  its place in the file, origin, digest, what W-MUT-1 measured, the diff
+  of the canonical texts and, with GOOD, how it compares with GOOD. The
+  JSON report adds these members:
+  - `bound`;
+  - `inputs`, the SHA-256 of the bytes of FILE, GOOD, PROPOSALS and each
+    MODULE (`null` for a file not given);
+  - `stochastic`, true exactly when rung f closed the program;
+  - `proposals` (`null` without PROPOSALS): the mode, the file's SHA-256,
+    `ran` (whether rung f ran), the counts `given`, `judged`, `admitted`
+    and `observed`, and one record per proposal, in the order of the file,
+    with its `index`, `origin`, digest `sha256`, `verdict`, `admitted` and
+    `observed`. An admitted proposal's record also holds its `diff`,
+    `mutation` (its obligations, how many W-MUT-1 measured, and `vacuous`,
+    which is 0) and, with GOOD, `known`. `known` is `restored` when the
+    program hash of 10.8 is GOOD's; otherwise, by `rce equiv` (10.11) with
+    the state bound of 10.14 (20,000), `behaviour-equal`, `contradicts`
+    (with the event sequence after which GOOD and the proposal give
+    different outputs, when there is one) or `undecided`; and
+    `not compared` when a program has no step.
+
+  The JSON report is canonical JSON (6.1.1). `model_calls` stays 0: RCE
+  made no model call, and the proposals' origins are recorded instead.
+  Every run ends with the attention line of AC-1 on standard error: one
+  finding that requires change when the program is not closed, none
+  recommended or altered, and one observed per observed proposal. Equal
+  inputs give equal bytes.
+- **RF-5 (a registered promotion criterion).** Rung f is promoted from
+  `observe` to `auto` only when the criterion registered in
+  `spec/proposals/repair-observe/criterion.json` holds. The registration
+  is dated data, in the form of the ladder's registrations: it was
+  committed on 2026-11-03, before any observation; its SHA-256 is pinned
+  beside it (`criterion.json.sha256`); and it is not edited afterwards. It
+  fixes the corpus by path and SHA-256 (the 151 tasks of the second and
+  third registered ladder runs), the observation (one run of
+  `rce repair json known ORIGINAL proposals PROPOSALS MUTANT` per task, in
+  `observe` mode, bound 2000), and three conditions derived from the
+  deterministic-first principle, each of which holds:
+  1. *Share.* Every task has exactly one record, made as registered, and
+     every task that rungs a to e do not close and whose mutant parses had
+     at least one proposal judged. Of the closes, the tasks closed by rungs
+     a to e (E) and the tasks they leave open on which rung f observes an
+     admitted proposal (F), at most 2% come from rung f:
+     100 × F ≤ 2 × (E + F), with E + F > 0.
+  2. *W-MUT-1.* Every observed proposal also passes W-MUT-1: its record
+     shows that the mutation gate ran and found no vacuous obligation.
+  3. *GOOD.* No observed proposal contradicts the task's original, given
+     as GOOD: for none does `rce equiv` find an event sequence after which
+     the two give different outputs, or show that they explore other event
+     instances.
+- **RF-6 (the evaluator).** `rce repair criterion [json] REGISTRATION
+  CORPUS RECORDS` reads the registration, the corpus, whose SHA-256 is the
+  registered one, and RECORDS, one `rce repair json` report per line. It
+  matches each record to a task by the SHA-256 of FILE (`inputs.file`, the
+  task's `mutant_sha256`). It prints, one line each, the registration, the
+  corpus, the records, the closes by rungs a to e and by rung f with the
+  share, the tasks admitted as given or not closed (and of these, where
+  rung f did not run), the observed proposals (how many pass W-MUT-1 and
+  how each compares with GOOD), the proposals judged per origin, any task
+  the records do not cover as registered, and last `criterion holds` or
+  `criterion does not hold: REASONS`. With `json` the same is the canonical
+  JSON of format `rce-repair-criterion/1`, the form in which an evaluation
+  is recorded (`spec/proposals/repair-observe/evaluation.json`). Exit
+  status 0 when the criterion holds, 1 when it does not, 2 when a file
+  cannot be read or the corpus is not the registered one. The command is
+  deterministic.
+- **RF-7 (the mode row follows the evaluation).** `rce-spec-check` fails
+  when the registration's SHA-256 is not the pinned one, or when the mode
+  row of rung f is `auto` and no recorded evaluation of this registration
+  shows the criterion met. The check derives the verdict again from the
+  evaluation's counts and the registration, as AR-5 derives a receipt
+  again, and does not take its `holds` on trust. Rung f is `observe`, and
+  no evaluation is recorded.
+
+**Conformance.** Each rule of rung f is checked by these tests of
+`spec/checker/tests/`:
+
+| Rule | Test |
+|---|---|
+| RF-1 | `repair_observe.rs`: `a_proposals_file_is_canonical_json_and_each_proposal_has_its_digest` |
+| RF-2 | `repair_observe.rs`: `rung_f_never_runs_when_an_exact_rung_closes`, `a_proposal_the_checker_or_w_mut_1_refuses_is_not_admitted`, `a_proposal_that_edits_what_judges_it_requires_change` |
+| RF-3 | `repair_observe.rs`: `observe_records_and_never_closes`, `auto_closes_with_the_stochastic_label`, `off_judges_nothing`, `the_modes_table_gives_rung_f_observe` |
+| RF-4 | `repair_observe.rs`: `the_report_is_byte_stable`, `an_observed_proposal_is_compared_with_good` |
+| RF-5 | `repair_observe.rs`: `the_registration_is_dated_and_pinned` |
+| RF-6 | `repair_observe.rs`: `the_criterion_holds_when_every_condition_holds`, `the_criterion_fails_on_each_condition` |
+| RF-7 | `repair_observe.rs`: `the_mode_row_of_rung_f_is_auto_only_with_a_met_criterion` |
+
+The design and its sources are in `spec/proposals/repair-observe.md`: the
+accept modes of DeepSeek's `dsh-superagent-prototype` (MIT), already taken
+for 7.1, and its rule that a model assesses and deterministic policy
+decides.
 
 ### 10.14 `rce mutants [json] [bound N] FILE [MODULE...]`: mutation adequacy (informative)
 
@@ -5034,13 +5239,14 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   norm and the output projection (`output.weight`, or the token embedding
   when the file has none). The program has one event, `Tokens(ids: [i32;
   C])` with C the file's context length, and keeps the logits of the last
-  sequence in its state. Another architecture is refused with its name
-  (status 2).
+  sequence in its state. The architecture `llama` is lifted as LIFT-5
+  states. Another architecture is refused with its name (status 2).
 - **LIFT-2 (weights).** F32 and F16 tensors become `f32` blobs (every
   binary16 value is a binary32 value). Q8_0 and Q4_0 matrices become their
   quantized values, an `i8` blob, and their block scales, an `f32` blob,
   exactly as the file holds them (Q4_0 nibbles minus 8, low nibbles first),
-  for `matmul_q8_0` and `matmul_q4_0`. Another type is refused.
+  for `matmul_q8_0` and `matmul_q4_0`. Q4_K, Q5_K and Q6_K matrices
+  become blobs as LIFT-6 states. Another type is refused.
 - **LIFT-3 (layout).** GGUF lists a tensor's lengths fastest first: a
   matrix of lengths (k, n) is n rows of k, the shape `[n, k]`, and a
   projection of x by it is x Wᵀ (`matmul_q8_0(x, q, d)`, or `matmul(x,
@@ -5060,11 +5266,115 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
   `tensor.within(N, …)` around the operation, and a run whose distance
   exceeds N is judged as not realising it.
 
+- **LIFT-5 (llama).** The architecture `llama` is lifted from the keys
+  `llama.embedding_length`, `block_count`, `attention.head_count`,
+  `attention.head_count_kv` (the query heads when absent),
+  `context_length`, `attention.layer_norm_rms_epsilon` and
+  `rope.freq_base` (10000 when absent): the embedding of the input ids
+  (`token_embd`); per block an
+  RMS norm (`rmsnorm`), the projections q, k and v reshaped to
+  `[C, heads, hd]`, the rotary position embedding of adjacent pairs
+  (`rope`, positions 0 to C − 1) on q and k, causal attention heads first
+  with the query heads a multiple of the key and value heads (grouped-query
+  attention, GQA: query head h reads key and value head h / (hq / hk)),
+  the output projection and a residual sum; an RMS norm and the
+  feed-forward layer SwiGLU, `(silu(f Wgᵀ) * f Wuᵀ) Wdᵀ`, and a residual
+  sum; a final RMS norm and the output projection (`output.weight`, or the
+  embedding table when the file has none). The rotary frequencies
+  base^(−2i / hd), i from 0 to hd / 2 − 1, are computed once by the lift
+  in binary64 and rounded once to `f32`, and enter the program as a blob,
+  so the program's arithmetic is all GT-4's. A head of odd length, or
+  query heads that are not a multiple of the key heads, is refused.
+- **LIFT-6 (the K formats).** Q4_K, Q5_K and Q6_K matrices become their
+  values, an `i8` blob in position order, and their sub-block scales
+  d · sc (and offsets dmin · m), `f32` blobs, for `matmul_q4_k`,
+  `matmul_q5_k` and `matmul_q6_k` (GT-10); each scale and offset is a
+  binary32 value exactly, so the values the program holds are those
+  `rce-ingest-gguf` reads from the file, bit for bit. Rows of a length not
+  a multiple of 256 are refused. On a two-block llama model of width 256
+  with 4 query heads over 2 key and value heads, written in the test from
+  a fixed seed with products in Q4_K, Q5_K, Q6_K, Q8_0 and F16
+  (`spec/checker/tests/lift_llama.rs`), the lifted program's logits equal
+  a forward pass written in Rust bit for bit, and `rce-op-qmm`'s K-format
+  products reproduce every bit of the reference on 41,472 elements, serial
+  and dispatched (Apple M5 Max, aarch64).
+
 `rce lift fx` is not a command yet: the PyTorch FX graphs that
 `rce-ingest-fx` reads carry no shapes for their inputs and intermediate
 values and no weight bytes, which a term needs, and several of their
 operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
 have no operation in `std.tensor`.
+
+### 10.18 `rce emit wasm FILE` and `rce graph run wasm FILE INPUTS`: graph terms in WebAssembly
+
+Terms used here. A *realisation* of a graph term is a computation of the
+term other than the reference evaluation (GT-6); it is judged against the
+reference node by node, each node at its level (GT-4). The *kernel library*
+is the WebAssembly module `compute/crates/rce-emit-wasm/kernels/rce-kernels.wasm`:
+the CPU backend's one-node step of the reference evaluation
+(`rce_vm_backend_cpu::reference_node`), compiled to WebAssembly by
+`scripts/build-wasm-kernels.sh` from `compute/crates/rce-wasm-kernels`. A
+*program module* is the WebAssembly text that `rce emit wasm` prints: it
+holds no arithmetic of its own and calls the kernel library once per node.
+A *slot* is a numbered tensor held by the kernel library.
+
+`rce emit wasm FILE` prints one program module for the graph terms of the
+admitted module FILE, with one exported function `term_KEY` per term, KEY
+its content hash (GT-2). A program with no graph term requires change
+(status 1). `rce graph run wasm FILE INPUTS` runs the term of a `.fg` file
+through its program module and the kernel library under the `wasmi`
+interpreter and prints what `rce graph run FILE INPUTS` (10.16) prints.
+Example: on the term of `compute/examples/dense.rce`, both print
+`[1.5,0.0]`.
+
+- **EW-1 (one call per node).** The program module calls the kernel
+  library once per node, in the order of the reference evaluation
+  (`reference_order`: Kahn's algorithm, the ready nodes in ascending
+  index, on the term with each blob node standing alone, as the reference
+  evaluates it). Each call passes the node's descriptor (its operation,
+  output type, operand slots and output slot) from a data segment of the
+  program module. A comment above each call names the node, its operation
+  and its level, and the custom section `rce.levels` lists every node's
+  level.
+- **EW-2 (the pinned library).** The kernel library is committed with its
+  BLAKE3 digest (`rce-kernels.wasm.blake3`); the program module imports it
+  under the module name `rce-kernels/DIGEST`, so a program module links
+  only to the library it was printed for. `rce` refuses a library whose
+  bytes are not its digest. `scripts/build-wasm-kernels.sh check` rebuilds
+  it and fails when the rebuild differs from the pin.
+- **EW-3 (the reference step).** Each node is computed by the reference
+  evaluation's own step, so an `exact` node is the reference's value bit
+  for bit, the transcendentals included (6.3 F9: the correctly rounded
+  `exp`, `tanh` and `erf` of `math.rce`). The earlier emitter's
+  approximate exponential is retired: no program module reaches an
+  approximation.
+- **EW-4 (judged at each level).** The value of every node is read back
+  from its slot and judged against the reference's value of that node: an
+  `exact` node bit for bit, a `within N` node within N units in the last
+  place, a `lossy` node by its type. The judgement is of the realisation;
+  the reference stays the meaning (GT-6).
+- **EW-5 (weights by digest).** The bytes of a blob (GT-9) are put into a
+  slot, and the kernel library computes their BLAKE3 digest before the
+  node reads them; bytes whose digest is not the one the term names stop
+  the term (status 4 of the library), whatever store supplied them.
+- **EW-6 (the same answers).** A non-finite value stops the term at that
+  node with `trap: non-finite float`, as the reference does; floating
+  point runs only on an engine that passes the HC-13 probe. The result of
+  `rce graph run wasm` is the result of `rce graph run`, trap included.
+
+**Conformance.** Each rule is checked by these tests of
+`spec/checker/tests/emit_wasm.rs`:
+
+| Rule | Test |
+|---|---|
+| EW-1 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_examples_is_the_reference_at_its_level` |
+| EW-2 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only` |
+| EW-3 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-4 | `every_node_of_the_examples_is_the_reference_at_its_level`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-5 | `a_blob_whose_bytes_are_not_its_digest_is_refused` |
+| EW-6 | `the_commands` |
+
+The design is in `spec/proposals/emit-wasm.md`.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
@@ -7905,7 +8215,7 @@ JSON. The host entries are:
 | `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
-| `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
+| `host.Placed` | class, fabric id, op id, work; for a graph term also `est_j` | when placement is decided, before the operation runs (HC-12, HC-39) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | amortization, basis, entries, joules, provenance, source | at the end of a run granted `energy` whose counter was read (HC-38, D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
@@ -7944,7 +8254,7 @@ throughput for placement (HC-12), not joules, and the reference host
 writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
 joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
 
-### E.6 Fabrics and placement (HC-11 to HC-14)
+### E.6 Fabrics and placement (HC-11 to HC-14, HC-39)
 
 - **HC-11 Fabric discovery as events.** At start and on hot-plug the host
   appends `host.FabricCaps`: ISA flags, each GPU adapter's features and
@@ -8016,6 +8326,53 @@ joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
   changes no result are on by default; input capabilities (hardware
   random numbers, clocks, energy and thermal counters) are events; those
   that change bits are gated by HC-13.
+- **HC-39 Placement of a graph term by predicted joules.** Terms used
+  here: a *fabric* is an executor of graph terms, `cpu` (the reference
+  evaluation of 6.13) or `wasm` (the program module of 10.18 run under
+  `wasmi`); the *work* of a term is the number of scalar operations of
+  its nodes on its operands; the *predicted joules* of a fabric for a
+  term are `est_j = overhead + work / throughput`, overhead in J and
+  throughput in operations per J, from the fabric's row of a cost table.
+  A prediction is a number computed from a table, never a reading, and
+  D never presents it as one.
+  - Before `rce host run` and `rce host serve` admit an input to a
+    program with graph terms, the host appends one `host.Calibrated`
+    {class `graph.term`, fabric, overhead, source, throughput, unit `J`}
+    per row of the cost table, skipping a row D already holds unchanged.
+    The table comes from the word `costs FILE` (JSON
+    {source, rows: [{fabric, overhead_j, work_per_j}]}), or else is the
+    declared table: `cpu` 0 J and 10^9 operations per J, `wasm`
+    10^-3 J and 2.5 x 10^8 operations per J, with source `declared`. A
+    table whose source is empty or is the bare word `measured`, a row of
+    an unknown fabric, a negative overhead, a throughput that is not
+    positive or a fabric named twice requires change: a measured table
+    names the machine and counter it came from. The word `costs`
+    changes which fabric computes a term, never a result (HC-14).
+  - Each time δ runs a graph term, the host chooses the fabric with the
+    least `est_j` among `cpu` and the fabrics that have a `host.Exact`
+    entry of class `graph.KEY` for this term (KEY the term's key) whose
+    probe digest equals its reference digest; a tie goes to `cpu`. A
+    fabric whose `est_j` is below the chosen one and that has no such
+    entry is probed first, on the term's operands of that run: the
+    digests are BLAKE3 of each node's result, the probe side listing
+    only the nodes whose result is at the node's level (6.13), so the
+    digests are equal exactly when every node is admitted. The host then
+    appends `host.Placed` {class `graph.term`, est_j, fabric, op KEY,
+    work} and runs the term on that fabric. A run-time error of the
+    chosen fabric is the term's error.
+  - The probes and placements of an input are appended after δ ran and
+    before the input's entry, in the order δ took them. Replay folds
+    each `host.Calibrated` and `host.Exact` into the table and the
+    probe list, re-derives each placement from them and stops where the
+    derivation differs from D (T37), so a placement is a function of D
+    and the state hashes of a replay are those of the run.
+  - With the declared table `cpu` is chosen for every term, since
+    `wasmi` interprets WebAssembly. A program run by `fn main` places its
+    terms the same way and logs no entry for them.
+  Reference executor: `interp::place_graph`, `Host::graph_costs`,
+  `CostTable`; `wasm_term::probe` and `wasm_term::at_level`.
+  Derivation: law 1 of E.2c makes the choice of fabric an entry of D;
+  HC-13 admits a fabric only by evidence in D.
 
 ![Cost of strict IEEE determinism on GPU kernels and fabric dispatch model](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-survey-fig4-fabric.png)
 
@@ -8174,6 +8531,7 @@ is cited by a test.
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
+| HC-39 | placement of a graph term by predicted joules, probed at each node's level, re-derived on replay | `tests/graph_placement.rs`: `the_declared_table_is_logged_with_its_source_and_places_on_the_cpu_reference`, `a_cheaper_fabric_is_probed_once_then_placed_and_the_state_hashes_are_the_reference_ones`, `each_term_of_a_block_is_probed_once_then_placed_on_wasm_and_replays`, `replay_requires_change_when_a_placement_is_not_the_one_d_derives`, `placement_takes_the_least_predicted_joules_among_probed_fabrics`, `a_cost_table_states_its_source` |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
