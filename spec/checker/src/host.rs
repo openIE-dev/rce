@@ -547,6 +547,63 @@ pub fn energy_check(p: &Value, seq: u64) -> Result<(), String> {
     }
 }
 
+/// HC-39: one row of the cost table of graph-term placement.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CostRow {
+    pub fabric: String,
+    /// joules per call (module set-up, operand transfer)
+    pub overhead_j: f64,
+    /// scalar operations per joule
+    pub work_per_j: f64,
+}
+
+/// HC-39: the cost table placement predicts joules from, and where it
+/// comes from (`declared`, or the machine it was measured on).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CostTable {
+    pub source: String,
+    pub rows: Vec<CostRow>,
+}
+
+impl CostTable {
+    /// HC-39: the declared table, used when `rce host run` is given no
+    /// `costs FILE`. Its figures are declared, not measured: the CPU
+    /// reference at 1 nJ per scalar operation and no set-up; wasm under
+    /// wasmi, an interpreter, at 4 nJ per operation and 1 mJ per call for
+    /// the engine's float probe and the instantiation of the kernel
+    /// library and program module.
+    pub fn declared() -> CostTable {
+        CostTable {
+            source: "declared".into(),
+            rows: vec![
+                CostRow { fabric: "cpu".into(), overhead_j: 0.0, work_per_j: 1.0e9 },
+                CostRow { fabric: "wasm".into(), overhead_j: 1.0e-3, work_per_j: 2.5e8 },
+            ],
+        }
+    }
+
+    /// HC-39: a cost table from its JSON file: `{"source": TEXT, "rows":
+    /// [{"fabric": ID, "overhead_j": J, "work_per_j": N}, ...]}`. The
+    /// source is required and is never `measured` alone: it names the
+    /// machine, or says `declared`.
+    pub fn parse(text: &str) -> Result<CostTable, String> {
+        let j: Value = serde_json::from_str(text).map_err(|e| format!("costs: not JSON: {e}"))?;
+        let source = j["source"].as_str().filter(|s| !s.trim().is_empty() && s.trim() != "measured").ok_or("costs: `source` names the machine the table was measured on, or says `declared`")?;
+        let rows = j["rows"].as_array().ok_or("costs: `rows` is an array")?;
+        let mut out = vec![];
+        for r in rows {
+            let fabric = r["fabric"].as_str().filter(|f| *f == "cpu" || *f == "wasm").ok_or("costs: each row's `fabric` is `cpu` or `wasm`")?;
+            let o = r["overhead_j"].as_f64().filter(|x| x.is_finite() && *x >= 0.0).ok_or("costs: `overhead_j` is a finite number of joules, at least 0")?;
+            let w = r["work_per_j"].as_f64().filter(|x| x.is_finite() && *x > 0.0).ok_or("costs: `work_per_j` is a finite number above 0")?;
+            if out.iter().any(|x: &CostRow| x.fabric == fabric) {
+                return Err(format!("costs: two rows for `{fabric}`"));
+            }
+            out.push(CostRow { fabric: fabric.into(), overhead_j: o, work_per_j: w });
+        }
+        Ok(CostTable { source: source.into(), rows: out })
+    }
+}
+
 fn host_event(kind: &str, payload: &str) -> String {
     format!("{{\"payload\":{payload},\"type\":\"host.{kind}\"}}")
 }
@@ -1722,6 +1779,13 @@ impl<'a> Host<'a> {
             }
         }
         let mut it = Interp::new(m);
+        // HC-39: a program with graph terms has them placed by predicted
+        // joules between the CPU reference and wasm under wasmi
+        if !crate::graph::terms_of(m).is_empty() {
+            let mut gp = crate::interp::GraphPlace::default();
+            gp.fabrics.insert("wasm".into(), crate::wasm_term::fabric());
+            it.graph_place = Some(gp);
+        }
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
         Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), unanswered: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: Default::default(), delivered, notes, kept_outcomes: vec![], last_tick: 0, synced: None, outputs: None, clock: Default::default(), shown: vec![], last_view: None, frames: None, rap: Rap::default() })
@@ -2284,6 +2348,9 @@ impl<'a> Host<'a> {
                 }
                 let under = self.descent(&how, e.seq, ans);
                 self.note_tick(&name, &ev);
+                if let Some(gp) = self.it.graph_place.as_mut() {
+                    gp.entries.clear(); // HC-39: replay folded them from D
+                }
                 match self.it.delta_r(&self.state, &ev) {
                     Ok((s2, outs)) => {
                         let fs = self.note_frames(e.seq, &name, Some(&outs));
@@ -2683,12 +2750,21 @@ impl<'a> Host<'a> {
             Err(f) => return Err(why(f)),
         };
         let ej = event_json(name, &ev, self.m);
+        if let Some(gp) = self.it.graph_place.as_mut() {
+            gp.entries.clear();
+        }
         // δ runs on the input, but the entry is appended before any output
         // is released (HC-1); a kept step leaves the state unchanged (T8).
         let (outcome, next) = match self.it.delta_r(&self.state, &ev) {
             Ok((s2, outs)) => (Ok(outs), Some(s2)),
             Err(r) => (Err(r), None),
         };
+        // HC-39: the probes and placements δ made precede the input in D,
+        // so replay folds them before it runs δ on the input again
+        let placed = self.it.graph_place.as_mut().map(|gp| std::mem::take(&mut gp.entries)).unwrap_or_default();
+        for (k, pl) in placed {
+            self.append(host_event(k, &pl))?;
+        }
         // HC-10b: only a typed input of a name the host delivers is marked,
         // and replay sees any other input as unmarked, so treat it so here
         let how = match how {
@@ -3278,6 +3354,24 @@ impl<'a> Host<'a> {
             "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" => {
                 self.apply_main(k.as_str(), &p)?;
             }
+            "host.Calibrated" if p["class"] == crate::interp::GRAPH_CLASS => {
+                if let Some(gp) = self.it.graph_place.as_mut() {
+                    gp.costs.insert(p["fabric"].as_str().unwrap_or("").to_string(), (p["overhead"].as_f64().unwrap_or(f64::INFINITY), p["throughput"].as_f64().unwrap_or(0.0)));
+                }
+            }
+            "host.Exact" if p["class"].as_str().is_some_and(|c| c.starts_with("graph.")) => {
+                if let Some(gp) = self.it.graph_place.as_mut() {
+                    let key = p["class"].as_str().unwrap_or("")["graph.".len()..].to_string();
+                    gp.probes.insert((p["fabric"].as_str().unwrap_or("").to_string(), key), p.get("probe").is_some() && p["probe"] == p["reference"]);
+                }
+            }
+            "host.Placed" if p["class"] == crate::interp::GRAPH_CLASS => {
+                let gp = self.it.graph_place.as_ref().ok_or("host.Placed of a graph term, and the program has none (HC-39)")?;
+                let (got, _) = crate::interp::place_graph(&gp.costs, &gp.probes, p["op"].as_str().unwrap_or(""), p["work"].as_f64().unwrap_or(0.0));
+                if p["fabric"].as_str() != Some(got.as_str()) {
+                    return Err(format!("placement re-derives {got}, D has {}", p["fabric"]));
+                }
+            }
             "host.Calibrated" => {
                 let key = (p["fabric"].as_str().unwrap_or("").to_string(), p["class"].as_str().unwrap_or("").to_string());
                 self.calib.insert(key, (p["overhead"].as_f64().unwrap_or(f64::INFINITY), p["throughput"].as_f64().unwrap_or(0.0)));
@@ -3508,6 +3602,24 @@ impl<'a> Host<'a> {
         let p = serde_json::json!({"class": class, "fabric": fabric, "overhead": overhead, "throughput": throughput});
         self.append(host_event("Calibrated", &p.to_string()))?;
         self.calib.insert((fabric.into(), class.into()), (overhead, throughput));
+        self.confirm()
+    }
+
+    /// HC-39: log the cost table of graph-term placement as
+    /// `host.Calibrated` rows of class `graph.term` (overhead in joules per
+    /// call, throughput in scalar operations per joule) with the table's
+    /// stated source; a row D already holds unchanged is not logged again.
+    /// Nothing is logged for a program without graph terms.
+    pub fn graph_costs(&mut self, table: &CostTable) -> Result<(), String> {
+        let Some(gp) = self.it.graph_place.as_ref() else { return Ok(()) };
+        let new: Vec<&CostRow> = table.rows.iter().filter(|r| gp.costs.get(&r.fabric) != Some(&(r.overhead_j, r.work_per_j))).collect();
+        for r in new {
+            let p = serde_json::json!({"class": crate::interp::GRAPH_CLASS, "fabric": r.fabric, "overhead": r.overhead_j, "source": table.source, "throughput": r.work_per_j, "unit": "J"});
+            self.append(host_event("Calibrated", &p.to_string()))?;
+            if let Some(gp) = self.it.graph_place.as_mut() {
+                gp.costs.insert(r.fabric.clone(), (r.overhead_j, r.work_per_j));
+            }
+        }
         self.confirm()
     }
 

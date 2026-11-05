@@ -21,9 +21,9 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `cbf255393d0ebb75e6883a0dcba027fa9680e9a25235d3cffa785e9b1bfb27d9` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `e9fca13cead3058f887e28b011357754ad29da33e835cc087164aea48d5a541e` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `1d597eda0733fc8e9b586c21d0d4b2714df4b326e1ac6569bce4e4ad33a8b43a` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `16-host-contract.md` | `b0e1e03eae1c13162da0184c173fa81d1510c95dd9c684ade2fd225a2dcda84a` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 | `17-draft09.md` | `c27e706210376d17948c166a34a4756ca035a91227d5d415ceb87bc29a2073ce` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 09f2a087b42e8aea1eaef75bacbb89e8d7d60987c3c1c8e730fbcb577c85aa57 -->
+<!-- body-sha256: 68ccbf370fb3306be39cbaf49c3c62c02bd927efd3502b0fae836c0e21754166 -->

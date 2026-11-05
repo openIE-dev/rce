@@ -391,6 +391,62 @@ pub struct Interp<'a> {
     /// the addresses of the expressions evaluated, when admission records
     /// them for the mutation gate (6.12); `None` otherwise
     pub(crate) cover: Option<HashSet<usize>>,
+    /// HC-39: the host's placement of graph terms by predicted joules;
+    /// `None` outside the host, where the CPU reference evaluates them
+    pub graph_place: Option<GraphPlace>,
+}
+
+/// Runs a term on a fabric: the term's result, or why the fabric could not run it.
+pub type GraphRun = fn(&crate::graph::Term, &[V]) -> Result<Result<V, String>, String>;
+/// Probes a term on a fabric: (probe digest, reference digest).
+pub type GraphProbe = fn(&crate::graph::Term, &[V]) -> Result<(String, String), String>;
+
+/// HC-39: a fabric that realises graph terms besides the CPU reference.
+/// `run` evaluates a term on the fabric; `probe` runs the term on both the
+/// fabric and the reference and returns the two digests of HC-13 (equal
+/// exactly when every completed node is the reference's at its level).
+#[derive(Clone, Copy)]
+pub struct GraphFabric {
+    pub run: GraphRun,
+    pub probe: GraphProbe,
+}
+
+/// HC-39: the state placement of graph terms reads, folded from D's host
+/// entries: the cost table (`host.Calibrated` rows of class `graph.term`,
+/// fabric to joules per call and work per joule), the probes already made
+/// (`host.Exact` of class `graph.KEY`, with whether they agreed), the
+/// fabrics that can run here, and the entries a run of δ adds to D.
+#[derive(Clone, Default)]
+pub struct GraphPlace {
+    pub costs: std::collections::BTreeMap<String, (f64, f64)>,
+    pub probes: std::collections::BTreeMap<(String, String), bool>,
+    pub fabrics: std::collections::BTreeMap<String, GraphFabric>,
+    pub entries: Vec<(&'static str, String)>,
+}
+
+/// The class of `host.Placed` and `host.Calibrated` for graph terms (HC-39).
+pub const GRAPH_CLASS: &str = "graph.term";
+
+/// HC-39: the predicted joules of `work` scalar operations on a fabric
+/// with cost row (overhead J, work per J).
+pub fn est_j(row: (f64, f64), work: f64) -> f64 {
+    if row.1 > 0.0 { row.0 + work / row.1 } else { f64::INFINITY }
+}
+
+/// HC-39: the fabric of a graph term `key` of `work` scalar operations,
+/// and its predicted joules: the least `est_j` among the CPU reference
+/// and every fabric whose probe on `key` agreed; on a tie the CPU
+/// reference, then the first fabric by name. A function of D's entries.
+pub fn place_graph(costs: &std::collections::BTreeMap<String, (f64, f64)>, probes: &std::collections::BTreeMap<(String, String), bool>, key: &str, work: f64) -> (String, f64) {
+    let cpu = costs.get("cpu").map(|r| est_j(*r, work)).unwrap_or(f64::INFINITY);
+    let mut best = ("cpu".to_string(), cpu);
+    for (f, r) in costs {
+        let j = est_j(*r, work);
+        if f != "cpu" && j < best.1 && probes.get(&(f.clone(), key.to_string())) == Some(&true) {
+            best = (f.clone(), j);
+        }
+    }
+    best
 }
 
 /// The most expressions one obligation's coverage records (6.12): beyond
@@ -433,6 +489,7 @@ impl<'a> Interp<'a> {
             depth: HashMap::new(),
             eval_depth: 0,
             cover: None,
+            graph_place: None,
         };
         for i in &m.items {
             match i {
@@ -600,7 +657,11 @@ impl<'a> Interp<'a> {
         self.charge(crate::conc::C_CALL.saturating_add(w.saturating_mul(2)))?;
         self.tick()?;
         self.ticks(term.work)?;
-        match crate::graph::evaluate(&term, &vals) {
+        let r = match self.graph_place.as_mut() {
+            Some(gp) => place_and_run(gp, &term, &vals),
+            None => crate::graph::evaluate(&term, &vals),
+        };
+        match r {
             Ok(v) => Ok(v),
             Err(m) => trap(m),
         }
@@ -3608,4 +3669,41 @@ pub fn form_json(m: &Module) -> String {
         steps.join(","),
         logs.join(",")
     )
+}
+
+/// HC-39: before a graph term runs, probe each fabric that would predict
+/// fewer joules than the best admitted one and has no probe on the term
+/// yet (`host.Exact`), choose the fabric (`host.Placed`), then run the
+/// term there. A fabric that cannot run here or fails is replaced by the
+/// CPU reference only when it was never chosen: a chosen fabric's error
+/// is the term's error, so replay, which chooses the same fabric, sees it.
+fn place_and_run(gp: &mut GraphPlace, term: &crate::graph::Term, vals: &[V]) -> Result<V, String> {
+    let work = term.work as f64;
+    let cpu = gp.costs.get("cpu").map(|r| est_j(*r, work)).unwrap_or(f64::INFINITY);
+    let mut cands: Vec<(f64, String)> = gp.costs.iter().filter(|(f, _)| f.as_str() != "cpu").map(|(f, r)| (est_j(*r, work), f.clone())).filter(|(j, _)| *j < cpu).collect();
+    cands.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    for (_, f) in cands {
+        let k = (f.clone(), term.key.clone());
+        if gp.probes.contains_key(&k) {
+            if gp.probes[&k] { break; }
+            continue;
+        }
+        let Some(fx) = gp.fabrics.get(&f).copied() else { continue };
+        let (probe, reference) = (fx.probe)(term, vals)?;
+        let ok = probe == reference;
+        let p = serde_json::json!({"class": format!("graph.{}", term.key), "fabric": f, "probe": probe, "reference": reference});
+        gp.entries.push(("Exact", p.to_string()));
+        gp.probes.insert(k, ok);
+        if ok { break; }
+    }
+    let (fabric, j) = place_graph(&gp.costs, &gp.probes, &term.key, work);
+    let p = serde_json::json!({"class": GRAPH_CLASS, "est_j": if j.is_finite() { serde_json::json!(j) } else { serde_json::Value::Null }, "fabric": fabric, "op": term.key, "work": work});
+    gp.entries.push(("Placed", p.to_string()));
+    if fabric == "cpu" {
+        return crate::graph::evaluate(term, vals);
+    }
+    match gp.fabrics.get(&fabric) {
+        Some(fx) => (fx.run)(term, vals)?,
+        None => Err(format!("graph term: no executor for fabric `{fabric}` on this host")),
+    }
 }

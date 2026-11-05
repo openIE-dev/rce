@@ -755,7 +755,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 12] = [
+const GRANTS: [Word; 13] = [
     Word::set("fs", &["DIR"]),
     // HC-33: user and group ids to names, from the account databases
     Word::mode("names"),
@@ -771,26 +771,28 @@ const GRANTS: [Word; 12] = [
     Word::set("frames", &["FILE"]),
     // HC-38: read the package energy counter over the run into host.Energy
     Word::mode("energy"),
+    // HC-39: the cost table graph terms are placed by
+    Word::set("costs", &["FILE"]),
 ];
 
 /// The grants, then `http`, `presented`, `rap` and `callback`, which only
 /// the host loop takes.
-const fn serve_words() -> [Word; 16] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 16];
+const fn serve_words() -> [Word; 17] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 17];
     let mut i = 0;
-    while i < 12 {
+    while i < 13 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[13] = Word::set("presented", &["FILE"]);
+    w[14] = Word::set("presented", &["FILE"]);
     // HC-34: the program as a tool of RAP runtimes, and the addresses its
     // results may be POSTed to (HC-5: no callback address is ambient)
-    w[14] = Word::set("rap", &["HOST:PORT"]);
-    w[15] = Word::many("callback", &["HOST:PORT"]);
+    w[15] = Word::set("rap", &["HOST:PORT"]);
+    w[16] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 16] = serve_words();
+const SERVE_WORDS: [Word; 17] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -938,7 +940,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38);\ncosts FILE gives the cost table graph terms are placed by, in predicted joules (HC-39; default: the declared table)",
     },
     Command {
         path: &["host", "serve"],
@@ -2163,6 +2165,12 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
+            // HC-39: the cost table graph terms are placed by, with its source
+            let table = match p.value("costs") {
+                Some(f) => crate::host::CostTable::parse(&read_file(f)?)?,
+                None => crate::host::CostTable::declared(),
+            };
+            h.graph_costs(&table)?;
             // HC-32: which zone rules the offsets in D come from
             if h.binds_kind("LocalOffset") {
                 h.zone(&crate::adapters::zone_record())?;

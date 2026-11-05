@@ -1341,7 +1341,7 @@ JSON. The host entries are:
 | `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
-| `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
+| `host.Placed` | class, fabric id, op id, work; for a graph term also `est_j` | when placement is decided, before the operation runs (HC-12, HC-39) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | amortization, basis, entries, joules, provenance, source | at the end of a run granted `energy` whose counter was read (HC-38, D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
@@ -1380,7 +1380,7 @@ throughput for placement (HC-12), not joules, and the reference host
 writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
 joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
 
-### E.6 Fabrics and placement (HC-11 to HC-14)
+### E.6 Fabrics and placement (HC-11 to HC-14, HC-39)
 
 - **HC-11 Fabric discovery as events.** At start and on hot-plug the host
   appends `host.FabricCaps`: ISA flags, each GPU adapter's features and
@@ -1452,6 +1452,53 @@ joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
   changes no result are on by default; input capabilities (hardware
   random numbers, clocks, energy and thermal counters) are events; those
   that change bits are gated by HC-13.
+- **HC-39 Placement of a graph term by predicted joules.** Terms used
+  here: a *fabric* is an executor of graph terms, `cpu` (the reference
+  evaluation of 6.13) or `wasm` (the program module of 10.18 run under
+  `wasmi`); the *work* of a term is the number of scalar operations of
+  its nodes on its operands; the *predicted joules* of a fabric for a
+  term are `est_j = overhead + work / throughput`, overhead in J and
+  throughput in operations per J, from the fabric's row of a cost table.
+  A prediction is a number computed from a table, never a reading, and
+  D never presents it as one.
+  - Before `rce host run` and `rce host serve` admit an input to a
+    program with graph terms, the host appends one `host.Calibrated`
+    {class `graph.term`, fabric, overhead, source, throughput, unit `J`}
+    per row of the cost table, skipping a row D already holds unchanged.
+    The table comes from the word `costs FILE` (JSON
+    {source, rows: [{fabric, overhead_j, work_per_j}]}), or else is the
+    declared table: `cpu` 0 J and 10^9 operations per J, `wasm`
+    10^-3 J and 2.5 x 10^8 operations per J, with source `declared`. A
+    table whose source is empty or is the bare word `measured`, a row of
+    an unknown fabric, a negative overhead, a throughput that is not
+    positive or a fabric named twice requires change: a measured table
+    names the machine and counter it came from. The word `costs`
+    changes which fabric computes a term, never a result (HC-14).
+  - Each time δ runs a graph term, the host chooses the fabric with the
+    least `est_j` among `cpu` and the fabrics that have a `host.Exact`
+    entry of class `graph.KEY` for this term (KEY the term's key) whose
+    probe digest equals its reference digest; a tie goes to `cpu`. A
+    fabric whose `est_j` is below the chosen one and that has no such
+    entry is probed first, on the term's operands of that run: the
+    digests are BLAKE3 of each node's result, the probe side listing
+    only the nodes whose result is at the node's level (6.13), so the
+    digests are equal exactly when every node is admitted. The host then
+    appends `host.Placed` {class `graph.term`, est_j, fabric, op KEY,
+    work} and runs the term on that fabric. A run-time error of the
+    chosen fabric is the term's error.
+  - The probes and placements of an input are appended after δ ran and
+    before the input's entry, in the order δ took them. Replay folds
+    each `host.Calibrated` and `host.Exact` into the table and the
+    probe list, re-derives each placement from them and stops where the
+    derivation differs from D (T37), so a placement is a function of D
+    and the state hashes of a replay are those of the run.
+  - With the declared table `cpu` is chosen for every term, since
+    `wasmi` interprets WebAssembly. A program run by `fn main` places its
+    terms the same way and logs no entry for them.
+  Reference executor: `interp::place_graph`, `Host::graph_costs`,
+  `CostTable`; `wasm_term::probe` and `wasm_term::at_level`.
+  Derivation: law 1 of E.2c makes the choice of fabric an entry of D;
+  HC-13 admits a fabric only by evidence in D.
 
 ![Cost of strict IEEE determinism on GPU kernels and fabric dispatch model](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-survey-fig4-fabric.png)
 
@@ -1610,6 +1657,7 @@ is cited by a test.
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
+| HC-39 | placement of a graph term by predicted joules, probed at each node's level, re-derived on replay | `tests/graph_placement.rs`: `the_declared_table_is_logged_with_its_source_and_places_on_the_cpu_reference`, `a_cheaper_fabric_is_probed_once_then_placed_and_the_state_hashes_are_the_reference_ones`, `each_term_of_a_block_is_probed_once_then_placed_on_wasm_and_replays`, `replay_requires_change_when_a_placement_is_not_the_one_d_derives`, `placement_takes_the_least_predicted_joules_among_probed_fabrics`, `a_cost_table_states_its_source` |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)
@@ -1693,4 +1741,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 1d597eda0733fc8e9b586c21d0d4b2714df4b326e1ac6569bce4e4ad33a8b43a -->
+<!-- body-sha256: b0e1e03eae1c13162da0184c173fa81d1510c95dd9c684ade2fd225a2dcda84a -->

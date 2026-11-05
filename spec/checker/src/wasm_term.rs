@@ -134,3 +134,72 @@ pub fn run_with(key: &str, graph: &FunctionGraph, types: &TermTypes, vals: &[V],
 fn blake3_hex(b: &[u8]) -> String {
     rce_fgm::hex(&rce_fgm::digest(b))
 }
+
+fn ulps64(a: f64, b: f64) -> u64 {
+    let k = |x: f64| {
+        let b = x.to_bits() as i64;
+        if b < 0 { i64::MIN - b } else { b }
+    };
+    k(a).abs_diff(k(b))
+}
+
+fn ulps32(a: f32, b: f32) -> u64 {
+    let k = |x: f32| {
+        let b = x.to_bits() as i32 as i64;
+        if b < 0 { i32::MIN as i64 - b } else { b }
+    };
+    k(a).abs_diff(k(b))
+}
+
+/// Whether `got` is `want` at `level` (EW-4): exact, bit for bit; within
+/// N, at most N units in the last place; lossy, of the same type.
+pub fn at_level(got: &HostTensor, want: &HostTensor, level: rce_graph::term::Level) -> bool {
+    use rce_graph::term::Level;
+    use rce_vm_backend_cpu::DType;
+    if (got.dtype, &got.shape) != (want.dtype, &want.shape) {
+        return false;
+    }
+    match level {
+        Level::Exact => got == want,
+        Level::Lossy => true,
+        Level::Within { ulps } => match got.dtype {
+            DType::F64 => match (got.as_f64(), want.as_f64()) {
+                (Ok(a), Ok(b)) => a.iter().zip(b.iter()).all(|(x, y)| ulps64(*x, *y) <= ulps as u64),
+                _ => false,
+            },
+            DType::F32 => match (got.as_f32(), want.as_f32()) {
+                (Ok(a), Ok(b)) => a.iter().zip(b.iter()).all(|(x, y)| ulps32(*x, *y) <= ulps as u64),
+                _ => false,
+            },
+            _ => got == want,
+        },
+    }
+}
+
+/// HC-39: the probe of a graph term on the wasm fabric (HC-13). The
+/// reference digest is the BLAKE3 of the reference evaluation's completed
+/// nodes and its outcome; the probe digest is the same text built from the
+/// wasm run, listing a node only when its value is the reference's at the
+/// node's level. The two are equal exactly when the same nodes completed,
+/// every one at its level, and the outcome (value or trap text) agrees.
+pub fn probe(t: &crate::graph::Term, vals: &[V]) -> Result<(String, String), String> {
+    let (rr, rn) = crate::graph::reference_nodes(&t.graph, &t.types, vals)?;
+    let w = run(&t.key, &t.graph, &t.types, vals)?;
+    let level = |n: usize| t.types.levels.iter().find(|l| l.node as usize == n).map(|l| l.level).unwrap_or(rce_graph::term::Level::Exact);
+    let want: std::collections::BTreeMap<usize, &HostTensor> = rn.iter().map(|(n, h)| (*n, h)).collect();
+    let outcome = |r: &Result<V, String>| match r {
+        Ok(_) => "value".to_string(),
+        Err(m) => format!("trap: {m}"),
+    };
+    let text = |nodes: Vec<usize>, o: String| serde_json::json!({"nodes": nodes, "outcome": o}).to_string();
+    let reference = text(want.keys().copied().collect(), outcome(&rr));
+    let mut ok: Vec<usize> = w.nodes.iter().filter(|(n, h)| want.get(n).is_some_and(|r| at_level(h, r, level(*n)))).map(|x| x.0).collect();
+    ok.sort();
+    let got = text(ok, outcome(&w.result));
+    Ok((blake3_hex(got.as_bytes()), blake3_hex(reference.as_bytes())))
+}
+
+/// HC-39: the wasm fabric of graph-term placement.
+pub fn fabric() -> crate::interp::GraphFabric {
+    crate::interp::GraphFabric { run: |t, v| run(&t.key, &t.graph, &t.types, v).map(|w| w.result), probe }
+}
