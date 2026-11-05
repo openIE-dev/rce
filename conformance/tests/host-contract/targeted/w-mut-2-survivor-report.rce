@@ -1,0 +1,20 @@
+module m
+
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/w-mut-2-survivor-report
+# area: host-contract
+# clauses: [W-MUT-2]
+# expect: cli
+# argv: ["mutants", "bound", "3", "main.rce"]
+# output_has:
+#   - "survivor    W-MUT-2 in `step S on Inc`"
+#   - "`n + (1)` becomes `n - (1)`"
+#   - "-   8 step S on Inc -> n + (1)"
+#   - "+   8 step S on Inc -> n - (1)"
+#   - "score       0 killed of 3"
+# provenance: targeted: W-MUT-2, `rce mutants` prints each survivor with its edit and its diff on the canonical text (no test observes the counter, so every judged mutant survives)
+#---

@@ -1,0 +1,107 @@
+module frames
+use ui.view
+use ui.rules
+
+intent "a door panel that emits one frame per step (HC-29): a heading and one button that opens or closes the door; Dim greys its text below 4.5 : 1, and Presented counts the frames a renderer confirmed"
+    example Open, Focus -> opened
+    example Open, Focus, Close -> opened == false
+    example Open, Focus, Presented(seq: 1, digest: "") -> presented == 1
+    check unmet_count(false) == 0
+    check unmet_count(true) > 0
+
+struct Frame
+    view: View
+    ev: text
+
+struct Display
+    data: text
+
+state Door
+    opened: bool = false
+    focused: bool = false
+    dim: bool = false
+    presented: u64 = 0
+
+event Open
+event Close
+event Focus
+event Dim
+event Tick
+event Presented(seq: u64, digest: text)
+
+step Door on Open
+    opened = true
+    let v = panel(true, focused, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "activate toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Close
+    opened = false
+    let v = panel(false, focused, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "activate toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Focus
+    focused = true
+    let v = panel(opened, true, dim)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "focus toggle")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Dim
+    dim = true
+    let v = panel(opened, focused, true)
+    let d = view.view_digest(&v)
+    emit Frame(view: v, ev: "tick")
+    emit Display(data: view.hex(&d) + "\n")
+step Door on Tick
+    let _ = opened
+step Door on Presented(seq: _q, digest: _d)
+    presented += 1
+
+# the criteria the panel's views before and after the button receives
+# focus do not meet, with its text dimmed or not
+fn unmet_count(dim: bool) -> i64
+    let t = [rules.Step(ev: "start", ms: 0, v: panel(false, false, dim)), rules.Step(ev: "focus toggle", ms: 16, v: panel(false, true, dim))]
+    return rules.unmet(&t).len() as i64
+
+# the parts no rule decides, attested by the person who reviewed them
+fn attest(v: &mut View, ids: text)
+    for i in ids.words()
+        view.set_attr(v, 0, "attest-" + i, "A. Reviewer;2026-10-31")
+
+# the view of a state: a heading and one button that opens or closes the door
+fn panel(is_open: bool, focused: bool, dim: bool) -> View
+    var v = view.view_new("div", "")
+    for kv in [["lang", "en"], ["title", "Door"], ["fg", "#000000"], ["bg", "#ffffff"], ["font-px", "16"]]
+        view.set_attr(&mut v, 0, copy(kv[0]), copy(kv[1]))
+    attest(&mut v, "1.3.1 1.3.2 1.3.3 1.4.1 1.4.4 1.4.10 1.4.11 1.4.12 2.4.2 2.4.5 2.4.6 3.1.1 3.1.2 3.3.4")
+    let m = view.add_el(&mut v, 0, "main", "")
+    view.set_attr(&mut v, m, "role", "main")
+    let h = view.add_el(&mut v, m, "h1", "")
+    view.set_attr(&mut v, h, "role", "heading")
+    view.set_attr(&mut v, h, "aria-level", "1")
+    let _ = view.add_text(&mut v, h, "Door")
+    let b = view.add_el(&mut v, m, "button", "toggle")
+    for kv in [["role", "button"], ["tabindex", "0"], ["w", "44"], ["h", "44"], ["border", "#000000"], ["focus-outline", "#005fcc"]]
+        view.set_attr(&mut v, b, copy(kv[0]), copy(kv[1]))
+    view.set_attr(&mut v, b, "action", if is_open then "Close" else "Open")
+    if dim
+        view.set_attr(&mut v, b, "fg", "#777777")
+    if focused
+        view.set_attr(&mut v, b, "focused", "true")
+    let _ = view.add_text(&mut v, b, if is_open then "Close" else "Open")
+    return v
+#--- rce-test
+# id: host-contract/targeted/hc-29-frames-from-d
+# area: host-contract
+# clauses: [HC-29]
+# expect: cli
+# seq: [{"argv": ["host", "run", "frames", "sink", "main.rce", "D", "Focus, Open, Presented(seq: 4, digest: \"9c15dea4cd5524b0a223a75e81c135a27c0024c66c35ada60b33307a13b1c032\")"]}, {"show": "sink"}, {"argv": ["host", "replay", "frames", "main.rce", "D"]}]
+# status: 0
+# output_has:
+#   - "{\"ev\":\"focus toggle\",\"frame_digest\":\"9c15dea4cd5524b0a223a75e81c135a27c0024c66c35ada60b33307a13b1c032\",\"input\":\"Focus\",\"ms\":0,\"ops\":null,\"seq\":4,"
+#   - "frame {\"ev\":\"focus toggle\",\"frame_digest\":\"9c15dea4cd5524b0a223a75e81c135a27c0024c66c35ada60b33307a13b1c032\""
+#   - "presented = 1"
+#   - "replay ok:"
+# provenance: targeted: HC-29, `host run frames sink` writes each emitted Frame as a line with its seq and digest, `host replay frames` re-derives the same frames from D alone, and a Presented confirmation is an input the program counts
+#---
