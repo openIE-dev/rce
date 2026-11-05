@@ -1,28 +1,28 @@
 {
  "format": "rce-parity/2",
  "compared": "bytes of the canonical JSON of each answer",
- "reference": "rce reference interpreter; commit ace06cc25c80",
+ "reference": "rce reference interpreter; commit fb4211290198",
  "adapters": {
   "emit-js": {
    "same": 1462,
    "different": 0,
    "no answer": 0,
-   "n/a": 528,
+   "n/a": 774,
    "unsupported": 0,
    "not run": 0,
    "not compared": 0,
-   "run": "rce emit js; emitted by rce commit ace06cc25c80; v22.22.0",
+   "run": "rce emit js; emitted by rce commit fb4211290198; v26.13.0",
    "results_format": "rce-results/2"
   },
   "emit-python": {
    "same": 1462,
    "different": 0,
    "no answer": 0,
-   "n/a": 528,
+   "n/a": 774,
    "unsupported": 0,
    "not run": 0,
    "not compared": 0,
-   "run": "rce emit python; emitted by rce commit ace06cc25c80; Python 3.13.16",
+   "run": "rce emit python; emitted by rce commit fb4211290198; Python 3.15.2",
    "results_format": "rce-results/2"
   },
   "emit-rust": {
@@ -32,7 +32,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1990,
+   "not compared": 2236,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -43,7 +43,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1990,
+   "not compared": 2236,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -54,7 +54,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1990,
+   "not compared": 2236,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   },
@@ -65,7 +65,7 @@
    "n/a": 0,
    "unsupported": 0,
    "not run": 0,
-   "not compared": 1990,
+   "not compared": 2236,
    "run": "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)",
    "results_format": "rce-results/1"
   }
