@@ -14,8 +14,10 @@ fn hash_of(src: &str, name: &str) -> String {
     apidiff::defs(&m).into_iter().find(|d| d.name == name).unwrap().hash
 }
 
-const W: &str = "# rce-version: 0.9\nfn withdraw(balance: i64, amount: i64) -> i64\n    requires amount > 0\n    requires amount <= balance\n    ensures result >= 0\n    return balance - amount\n\nfn main()\n    emit withdraw(10, ARG).tostr()\n";
+const W: &str = "# rce-version: 0.9\nfn withdraw(balance: i64, amount: i64) -> i64\n    requires amount > 0\n    requires amount <= balance\n    ensures result >= 0\n    return balance - amount\n\nfn main()\n    let a = ARG\n    emit withdraw(10, a).tostr()\n";
 
+// `a` is not a literal, so the call is left to the run-time check (F.6.2);
+// a literal argument is decided statically, see tests/w_con_1_call.rs.
 #[test]
 fn a_violated_requires_traps_with_the_fixed_record() {
     let src = W.replace("ARG", "30");

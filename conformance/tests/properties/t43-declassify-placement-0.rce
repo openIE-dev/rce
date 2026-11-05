@@ -1,0 +1,18 @@
+struct Declass
+label pii by Declass
+state S
+    n: i64 = 0
+event Show(code: i64 @ {pii})
+step S on Show(code: c)
+    emit declassify(c).tostr()
+#--- rce-test
+# id: properties/t43-declassify-placement-0
+# area: properties
+# clauses: [T43]
+# expect: cli
+# seq: [{"argv": ["check", "main.rce"]}]
+# status: 1
+# output_has:
+#   - "requires change"
+# provenance: property: T43, bounded exhaustive over 2 placements of a declassification (trusted context, and under a branch on the labeled operand; this test 0): neither is accepted, since `declassify` is reserved, not implemented (F.12), so no release is reached on an untrusted path.
+#---

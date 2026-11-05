@@ -243,6 +243,8 @@ def run_seq(base, seq, d):
     """A test of several steps in one scratch directory (two-command host
     tests, and the adapters that answer on loopback). Steps:
       {"argv": [...], "stdin": "...", "env": {...}}  run one command to its end
+      ("stdout_to": NAME writes its stdout to NAME instead of the output)
+      {"target": "python"|"js", "file": F}  emit F for the target and run it with its interpreter
       {"show": NAME}                          append a file's text to the output
       {"write": NAME, "text": "...", "mode": "0755"} or {"mkdir": NAME}
       {"symlink": NAME, "to": TARGET}
@@ -270,10 +272,24 @@ def run_seq(base, seq, d):
             pathlib.Path(d, st["mkdir"]).mkdir(parents=True, exist_ok=True)
         elif "symlink" in st:
             os.symlink(st["to"], pathlib.Path(d, st["symlink"]))
+        elif "target" in st:
+            # {"target": "python"|"js", "file": F}: the implementation emits F for
+            # the target (rce emit TARGET F) and the target's interpreter runs it;
+            # the run's stdout joins the output (CH11: the runtimes must agree).
+            interp = {"python": [sys.executable], "js": ["node"]}[st["target"]]
+            e = subprocess.run(base + ["emit", st["target"], st["file"]], cwd=d, capture_output=True, timeout=TIMEOUT)
+            ext = {"python": ".py", "js": ".mjs"}[st["target"]]
+            out_f = pathlib.Path(d, st["file"] + ext); out_f.write_bytes(e.stdout)
+            p = subprocess.run(interp + [out_f.name], cwd=d, capture_output=True, timeout=TIMEOUT)
+            outs.append(p.stdout.decode("utf-8", "replace")); errs.append(p.stderr.decode("utf-8", "replace")); rc = p.returncode or e.returncode
         elif "argv" in st:
             p = subprocess.run(base + [str(x) for x in st["argv"]], cwd=d, capture_output=True, timeout=TIMEOUT,
                                input=b(st.get("stdin", "")), env={**os.environ, **st.get("env", {})})
-            outs.append(p.stdout.decode("utf-8", "replace")); errs.append(p.stderr.decode("utf-8", "replace")); rc = p.returncode
+            if "stdout_to" in st:  # keep the command's stdout as a file for later steps
+                pathlib.Path(d, st["stdout_to"]).write_bytes(p.stdout)
+            else:
+                outs.append(p.stdout.decode("utf-8", "replace"))
+            errs.append(p.stderr.decode("utf-8", "replace")); rc = p.returncode
         elif "serve" in st:
             lsock = None
             if "listen" in st:

@@ -119,6 +119,34 @@ fn atoms(e: &Expr, out: &mut Vec<(String, &'static str, i128)>) -> bool {
     }
 }
 
+/// Value of an integer or boolean (1/0) expression whose names are all bound
+/// in `env`; None when the fragment does not decide it.
+fn lit_eval(e: &Expr, env: &HashMap<&str, i128>) -> Option<i128> {
+    match e {
+        Expr::Int(v, _) => Some(*v as i128),
+        Expr::Name(n, _) => env.get(n.as_str()).copied(),
+        Expr::Neg(x, _) => lit_eval(x, env).map(|v| -v),
+        Expr::Bin(op, a, b, _) => {
+            let (a, b) = (lit_eval(a, env)?, lit_eval(b, env)?);
+            Some(match op.as_str() {
+                "+" => a.checked_add(b)?,
+                "-" => a.checked_sub(b)?,
+                "*" => a.checked_mul(b)?,
+                "==" => (a == b) as i128,
+                "!=" => (a != b) as i128,
+                "<" => (a < b) as i128,
+                "<=" => (a <= b) as i128,
+                ">" => (a > b) as i128,
+                ">=" => (a >= b) as i128,
+                "and" => (a != 0 && b != 0) as i128,
+                "or" => (a != 0 || b != 0) as i128,
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn contradictory(reqs: &[&Expr]) -> bool {
     let mut at = vec![];
     for e in reqs {
@@ -307,7 +335,8 @@ pub fn check(m: &Module) -> Vec<String> {
                 }
                 let mut all: Vec<&Expr> = rs.clone();
                 all.extend(binds.iter());
-                if contradictory(&all) {
+                let env: HashMap<&str, i128> = binds.iter().filter_map(|b| match b { Expr::Bin(_, n, v, _) => match (&**n, &**v) { (Expr::Name(n, _), Expr::Int(v, _)) => Some((n.as_str(), *v as i128)), _ => None }, _ => None }).collect();
+                if rs.iter().any(|r| lit_eval(r, &env) == Some(0)) || contradictory(&all) {
                     errs.push(err(*line, "W-CON-1", format!("this call of `{n}` is false for its `requires` clauses: the caller must prove them where the fragment decides it (F.6.2)")));
                 }
             });

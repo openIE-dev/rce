@@ -1,0 +1,22 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+step S on Inc
+    n = (n + 1) % 4
+    emit n.tostr()
+step S on Dec
+    n = (n + 3) % 4
+    emit n.tostr()
+#--- rce-test
+# id: properties/t57-unfold-w03
+# area: properties
+# clauses: [T57]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce", "Inc, Dec"]}]
+# status: 0
+# output_has:
+#   - "1 Inc S { n = 1 }\n  emit \"1\""
+#   - "2 Dec S { n = 0 }\n  emit \"0\""
+# provenance: property: T57, bounded exhaustive over every word over {Inc, Dec} of length 1 to 3 (14 words; this test Inc Dec): the run's outputs are those of the model beh(s, e.w) = lambda(s, e) . beh(delta(s, e), w) of a mod-4 counter.
+#---

@@ -1,0 +1,23 @@
+error E
+fn bump(x: &mut i64, k: i64) -> i64 ! E
+    x += k
+    if x > 5
+        fail E
+    return x + 0
+
+fn main()
+    var a: i64 = 2
+    let r = bump(&mut a, 2) catch -1
+    emit r.tostr()
+    emit a.tostr()
+#--- rce-test
+# id: properties/t47-transactional-a2-k2
+# area: properties
+# clauses: [T47]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "emit \"4\"\nemit \"4\""
+# provenance: property: T47, bounded exhaustive over a in 0..4 and k in {0, 2, 4} (this test a = 2, k = 2): the oracle says the call returns a + k.
+#---

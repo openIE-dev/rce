@@ -1,0 +1,20 @@
+struct Declass
+struct Vouch
+label pii by Declass
+label untrusted by Vouch
+state Log
+    shown: i64 = 0
+event Show(p: i64, code: i64 @ {pii})
+step Log on Show(p: _p, code: c)
+    shown = c
+#--- rce-test
+# id: properties/t55-label-to-store-pii
+# area: properties
+# clauses: [T55, T42]
+# expect: cli
+# seq: [{"argv": ["check", "main.rce"]}]
+# status: 1
+# output_has:
+#   - "W-IFC-1"
+# provenance: property: T55 through W-TRI-1 (enforced by W-IFC-1), bounded exhaustive over labels {pii}, {untrusted}, {pii, untrusted} and sink in {emit, public store} (this test {pii}, store): the oracle says a value carrying the confidentiality label pii reaching a public sink requires change, and the integrity label untrusted alone does not restrict it.
+#---

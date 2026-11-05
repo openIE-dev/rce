@@ -1,0 +1,23 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+step S on Inc
+    n = (n + 1) % 5
+    emit n.tostr()
+step S on Dec
+    n = (n + 4) % 5
+    emit n.tostr()
+#--- rce-test
+# id: properties/t59-distinguish-mod5-mod4
+# area: properties
+# clauses: [T59, T58]
+# expect: cli
+# seq: [{"write": "b.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nstep S on Inc\n    n = (n + 1) % 4\n    emit n.tostr()\nstep S on Dec\n    n = (n + 3) % 4\n    emit n.tostr()\n"}, {"argv": ["equiv", "main.rce", "b.rce"]}]
+# output_has:
+#   - "verdict             different"
+#   - "after "
+# output_lacks:
+#   - "equivalent  same"
+# provenance: property: T59 other direction, bounded exhaustive over the pairs (2,4), (3,4), (4,8), (2,3), (5,4) (this test mod 5 against mod 4): the emitting counters differ, and rce equiv reports a distinguishing sequence.
+#---

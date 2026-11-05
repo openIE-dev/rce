@@ -1,0 +1,16 @@
+ct fn pick(a: bool, b: bool, c: bool) -> bool
+    return ct_choose(a, b, c)
+
+fn main()
+    emit pick(true, true, true).tostr()
+#--- rce-test
+# id: properties/t45-ct-choose-ttt
+# area: properties
+# clauses: [T45]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "emit \"true\""
+# provenance: property: T45, bounded exhaustive over the 8 inputs of a ct fn (this test true, true, true): the result is the oracle a ? b : c, computed by ct_choose with no branch on the inputs.
+#---
