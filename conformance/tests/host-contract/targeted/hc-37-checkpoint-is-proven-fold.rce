@@ -1,0 +1,17 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-37-checkpoint-is-proven-fold
+# area: host-contract
+# clauses: [HC-37]
+# expect: cli
+# seq: [{"argv": ["host", "run", "main.rce", "D", "Inc, Inc, Inc"]}, {"argv": ["host", "compact", "main.rce", "D", "4"]}, {"argv": ["host", "replay", "main.rce", "D"]}]
+# status: 0
+# output_has:
+#   - "compacted D at 4: checkpoint at seq 3"
+#   - "checkpoint at seq 3: proven from archive"
+#   - "S { n = 3 }"
+# provenance: targeted: HC-37, compact at N writes a checkpoint at seq N - 1 with entry N - 1's state hash, and replay of the compacted log gives the full run's state hash
+#---

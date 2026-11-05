@@ -1,0 +1,20 @@
+module ctr
+
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-28-status-records
+# area: host-contract
+# clauses: [HC-28]
+# expect: cli
+# seq: [{"argv": ["host", "run", "main.rce", "D", "Inc"], "env": {"RCE_STATUS": "on"}}]
+# status: 0
+# output_has:
+#   - "\u001b]7501;state=idle:app=rce:title=Y3Ry:msg="
+#   - "\u001b]7501;state=working:app=rce:title=Y3Ry"
+#   - "\u001b]7501;state=done:app=rce:title=Y3Ry"
+#   - "\u001b\\"
+# provenance: targeted: HC-28, with RCE_STATUS=on `rce host run` writes OSC 7501 records on stderr with app=rce and the module name in base64 (ctr is Y3Ry), ending in state=done; stdout is only the listing
+#---

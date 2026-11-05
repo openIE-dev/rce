@@ -22,7 +22,7 @@ for p in tests:
     if m.get("area") != rel.split("/")[0]: errs.append(f"{p}: area {m.get('area')}")
     if m.get("expect") not in EXPECT: errs.append(f"{p}: expect {m.get('expect')}")
     if m.get("expect") == "change" and not m.get("diagnostic"): errs.append(f"{p}: reject without diagnostic")
-    if m.get("expect") == "cli" and not isinstance(m.get("argv"), list): errs.append(f"{p}: cli without argv")
+    if m.get("expect") == "cli" and not isinstance(m.get("argv"), list) and not isinstance(m.get("seq"), list): errs.append(f"{p}: cli without argv")
     if m.get("expect") == "trace" and not (isinstance(m.get("trace_lines"), list) and m["trace_lines"]):
         errs.append(f"{p}: trace without trace_lines (the whole trace)")
     cl = m.get("clauses") or []
