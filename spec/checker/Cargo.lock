@@ -446,6 +446,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rce-emit-wasm"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "rce-graph",
+ "rce-vm-backend-cpu",
+ "serde_json",
+]
+
+[[package]]
 name = "rce-energy"
 version = "0.1.0"
 dependencies = [
@@ -553,6 +563,7 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "libc",
+ "rce-emit-wasm",
  "rce-energy",
  "rce-fgm",
  "rce-format",
@@ -562,6 +573,7 @@ dependencies = [
  "rce-op-nn-prims",
  "rce-op-qmm",
  "rce-vm-backend-cpu",
+ "rce-wasm-kernels",
  "rcgen",
  "regex",
  "ring",
@@ -600,6 +612,17 @@ dependencies = [
  "serde",
  "smallvec",
  "thiserror",
+]
+
+[[package]]
+name = "rce-wasm-kernels"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "rce-graph",
+ "rce-vm-backend-cpu",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

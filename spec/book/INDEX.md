@@ -17,13 +17,13 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `bf95e883b04eb30e2fad219152cf8c423ac1cee471aeb8df16e472deb2f130f1` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
 | `10-theorems.md` | `204c290b5f6600d0db4c39088894fe0193aa3c73c262c12f1bd7d0d23c693cf8` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `ebbf77ef787a4497ed66e4fca238dfc4accd3e99a178ee78c8831a08bb730045` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `1f68b8fd997fcd5913492fa50d2fb91b96a617aeb370c50b40a6a7d085f66215` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `23e5529e80ffd893e8cd78e51e39fa08325416fc61765fcaf47985acf6d1046b` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `cbf255393d0ebb75e6883a0dcba027fa9680e9a25235d3cffa785e9b1bfb27d9` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `e9fca13cead3058f887e28b011357754ad29da33e835cc087164aea48d5a541e` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `1d597eda0733fc8e9b586c21d0d4b2714df4b326e1ac6569bce4e4ad33a8b43a` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `16-host-contract.md` | `b0e1e03eae1c13162da0184c173fa81d1510c95dd9c684ade2fd225a2dcda84a` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 | `17-draft09.md` | `c27e706210376d17948c166a34a4756ca035a91227d5d415ceb87bc29a2073ce` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: e2d8726a0678cb6480019844b1dd4b3bbc2b89871e58835510308c3f2f744b04 -->
+<!-- body-sha256: 68ccbf370fb3306be39cbaf49c3c62c02bd927efd3502b0fae836c0e21754166 -->

@@ -3907,6 +3907,7 @@ the proposal `spec/proposals/one-emitter.md`, ONE-3).
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
 | `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
 | `verilog` | the step function δ as one synthesizable Verilog-2005 module (IEEE 1364-2005), for the subset of the proposal `spec/proposals/emit-verilog.md` (informative) |
+| `wasm` | each graph term of FILE (6.13) as one WebAssembly text module that runs the term node by node through the kernel library (10.18) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
@@ -5229,6 +5230,77 @@ read again. Example: `rce lift gguf toy.gguf m/blobs > m/toy.rce`, then
 values and no weight bytes, which a term needs, and several of their
 operations (`conv2d`, `batch_norm`, `elu`, `leaky_relu`, `log_softmax`)
 have no operation in `std.tensor`.
+
+### 10.18 `rce emit wasm FILE` and `rce graph run wasm FILE INPUTS`: graph terms in WebAssembly
+
+Terms used here. A *realisation* of a graph term is a computation of the
+term other than the reference evaluation (GT-6); it is judged against the
+reference node by node, each node at its level (GT-4). The *kernel library*
+is the WebAssembly module `compute/crates/rce-emit-wasm/kernels/rce-kernels.wasm`:
+the CPU backend's one-node step of the reference evaluation
+(`rce_vm_backend_cpu::reference_node`), compiled to WebAssembly by
+`scripts/build-wasm-kernels.sh` from `compute/crates/rce-wasm-kernels`. A
+*program module* is the WebAssembly text that `rce emit wasm` prints: it
+holds no arithmetic of its own and calls the kernel library once per node.
+A *slot* is a numbered tensor held by the kernel library.
+
+`rce emit wasm FILE` prints one program module for the graph terms of the
+admitted module FILE, with one exported function `term_KEY` per term, KEY
+its content hash (GT-2). A program with no graph term requires change
+(status 1). `rce graph run wasm FILE INPUTS` runs the term of a `.fg` file
+through its program module and the kernel library under the `wasmi`
+interpreter and prints what `rce graph run FILE INPUTS` (10.16) prints.
+Example: on the term of `compute/examples/dense.rce`, both print
+`[1.5,0.0]`.
+
+- **EW-1 (one call per node).** The program module calls the kernel
+  library once per node, in the order of the reference evaluation
+  (`reference_order`: Kahn's algorithm, the ready nodes in ascending
+  index, on the term with each blob node standing alone, as the reference
+  evaluates it). Each call passes the node's descriptor (its operation,
+  output type, operand slots and output slot) from a data segment of the
+  program module. A comment above each call names the node, its operation
+  and its level, and the custom section `rce.levels` lists every node's
+  level.
+- **EW-2 (the pinned library).** The kernel library is committed with its
+  BLAKE3 digest (`rce-kernels.wasm.blake3`); the program module imports it
+  under the module name `rce-kernels/DIGEST`, so a program module links
+  only to the library it was printed for. `rce` refuses a library whose
+  bytes are not its digest. `scripts/build-wasm-kernels.sh check` rebuilds
+  it and fails when the rebuild differs from the pin.
+- **EW-3 (the reference step).** Each node is computed by the reference
+  evaluation's own step, so an `exact` node is the reference's value bit
+  for bit, the transcendentals included (6.3 F9: the correctly rounded
+  `exp`, `tanh` and `erf` of `math.rce`). The earlier emitter's
+  approximate exponential is retired: no program module reaches an
+  approximation.
+- **EW-4 (judged at each level).** The value of every node is read back
+  from its slot and judged against the reference's value of that node: an
+  `exact` node bit for bit, a `within N` node within N units in the last
+  place, a `lossy` node by its type. The judgement is of the realisation;
+  the reference stays the meaning (GT-6).
+- **EW-5 (weights by digest).** The bytes of a blob (GT-9) are put into a
+  slot, and the kernel library computes their BLAKE3 digest before the
+  node reads them; bytes whose digest is not the one the term names stop
+  the term (status 4 of the library), whatever store supplied them.
+- **EW-6 (the same answers).** A non-finite value stops the term at that
+  node with `trap: non-finite float`, as the reference does; floating
+  point runs only on an engine that passes the HC-13 probe. The result of
+  `rce graph run wasm` is the result of `rce graph run`, trap included.
+
+**Conformance.** Each rule is checked by these tests of
+`spec/checker/tests/emit_wasm.rs`:
+
+| Rule | Test |
+|---|---|
+| EW-1 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_examples_is_the_reference_at_its_level` |
+| EW-2 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only` |
+| EW-3 | `the_kernel_library_is_pinned_and_the_program_links_to_it_only`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-4 | `every_node_of_the_examples_is_the_reference_at_its_level`, `every_node_of_the_lifted_toy_gpt2_is_the_reference_at_its_level` |
+| EW-5 | `a_blob_whose_bytes_are_not_its_digest_is_refused` |
+| EW-6 | `the_commands` |
+
+The design is in `spec/proposals/emit-wasm.md`.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
@@ -7984,7 +8056,7 @@ JSON. The host entries are:
 | `host.Blobs` | the digest and length of every blob the program's graph terms name, each checked against its digest | at start and at every open, when the program names a blob (6.13 GT-9) |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
-| `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
+| `host.Placed` | class, fabric id, op id, work; for a graph term also `est_j` | when placement is decided, before the operation runs (HC-12, HC-39) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | amortization, basis, entries, joules, provenance, source | at the end of a run granted `energy` whose counter was read (HC-38, D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
@@ -8023,7 +8095,7 @@ throughput for placement (HC-12), not joules, and the reference host
 writes `counters` as `null` in `host.FabricCaps` (E.7). A calibration in
 joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
 
-### E.6 Fabrics and placement (HC-11 to HC-14)
+### E.6 Fabrics and placement (HC-11 to HC-14, HC-39)
 
 - **HC-11 Fabric discovery as events.** At start and on hot-plug the host
   appends `host.FabricCaps`: ISA flags, each GPU adapter's features and
@@ -8095,6 +8167,53 @@ joules per unit is a proposal (`spec/proposals/energy-calibration.md`).
   changes no result are on by default; input capabilities (hardware
   random numbers, clocks, energy and thermal counters) are events; those
   that change bits are gated by HC-13.
+- **HC-39 Placement of a graph term by predicted joules.** Terms used
+  here: a *fabric* is an executor of graph terms, `cpu` (the reference
+  evaluation of 6.13) or `wasm` (the program module of 10.18 run under
+  `wasmi`); the *work* of a term is the number of scalar operations of
+  its nodes on its operands; the *predicted joules* of a fabric for a
+  term are `est_j = overhead + work / throughput`, overhead in J and
+  throughput in operations per J, from the fabric's row of a cost table.
+  A prediction is a number computed from a table, never a reading, and
+  D never presents it as one.
+  - Before `rce host run` and `rce host serve` admit an input to a
+    program with graph terms, the host appends one `host.Calibrated`
+    {class `graph.term`, fabric, overhead, source, throughput, unit `J`}
+    per row of the cost table, skipping a row D already holds unchanged.
+    The table comes from the word `costs FILE` (JSON
+    {source, rows: [{fabric, overhead_j, work_per_j}]}), or else is the
+    declared table: `cpu` 0 J and 10^9 operations per J, `wasm`
+    10^-3 J and 2.5 x 10^8 operations per J, with source `declared`. A
+    table whose source is empty or is the bare word `measured`, a row of
+    an unknown fabric, a negative overhead, a throughput that is not
+    positive or a fabric named twice requires change: a measured table
+    names the machine and counter it came from. The word `costs`
+    changes which fabric computes a term, never a result (HC-14).
+  - Each time δ runs a graph term, the host chooses the fabric with the
+    least `est_j` among `cpu` and the fabrics that have a `host.Exact`
+    entry of class `graph.KEY` for this term (KEY the term's key) whose
+    probe digest equals its reference digest; a tie goes to `cpu`. A
+    fabric whose `est_j` is below the chosen one and that has no such
+    entry is probed first, on the term's operands of that run: the
+    digests are BLAKE3 of each node's result, the probe side listing
+    only the nodes whose result is at the node's level (6.13), so the
+    digests are equal exactly when every node is admitted. The host then
+    appends `host.Placed` {class `graph.term`, est_j, fabric, op KEY,
+    work} and runs the term on that fabric. A run-time error of the
+    chosen fabric is the term's error.
+  - The probes and placements of an input are appended after δ ran and
+    before the input's entry, in the order δ took them. Replay folds
+    each `host.Calibrated` and `host.Exact` into the table and the
+    probe list, re-derives each placement from them and stops where the
+    derivation differs from D (T37), so a placement is a function of D
+    and the state hashes of a replay are those of the run.
+  - With the declared table `cpu` is chosen for every term, since
+    `wasmi` interprets WebAssembly. A program run by `fn main` places its
+    terms the same way and logs no entry for them.
+  Reference executor: `interp::place_graph`, `Host::graph_costs`,
+  `CostTable`; `wasm_term::probe` and `wasm_term::at_level`.
+  Derivation: law 1 of E.2c makes the choice of fabric an entry of D;
+  HC-13 admits a fabric only by evidence in D.
 
 ![Cost of strict IEEE determinism on GPU kernels and fabric dispatch model](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-survey-fig4-fabric.png)
 
@@ -8253,6 +8372,7 @@ is cited by a test.
 | HC-34 to HC-36 | a program served as a tool to RAP runtimes | `tests/host_rap.rs`: `toolset_is_derived_from_the_declared_events`, `the_toolset_is_served_at_the_discovery_path`, `an_invocation_is_acked_stepped_and_answered`, `unanswerable_invocations_are_refused_and_notifications_change_nothing`, `a_duplicate_id_is_answered_from_the_log_and_not_stepped_twice`, `replay_reproduces_every_result_byte_for_byte`, `a_lost_callback_is_retried_until_it_settles`, `a_restart_sends_an_unsettled_result_once_more`, `an_acknowledged_invocation_is_stepped_after_a_kill`, `replay_detects_forged_rap_entries`, `rap_messages_match_the_spec_examples`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-37 | log compaction by an exact checkpoint | `tests/host_compact.rs`: `every_compaction_of_a_ledger_replays_equal_to_the_original`, `every_compaction_of_a_rap_log_keeps_every_result`, `every_compaction_of_an_http_log_keeps_the_open_requests`, `every_compaction_of_a_live_task_replays_equal`, `a_forged_checkpoint_fails_closed`, `compaction_of_a_torn_tail_is_refused`, `the_command_compacts_proves_and_refuses`; `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults` |
 | HC-38 | a package counter reading in D, in the D.11 form, checked where D is read | `tests/host_energy.rs`: `a_reading_is_recorded_in_the_d11_form_and_replays`, `replay_refuses_an_entry_that_is_not_a_reading`, `without_a_counter_the_host_says_why_and_writes_no_reading`, `the_kept_readings_are_readings` (the readings in `docs/readings`) |
+| HC-39 | placement of a graph term by predicted joules, probed at each node's level, re-derived on replay | `tests/graph_placement.rs`: `the_declared_table_is_logged_with_its_source_and_places_on_the_cpu_reference`, `a_cheaper_fabric_is_probed_once_then_placed_and_the_state_hashes_are_the_reference_ones`, `each_term_of_a_block_is_probed_once_then_placed_on_wasm_and_replays`, `replay_requires_change_when_a_placement_is_not_the_one_d_derives`, `placement_takes_the_least_predicted_joules_among_probed_fabrics`, `a_cost_table_states_its_source` |
 | HC-8, HC-16, HC-21, HC-22 under faults, and HC-35 to HC-37 | dropped, duplicated and reordered inputs and RAP invocations, lost answers and lost result POSTs, kill -9 (between a RAP acknowledgement and its step among them), torn and partly written tails and power cuts, wall clock steps, compaction at a random N after a kill (refused on a torn tail) | `tests/host_faults.rs`: `host_contract_holds_under_seeded_faults`, `a_fault_seed_reruns_to_the_same_d`, `no_faults_means_no_mishandling` |
 
 ### E.11 Proposed rules (not normative)

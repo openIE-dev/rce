@@ -154,7 +154,7 @@ impl TTy {
         Some(TTy { elem: Elem::of(e)?, shape })
     }
 
-    fn of_spec(t: &TensorType) -> Option<TTy> {
+    pub fn of_spec(t: &TensorType) -> Option<TTy> {
         Some(TTy { elem: Elem::of(&t.dtype)?, shape: t.shape.clone() })
     }
 
@@ -938,6 +938,49 @@ fn evaluate_resolved(graph: &FunctionGraph, types: &TermTypes, vals: &[V]) -> Re
     }
 }
 
+/// The reference evaluation of a graph term node by node (GT-6), as
+/// [`evaluate_graph`] makes it: its result (Err the trap text) and the
+/// value of every node that completed, by node index. A realisation is
+/// judged against these values node by node at each node's level (EW-4).
+pub fn reference_nodes(graph: &FunctionGraph, types: &TermTypes, vals: &[V]) -> Result<(Result<V, String>, Vec<(usize, HostTensor)>), String> {
+    let g = materialise(graph, false)?;
+    if vals.len() != types.params.len() {
+        return Err(format!("graph term: {} operands for {} parameters", vals.len(), types.params.len()));
+    }
+    let order = rce_vm_backend_cpu::reference_order(&g).map_err(|e| format!("graph term: {e}"))?;
+    let mut values: std::collections::HashMap<usize, BValue> = Default::default();
+    let mut done = vec![];
+    for n in order {
+        let mut ws: Vec<_> = g.wires.iter().filter(|w| w.to == n).collect();
+        ws.sort_by_key(|w| w.port_in_idx);
+        let args: Vec<BValue> = ws.iter().filter_map(|w| values.get(&w.from).cloned()).collect();
+        let r = match &g.nodes[n] {
+            GraphNode::Param(p) => {
+                let i: usize = p.name.strip_prefix('p').and_then(|x| x.parse().ok()).ok_or("graph term: a parameter name")?;
+                let tt = TTy::of_spec(&types.params[i]).ok_or("graph term: a parameter of an unknown element type")?;
+                Ok(BValue::Tensor(to_host(&vals[i], &tt)?))
+            }
+            node => rce_vm_backend_cpu::reference_node(n, node, args),
+        };
+        let v = match r {
+            Ok(v) => v,
+            Err(InterpretError::NonFinite(_) | InterpretError::DivByZero(_)) => return Ok((Err(TRAP_NON_FINITE.into()), done)),
+            Err(InterpretError::Trap(_, t)) => return Ok((Err(t), done)),
+            Err(e) => return Err(format!("graph term: {e}")),
+        };
+        if let BValue::Tensor(t) = &v {
+            done.push((n, t.clone()));
+        }
+        values.insert(n, v);
+    }
+    let rt = TTy::of_spec(&types.result).ok_or("graph term: a result of an unknown element type")?;
+    let out = match values.remove(&g.output_node) {
+        Some(BValue::Tensor(t)) => of_host(&t, &rt),
+        _ => Err("graph term: a result that is not a tensor".into()),
+    };
+    Ok((out, done))
+}
+
 /// The host tensor of a value of type `t`: its elements in row-major order.
 pub fn to_host(v: &V, t: &TTy) -> Result<HostTensor, String> {
     let mut flat = vec![];
@@ -1171,11 +1214,15 @@ pub fn inspect(bytes: &[u8]) -> Result<String, String> {
     Ok(o)
 }
 
-/// `rce graph run FILE INPUTS`: the reference evaluation (GT-6) of the
+/// The evaluation of a term `run_fg` uses: the reference, or a realisation
+/// (`rce graph run wasm`, 10.18), as (key, graph, types, operands) to result.
+pub type Eval<'a> = &'a dyn Fn(&str, &FunctionGraph, &TermTypes, &[V]) -> Result<Result<V, String>, String>;
+
+/// `rce graph run FILE INPUTS`: the reference evaluation (GT-6), or `eval`, of the
 /// graph term in a `.fg` file. INPUTS is a JSON array with one tensor per
 /// parameter, each a nested array of numbers of the parameter's shape; the
 /// result is printed in the canonical JSON of 6.1.1 (GT-8).
-pub fn run_fg(bytes: &[u8], inputs: &str) -> Result<String, String> {
+pub fn run_fg(bytes: &[u8], inputs: &str, eval: Option<Eval>) -> Result<String, String> {
     let (f, g, ty) = read_fg(bytes)?;
     let key = rce_format::hash::hex_encode(&f.header.content_hash);
     let ty = ty.ok_or("requires change: the file has no type table, so its graph is not a graph term (W7)")?;
@@ -1190,11 +1237,20 @@ pub fn run_fg(bytes: &[u8], inputs: &str) -> Result<String, String> {
         let t = TTy::of_spec(p).ok_or("a parameter of an unknown element type")?;
         vals.push(of_json(x, &t)?);
     }
-    match evaluate_graph(&g, &ty, &vals) {
+    let r = match eval {
+        Some(e) => e(&key, &g, &ty, &vals)?,
+        None => evaluate_graph(&g, &ty, &vals),
+    };
+    match r {
         Ok(v) => Ok(canonical(&v) + "\n"),
         Err(m) if is_trap(&m) => Ok(format!("trap: {m}\n")),
         Err(m) => Err(m),
     }
+}
+
+/// The value of type `t` a JSON tensor holds (`rce graph run` INPUTS).
+pub fn value_of_json(x: &serde_json::Value, t: &TTy) -> Result<V, String> {
+    of_json(x, t)
 }
 
 fn of_json(x: &serde_json::Value, t: &TTy) -> Result<V, String> {
