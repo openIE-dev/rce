@@ -394,6 +394,25 @@ fn main() {
         ill.len() + inad.len(),
         inad.len()
     );
+    // RF-7: the mode row of rung f of `rce repair` is `auto` only when the
+    // recorded evaluation of the pinned registration shows the criterion met.
+    {
+        use rce_spec_check::proposals as pr;
+        let rd = |p: &str| std::fs::read_to_string(spec.join(p));
+        match (rd(pr::REGISTRATION_PATH), rd(pr::PINNED_PATH)) {
+            (Ok(reg), Ok(pin)) => match pr::promotion_check(pr::mode(), &reg, &pin, rd(pr::EVALUATION_PATH).ok().as_deref()) {
+                Ok(line) => println!("repair: {line}"),
+                Err(e) => {
+                    bad += 1;
+                    println!("FAIL (repair, RF-7): {e}");
+                }
+            },
+            _ => {
+                bad += 1;
+                println!("FAIL (repair, RF-7): the registration {} or its pinned SHA-256 cannot be read", pr::REGISTRATION_PATH);
+            }
+        }
+    }
     // 4. The book and the single-file RCE-SPEC.md are in sync.
     bad += rce_spec_check::book::build(&rce_spec_check::book::Book::new(&spec), true) as usize;
     println!(
