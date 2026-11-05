@@ -1,7 +1,7 @@
 //! `crmath` against two oracles, bit for bit:
 //!
 //! - the MPFR-checked vectors of RCE's standard library
-//!   (`stdlib/tests/math/math_checks_{exp,tanh,erf}_*.rce`, written by
+//!   (`stdlib/tests/math/math_checks_{exp,tanh,erf,sin,cos}_*.rce`, written by
 //!   `scripts/gen/math_vec.py`, the worst cases of CORE-MATH among them),
 //!   the same lines `math.rce` is checked on;
 //! - `tests/crmath_oracle.txt`, a fixed sample with edge cases computed in
@@ -14,6 +14,8 @@ fn f(name: &str) -> fn(f64) -> f64 {
         "exp" => crmath::exp,
         "tanh" => crmath::tanh,
         "erf" => crmath::erf,
+        "sin" => crmath::sin,
+        "cos" => crmath::cos,
         _ => panic!("{name}"),
     }
 }
@@ -35,7 +37,7 @@ fn equals_the_mpfr_vectors_of_the_standard_library() {
     for entry in std::fs::read_dir(&dir).unwrap() {
         let p = entry.unwrap().path();
         let file = p.file_name().unwrap().to_string_lossy().into_owned();
-        let Some(name) = ["exp", "tanh", "erf"].into_iter().find(|n| file.starts_with(&format!("math_checks_{n}_"))) else {
+        let Some(name) = ["exp", "tanh", "erf", "sin", "cos"].into_iter().find(|n| file.starts_with(&format!("math_checks_{n}_"))) else {
             continue;
         };
         for line in std::fs::read_to_string(&p).unwrap().lines() {
@@ -50,7 +52,7 @@ fn equals_the_mpfr_vectors_of_the_standard_library() {
         }
     }
     assert!(bad.is_empty(), "{} differ: {:?}", bad.len(), &bad[..bad.len().min(10)]);
-    assert!(seen["exp"] > 400 && seen["tanh"] > 2000 && seen["erf"] > 10000, "{seen:?}");
+    assert!(seen["exp"] > 400 && seen["tanh"] > 2000 && seen["erf"] > 10000 && seen["sin"] > 7000 && seen["cos"] > 7000, "{seen:?}");
 }
 
 #[test]

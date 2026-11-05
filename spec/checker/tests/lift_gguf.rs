@@ -85,13 +85,13 @@ fn the_lifted_program_is_admitted_and_its_runs_are_the_same_bytes() {
     let d: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
     assert_eq!(replay_report(&m, &d).unwrap().state_hash, fin);
     // an architecture that is not lifted is refused with its name (LIFT-1)
-    let arch = encode_string_value("llama");
+    let arch = encode_string_value("mamba");
     let other = build_gguf(&[("general.architecture", 8, arch.as_slice())], &[]);
     let g = dir.join("other.gguf");
     std::fs::write(&g, other).unwrap();
     let (st, _, err) = rce(&["lift", "gguf", g.to_str().unwrap(), dir.join("other").to_str().unwrap()]);
     assert_eq!(st, 2);
-    assert!(err.contains("the architecture `llama` is not lifted; `gpt2` is"), "{err}");
+    assert!(err.contains("the architecture `mamba` is not lifted; `gpt2` and `llama` are"), "{err}");
 }
 
 /// Units in the last place between two f32 values.

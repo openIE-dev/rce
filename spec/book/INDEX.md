@@ -13,11 +13,11 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `05-types-ownership.md` | `857c1b43e187f03f4ad2efc72660d85d8627a71a67ebec9aa7f63636561fdb14` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb` | What kind of channel does a capacity of 0 give? (one word) |
 | `07-form-evaluation.md` | `94b2b681e25dff8783d24e1b5ea37a0a8d10998a68d39ff39aebc1ca5035966c` | Which JavaScript function is named for rounding to binary32? |
-| `08-steps-loops-concurrency.md` | `57c36fde0e8a007d5170183a68164c52b4fadbf25dc7e8ffa7fe8d82a91605db` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `bf95e883b04eb30e2fad219152cf8c423ac1cee471aeb8df16e472deb2f130f1` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
+| `08-steps-loops-concurrency.md` | `001390114b17e3b711db808f185e9de73e1b7c5167abcbc1bcded716e76a669e` | Name-free hashing uses indices named after which logician? (two words) |
+| `09-wellformedness.md` | `32d6996acd42399995cd76082e4c7d9b6bd5fc0bfdcb298c3624a6282123e130` | Under which rule does a region with two unguarded steps whose patterns overlap require change? |
 | `10-theorems.md` | `204c290b5f6600d0db4c39088894fe0193aa3c73c262c12f1bd7d0d23c693cf8` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `ebbf77ef787a4497ed66e4fca238dfc4accd3e99a178ee78c8831a08bb730045` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `e23d5bf7ccb42b26a67c09895a5c5331ac412ee956464b95e59529507999f50e` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `e6cb9e296bf32ce043bafbcd788bac712661c2cd1d6178b3fe8941ffbac74adc` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `cbf255393d0ebb75e6883a0dcba027fa9680e9a25235d3cffa785e9b1bfb27d9` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `e9fca13cead3058f887e28b011357754ad29da33e835cc087164aea48d5a541e` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 521ff48e07e248903336fdfe0f889e76e5c4b522e44d11fa1cad5519e96be556 -->
+<!-- body-sha256: ad21c464a8d82f1bc97322c99b7718affee837a2bcc250ba84805bedfb092df9 -->
