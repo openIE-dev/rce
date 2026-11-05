@@ -14,7 +14,7 @@ gets written, and they write it in languages designed for people: text
 whose meaning depends on the compiler, the platform, the library versions
 and the flags, and whose correctness is checked after the fact by tests,
 reviews and more model calls. Every one of those steps spends energy and
-tokens on resolving ambiguity that the language itself introduced, and
+further model work on resolving ambiguity that the language itself introduced, and
 none of them can promise that the result is right.
 
 RCE removes the ambiguity at the source. A program is a *Form*: a state
