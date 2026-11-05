@@ -32,7 +32,8 @@ MODAL = re.compile(r"\b(MUST|SHALL|must|shall)\b")
 # book's authors or the reference's own tools; a pointer to a rule stated
 # elsewhere; a description of an effect, a list, a model or a cost.
 AUTHORS = [
-    (r"^Derivation:", "editorial"),
+    (r"^Derivation: least privilege \(a\): a foreign call is authority", "editorial"),
+    (r"^Derivation: totality \(d\): a call whose cost the program cannot bound", "editorial"),
     (r"^\(b\) Soundness: a rule that the checker enforces must be enough", "editorial"),
     (r"`rce-spec-check` must report 0 conflicts before this appendix", "tooling"),
     (r"^Examples and the fuzz generator must be written clean", "editorial"),

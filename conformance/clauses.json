@@ -2995,7 +2995,7 @@
    "section": "C.8 `for ... par`",
    "text": "Derivation: placement must give the same bits on every fabric (HC-12), and the reductions that vector units and GPUs execute are complete binary trees over power-of-two blocks.",
    "restated": [],
-   "profile": "editorial"
+   "profile": "language"
   },
   {
    "id": "CH14-M-9202f003",
