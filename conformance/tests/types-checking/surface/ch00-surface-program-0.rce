@@ -1,0 +1,21 @@
+intent "a counter that never goes negative"
+    example Inc, Inc, Dec      -> 1
+    example Dec                -> kept: Underflow
+
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+error Underflow
+
+step Counter on Inc -> n + 1
+step Counter on Dec -> try n.checked_sub(1) else Underflow
+#--- rce-test
+# id: types-checking/surface/ch00-surface-program-0
+# area: types-checking
+# clauses: [CH00-M-263cf831]
+# expect: accept
+# provenance: targeted: CH00, program 0 of SURFACE.md must still be accepted by the reference checker (as spec/checker/tests/surface_status.rs checks)
+#---

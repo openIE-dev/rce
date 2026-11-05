@@ -1,0 +1,20 @@
+state S
+    n: i64 = 0
+event Go(x: i64)
+fn half(x: i64) -> i64
+    requires x > 0
+    x / 2
+step S on Go(x: v)
+    n = half(v)
+#--- rce-test
+# id: host-contract/targeted/ch17-callee-requires-at-run-time
+# area: host-contract
+# clauses: [CH17-M-a720cd01]
+# expect: cli
+# argv: ["host", "run", "main.rce", "D", "Go(x: 4), Go(x: 0)"]
+# output_has:
+#   - "Go(x: 0) kept: trap({\"clause\":\"requires\",\"function\":\""
+#   - "\"index\":0,\"kind\":\"contract\"})"
+#   - "S { n = 2 }"
+# provenance: targeted: F.6.2, outside the fragment (an event argument) the call is checked at run time: Go(x: 0) is kept with the contract record and the state stays
+#---

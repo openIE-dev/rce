@@ -270,6 +270,49 @@ pub fn check(m: &Module) -> Vec<String> {
         };
         scan(b);
     }
+    // F.6.2: the caller must prove the callee's `requires` where the fragment
+    // decides it. A call whose arguments are all integer literals binds each
+    // parameter to one value; when the callee's clauses are then false in the
+    // literal and integer-bound fragment of W-CON-1, the call requires change.
+    let mut reqs_of: HashMap<String, (Vec<String>, Vec<&Expr>)> = HashMap::new();
+    for (f, _) in crate::v09::fn_decls(m) {
+        let Body::Block(b) = &f.body else { continue };
+        let rs: Vec<&Expr> = b[..prelude_len(b)].iter().filter_map(clause).filter(|(k, _)| *k == "requires").map(|(_, e)| e).collect();
+        if rs.is_empty() {
+            continue;
+        }
+        let ps: Vec<String> = f.sig.params.iter().filter_map(|p| match p { Param::Named { name, .. } => Some(name.clone()), _ => None }).collect();
+        if ps.len() == f.sig.params.len() {
+            reqs_of.insert(f.sig.name.clone(), (ps, rs));
+        }
+    }
+    if !reqs_of.is_empty() {
+        for it in &m.items {
+            crate::link::each_expr(it, &mut |e| {
+                let Expr::Call(c, args, line, _) = e else { return };
+                let Expr::Name(n, _) = &**c else { return };
+                let Some((ps, rs)) = reqs_of.get(n) else { return };
+                if args.len() != ps.len() || args.iter().any(|a| a.label.as_ref().is_some_and(|l| !ps.contains(l))) {
+                    return;
+                }
+                let mut binds: Vec<Expr> = vec![];
+                for (i, a) in args.iter().enumerate() {
+                    let v = match &a.e {
+                        Expr::Int(v, _) => *v,
+                        Expr::Neg(x, _) if matches!(&**x, Expr::Int(..)) => match &**x { Expr::Int(v, _) => -*v, _ => unreachable!() },
+                        _ => return,
+                    };
+                    let p = a.label.clone().unwrap_or_else(|| ps[i].clone());
+                    binds.push(Expr::Bin("==".into(), Box::new(Expr::Name(p, *line)), Box::new(Expr::Int(v, *line)), *line));
+                }
+                let mut all: Vec<&Expr> = rs.clone();
+                all.extend(binds.iter());
+                if contradictory(&all) {
+                    errs.push(err(*line, "W-CON-1", format!("this call of `{n}` is false for its `requires` clauses: the caller must prove them where the fragment decides it (F.6.2)")));
+                }
+            });
+        }
+    }
     errs.extend(decreases(m));
     errs.extend(loop_measures(m));
     // W-IFLET-1: every `and` operand of an `if let` is a comparison
