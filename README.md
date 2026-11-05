@@ -14,7 +14,7 @@ gets written, and they write it in languages designed for people: text
 whose meaning depends on the compiler, the platform, the library versions
 and the flags, and whose correctness is checked after the fact by tests,
 reviews and more model calls. Every one of those steps spends energy and
-tokens on resolving ambiguity that the language itself introduced, and
+further model work on resolving ambiguity that the language itself introduced, and
 none of them can promise that the result is right.
 
 RCE removes the ambiguity at the source. A program is a *Form*: a state
@@ -38,8 +38,12 @@ brings a program written in that language into the Form, each accepted at
 a level by exact comparison with the language's own implementation. That
 layer is not built yet. Today `rce emit` translates a checked program, not
 the Form, to Rust, Python, JavaScript and Scala through four hand-written
-emitters, all four of which agree with the reference on the conformance
-suite (1,459 tests pass, 0 fail, for each). The lifts are
+emitters. On the conformance suite of 2,236 tests, covering 311 of 311
+normative language clauses, the reference passes 2,221, fails 0 and marks
+15 unsupported (commit `fb4211290198`); the Python and JavaScript emitters
+each match the reference trace line for line on 1,462 tests, with 0 fail
+and the rest not applicable or unsupported, and the Rust and Scala emitters
+are compared by workflow runs (`conformance/README.md`). The lifts are
 the probe `spec/lift/go/lift_go.py`, for one Go pattern, and
 `spec/lift/python/lift_py.py`, for a subset of Python 3.13, which carries
 6 of the 92 cases of the pinned Python corpus (`lang/README.md`). The registry
