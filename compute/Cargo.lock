@@ -3909,10 +3909,10 @@ dependencies = [
 name = "rce-emit-wasm"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "rce-graph",
- "thiserror 2.0.21",
- "wasmtime",
- "wat",
+ "rce-vm-backend-cpu",
+ "serde_json",
 ]
 
 [[package]]
@@ -4797,6 +4797,17 @@ dependencies = [
  "rce-cosmos3",
  "rce-umt5-xxl-encoder",
  "rce-weight-loader",
+ "serde_json",
+]
+
+[[package]]
+name = "rce-wasm-kernels"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "rce-graph",
+ "rce-vm-backend-cpu",
+ "serde",
  "serde_json",
 ]
 

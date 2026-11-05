@@ -276,8 +276,15 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             crate::emit::verilog::emit(&crate::program(src)?)
         }
         "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
+        "wasm" => {
+            let d = diagnostics(src, &HashSet::new());
+            if !d.is_empty() {
+                return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+            }
+            crate::wasm_term::emit(&crate::program(src)?)
+        }
         t => Err(format!(
-            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog; the core evaluator's output is `rce run-core FILE`)"
+            "unknown emit target `{t}` (form, core, rust, python, js, scala, verilog, wasm; the core evaluator's output is `rce run-core FILE`)"
         )),
     }
 }
@@ -748,7 +755,7 @@ pub fn main_trace(m: &Module, cfg: &crate::conc::RunCfg) -> Result<serde_json::V
 
 /// The grants of `rce host run` and `rce host serve` (Appendix E, HC-5):
 /// setting words before FILE and D (PC-1, PC-4).
-const GRANTS: [Word; 12] = [
+const GRANTS: [Word; 13] = [
     Word::set("fs", &["DIR"]),
     // HC-33: user and group ids to names, from the account databases
     Word::mode("names"),
@@ -764,26 +771,28 @@ const GRANTS: [Word; 12] = [
     Word::set("frames", &["FILE"]),
     // HC-38: read the package energy counter over the run into host.Energy
     Word::mode("energy"),
+    // HC-39: the cost table graph terms are placed by
+    Word::set("costs", &["FILE"]),
 ];
 
 /// The grants, then `http`, `presented`, `rap` and `callback`, which only
 /// the host loop takes.
-const fn serve_words() -> [Word; 16] {
-    let mut w = [Word::set("http", &["HOST:PORT"]); 16];
+const fn serve_words() -> [Word; 17] {
+    let mut w = [Word::set("http", &["HOST:PORT"]); 17];
     let mut i = 0;
-    while i < 12 {
+    while i < 13 {
         w[i] = GRANTS[i];
         i += 1;
     }
     // HC-29: the renderer's confirmations, `SEQ FRAME_DIGEST` per line
-    w[13] = Word::set("presented", &["FILE"]);
+    w[14] = Word::set("presented", &["FILE"]);
     // HC-34: the program as a tool of RAP runtimes, and the addresses its
     // results may be POSTed to (HC-5: no callback address is ambient)
-    w[14] = Word::set("rap", &["HOST:PORT"]);
-    w[15] = Word::many("callback", &["HOST:PORT"]);
+    w[15] = Word::set("rap", &["HOST:PORT"]);
+    w[16] = Word::many("callback", &["HOST:PORT"]);
     w
 }
-const SERVE_WORDS: [Word; 16] = serve_words();
+const SERVE_WORDS: [Word; 17] = serve_words();
 
 /// The commands of `rce` (spec 10.1 to 10.13), as data (PC-8): the parser
 /// reads this table and `USAGE_TEXT` is printed from it.
@@ -820,7 +829,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "TARGET FILE",
         min: 2,
         max: 2,
-        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module)",
+        help: "TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js\nor scala (a program printing its observations), verilog (the step function as one Verilog-2005 module),\nwasm (each graph term as a WebAssembly program module calling the kernel library once per node, 10.18)",
     },
     Command { path: &["graph", "ops"], words: &[], operands: "", min: 0, max: 0, help: "the operations of std.tensor (6.13): name, level, what each computes" },
     Command {
@@ -834,11 +843,11 @@ pub const COMMANDS: &[Command] = &[
     Command { path: &["graph", "inspect"], words: &[], operands: "FILE", min: 1, max: 1, help: "the header, sections and graph term of the .fg FILE; its hash and its term are checked (W7)" },
     Command {
         path: &["graph", "run"],
-        words: &[],
+        words: &[Word::mode("wasm")],
         operands: "FILE INPUTS",
         min: 2,
         max: 2,
-        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13)",
+        help: "the reference evaluation of the graph term in the .fg FILE on INPUTS, a JSON array of one tensor per\nparameter; the result in canonical JSON (6.13); with wasm: through the term's WebAssembly program module and\nthe kernel library under wasmi (10.18)",
     },
     Command {
         path: &["lift", "gguf"],
@@ -931,7 +940,7 @@ pub const COMMANDS: &[Command] = &[
         operands: "FILE D [EVENTS]",
         min: 2,
         max: 3,
-        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38)",
+        help: "run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D;\nafter tls, every peer takes HOST:PORT KEY, the Ed25519 key pinned for it (PC-4);\nnames answers UserName and GroupName from /etc/passwd and /etc/group (HC-33);\nframes FILE appends each frame the program emits to FILE, one rce.ui.frame/1 line each (HC-29);\nenergy reads the package energy counter over the run and records it in D as host.Energy (HC-38);\ncosts FILE gives the cost table graph terms are placed by, in predicted joules (HC-39; default: the declared table)",
     },
     Command {
         path: &["host", "serve"],
@@ -1572,7 +1581,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program that requires change is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "core", "rust", "python", "js", "scala", "verilog"].contains(&rest[0].as_str())
+                if ["form", "core", "rust", "python", "js", "scala", "verilog", "wasm"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                     && !e.starts_with("not covered by the lowering")
                     && !e.starts_with("internal:")
@@ -1632,7 +1641,10 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let dir = std::path::Path::new(&rest[0]).parent().unwrap_or(std::path::Path::new("."));
             crate::graph::add_store(&dir.join("blobs"));
             let bytes = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
-            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { crate::graph::run_fg(&bytes, &rest[1]) };
+            let r = if cmd.path[1] == "inspect" { crate::graph::inspect(&bytes) } else { {
+                let w = |k: &str, g: &rce_graph::graph::FunctionGraph, t: &rce_graph::term::TermTypes, v: &[crate::interp::V]| crate::wasm_term::run(k, g, t, v).map(|r| r.result);
+                crate::graph::run_fg(&bytes, &rest[1], if p.has("wasm") { Some(&w) } else { None })
+            } };
             match r {
                 Ok(s) => {
                     write!(out, "{s}").map_err(w)?;
@@ -2153,6 +2165,12 @@ fn host_body(sub: &str, p: &crate::args::Parsed, input: &mut dyn BufRead, out: &
             if let Some(x) = &exact {
                 h.exact(x)?;
             }
+            // HC-39: the cost table graph terms are placed by, with its source
+            let table = match p.value("costs") {
+                Some(f) => crate::host::CostTable::parse(&read_file(f)?)?,
+                None => crate::host::CostTable::declared(),
+            };
+            h.graph_costs(&table)?;
             // HC-32: which zone rules the offsets in D come from
             if h.binds_kind("LocalOffset") {
                 h.zone(&crate::adapters::zone_record())?;

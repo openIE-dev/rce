@@ -4,15 +4,13 @@ publish = false
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Emit WebAssembly (WAT text + compiled bytes) from a rce FunctionGraph — direct browser/edge dispatch path with no Linalg→LLVM intermediate"
+description = "`rce emit wasm`: a WebAssembly program module per graph term, calling the kernel library (the reference node step compiled to WebAssembly) once per node in the reference order"
 
 [lib]
 name = "rce_emit_wasm"
 
 [dependencies]
-rce-graph = { workspace = true }
-thiserror = { workspace = true }
-wat       = "1.0"
-
-[dev-dependencies]
-wasmtime  = { workspace = true }
+rce-graph          = { workspace = true }
+rce-vm-backend-cpu = { workspace = true }
+serde_json         = { workspace = true }
+blake3             = { workspace = true }
