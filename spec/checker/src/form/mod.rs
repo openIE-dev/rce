@@ -10,6 +10,11 @@
 //! - `types`, `walk`: the types of sources and the identity of values (§7, §8)
 //! - `gate`: FG1 to FG15 (§11)
 //! - `eval`: a Form evaluator for the admission vectors of FG15 (§2, §18)
+//! - `bridge`: the schedule (Form to core) and the construction (core to Form)
+//!   on the slice both sides apply (§13). Not the production compiler: emit
+//!   still walks the syntax tree, and the slice refuses the constructs named
+//!   in `bridge`.
+pub mod bridge;
 pub mod canon;
 pub mod catalogue;
 pub mod decode;

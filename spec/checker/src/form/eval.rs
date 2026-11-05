@@ -518,6 +518,31 @@ fn state_json(m: &Module, s: &[Vec<Val>]) -> Option<J> {
     ))
 }
 
+/// Run one function of an applied module. Arguments are the inputs other than
+/// ω; a function that takes ω receives a fresh one. The returned values are
+/// the outputs other than ω. A halt is `halt: TEXT`.
+pub fn apply(m: &Module, key: &str, fi: u32, mut args: Vec<Val>) -> Result<Vec<Val>, String> {
+    let f = m.defs.get(key).and_then(|g| g.fns.get(fi as usize)).ok_or_else(|| format!("no function {key} {fi}"))?;
+    if f.ins.last() == Some(&BTy::Order) {
+        args.push(omega());
+    }
+    if args.len() != f.ins.len() {
+        return Err(format!("argument count {} does not match the signature", args.len()));
+    }
+    let mut e = Evr { tx: Tx::new(m), active: HashMap::new(), steps: 0 };
+    let mut om = Omega::fresh();
+    match e.call(key, fi, args, &mut om) {
+        Ok(mut v) => {
+            if f.outs.last() == Some(&BTy::Order) {
+                v.pop();
+            }
+            Ok(v)
+        }
+        Err(Stop::Halt(h)) => Err(format!("halt: {}", halt_text(&h))),
+        Err(Stop::Bad(b)) => Err(b),
+    }
+}
+
 /// FG15: the module's admission vectors (`rce-vectors/1`, §18) hold on this evaluator.
 pub fn admission(m: &Module, bytes: &[u8], vectors: &[u8]) -> Result<(), (String, String)> {
     let err = |p: &str, r: String| (p.to_string(), r);
