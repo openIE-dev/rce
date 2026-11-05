@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-22-restart-is-input
+# area: host-contract
+# clauses: [HC-22]
+# expect: cli
+# seq: [{"argv": ["host", "run", "main.rce", "D", "Inc"]}, {"argv": ["host", "run", "main.rce", "D", "Inc"]}, {"argv": ["host", "replay", "main.rce", "D"]}]
+# status: 0
+# output_has:
+#   - "3 Inc"
+#   - "9 Inc"
+#   - "S { n = 2 }"
+#   - "replay ok: 11 entries"
+# provenance: targeted: HC-22, a second host process on one D appends host.Restarted, and its first input takes the next seq, so no seq is reused
+#---

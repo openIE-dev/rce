@@ -15,7 +15,7 @@ step Counter on Dec -> try n.checked_sub(1) else Underflow
 #--- rce-test
 # id: numbers/harvested/01-counter-accept
 # area: numbers
-# clauses: [CH03-M-28cdd241, CH08-M-51f39d7d, CH08-M-9a15157f, T10]
+# clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
 # expect: accept
 # provenance: harvested examples/01_counter.rce
 #---

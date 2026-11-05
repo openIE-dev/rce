@@ -27,7 +27,7 @@ results file also records the adapter's `hello` answer, which names the
 implementation and, for an emitter, the checker that emitted and the
 target's toolchain.
 """
-import concurrent.futures as cf, hashlib, json, os, pathlib, select, shlex, subprocess, sys, time
+import concurrent.futures as cf, hashlib, json, os, pathlib, re, select, shlex, subprocess, sys, time
 from types import SimpleNamespace
 TIMEOUT = float(os.environ.get("RCE_TEST_TIMEOUT", "120"))
 sys.path.insert(0, os.path.dirname(__file__))
@@ -235,6 +235,115 @@ def judge(t, a, ops):
             return "fail", f"trace line {i + 1}: got {got_l[:200]!r}, expected {want_l[:200]!r}", obs
         return "pass", "", obs
 
+class SeqResult:
+    def __init__(self, returncode, stdout, stderr):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+def run_seq(base, seq, d):
+    """A test of several steps in one scratch directory (two-command host
+    tests, and the adapters that answer on loopback). Steps:
+      {"argv": [...], "stdin": "...", "env": {...}}  run one command to its end
+      ("stdout_to": NAME writes its stdout to NAME instead of the output)
+      {"target": "python"|"js", "file": F}  emit F for the target and run it with its interpreter
+      {"show": NAME}                          append a file's text to the output
+      {"write": NAME, "text": "...", "mode": "0755"} or {"mkdir": NAME}
+      {"symlink": NAME, "to": TARGET}
+      {"serve": [...], "port": "127.0.0.1:P", "stdin": [...], "send": [RAW, ...],
+       "listen": "127.0.0.1:Q", "wait_s": S}
+                                              start a host, wait until it accepts
+                                              on port, send each RAW request on its own
+                                              connection (the answers join the output),
+                                              optionally accept one connection on
+                                              listen (a callback), then SIGTERM it
+    Bytes of RAW and stdin are written as given, with \\xHH escapes decoded.
+    The output is every step's stdout and stderr in order; the status is the
+    last command's."""
+    import socket, time, codecs
+    def b(x): return codecs.decode(x, "unicode_escape").encode("latin-1")
+    outs, errs, rc = [], [], 0
+    for st in seq:
+        if "write" in st:
+            q = pathlib.Path(d, st["write"]); q.parent.mkdir(parents=True, exist_ok=True)
+            q.write_bytes(b(st.get("text", "")))
+            if "mode" in st: os.chmod(q, int(st["mode"], 8))
+        elif "show" in st:
+            outs.append(pathlib.Path(d, st["show"]).read_text("utf-8", "replace"))
+        elif "mkdir" in st:
+            pathlib.Path(d, st["mkdir"]).mkdir(parents=True, exist_ok=True)
+        elif "symlink" in st:
+            os.symlink(st["to"], pathlib.Path(d, st["symlink"]))
+        elif "target" in st:
+            # {"target": "python"|"js", "file": F}: the implementation emits F for
+            # the target (rce emit TARGET F) and the target's interpreter runs it;
+            # the run's stdout joins the output (CH11: the runtimes must agree).
+            interp = {"python": [sys.executable], "js": ["node"]}[st["target"]]
+            e = subprocess.run(base + ["emit", st["target"], st["file"]], cwd=d, capture_output=True, timeout=TIMEOUT)
+            ext = {"python": ".py", "js": ".mjs"}[st["target"]]
+            out_f = pathlib.Path(d, st["file"] + ext); out_f.write_bytes(e.stdout)
+            p = subprocess.run(interp + [out_f.name], cwd=d, capture_output=True, timeout=TIMEOUT)
+            outs.append(p.stdout.decode("utf-8", "replace")); errs.append(p.stderr.decode("utf-8", "replace")); rc = p.returncode or e.returncode
+        elif "argv" in st:
+            p = subprocess.run(base + [str(x) for x in st["argv"]], cwd=d, capture_output=True, timeout=TIMEOUT,
+                               input=b(st.get("stdin", "")), env={**os.environ, **st.get("env", {})})
+            if "stdout_to" in st:  # keep the command's stdout as a file for later steps
+                pathlib.Path(d, st["stdout_to"]).write_bytes(p.stdout)
+            else:
+                outs.append(p.stdout.decode("utf-8", "replace"))
+            errs.append(p.stderr.decode("utf-8", "replace")); rc = p.returncode
+        elif "serve" in st:
+            lsock = None
+            if "listen" in st:
+                h, pt = st["listen"].rsplit(":", 1)
+                lsock = socket.socket(); lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                lsock.bind((h, int(pt))); lsock.listen(4); lsock.settimeout(st.get("wait_s", 5))
+            p = subprocess.Popen(base + [str(x) for x in st["serve"]], cwd=d, stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            host, port = st["port"].rsplit(":", 1)
+            t0 = time.time()
+            while True:
+                try:
+                    socket.create_connection((host, int(port)), timeout=0.2).close(); break
+                except OSError:
+                    if time.time() - t0 > 10 or p.poll() is not None: break
+                    time.sleep(0.05)
+            for line in st.get("stdin_before", []):
+                p.stdin.write(b(line) + b"\n"); p.stdin.flush()
+            for raw in st.get("send", []):
+                try:
+                    c = socket.create_connection((host, int(port)), timeout=st.get("wait_s", 5))
+                    c.sendall(b(raw)); c.shutdown(socket.SHUT_WR)
+                    got = b""
+                    while True:
+                        x = c.recv(65536)
+                        if not x: break
+                        got += x
+                    c.close()
+                    outs.append("<response>" + got.decode("utf-8", "replace") + "</response>\n")
+                except OSError as e:
+                    outs.append(f"<response error {e}>\n")
+            if lsock is not None:
+                try:
+                    c, _ = lsock.accept(); c.settimeout(2); got = b""
+                    while b"\r\n\r\n" not in got or len(got) < 4:
+                        x = c.recv(65536)
+                        if not x: break
+                        got += x
+                    c.sendall(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"); c.close()
+                    outs.append("<callback>" + got.decode("utf-8", "replace") + "</callback>\n")
+                except OSError as e:
+                    outs.append(f"<callback error {e}>\n")
+                lsock.close()
+            for line in st.get("stdin", []):
+                p.stdin.write(b(line) + b"\n"); p.stdin.flush()
+            # The host serves until signalled: let it log what it was sent, then
+            # SIGTERM this step's own child (the stop the host contract defines).
+            time.sleep(st.get("settle_s", 0.5))
+            if p.poll() is None:
+                p.terminate()
+            so, se = p.communicate(timeout=TIMEOUT)
+            outs.append(so.decode("utf-8", "replace")); errs.append(se.decode("utf-8", "replace")); rc = p.returncode
+    return SeqResult(rc, "".join(outs), "".join(errs))
+
 def judge_cli(t, spec):
     """Tooling and profile tests (chapter 12, appendix D): run one command of
     the implementation's own tools, named by the adapter's `cli` map, in a
@@ -253,11 +362,17 @@ def judge_cli(t, spec):
         pathlib.Path(d, "main.rce").write_text(t["src"], encoding="utf-8")
         for name, body in (t.get("fixtures") or {}).items():
             pathlib.Path(d, name).write_text(body, encoding="utf-8")
-        try:
-            p = subprocess.run(base + [str(x) for x in m.get("argv", [])], cwd=d, capture_output=True, text=True,
-                               timeout=TIMEOUT, stdin=subprocess.DEVNULL)
-        except subprocess.TimeoutExpired:
-            return "fail", "timeout"
+        if "seq" in m:
+            try:
+                p = run_seq(base, m["seq"], d)
+            except Exception as e:
+                return "fail", f"sequence: {e}"
+        else:
+            try:
+                p = subprocess.run(base + [str(x) for x in m.get("argv", [])], cwd=d, capture_output=True, text=True,
+                                   timeout=TIMEOUT, stdin=subprocess.DEVNULL)
+            except subprocess.TimeoutExpired:
+                return "fail", "timeout"
     out = (p.stdout + p.stderr).replace(d + os.sep, "").replace(d, ".")
     if "status" in m and p.returncode != m["status"]:
         return "fail", f"exit status {p.returncode} != {m['status']}: {out[-300:]}"
@@ -271,6 +386,18 @@ def judge_cli(t, spec):
         n = len([l for l in p.stdout.splitlines() if l.strip()])
         if n != m["lines"]:
             return "fail", f"{n} stdout lines != {m['lines']}: {out[-300:]}"
+    # A property over several runs: every match of each regex's first group
+    # in the output is the same text, and there are at least two (the runs
+    # being compared), e.g. a state_hash before and after a rewrite.
+    for rx in m.get("equal_groups", []) or []:
+        got = re.findall(rx, out)
+        if len(got) < 2 or len(set(got)) != 1:
+            return "fail", f"equal_groups {rx!r}: {got[:8]}"
+    # Values that must all differ (an injective encoding over the bound).
+    for rx in m.get("distinct_groups", []) or []:
+        got = re.findall(rx, out)
+        if len(got) < 2 or len(set(got)) != len(got):
+            return "fail", f"distinct_groups {rx!r}: {got[:8]}"
     return "pass", ""
 
 STOP = None  # set when stop-on-fail: (threading.Event, ids to ignore)

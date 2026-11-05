@@ -1,0 +1,19 @@
+fn main()
+    var n: u64 = 4
+    var k: u64 = 0
+    while n > 0
+        decreases n
+        n -= 1
+        k += 1
+    emit k.tostr()
+#--- rce-test
+# id: properties/t48-decreases-n4
+# area: properties
+# clauses: [T48]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "emit \"4\""
+# provenance: property: T48, bounded exhaustive over a start n in 0..6 (this test n = 4): the loop with `decreases n` ends, after exactly n rounds (oracle).
+#---

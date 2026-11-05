@@ -1,0 +1,22 @@
+# rce-version: 0.9
+struct Declass
+struct Vouch
+
+label pii by Declass
+label untrusted by Vouch
+
+state Log
+    shown: i64 = 0
+
+event Mix(code: i64 @ {pii}, note: text @ {untrusted})
+
+step Log on Mix(code: c, note: n)
+    emit c.tostr() + n
+#--- rce-test
+# id: types-checking/wellformedness/w-tri-1-change
+# area: types-checking
+# clauses: [W-TRI-1]
+# expect: change
+# diagnostic: W-IFC-1
+# provenance: targeted: F.7.1, private and untrusted inputs reach an external sink with no release path; enforced by W-IFC-1
+#---

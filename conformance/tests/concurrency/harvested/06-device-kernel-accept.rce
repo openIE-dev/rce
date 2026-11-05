@@ -8,7 +8,7 @@ fn saxpy(a: f64, x: [f64; 4], y: [f64; 4]) -> [f64; 4]
 #--- rce-test
 # id: concurrency/harvested/06-device-kernel-accept
 # area: concurrency
-# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
+# clauses: [CH02-M-49e71b96, CH03-M-28cdd241, T10]
 # expect: accept
 # provenance: harvested conc06/accept/06_device_kernel.rce
 #---

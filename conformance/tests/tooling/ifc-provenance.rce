@@ -1,0 +1,27 @@
+# rce-version: 0.9
+struct Declass
+struct Vouch
+
+label pii by Declass
+label untrusted by Vouch
+
+state Log
+    shown: i64 = 0
+
+event Show(code: i64 @ {pii})
+
+step Log on Show(code: c)
+    emit c.tostr()
+#--- rce-test
+# id: tooling/ifc-provenance
+# area: tooling
+# clauses: [W-IFC-3]
+# expect: cli
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-IFC-1
+#   - from event Show.code
+#   - emit
+# provenance: targeted: F.4.2, the diagnostic of a flow names the origin (the event field) and the sink
+#---

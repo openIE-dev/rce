@@ -3,7 +3,7 @@ fn main()
 #--- rce-test
 # id: tooling/emit-js-change
 # area: tooling
-# clauses: [CH12-M-bafe6c22]
+# clauses: [CH12-M-b922b8eb]
 # expect: cli
 # argv: ["emit", "js", "main.rce"]
 # status: 1

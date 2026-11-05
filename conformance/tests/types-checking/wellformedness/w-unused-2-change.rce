@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-UNUSED-2
+fn main()
+    if true
+        emit "always"
+#--- rce-test
+# id: types-checking/wellformedness/w-unused-2-change
+# area: types-checking
+# clauses: [W-UNUSED-2]
+# expect: change
+# diagnostic: W-UNUSED-2
+# provenance: harvested from spec/examples-0.9/change/constant_condition.rce: rce check reports W-UNUSED-2 first
+#---

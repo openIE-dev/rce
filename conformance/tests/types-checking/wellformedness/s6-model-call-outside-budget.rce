@@ -1,0 +1,13 @@
+extern "model" fn infer(w: &World, prompt: &Text[Prompt]) -> i64
+
+fn main(w: &World)
+    let p = Prompt.lit("hello")
+    emit infer(w, &p)
+#--- rce-test
+# id: types-checking/wellformedness/s6-model-call-outside-budget
+# area: types-checking
+# clauses: [S6]
+# expect: change
+# diagnostic: W-BUD-1
+# provenance: targeted: spec/examples-0.9/change/budget_model_outside.rce; S6: a call outside with budget requires change (W-BUD-1)
+#---

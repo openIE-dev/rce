@@ -27,6 +27,24 @@ WMENTION = re.compile(r"\bW-[A-Z]+(?:-[A-Z]+)*-\d+\b")
 THEOREM = re.compile(r"^\s*\|\s*(T\d+[a-z]?)\s*\|")
 MODAL = re.compile(r"\b(MUST|SHALL|must|shall)\b")
 
+# Modal sentences whose subject is not an implementation (findings/CLAUSE-CLASSES-4.5.md):
+# a derivation gives the reason for a rule that is its own clause; a duty on the
+# book's authors or the reference's own tools; a pointer to a rule stated
+# elsewhere; a description of an effect, a list, a model or a cost.
+AUTHORS = [
+    (r"^Derivation: least privilege \(a\): a foreign call is authority", "editorial"),
+    (r"^Derivation: totality \(d\): a call whose cost the program cannot bound", "editorial"),
+    (r"^\(b\) Soundness: a rule that the checker enforces must be enough", "editorial"),
+    (r"`rce-spec-check` must report 0 conflicts before this appendix", "tooling"),
+    (r"^Examples and the fuzz generator must be written clean", "editorial"),
+    (r"^Implement each W-rule of this appendix", "tooling"),
+    (r"^This is a requirement on the lexer of 2\.3", "editorial"),
+    (r"^Changing the outcome to the law's turns the line into the example", "editorial"),
+    (r"^They are the levels of the RCE Compile study's experiment", "editorial"),
+    (r"^- A program that must run indefinitely is not written with a loop", "editorial"),
+    (r"^Implementation cost is the largest of the tier", "editorial"),
+]
+
 def norm(s):
     return re.sub(r"\s+", " ", re.sub(r"[`*_]", "", s)).strip().lower()
 
@@ -90,7 +108,8 @@ def main(book):
     # book names but never spells out still has to be tested.
     for p in sorted(pathlib.Path(book).glob("[0-9][0-9]-*.md")):
         for i, l in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
-            names = set(WMENTION.findall(l))
+            # a name after "former" is a removed rule: the line states its absence
+            names = set(WMENTION.findall(l)) - set(re.findall(r"\bformer\s+(W-[A-Z]+(?:-[A-Z]+)*-\d+)\b", l))
             for a, lo, hi in RANGE.findall(l):
                 names |= {f"{a}{k}" for k in range(int(lo), int(hi) + 1)}
             for cid in sorted(names):
@@ -111,6 +130,9 @@ def main(book):
             c["profile"] = "tooling" if not t.startswith("The draft") else "editorial"
         else: c["profile"] = "language"
         if re.search(r"Datalog and Souffl|GQL selectors", t): c["normative"] = False
+        if c["kind"] == "modal" and c["profile"] == "language":
+            for pat, prof in AUTHORS:
+                if re.search(pat, t): c["profile"] = prof; break
     digest = hashlib.sha256(json.dumps([c["id"] for c in out]).encode()).hexdigest()
     json.dump({"format": "rce-clauses/1", "book": ("spec/book" if str(book).rstrip("/").endswith("spec/book") else book.name), "id_set_sha256": digest,
                "clauses": out}, sys.stdout, indent=1, ensure_ascii=False)

@@ -1,0 +1,15 @@
+fn f(x: i64) -> i64
+    let y = x + 1
+    requires y > 0
+    return y
+
+fn main()
+    emit f(1).tostr()
+#--- rce-test
+# id: types-checking/wellformedness/p2-contract-after-code
+# area: types-checking
+# clauses: [P2]
+# expect: change
+# diagnostic: W-CON-2
+# provenance: targeted: spec/examples-0.9/change/contract_clause_after_code.rce; P2: a clause elsewhere requires change (W-CON-2)
+#---

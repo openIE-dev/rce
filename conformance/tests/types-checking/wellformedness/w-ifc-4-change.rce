@@ -1,0 +1,16 @@
+# rce-version: 0.9
+# expect: W-IFC-4
+label pii
+
+fn main()
+    let d: i64 @ {pii} = 2
+    let q = 10 / d
+    let _ = q
+#--- rce-test
+# id: types-checking/wellformedness/w-ifc-4-change
+# area: types-checking
+# clauses: [W-IFC-4]
+# expect: change
+# diagnostic: W-IFC-4
+# provenance: harvested from spec/examples-0.9/change/ifc_trap_divisor.rce: rce check reports W-IFC-4 first
+#---

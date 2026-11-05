@@ -1,0 +1,21 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+step S on Inc
+    n = (n + 1) % 4
+    emit n.tostr()
+step S on Dec
+    n = (n + 3) % 4
+    emit n.tostr()
+#--- rce-test
+# id: properties/t58-equiv-rewrite-3
+# area: properties
+# clauses: [T58, T59]
+# expect: cli
+# seq: [{"write": "b.rce", "text": "state S\n    q: i64 = 0\nevent Inc\nevent Dec\nstep S on Inc\n    q = (q + 1) % 4\n    emit q.tostr()\nstep S on Dec\n    q = (q + 3) % 4\n    emit q.tostr()\n"}, {"argv": ["equiv", "main.rce", "b.rce"]}]
+# status: 0
+# output_has:
+#   - "equivalent  same behaviour on the explored alphabet (exact)"
+# provenance: property: T58 and T59, bounded exhaustive over 4 rewrites of an emitting mod-4 counter (spacing, blank lines, an unused field, a renamed field; this test 3): rce equiv says equivalent, exactly, on the explored alphabet {Inc, Dec}.
+#---

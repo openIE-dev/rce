@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+fn wrap(v: i64) -> i64
+    v % 4
+step S on Inc -> wrap(n + 1)
+step S on Dec -> wrap(n + 3)
+#--- rce-test
+# id: properties/t50-rename-w11
+# area: properties
+# clauses: [T50]
+# expect: cli
+# seq: [{"write": "v0.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(v: i64) -> i64\n    v % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"write": "v1.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn cyc(v: i64) -> i64\n    v % 4\nstep S on Inc -> cyc(n + 1)\nstep S on Dec -> cyc(n + 3)\n"}, {"write": "v2.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn wrap(w: i64) -> i64\n    w % 4\nstep S on Inc -> wrap(n + 1)\nstep S on Dec -> wrap(n + 3)\n"}, {"write": "v3.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nevent Dec\nfn q(x: i64) -> i64\n    x % 4\nstep S on Inc -> q(n + 1)\nstep S on Dec -> q(n + 3)\n"}, {"argv": ["trace", "v0.rce", "Dec, Inc, Dec"]}, {"argv": ["trace", "v1.rce", "Dec, Inc, Dec"]}, {"argv": ["trace", "v2.rce", "Dec, Inc, Dec"]}, {"argv": ["trace", "v3.rce", "Dec, Inc, Dec"]}]
+# status: 0
+# equal_groups: ["\"state_hash\":\"([0-9a-f]{64})\"\\}\\]\\}\\]\\}"]
+# provenance: property: T50, bounded exhaustive: 4 renamings of the fn and its parameter (not exported meaning) traced on every word over {Inc, Dec} of length 1 to 3 (14 words, one test each); results are equal. Word 11: Dec Inc Dec.
+#---

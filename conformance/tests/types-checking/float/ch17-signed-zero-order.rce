@@ -1,0 +1,20 @@
+state S
+    eq: bool = false
+    lt: bool = false
+    gt: bool = false
+event Go(a: f64, b: f64)
+step S on Go(a: x, b: y)
+    eq = x == y
+    lt = x < y
+    gt = y < x
+#--- rce-test
+# id: types-checking/float/ch17-signed-zero-order
+# area: types-checking
+# clauses: [CH17-M-f7baba5b]
+# expect: cli
+# argv: ["host", "run", "main.rce", "D", "Go(a: -0.0, b: 0.0)"]
+# status: 0
+# output_has:
+#   - "S { eq = true, lt = false, gt = false }"
+# provenance: targeted: C-F1, == and < on -0.0 and +0.0 agree with the total order of 6.3 as the reference implements it: equal, neither less
+#---

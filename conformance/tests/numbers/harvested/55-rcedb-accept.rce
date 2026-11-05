@@ -42,7 +42,7 @@ step Db on Scan(start: f)
 #--- rce-test
 # id: numbers/harvested/55-rcedb-accept
 # area: numbers
-# clauses: [CH03-M-28cdd241, CH08-M-51f39d7d, CH08-M-9a15157f, T10]
+# clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
 # expect: accept
 # provenance: harvested examples/55_rcedb.rce
 #---

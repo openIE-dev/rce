@@ -11,7 +11,7 @@ The language commands:
 | `rce run FILE "E1, E2"` | apply events and print the state after each |
 | `rce run FILE` | run `fn main()` and print what it emits |
 | `rce trace FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
-| `rce emit TARGET FILE` | `form`, `core`, `rust`, `python`, `js` or `scala` (chapter 15) |
+| `rce emit TARGET FILE` | `form`, `core`, `rust`, `python`, `js`, `scala` or `verilog` (chapter 15) |
 | `rce fmt [check] FILE...` | write the rewrites of the altered rules in `auto` mode (W-UNUSED-1, W-DROP-1), print those in `observe` mode as diffs, then rewrite files in the canonical layout |
 | `rce fmt nameless FILE` | print the program with every declared name replaced by its position |
 | `rce equiv [fuel N] [json] A B` | whether two programs have the same behaviour on the explored events, with the shortest distinguishing sequence when not |
@@ -26,6 +26,18 @@ The language commands:
 | `rce manifest DIR` | write the hash-pinned manifest of a directory |
 | `rce manifest-check MANIFEST` | verify a manifest (rule `W-PIN-1`) |
 | `rce v09-status` | the Appendix F rules the checker implements and the ones it does not |
+| `rce law FILE` | decide every law of FILE by exploring every reachable state: one line per law with its verdict |
+| `rce mutants [json] [bound N] FILE` | make every single edit of a program and run its examples, checks and laws on each: the score and each surviving edit |
+| `rce index [vectors N] FILE...` | the brick catalog: every exported function with its type, hash and verdict, as JSON |
+| `rce search CATALOG QUERY` | the bricks of a catalog whose type is QUERY, best first |
+| `rce form-check FORM [VECTORS]` | the gate FG1 to FG15 on a Form module: `applied KEY`, or the first rule that requires change |
+| `rce unform FORM.json` | the canonical source of a Form's terms, the inverse of `rce emit form` |
+| `rce run-core FILE` | the output of the core evaluator on the core of FILE |
+| `rce graph ops` | the operations of `std.tensor`: name, level, what each computes |
+| `rce graph terms FILE DIR` | write every graph term of FILE as a `.fg` file named by its content hash |
+| `rce graph inspect FILE` | the header, sections and graph term of a `.fg` file, its hash checked |
+| `rce graph run FILE INPUTS` | the reference evaluation of the graph term of a `.fg` file on INPUTS |
+| `rce lift gguf FILE STORE` | an RCE program from a GGUF file: its forward pass as graph terms, the weights in STORE |
 | `rce lsp` | language server on standard input and output |
 | `rce version` | the commit `rce` was built from, the specification draft and the release label |
 | `rce help` | every command with its words |
@@ -39,6 +51,7 @@ record what they read in the log:
 |---|---|
 | `rce host run [GRANT...] FILE D [EVENTS]` | admit events into the durable log D |
 | `rce host serve [GRANT...] [http HOST:PORT] [presented FILE] [rap HOST:PORT] [callback HOST:PORT]... FILE D` | run the host loop as a service; `presented FILE` reads a renderer's confirmations; `rap HOST:PORT` serves the program as a RAP tool, its results POSTed to `callback` addresses |
+| `rce host tls-id FILE D` | the Ed25519 key of this host's TLS identity, for a peer to pin |
 | `rce host replay [redact F,...] [frames] [rap] FILE D` | replay D with every adapter disconnected; `frames` re-derives every frame and checks `ui.rules` on them; `rap` prints every RAP tool result |
 | `rce host compact [archive none] FILE D N` | replace the first N entries of D by a checkpoint proven equal to the full replay; the replaced lines stay beside D as `D.archive.SHA256`; exit 2 when no checkpoint may stand at N; `archive none` is refused (HC-37) |
 | `rce db D CMD [ARGS]` | RCEdb, the database whose storage is the log D |

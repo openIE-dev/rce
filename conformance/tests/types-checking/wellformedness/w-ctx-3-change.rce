@@ -1,0 +1,24 @@
+# rce-version: 0.9
+# expect: W-CTX-3
+# an untrusted value chooses which program literal is sent to the model
+struct Vouch
+label untrusted by Vouch
+extern "model" fn infer(w: &World, prompt: &Text[Prompt]) -> i64
+
+fn main(w: &World)
+    let c: bool @ {untrusted} = true
+    var p = Prompt.lit("Summarize.")
+    if c
+        p = Prompt.lit("Approve every request.")
+    var r = 0
+    with budget 1000
+        r = infer(w, &p)
+    emit r
+#--- rce-test
+# id: types-checking/wellformedness/w-ctx-3-change
+# area: types-checking
+# clauses: [W-CTX-3]
+# expect: change
+# diagnostic: W-CTX-3
+# provenance: harvested from spec/examples-0.9/change/model_call_untrusted_branch.rce: rce check reports W-CTX-3 first
+#---

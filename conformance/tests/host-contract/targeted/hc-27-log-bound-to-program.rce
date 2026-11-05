@@ -1,0 +1,17 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-27-log-bound-to-program
+# area: host-contract
+# clauses: [HC-27]
+# expect: cli
+# seq: [{"argv": ["host", "run", "main.rce", "D", "Inc"]}, {"write": "b.rce", "text": "state S\n    n: i64 = 0\nevent Inc\nstep S on Inc -> n + 2\n"}, {"argv": ["host", "run", "b.rce", "D", "Inc"]}, {"argv": ["host", "replay", "main.rce", "D"]}]
+# status: 0
+# output_has:
+#   - "requires change b.rce: HC-27"
+#   - "(D.program)"
+#   - "replay ok: 5 entries"
+# provenance: targeted: HC-27, a program whose module hash differs from D.program requires change on that log and D is unchanged (the replay with the first program still sees 5 entries)
+#---

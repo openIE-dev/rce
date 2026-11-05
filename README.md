@@ -191,6 +191,17 @@ file would require change under W-INT-1.
 | `rce repair criterion [json] REGISTRATION CORPUS RECORDS` | evaluate the registered criterion for promoting rung f from `observe` to `auto`: at most 2% of the closes from rung f, every observed proposal passing W-MUT-1, none contradicting GOOD (spec 10.13, RF-5 to RF-7) |
 | `rce mutants [json] [bound N] FILE` | make every single edit of a program and run its examples, checks and laws on each: the score, what each obligation kills, the vacuous ones (W-MUT-1) and each surviving edit with its diff (spec 6.12, 10.14) |
 | `rce host run [GRANT...] FILE D [EVENTS]`, `rce host serve [GRANT...] [http HOST:PORT] FILE D` | run a program under the host contract (Appendix E): admitter, log D, adapters, sandbox |
+| `rce equiv [json] [fuel N] A B`, `rce fingerprint [json] [depth N] [fuel N] FILE...` | whether two programs have the same behaviour, with a distinguishing event sequence when not; a hash of the behaviour that equal programs share (BF-1) |
+| `rce change [fuel N] OLD NEW`, `rce api-diff OLD NEW` | classify a change as erratum or meaning change; one row per change of the exports, compatible or breaking |
+| `rce law FILE` | decide every law of FILE by exploring every reachable state (spec 6.11) |
+| `rce hash FILE...`, `rce manifest DIR`, `rce manifest-check MANIFEST` | definition hashes; the hash-pinned manifest of a directory and its check (W-PIN-1) |
+| `rce v09-status` | the Appendix F rules this checker implements and the ones it does not |
+| `rce index [vectors N] FILE...`, `rce search CATALOG QUERY` | the brick catalog of exported functions; the bricks of a type, best first |
+| `rce form-check FORM [VECTORS]`, `rce unform FORM.json`, `rce run-core FILE` | the gate FG1 to FG15 on a Form; the source of a Form; the core evaluator (spec 10.19) |
+| `rce graph ops`, `rce graph terms FILE DIR`, `rce graph inspect FILE`, `rce graph run FILE INPUTS` | the operations of `std.tensor` and the graph terms of a program (spec 10.16) |
+| `rce lift gguf FILE STORE` | an RCE program from a GGUF file (spec 10.17) |
+| `rce host replay [redact F,...] [frames] [rap] FILE D`, `rce host compact [archive none] FILE D N`, `rce host tls-id FILE D` | replay D with every adapter disconnected (HC-8); compact D at N (HC-37); the host's TLS key |
+| `rce db D CMD [ARGS]` | RCEdb, the database whose storage is the log D |
 | `rce lsp` | language server on standard input and output |
 | `rce help`, `rce version` | every command with its words; the commit `rce` was built from |
 

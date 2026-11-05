@@ -1,0 +1,18 @@
+fn main()
+    var a: i64 = 0
+    let r = &mut a
+    let s = &mut a
+    s += 1
+    r += 1
+    emit a.tostr()
+#--- rce-test
+# id: properties/t56-two-mut-borrows-0
+# area: properties
+# clauses: [T56]
+# expect: cli
+# seq: [{"argv": ["check", "main.rce"]}]
+# status: 1
+# output_has:
+#   - "requires change"
+# provenance: property: T56, bounded exhaustive over the 2 orders of use of two live &mut borrows of one variable (this test 0): both require change, since the relaxation that would admit order 1 is not adopted.
+#---

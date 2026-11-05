@@ -119,6 +119,34 @@ fn atoms(e: &Expr, out: &mut Vec<(String, &'static str, i128)>) -> bool {
     }
 }
 
+/// Value of an integer or boolean (1/0) expression whose names are all bound
+/// in `env`; None when the fragment does not decide it.
+fn lit_eval(e: &Expr, env: &HashMap<&str, i128>) -> Option<i128> {
+    match e {
+        Expr::Int(v, _) => Some(*v as i128),
+        Expr::Name(n, _) => env.get(n.as_str()).copied(),
+        Expr::Neg(x, _) => lit_eval(x, env).map(|v| -v),
+        Expr::Bin(op, a, b, _) => {
+            let (a, b) = (lit_eval(a, env)?, lit_eval(b, env)?);
+            Some(match op.as_str() {
+                "+" => a.checked_add(b)?,
+                "-" => a.checked_sub(b)?,
+                "*" => a.checked_mul(b)?,
+                "==" => (a == b) as i128,
+                "!=" => (a != b) as i128,
+                "<" => (a < b) as i128,
+                "<=" => (a <= b) as i128,
+                ">" => (a > b) as i128,
+                ">=" => (a >= b) as i128,
+                "and" => (a != 0 && b != 0) as i128,
+                "or" => (a != 0 || b != 0) as i128,
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn contradictory(reqs: &[&Expr]) -> bool {
     let mut at = vec![];
     for e in reqs {
@@ -269,6 +297,50 @@ pub fn check(m: &Module) -> Vec<String> {
             });
         };
         scan(b);
+    }
+    // F.6.2: the caller must prove the callee's `requires` where the fragment
+    // decides it. A call whose arguments are all integer literals binds each
+    // parameter to one value; when the callee's clauses are then false in the
+    // literal and integer-bound fragment of W-CON-1, the call requires change.
+    let mut reqs_of: HashMap<String, (Vec<String>, Vec<&Expr>)> = HashMap::new();
+    for (f, _) in crate::v09::fn_decls(m) {
+        let Body::Block(b) = &f.body else { continue };
+        let rs: Vec<&Expr> = b[..prelude_len(b)].iter().filter_map(clause).filter(|(k, _)| *k == "requires").map(|(_, e)| e).collect();
+        if rs.is_empty() {
+            continue;
+        }
+        let ps: Vec<String> = f.sig.params.iter().filter_map(|p| match p { Param::Named { name, .. } => Some(name.clone()), _ => None }).collect();
+        if ps.len() == f.sig.params.len() {
+            reqs_of.insert(f.sig.name.clone(), (ps, rs));
+        }
+    }
+    if !reqs_of.is_empty() {
+        for it in &m.items {
+            crate::link::each_expr(it, &mut |e| {
+                let Expr::Call(c, args, line, _) = e else { return };
+                let Expr::Name(n, _) = &**c else { return };
+                let Some((ps, rs)) = reqs_of.get(n) else { return };
+                if args.len() != ps.len() || args.iter().any(|a| a.label.as_ref().is_some_and(|l| !ps.contains(l))) {
+                    return;
+                }
+                let mut binds: Vec<Expr> = vec![];
+                for (i, a) in args.iter().enumerate() {
+                    let v = match &a.e {
+                        Expr::Int(v, _) => *v,
+                        Expr::Neg(x, _) if matches!(&**x, Expr::Int(..)) => match &**x { Expr::Int(v, _) => -*v, _ => unreachable!() },
+                        _ => return,
+                    };
+                    let p = a.label.clone().unwrap_or_else(|| ps[i].clone());
+                    binds.push(Expr::Bin("==".into(), Box::new(Expr::Name(p, *line)), Box::new(Expr::Int(v, *line)), *line));
+                }
+                let mut all: Vec<&Expr> = rs.clone();
+                all.extend(binds.iter());
+                let env: HashMap<&str, i128> = binds.iter().filter_map(|b| match b { Expr::Bin(_, n, v, _) => match (&**n, &**v) { (Expr::Name(n, _), Expr::Int(v, _)) => Some((n.as_str(), *v as i128)), _ => None }, _ => None }).collect();
+                if rs.iter().any(|r| lit_eval(r, &env) == Some(0)) || contradictory(&all) {
+                    errs.push(err(*line, "W-CON-1", format!("this call of `{n}` is false for its `requires` clauses: the caller must prove them where the fragment decides it (F.6.2)")));
+                }
+            });
+        }
     }
     errs.extend(decreases(m));
     errs.extend(loop_measures(m));

@@ -1,0 +1,37 @@
+module bank
+
+intent "a bank account that keeps its balance on an overdraft (Insufficient)"
+    example Deposit(amount: 50), Withdraw(amount: 20) -> 30
+    example Withdraw(amount: 1) -> kept: Insufficient
+
+state Account
+    balance: i64 = 0
+
+event Deposit(amount: i64)
+event Withdraw(amount: i64)
+
+error Insufficient(need: i64)
+
+struct Withdrawn
+    amount: i64
+
+step Account on Deposit(amount: a) if a > 0 -> balance + a
+step Account on Deposit(amount: _) -> balance
+step Account on Withdraw(amount: a)
+    if a > balance
+        fail Insufficient(need: a - balance)
+    balance -= a
+    emit Withdrawn(amount: a)
+#--- rce-test
+# id: host-contract/targeted/hc-34-program-is-toolset
+# area: host-contract
+# clauses: [HC-34]
+# expect: cli
+# seq: [{"serve": ["host", "serve", "rap", "127.0.0.1:47331", "callback", "127.0.0.1:47332", "main.rce", "D"], "port": "127.0.0.1:47331", "send": ["GET /.well-known/rap-toolset HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"], "settle_s": 1.0}]
+# output_has:
+#   - "rce host: rap listening on 127.0.0.1:47331"
+#   - "HTTP/1.1 200"
+#   - "Deposit"
+#   - "http://127.0.0.1:47331/invoke"
+# provenance: targeted: HC-34, `rce host serve rap` binds before the target and serves the toolset at /.well-known/rap-toolset, one operation per event the program takes, Deposit among them, with the endpoint http://ADDR/invoke
+#---

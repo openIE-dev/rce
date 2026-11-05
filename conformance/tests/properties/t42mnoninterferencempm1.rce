@@ -1,0 +1,20 @@
+struct Declass
+label pii by Declass
+state S
+    seen: i64 = 0
+    hid: i64 @ {pii} = 0
+event Show(p: i64, code: i64 @ {pii})
+step S on Show(p: v, code: c)
+    seen = seen + v
+    hid = c
+    emit v.tostr()
+#--- rce-test
+# id: properties/t42mnoninterferencempm1
+# area: properties
+# clauses: [T42]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce", "Show(p: -1, code: -5), Show(p: 1, code: -15)"]}, {"argv": ["run", "main.rce", "Show(p: -1, code: 0), Show(p: 1, code: 0)"]}, {"argv": ["run", "main.rce", "Show(p: -1, code: 1), Show(p: 1, code: 3)"]}, {"argv": ["run", "main.rce", "Show(p: -1, code: 7), Show(p: 1, code: 21)"]}]
+# status: 0
+# equal_groups: ["\\n1 Show[^\\n]*\\n  emit (\\S+)", "\\n2 Show[^\\n]*\\n  emit (\\S+)", "\\n1 Show[^\\n]*seen = (-?\\d+)", "\\n2 Show[^\\n]*seen = (-?\\d+)"]
+# provenance: property: T42, bounded exhaustive over public p in {-1, 0, 2} (this test p = -1) and pii code in {-5, 0, 1, 7}: the two-event run's emits and its public field `seen` are the same for all 4 codes.
+#---

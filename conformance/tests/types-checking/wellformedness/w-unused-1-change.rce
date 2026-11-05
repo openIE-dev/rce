@@ -1,0 +1,10 @@
+fn ticks(c: chan u64) -> iter u64
+    yield 1
+#--- rce-test
+# id: types-checking/wellformedness/w-unused-1-change
+# area: types-checking
+# clauses: [W-UNUSED-1]
+# expect: change
+# diagnostic: W-UNUSED-1
+# provenance: harvested from spec/examples/change/types/iter_effect.rce: rce check reports W-UNUSED-1 first
+#---

@@ -1,0 +1,18 @@
+use std.tensor
+
+state S
+    y: [f64; 2] = [0.0, 0.0]
+event Go
+step S on Go
+    y = tensor.blob_f64("daaf7662a25b3c7f7a73793dd34e923fa3bff88a5825224fcf89a5ac4a0582a8", [2])
+#--- rce-test
+# id: host-contract/targeted/ch08-blob-bytes-row-major-le
+# area: host-contract
+# clauses: [CH08-M-abd54dca]
+# expect: cli
+# seq: [{"write": "blobs/daaf7662a25b3c7f7a73793dd34e923fa3bff88a5825224fcf89a5ac4a0582a8", "text": "\\x00\\x00\\x00\\x00\\x00\\x00\\xf0\\x3f\\x00\\x00\\x00\\x00\\x00\\x00\\x04\\xc0"}, {"argv": ["run", "main.rce", "Go"]}, {"write": "three.rce", "text": "use std.tensor\n\nstate S\n    y: [f64; 3] = [0.0, 0.0, 0.0]\nevent Go\nstep S on Go\n    y = tensor.blob_f64(\"daaf7662a25b3c7f7a73793dd34e923fa3bff88a5825224fcf89a5ac4a0582a8\", [3])\n"}, {"argv": ["run", "three.rce", "Go"]}]
+# output_has:
+#   - "1 Go S { y = [1, -2.5] }"
+#   - "1 Go kept: trap(graph term:"
+# provenance: targeted: GT-9, the blob is the elements in row-major order, each f64 in little-endian bytes (1.0 then -2.5), named by its BLAKE3 digest in the store blobs beside the program; a shape of 3 elements over the same 16 bytes does not give a value
+#---

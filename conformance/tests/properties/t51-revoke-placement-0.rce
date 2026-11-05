@@ -1,0 +1,14 @@
+fn main()
+    host.revoke(1)
+    emit 0
+#--- rce-test
+# id: properties/t51-revoke-placement-0
+# area: properties
+# clauses: [T51]
+# expect: cli
+# seq: [{"argv": ["check", "main.rce"]}]
+# status: 1
+# output_has:
+#   - "requires change"
+# provenance: property: T51, bounded exhaustive over 3 placements of host.revoke around a use (this test 0): none is accepted, so no accepted program has a capability use after a revoke entry.
+#---

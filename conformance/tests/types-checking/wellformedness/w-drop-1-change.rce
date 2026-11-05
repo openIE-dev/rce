@@ -1,0 +1,13 @@
+fn double(x: i64) -> i64 = x * 2
+
+fn main()
+    double(4)
+    emit "done"
+#--- rce-test
+# id: types-checking/wellformedness/w-drop-1-change
+# area: types-checking
+# clauses: [W-DROP-1]
+# expect: change
+# diagnostic: W-DROP-1
+# provenance: harvested from book/listings/ch02/change/dropped.rce: rce check reports W-DROP-1 first
+#---

@@ -1,0 +1,16 @@
+error Full
+
+fn send_two(out: chan i64, x: i64) -> i64 ! Full
+    out <- x
+    if x > 9
+        fail Full
+    out <- x
+    return x
+#--- rce-test
+# id: types-checking/wellformedness/w-tx-1-change
+# area: types-checking
+# clauses: [W-TX-1]
+# expect: change
+# diagnostic: W-TX-1
+# provenance: harvested from book/listings/ch14/change/send_then_fail.rce: rce check reports W-TX-1 first
+#---

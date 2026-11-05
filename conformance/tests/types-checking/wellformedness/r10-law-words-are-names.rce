@@ -1,0 +1,18 @@
+state S
+    always: i64 = 0
+    every: i64 = 0
+    attest: i64 = 0
+    applied: bool = false
+event Inc
+step S on Inc
+    always += 1
+    every += 1
+    attest += 1
+    applied = true
+#--- rce-test
+# id: types-checking/wellformedness/r10-law-words-are-names
+# area: types-checking
+# clauses: [R10]
+# expect: accept
+# provenance: targeted: R10, outside a law block always, every, attest and applied are NAMEs, so state fields with those names are accepted
+#---

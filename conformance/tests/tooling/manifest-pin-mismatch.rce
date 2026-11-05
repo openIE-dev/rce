@@ -1,0 +1,13 @@
+fn f(x: i64) -> i64 = x + 1
+#--- rce-test
+# id: tooling/manifest-pin-mismatch
+# area: tooling
+# clauses: [W-PIN-1]
+# expect: cli
+# argv: ["manifest-check", "pin_FIXTURE.json"]
+# status: 1
+# fixtures: [pin_FIXTURE.json]
+# output_has:
+#   - W-PIN-1
+# provenance: targeted: F.5.3, a module whose hash differs from its manifest entry requires change
+#---

@@ -1,0 +1,19 @@
+fn main()
+    var n: i64 = 0
+    with budget 100
+        for _i in 0..10
+            n += 1
+    else
+        emit "out"
+    emit n.tostr()
+#--- rce-test
+# id: properties/t52-budget-100
+# area: properties
+# clauses: [T52]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}, {"argv": ["run", "main.rce"]}]
+# status: 0
+# output_has:
+#   - "emit \"10\""
+# provenance: property: T52, bounded exhaustive over budget in {1, 5, 10, 11, 12, 20, 100} (this test 100): ten rounds of n += 1 cost 11 units in the reference; below that the budget's else runs and the block's writes are undone (n = 0), at or above it n = 10. Every target must stop at the same operation.
+#---

@@ -1,0 +1,21 @@
+intent "a counter that only counts up"
+    example Tick, Tick -> n == 2
+    law below_four_billion
+        "the counter never reaches four billion (true, but beyond the bound)"
+        always n < 4000000000
+
+state C
+    n: u32 = 0
+
+event Tick
+
+step C on Tick
+    n += 1
+#--- rce-test
+# id: types-checking/wellformedness/w-law-1-change
+# area: types-checking
+# clauses: [W-LAW-1]
+# expect: change
+# diagnostic: W-LAW-1
+# provenance: harvested from spec/checker/tests/law/counter.rce: rce check reports W-LAW-1 first
+#---

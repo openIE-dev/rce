@@ -1,0 +1,17 @@
+fn main()
+    let a: i64 = 30
+    let b: i64 = 2
+    emit (a / b).tostr()
+    emit (a % b).tostr()
+    emit (a * b - a).tostr()
+    emit (1.25 * 1.5).tostr()
+#--- rce-test
+# id: properties/ch11-runtimes-agree-3
+# area: properties
+# clauses: [CH11-M-efbb7a78]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce"]}, {"target": "python", "file": "main.rce"}, {"target": "js", "file": "main.rce"}]
+# status: 0
+# equal_groups: ["(emit \"[^\"]*\"\\nemit \"[^\"]*\"\\nemit \"[^\"]*\"\\nemit \"[^\"]*\")"]
+# provenance: property: CH11, seeded: 4 programs drawn with random.Random(11) (a in -50..49, b in {-7, -3, -1, 1, 2, 5}, an f64; this test a = 30, b = 2, 1.25): the reference evaluator, the emitted Python and the emitted JavaScript print the same four emits.
+#---

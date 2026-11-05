@@ -1,0 +1,23 @@
+state S
+    a: i64 = 0
+    b: i64 = 0
+    c: i64 = 0
+event A
+event B
+event C
+step S on A
+    a = a + 1
+step S on B
+    b = b + 2
+step S on C
+    c = c + 3
+#--- rce-test
+# id: properties/t62-independent-commute
+# area: properties
+# clauses: [T62]
+# expect: cli
+# seq: [{"argv": ["trace", "main.rce", "A, B, C"]}, {"argv": ["trace", "main.rce", "A, C, B"]}, {"argv": ["trace", "main.rce", "B, A, C"]}, {"argv": ["trace", "main.rce", "B, C, A"]}, {"argv": ["trace", "main.rce", "C, A, B"]}, {"argv": ["trace", "main.rce", "C, B, A"]}]
+# status: 0
+# equal_groups: ["\"state_hash\":\"([0-9a-f]{64})\"\\}\\]\\}\\]\\}"]
+# provenance: property: T62, bounded exhaustive over the 6 orders of three events with disjoint write footprints (a, b, c): every order gives the same final state_hash.
+#---

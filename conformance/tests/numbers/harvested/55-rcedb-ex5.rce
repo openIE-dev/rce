@@ -42,7 +42,7 @@ step Db on Scan(start: f)
 #--- rce-test
 # id: numbers/harvested/55-rcedb-ex5
 # area: numbers
-# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH05-M-84afe529, CH07-M-0a0bd71f, F7, F9, N1, N3, N7, N8, T1, T4, T5, T9]
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH05-M-cdd66755, CH07-M-0a0bd71f, F7, F9, N1, N3, N7, N8, T1, T4, T5, T9]
 # expect: run
 # events: Put(key: "k", val: "v"), Delete(key: "k")
 # outcome: done

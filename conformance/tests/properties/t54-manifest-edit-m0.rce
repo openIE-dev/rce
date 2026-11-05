@@ -1,0 +1,14 @@
+fn main()
+    emit 0
+#--- rce-test
+# id: properties/t54-manifest-edit-m0
+# area: properties
+# clauses: [T54]
+# expect: cli
+# seq: [{"mkdir": "pkg"}, {"write": "pkg/m0.rce", "text": "fn f0(x: i64) -> i64 = x + 0\n"}, {"write": "pkg/m1.rce", "text": "fn f1(x: i64) -> i64 = x + 1\n"}, {"write": "pkg/m2.rce", "text": "fn f2(x: i64) -> i64 = x + 2\n"}, {"argv": ["manifest", "pkg"], "stdout_to": "pkg/manifest.json"}, {"argv": ["manifest-check", "pkg/manifest.json"]}, {"write": "pkg/m0.rce", "text": "fn f0(x: i64) -> i64 = x + 10\n"}, {"argv": ["manifest-check", "pkg/manifest.json"]}]
+# status: 1
+# output_has:
+#   - "ok pkg/manifest.json: 3 modules pinned"
+#   - "W-PIN-1"
+# provenance: property: T54, bounded exhaustive over which of 3 pinned modules is edited (this test m0): the manifest of the untouched directory checks ok; after changing one constant in m0 the check requires change (W-PIN-1).
+#---

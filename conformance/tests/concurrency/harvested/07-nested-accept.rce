@@ -14,7 +14,7 @@ fn nested(xs: &[i64]) -> i64
 #--- rce-test
 # id: concurrency/harvested/07-nested-accept
 # area: concurrency
-# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
+# clauses: [CH02-M-49e71b96, CH03-M-28cdd241, T10]
 # expect: accept
 # provenance: harvested conc06/accept/07_nested.rce
 #---

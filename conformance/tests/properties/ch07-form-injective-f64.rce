@@ -1,0 +1,18 @@
+state S
+    n: i64 = 0
+event Inc
+event Dec
+fn wrap(v: i64) -> i64
+    v % 4
+step S on Inc -> wrap(n + 1)
+step S on Dec -> wrap(n + 3)
+#--- rce-test
+# id: properties/ch07-form-injective-f64
+# area: properties
+# clauses: [CH07-M-9b2d649e]
+# expect: cli
+# seq: [{"write": "v0.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 0.0\n"}, {"argv": ["trace", "v0.rce", "Go"]}, {"write": "v1.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -0.0\n"}, {"argv": ["trace", "v1.rce", "Go"]}, {"write": "v2.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 1.0\n"}, {"argv": ["trace", "v2.rce", "Go"]}, {"write": "v3.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -1.0\n"}, {"argv": ["trace", "v3.rce", "Go"]}, {"write": "v4.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 0.5\n"}, {"argv": ["trace", "v4.rce", "Go"]}, {"write": "v5.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 1e21\n"}, {"argv": ["trace", "v5.rce", "Go"]}, {"write": "v6.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 1e-6\n"}, {"argv": ["trace", "v6.rce", "Go"]}, {"write": "v7.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 10.0\n"}, {"argv": ["trace", "v7.rce", "Go"]}, {"write": "v8.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 100.0\n"}, {"argv": ["trace", "v8.rce", "Go"]}, {"write": "v9.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -352334.4703336753\n"}, {"argv": ["trace", "v9.rce", "Go"]}, {"write": "v10.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -698301.6521509961\n"}, {"argv": ["trace", "v10.rce", "Go"]}, {"write": "v11.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 301868.9460797075\n"}, {"argv": ["trace", "v11.rce", "Go"]}, {"write": "v12.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -855127.4266649145\n"}, {"argv": ["trace", "v12.rce", "Go"]}, {"write": "v13.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 71764.00861337851\n"}, {"argv": ["trace", "v13.rce", "Go"]}, {"write": "v14.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -268622.1661748289\n"}, {"argv": ["trace", "v14.rce", "Go"]}, {"write": "v15.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = -884002.1504505863\n"}, {"argv": ["trace", "v15.rce", "Go"]}, {"write": "v16.rce", "text": "state S\n    a: f64 = 0.0\nevent Go\nstep S on Go\n    a = 14871.466378840501\n"}, {"argv": ["trace", "v16.rce", "Go"]}]
+# status: 0
+# distinct_groups: ["\"state\":\\[\\[([^\\]]*)\\]\\]", "\"state_hash\":\"([0-9a-f]{64})\"\\}\\]\\}\\]\\}"]
+# provenance: property: 6.3 N1, 9 boundary f64 values plus 8 drawn with random.Random(7) from [-1e6, 1e6]: every value gives a different hashed state and a different state_hash, so no two values share bytes.
+#---

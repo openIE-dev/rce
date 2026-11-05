@@ -1,0 +1,28 @@
+# rce-version: 0.6
+module admit_order
+
+intent "simultaneous inputs are admitted by (priority, arrival); D records the order"
+    example Key(c: "a"), Alarm(n: 1) -> seen == "a!"
+
+interrupt event Alarm(n: u64) priority 200
+event Key(c: text)
+
+state S
+    seen: text = ""
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Alarm(n: _n)
+    seen = seen + "!"
+#--- rce-test
+# id: properties/t28p-priority-order-9
+# area: properties
+# clauses: [T28p]
+# expect: cli
+# seq: [{"argv": ["run", "main.rce", "Key(c: \"a\"), Alarm(n: 1)"]}]
+# status: 0
+# output_has:
+#   - "seen = \"a!\""
+# provenance: property: T28p, bounded exhaustive over Key counts 1..3 before an Alarm (this test 1): simultaneous inputs are admitted by priority then arrival, so the run steps to the end and records the order.
+#---

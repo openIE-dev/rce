@@ -21,7 +21,7 @@ step Page on Comment(body: b)
 #--- rce-test
 # id: forms-log/harvested/52-context-text-accept
 # area: forms-log
-# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH08-M-9a15157f, T10, T6]
+# clauses: [CH02-M-49e71b96, CH03-M-28cdd241, CH08-M-9a15157f, T10, T6]
 # expect: accept
 # provenance: harvested examples/52_context_text.rce
 #---
