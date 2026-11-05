@@ -6325,7 +6325,8 @@ no file under `spec/checker/src`, `spec/checker/tests`,
 `spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
 in this appendix is checked by the tools published here, except the
 authority and closure of a lift's evidence, below, which the lift probes of
-`spec/lift/` apply and `spec/checker/tests/lift_authority.rs` checks; the
+`spec/lift/` apply and `spec/checker/tests/lift_authority.rs` checks, and the ladder and label
+tables of D.12, which `spec/checker/tests/ladder_map.rs` checks; the
 rules below are a
 specification of the engine, and its tests are not published.
 
@@ -6822,6 +6823,90 @@ The receipt is a measurement record. It is not an input to δ, to any
 check, or to the decision to promote, so it does not change the meaning
 of any program or handler spec in any language version (C.15:
 receipts are version-independent).
+
+### D.12 Ladders and labels (normative)
+
+The research papers name cost-ordered ladders and evidence classes of
+their own. This section places each on RCE's terms so that a figure or a
+rung quoted from a paper has one meaning here. Terms: a *gear* is one of
+G0 to G5 of the compile charter (G0 reuses a stored result by hash, G1
+applies proven rewrite rules, G2 extracts the cheapest form from an
+e-graph, G3 to G5 are proposers whose every output passes the gate); the
+*gate* is the check every output of G1 to G5 passes before use; a *label*
+is one of the D.11 energy labels, weakest first `unpriced` < `est` <
+`reported` < `measured`. The tables are `LADDERS` and `CLASSES` in
+`spec/checker/src/ladder.rs`; `spec/checker/tests/ladder_map.rs` checks
+that these tables are those tables (LL-4).
+
+| Ladder | Rung | RCE place |
+|---|---|---|
+| gates | Lookup | G0 |
+| gates | Formula | G1 |
+| gates | Solver | G2 |
+| gates | Model | G3 to G5 |
+| mei | Lookup | G0 |
+| mei | Formula | G1 |
+| mei | Solver | G2 |
+| mei | Model | G3 to G4 |
+| mei | fifth rung | G5 |
+| spellcheck | Lookup | G0 |
+| spellcheck | Formula | G1 |
+| spellcheck | Model | G3 to G5 |
+| jouleos-eoc | state-construct | input |
+| jouleos-eoc | retrieve | G0 |
+| jouleos-eoc | refine | G1 to G5 |
+| jouleos-eoc | check | gate |
+
+`gates` is the ladder of the Gates paper, `mei` of the MEI product page,
+`spellcheck` of the Spellcheck paper (it has no Solver rung) and
+`jouleos-eoc` the EOC loop of JouleOS, whose refine step is a cost-ordered
+cascade from `Lawful` to `LlmInLoop`. `input` is not a gear: it is the
+Form's state and input that the gears read.
+
+| Scheme | Class | RCE label |
+|---|---|---|
+| joule-contract | HwShunt | measured |
+| joule-contract | ModelBased | est |
+| joule-contract | Estimator | est |
+| mei | real protocol | unpriced |
+| mei | emulator-measured | est |
+| mei | datasheet | est |
+| mei | measured-kernel model | est |
+| mei | looked-up | est |
+| mei | calculation | est |
+| mei | plant model | est |
+| latency | established by proof | bound |
+| latency | demonstrated | source |
+| latency | opinion | unpriced |
+| latency | model output | est |
+
+`joule-contract` is the evidence tag of a JouleOS contract, `mei` the
+evidence classes of the MEI page (none of its figures is from an external
+meter; `real protocol` gives interoperability, not joules) and `latency`
+the source classes of the Latency paper. `source` is the label of the
+cited source's own figure: `reported` for an OS or on-chip counter,
+`measured` for a wall or shunt meter on a named rail, otherwise `est`.
+`bound` is a proved bound, carried as a bound and never as a joule figure.
+
+Rules (`crate::ladder`, tested in `tests/ladder_map.rs`):
+
+- LL-1: each ladder's rungs are in order: input rungs first, the gate
+  last, gear rungs in strictly rising gears starting at G0. Every rung
+  placed at G3 to G5 passes the gate.
+- LL-2: a class never gives a label stronger than its evidence. Only a
+  wall or shunt meter class gives `measured`; no fixed class gives
+  `reported`; `source` gives `est` when the source names no counter or
+  meter; a figure built from several terms takes the weakest label.
+- LL-3: an `unpriced` class gives `j` null, never 0; a `bound` class
+  gives no joule figure.
+- LL-4: the two tables above are `LADDERS` and `CLASSES`, row for row.
+
+| Rule | Requirement | Tests |
+|---|---|---|
+| LL-1 | rungs in order, every ladder starts at G0 | `tests/ladder_map.rs`: `every_ladder_is_in_gear_order`, `a_rung_out_of_order_is_refused` |
+| LL-2 | no class stronger than its evidence | `tests/ladder_map.rs`: `only_a_shunt_meter_gives_measured`, `source_is_est_without_a_counter_or_meter`, `a_sum_takes_the_weakest_label`, `label_words_match_the_meter_library` |
+| LL-3 | unpriced is null, a bound is no figure | `tests/ladder_map.rs`: `unpriced_and_bound_carry_no_joules` |
+| LL-4 | the printed tables are the code tables | `tests/ladder_map.rs`: `the_d12_tables_are_the_code_tables` |
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 

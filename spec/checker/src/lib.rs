@@ -42,6 +42,7 @@ pub mod interp;
 pub mod lalr;
 pub mod lift_authority;
 pub mod lift_gguf;
+pub mod ladder;
 pub mod law;
 pub mod link;
 pub mod lsp;
