@@ -1,7 +1,7 @@
 {
  "format": "rce-clauses/1",
  "book": "spec/book",
- "id_set_sha256": "2b541eb83d6734347272d2cb7c0b3e40ce0ea126f3bffeca34cbf1dfbda9f56b",
+ "id_set_sha256": "8785970901a3c13b50dad5bccb5a4a91307137124094aa0bc9cb70ee06e93642",
  "clauses": [
   {
    "id": "CH00-M-61b6ac06",
@@ -685,7 +685,7 @@
    "section": "6.11 Laws",
    "text": "Changing the outcome to the law's turns the line into the example that the corrected program must meet.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "W-MUT-1",
@@ -725,7 +725,7 @@
    "section": "6.13 Graph terms and tensor values",
    "text": "They are the levels of the RCE Compile study's experiment E3 (`compile/CHARTER.md` 4.3), and each states what a *realisation* of the node (another backend, an emitted kernel, a fusion) must reproduce of the reference's result (GT-6):",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH08-M-abd54dca",
@@ -2995,7 +2995,7 @@
    "section": "C.8 `for ... par`",
    "text": "Derivation: placement must give the same bits on every fabric (HC-12), and the reductions that vector units and GPUs execute are complete binary trees over power-of-two blocks.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH14-M-9202f003",
@@ -4167,7 +4167,7 @@
    "section": "Appendix F. Draft 0.9 (normative; implemented in part, see F.12)",
    "text": "(b) Soundness: a rule that the checker enforces must be enough for the theorem that relies on it.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-a1395e23",
@@ -4178,7 +4178,7 @@
    "section": "F.1 How an item is applied",
    "text": "Grammar changes are written here in the notation of 01-notation.md and are not yet merged into the checked grammar of section 3; when they are, `rce-spec-check` must report 0 conflicts before this appendix loses the word \"specified, not yet implemented\".",
    "restated": [],
-   "profile": "language"
+   "profile": "tooling"
   },
   {
    "id": "CH17-M-ed78a540",
@@ -4189,7 +4189,7 @@
    "section": "F.3 Tier 0: repair and hygiene",
    "text": "Examples and the fuzz generator must be written clean before the rules are enabled (F.11).",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-6076c934",
@@ -4200,7 +4200,7 @@
    "section": "F.3 Tier 0: repair and hygiene",
    "text": "This is a requirement on the lexer of 2.3 that the reference lexer must be checked against (F.11).",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-f213d82f",
@@ -4233,7 +4233,7 @@
    "section": "F.4 Tier 1: base mechanisms",
    "text": "- A program that must run indefinitely is not written with a loop; it is a total step function from (state, input) to (state, output) driven by the host, as 6.1 and Appendix E already define.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-21af0c5d",
@@ -4244,7 +4244,7 @@
    "section": "F.4 Tier 1: base mechanisms",
    "text": "Derivation: least privilege (a): a foreign call is authority, so it must be held by value; determinism (c): every input is an event or a logged result, so T32 (replay) covers the whole boundary.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-d10b1b54",
@@ -4277,7 +4277,7 @@
    "section": "F.5 Tier 2: items that use Tier 1",
    "text": "Derivation: totality (d): a call whose cost the program cannot bound must be bounded by the program's own budget.",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-3c3abed1",
@@ -4288,7 +4288,7 @@
    "section": "F.5 Tier 2: items that use Tier 1",
    "text": "Implementation cost is the largest of the tier: every emitter must count at one granularity (10.5).",
    "restated": [],
-   "profile": "language"
+   "profile": "editorial"
   },
   {
    "id": "CH17-M-a720cd01",
@@ -4343,7 +4343,7 @@
    "section": "F.11 Checks before this appendix is implemented",
    "text": "Implement each W-rule of this appendix with accept and requires-change examples (the implemented ones are in `spec/examples-0.9/`, one file that requires change per rule, checked by `tests/v09_examples.rs`; the rest are listed in F.12); the fuzz generator must produce programs clean of F.3.2.",
    "restated": [],
-   "profile": "language"
+   "profile": "tooling"
   },
   {
    "id": "S6",
@@ -4397,17 +4397,6 @@
    "line": 1033,
    "section": "F.12 Implementation status of the reference checker",
    "text": "- P6 templates (F.6.1): `TEMPLATE` is a token (F.13). Only the two rendered forms are implemented: `text.t\"...\"` and `C.t\"...\"` for `Html`, `Url`, `Sql`, `Json`, `ShellArg` and `Prompt`. The parser expands them at once to the concatenation they mean (`text`: literal segments and `f.tostr()` of each field; a context: `C.lit` of each segment and `C.encode` of each field, joined with `+`), so the fields are ordinary reads and the context's typing (W-CTX-1) decides what a field may be. Fields are an identifier or a field path; `{{` and `}}` are literal braces; an empty field, an expression, a stra",
-   "restated": [],
-   "profile": "language"
-  },
-  {
-   "id": "W-VER-1",
-   "kind": "rule",
-   "normative": true,
-   "chapter": "11-decisions.md",
-   "line": 309,
-   "section": "(named)",
-   "text": "12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1",
    "restated": [],
    "profile": "language"
   }
