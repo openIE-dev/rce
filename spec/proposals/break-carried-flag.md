@@ -1,9 +1,17 @@
 # Proposal: a carried break flag on the Form bridge
 
-Status: open. This is a design note. It does not change the checker, the
-Form encoding, the gate, the runtime, or the Lean model, and it does not
-claim a production compiler. The normative statement of Iterate, of ω, and
-of construct ∘ schedule stays [rce-form.md](rce-form.md) §6, §13 and §14.
+Status: open. The bridge follows option B. A `break` that names the loop and
+sits in the body is that body's flag: the break path returns false, and the
+continue path returns true with the carried values. Admission is three-way
+eval, with the flag tested before the bound (O6') and the flag's nodes not
+reading or writing ω (O7'). That is not syntactic identity.
+`construct(schedule(F)) = F` as canonical bytes, where it holds, is the flag
+form against its schedule. Option A is not implemented: `Stmt` in
+`spec/lean/RCE/Form.lean` has no break constructor, so the Iterate has no
+preimage there. The note does not change the Form encoding, the gate, the
+runtime, or the Lean model, and it does not claim a production compiler.
+The normative statement of Iterate, of ω, and of construct ∘ schedule stays
+[rce-form.md](rce-form.md) §6, §13 and §14.
 PR #145 (open, `cursor/form-bridge-widen-c155`) widens the bridge
 implementation; this note does not edit `spec/checker/src/form/bridge.rs`
 or `spec/checker/tests/form_bridge.rs`.
@@ -225,9 +233,10 @@ flag that is tested too late collapses `.stopped` into `.bound` as well.
 
 ## 6. Option A and option B
 
-Exactly one of these is a later change. This note decides neither, and it
-does not implement either. A change that rewrites breaks in Rust and still
-states syntactic identity has chosen neither, and it is not this proposal.
+The bridge implements option B and does not state syntactic identity for a
+restructured break. Option A is not implemented. A change that rewrites
+breaks in Rust and still states syntactic identity has chosen neither, and
+it is not this proposal.
 
 **Option A. Give construct a preimage.** Add a break constructor, or an
 exit sum with the three outcomes of `RCE.Iter.Out`, to `Stmt` in
@@ -314,8 +323,11 @@ different construct is still refused.
 
 ## 8. Tests a later change would add
 
-This pull request adds none of these tests. The plan is the list. Floors
-move only in the change that makes the new cases pass, and only upward.
+The bridge tests cover this list under option B. A byte comparison, where a
+test has one, is the flag form against its schedule. It is not a comparison
+of the break source with a flag-free term. Floors move only in the change
+that makes a new syntactic case pass, and only upward. A break-restructured
+example stays off the syntactic floor.
 
 1. Leave `spec/checker/tests/form_bridge.rs` unedited until step B. Do not
    lower the 0-of-60 whole-example assertion on `main`, and do not lower

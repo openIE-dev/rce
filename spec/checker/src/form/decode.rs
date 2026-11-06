@@ -392,10 +392,19 @@ fn group(cx: &mut Cx, v: &J) -> R<Group> {
     Ok(Group { fns })
 }
 
+/// JSON text of a module. Region nesting in a loop body can pass the
+/// default depth, so the reader does not stop at that depth. The checker
+/// still walks a finite module.
+pub(crate) fn json_of(bytes: &[u8]) -> Result<J, serde_json::Error> {
+    let mut de = serde_json::Deserializer::from_slice(bytes);
+    de.disable_recursion_limit();
+    serde::Deserialize::deserialize(&mut de)
+}
+
 /// Decode a module from its bytes, or keep it under FG1.
 pub fn decode(bytes: &[u8]) -> R<Module> {
     let mut cx = Cx { group: None, func: None, path: vec![], ntypes: 0, nerrors: 0, nregions: 0 };
-    let v: J = match serde_json::from_slice(bytes) {
+    let v: J = match json_of(bytes) {
         Ok(v) => v,
         Err(e) => return cx.fail(format!("the bytes are not JSON: {e}")),
     };

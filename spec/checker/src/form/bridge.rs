@@ -16,7 +16,11 @@
 //! - `loop` in the two-region shape the schedule writes, and the same
 //!   count and measure shapes the lowering writes (`one/shape.rs`): a
 //!   measure (`for` over a range or a list), or a count bound whose test
-//!   or body uses ω
+//!   or body uses ω. A `break` that names that loop and sits in the body
+//!   is the body's flag (option B of `spec/proposals/break-carried-flag.md`):
+//!   the break path returns false, the continue path returns true and the
+//!   carried values. That rewrite is not syntactic identity. `body_break_rewrite`
+//!   reports it. A break that does not name the loop still requires change.
 //! - a Branch whose arms use different outer values: both arms take the
 //!   union of those captures, ω included when either arm needs it
 //!
@@ -33,7 +37,34 @@ use super::types::Tx;
 use crate::one::build::{self, FB};
 use crate::one::ir::{self as core, Atom, FnRef, Lit, Place, Stmt, Ty};
 use crate::one::json::{canonical_group, group_key};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+
+thread_local! {
+    /// Set when `construct` turns a loop-body `break` into the body's flag.
+    /// Option B of break-carried-flag.md: that form is outside syntactic
+    /// identity. See `body_break_rewrite`.
+    static BODY_BREAK: Cell<bool> = const { Cell::new(false) };
+}
+
+fn note_body_break() {
+    BODY_BREAK.with(|c| c.set(true));
+}
+
+/// Whether the most recent `construct` on this thread restructured a
+/// loop-body `break` into the body's flag.
+///
+/// Option B of `spec/proposals/break-carried-flag.md`.
+/// The flag form can still satisfy `construct(schedule(F)) = F` as canonical
+/// bytes. That equality is the flag encoding against its schedule. It is not
+/// syntactic identity for the break: Lean `Stmt` has no break constructor, so
+/// the Iterate has no preimage there. A break-restructured form is outside
+/// that syntactic domain. The claim on it is three-way eval, with the flag
+/// tested before the bound (O6') and the flag's nodes not reading or writing
+/// ω (O7').
+pub fn body_break_rewrite() -> bool {
+    BODY_BREAK.with(|c| c.get())
+}
 
 /// A construct the schedule or the construction refuses, with the place and
 /// the reason.
@@ -132,6 +163,21 @@ fn has_break(b: &[Stmt], depth: u32) -> bool {
         Stmt::Block(x) | Stmt::Loop(x) => has_break(x, depth + 1),
         _ => false,
     })
+}
+
+/// Whether every statement can complete. A `break` of any depth does not.
+fn refs_fall(stmts: &[&Stmt]) -> bool {
+    stmts.iter().all(|s| build::falls(std::slice::from_ref(*s)))
+}
+
+/// An `if` whose arms do not both fall through. The ordinary construction
+/// sinks the statements after it into the arm that falls. A loop-body break
+/// in that tail has to stay with the values the tail computes.
+fn sinking_if(s: &Stmt) -> bool {
+    let Stmt::If(_, t, e) = s else {
+        return false;
+    };
+    build::falls(t) != build::falls(e)
 }
 
 fn atom_locals(a: &Atom, out: &mut BTreeSet<u32>) {
@@ -286,6 +332,9 @@ enum End {
     Fall,
     Ret(Src),
     Halt(Src),
+    /// A `break` that names the loop under construction. The path returns
+    /// the flag false and does not run the statements after the break.
+    Exit,
 }
 
 struct Scope {
@@ -299,6 +348,8 @@ struct Scope {
     set_at: Vec<u32>,
     /// Literals already built in this region, so a second use is the same source.
     lits: Vec<(Ty, Lit, Src)>,
+    /// The loop flag this scope produces, when a body break was joined here.
+    exit_flag: Option<Src>,
 }
 
 impl Scope {
@@ -638,13 +689,13 @@ impl Built {
                             (cont_end.0, cont_end.1, stop_end.0, stop_end.1)
                         };
                         let sel = self.src_atom(sc, c)?;
-                        return self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty);
+                        return self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false);
                     }
                     let sel = self.src_atom(sc, c)?;
                     let seed = self.seed_of(&[t, e], &[], sc);
                     let (e1, a1) = self.arm(t, &seed, &lits, sc, here, thread, ret_ty)?;
                     let (e0, a0) = self.arm(e, &seed, &lits, sc, here, thread, ret_ty)?;
-                    let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty)?;
+                    let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
                     match end {
                         End::Fall => i += 1,
                         other => return Ok(other),
@@ -715,6 +766,7 @@ impl Built {
             assigned: BTreeSet::new(),
             set_at: vec![],
             lits: vec![],
+            exit_flag: None,
         };
         for (j, l) in seed.iter().enumerate() {
             sc.env.insert(*l, Src::In(j as u32));
@@ -815,7 +867,13 @@ impl Built {
         e1: End,
         parent_omega: Option<Src>,
         ret_ty: &BTy,
+        join_flag: bool,
     ) -> Result<End, Change> {
+        if join_flag && (matches!(e0, End::Ret(_)) || matches!(e1, End::Ret(_))) {
+            return Err(self.deny(
+                "exit: a break path and a ret in one loop body are an exit this slice does not restructure",
+            ));
+        }
         let halt0 = matches!(e0, End::Halt(_));
         let halt1 = matches!(e1, End::Halt(_));
         let needs_w = halt0
@@ -885,11 +943,15 @@ impl Built {
             if !r0 && !r1 {
                 continue;
             }
-            let present = match (&e0, &e1) {
-                (End::Fall, End::Fall) => a0.env.contains_key(&v) && a1.env.contains_key(&v),
-                (End::Fall, End::Halt(_)) => a0.env.contains_key(&v),
-                (End::Halt(_), End::Fall) => a1.env.contains_key(&v),
-                _ => false,
+            let yields = |e: &End| matches!(e, End::Fall | End::Exit);
+            let present = if yields(&e0) && yields(&e1) {
+                a0.env.contains_key(&v) && a1.env.contains_key(&v)
+            } else if yields(&e0) && matches!(e1, End::Halt(_)) {
+                a0.env.contains_key(&v)
+            } else if yields(&e1) && matches!(e0, End::Halt(_)) {
+                a1.env.contains_key(&v)
+            } else {
+                false
             };
             if present {
                 vars.insert(v);
@@ -916,7 +978,9 @@ impl Built {
         let shares = |u: u32, v: u32| {
             let same = |arm: &Scope, e: &End| match e {
                 End::Halt(_) => true,
-                End::Fall => arm.env.contains_key(&u) && arm.env.get(&u) == arm.env.get(&v),
+                End::Fall | End::Exit => {
+                    arm.env.contains_key(&u) && arm.env.get(&u) == arm.env.get(&v)
+                }
                 End::Ret(_) => false,
             };
             same(&a0, &e0) && same(&a1, &e1)
@@ -940,6 +1004,11 @@ impl Built {
             // the value of a branch that ends on every path is the return, not the vars it set on the way
             ts.clear();
             ts.push(ret_ty.clone());
+        }
+        if join_flag {
+            // The flag is the first output. It is a literal or a joined flag
+            // in the arm, not a carried input, so C7 does not drop it (B4).
+            ts.insert(0, BTy::Bool);
         }
         if needs_w {
             ts.push(BTy::Order);
@@ -997,9 +1066,12 @@ impl Built {
                     }
                     Ok(o)
                 }
-                End::Fall => {
+                End::Fall | End::Exit => {
                     let mut o = vec![];
-                    if vars.is_empty() && ts.first() == Some(ret_ty) {
+                    if join_flag {
+                        o.push(arm.exit_flag.ok_or_else(|| self.deny("defect: a break arm has no flag"))?);
+                    }
+                    if vars.is_empty() && ts.first() == Some(ret_ty) && !join_flag {
                         return Err(
                             self.deny("exit: a branch arm falls through where the other returns")
                         );
@@ -1062,14 +1134,15 @@ impl Built {
                     moved.push(*v);
                 }
             }
+            let base = u32::from(join_flag);
             for (p, v) in vars.iter().enumerate() {
-                sc.env.insert(*v, Src::Out(id, p as u32));
+                sc.env.insert(*v, Src::Out(id, base + p as u32));
             }
             for (v, rep) in &alias {
                 let Some(p) = vars.iter().position(|u| u == rep) else {
                     continue;
                 };
-                sc.env.insert(*v, Src::Out(id, p as u32));
+                sc.env.insert(*v, Src::Out(id, base + p as u32));
             }
             for v in moved {
                 sc.env.remove(&v);
@@ -1078,10 +1151,344 @@ impl Built {
         if needs_w {
             sc.omega = Some(Src::Out(id, (nout - 1) as u32));
         }
+        if join_flag {
+            sc.exit_flag = Some(Src::Out(id, 0));
+        }
         if both_term {
             return Ok(End::Ret(Src::Out(id, 0)));
         }
         Ok(End::Fall)
+    }
+
+    /// The body's flag. A `break` that names this loop (depth `names` at this
+    /// statement list, one deeper inside a block) makes the break path return
+    /// the literal false. The continue path returns true, or a flag joined
+    /// from a nested break, and it still returns the carried values.
+    /// Statements after the break are not on the break path.
+    ///
+    /// `fall` runs only when this list falls through, at depth `fall_names`.
+    /// It is the statements after a block the list is nested in.
+    ///
+    /// Option B: this is a flag encoding, not a preimage under Lean `Stmt`.
+    fn exec_body(
+        &self,
+        stmts: &[Stmt],
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        names: u32,
+    ) -> Result<Src, Change> {
+        let refs: Vec<&Stmt> = stmts.iter().collect();
+        self.exec_body_seq(&refs, sc, parent_omega, ret_ty, names, &[], 0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn exec_body_seq(
+        &self,
+        stmts: &[&Stmt],
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        names: u32,
+        fall: &[&Stmt],
+        fall_names: u32,
+    ) -> Result<Src, Change> {
+        let hits = |s: &&Stmt| has_break(std::slice::from_ref(*s), names);
+        if !stmts.iter().any(hits) {
+            if !stmts.is_empty() {
+                let end = self.exec_refs(stmts, sc, parent_omega, ret_ty)?;
+                if !matches!(end, End::Fall) {
+                    return Err(self.deny("exit: a loop body does not fall through"));
+                }
+            }
+            if fall.is_empty() {
+                return Ok(lit_bool(sc, true));
+            }
+            return self.exec_body_seq(fall, sc, parent_omega, ret_ty, fall_names, &[], 0);
+        }
+        note_body_break();
+        let k = stmts.iter().position(hits).expect("a break was just found");
+        // A domain test before the break sinks the tail, including the break
+        // condition, into its continue arm. Leave that tail in the arm that
+        // falls, so the condition is in scope where the break is joined.
+        if let Some(j) = (0..k).find(|&j| sinking_if(stmts[j])) {
+            if j > 0 {
+                let end = self.exec_refs(&stmts[..j], sc, parent_omega, ret_ty)?;
+                if !matches!(end, End::Fall) {
+                    return Err(self.deny("exit: a loop body does not fall through"));
+                }
+            }
+            let Stmt::If(c, t, e) = stmts[j] else {
+                return Err(self.deny("defect: a domain test was not an if"));
+            };
+            return self.nest_domain(
+                c,
+                t,
+                e,
+                &stmts[j + 1..],
+                fall,
+                fall_names,
+                sc,
+                parent_omega,
+                ret_ty,
+                names,
+            );
+        }
+        if k > 0 {
+            let end = self.exec_refs(&stmts[..k], sc, parent_omega, ret_ty)?;
+            if !matches!(end, End::Fall) {
+                return Err(self.deny("exit: a loop body does not fall through"));
+            }
+        }
+        let after = &stmts[k + 1..];
+        match stmts[k] {
+            Stmt::Break(d) if *d == names => Ok(lit_bool(sc, false)),
+            Stmt::Break(_) => Err(self.deny(
+                "break: a break that does not name the loop is an exit this slice does not restructure",
+            )),
+            Stmt::If(c, t, e) => self.join_break(
+                c,
+                t,
+                e,
+                after,
+                fall,
+                fall_names,
+                sc,
+                parent_omega,
+                ret_ty,
+                names,
+            ),
+            Stmt::Block(b) => {
+                if has_break(b, 0) {
+                    return Err(self.deny(
+                        "break: a block that is not a loop, and a break out of it, are an exit this slice does not restructure",
+                    ));
+                }
+                let inner: Vec<&Stmt> = b.iter().collect();
+                if after.is_empty() {
+                    self.exec_body_seq(&inner, sc, parent_omega, ret_ty, names + 1, fall, fall_names)
+                } else if !refs_fall(&inner) {
+                    self.exec_body_seq(&inner, sc, parent_omega, ret_ty, names + 1, &[], 0)
+                } else if !fall.is_empty() {
+                    Err(self.deny(
+                        "break: a break inside a nested block, with statements after that block and after an outer block, is an exit this slice does not restructure",
+                    ))
+                } else {
+                    self.exec_body_seq(&inner, sc, parent_omega, ret_ty, names + 1, after, names)
+                }
+            }
+            Stmt::Loop(_) => Err(self.deny(
+                "break: a break that leaves more than one loop is an exit this slice does not restructure",
+            )),
+            _ => Err(self.deny(
+                "break: a break outside a recognised loop is an exit this slice does not restructure",
+            )),
+        }
+    }
+
+    /// One arm of a break flag. The arm's scope captures `seed` from the parent.
+    /// The returned flag is a literal false on a break, or the joined flag.
+    #[allow(clippy::too_many_arguments)]
+    fn body_arm(
+        &self,
+        stmts: &[&Stmt],
+        fall: &[&Stmt],
+        fall_names: u32,
+        seed: &[u32],
+        lits: &[(Ty, Lit, Src)],
+        parent: &Scope,
+        parent_omega: Option<Src>,
+        thread: Option<Src>,
+        ret_ty: &BTy,
+        names: u32,
+        false_lit: Option<Src>,
+    ) -> Result<(End, Scope), Change> {
+        let mut sc = Scope {
+            nodes: vec![],
+            env: HashMap::new(),
+            omega: None,
+            caps: vec![],
+            assigned: BTreeSet::new(),
+            set_at: vec![],
+            lits: vec![],
+            exit_flag: None,
+        };
+        for (j, l) in seed.iter().enumerate() {
+            sc.env.insert(*l, Src::In(j as u32));
+            sc.caps.push(parent.env[l]);
+        }
+        for (t, l, src) in lits {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(*src);
+            sc.lits.push((t.clone(), l.clone(), Src::In(j)));
+        }
+        if let Some(p) = thread {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(p);
+            sc.omega = Some(Src::In(j));
+        }
+        // A pure break returns the parent's literal false, captured, with no
+        // node in the arm. The schedule's branch dummy is that same literal,
+        // so construct(schedule(F)) rebuilds this capture instead of a second
+        // copy inside the arm (B4: the flag is not a carried input).
+        if fall.is_empty() && stmts.len() == 1 && matches!(stmts[0], Stmt::Break(d) if *d == names)
+        {
+            let src =
+                false_lit.ok_or_else(|| self.deny("defect: a break flag has no literal false"))?;
+            let j = sc.caps.len() as u32;
+            sc.caps.push(src);
+            sc.exit_flag = Some(Src::In(j));
+            return Ok((End::Exit, sc));
+        }
+        let live = sc.omega.or(parent_omega);
+        let flag = self.exec_body_seq(stmts, &mut sc, live, ret_ty, names, fall, fall_names)?;
+        sc.exit_flag = Some(flag);
+        let end = if refs_fall(stmts) && (fall.is_empty() || refs_fall(fall)) {
+            End::Fall
+        } else {
+            End::Exit
+        };
+        Ok((end, sc))
+    }
+
+    /// Join a core `if` whose arms can break out of the loop into one Branch.
+    /// The first output is the flag. Carried values the arms update follow it.
+    #[allow(clippy::too_many_arguments)]
+    fn join_break(
+        &self,
+        c: &Atom,
+        t: &[Stmt],
+        e: &[Stmt],
+        within: &[&Stmt],
+        fall: &[&Stmt],
+        fall_names: u32,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        names: u32,
+    ) -> Result<Src, Change> {
+        let t_arm_falls = build::falls(t);
+        let e_arm_falls = build::falls(e);
+        let mut t_stmts: Vec<&Stmt> = t.iter().collect();
+        let mut e_stmts: Vec<&Stmt> = e.iter().collect();
+        if t_arm_falls {
+            t_stmts.extend(within.iter().copied());
+        }
+        if e_arm_falls {
+            e_stmts.extend(within.iter().copied());
+        }
+        let t_fall: &[&Stmt] = if t_arm_falls && refs_fall(within) {
+            fall
+        } else {
+            &[]
+        };
+        let e_fall: &[&Stmt] = if e_arm_falls && refs_fall(within) {
+            fall
+        } else {
+            &[]
+        };
+        let here = sc.omega.or(parent_omega);
+        let mut tail_refs: Vec<&Stmt> = within.to_vec();
+        tail_refs.extend(fall.iter().copied());
+        let tail_needs = tail_refs.iter().any(|s| self.stmt_needs_order(s));
+        let thread = if self.stmts_need_order(t) || self.stmts_need_order(e) || tail_needs {
+            here
+        } else {
+            None
+        };
+        let lits = lits_already(sc, &[t, e], &tail_refs);
+        let seed = self.seed_of(&[t, e], &tail_refs, sc);
+        let sel = self.src_atom(sc, c)?;
+        let false_lit = if !t_arm_falls || !e_arm_falls {
+            Some(self.ensure_lit(sc, &Ty::Bool, &Lit::Bool(false))?)
+        } else {
+            None
+        };
+        let (e1, a1) = self.body_arm(
+            &t_stmts,
+            t_fall,
+            fall_names,
+            &seed,
+            &lits,
+            sc,
+            here,
+            thread,
+            ret_ty,
+            names,
+            if t_arm_falls { None } else { false_lit },
+        )?;
+        let (e0, a0) = self.body_arm(
+            &e_stmts,
+            e_fall,
+            fall_names,
+            &seed,
+            &lits,
+            sc,
+            here,
+            thread,
+            ret_ty,
+            names,
+            if e_arm_falls { None } else { false_lit },
+        )?;
+        self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, true)?;
+        sc.exit_flag
+            .take()
+            .ok_or_else(|| self.deny("defect: a break flag was not joined"))
+    }
+
+    /// A domain test (one arm halts, the other falls) in front of a body break.
+    /// The falling arm runs the rest of the body, including the break. The
+    /// halt arm does not return a flag; its halt node has the region's output
+    /// types, the same way a loop region that halts already does.
+    #[allow(clippy::too_many_arguments)]
+    fn nest_domain(
+        &self,
+        c: &Atom,
+        t: &[Stmt],
+        e: &[Stmt],
+        tail: &[&Stmt],
+        fall: &[&Stmt],
+        fall_names: u32,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        names: u32,
+    ) -> Result<Src, Change> {
+        let t_falls = build::falls(t);
+        let (fall_arm, halt_arm, fall_then) = if t_falls { (t, e, true) } else { (e, t, false) };
+        let mut cont: Vec<&Stmt> = fall_arm.iter().collect();
+        cont.extend(tail.iter().copied());
+        let here = sc.omega.or(parent_omega);
+        let mut tail_refs: Vec<&Stmt> = cont.clone();
+        tail_refs.extend(fall.iter().copied());
+        for s in halt_arm {
+            tail_refs.push(s);
+        }
+        let tail_needs = tail_refs.iter().any(|s| self.stmt_needs_order(s));
+        let thread = if self.stmts_need_order(halt_arm) || tail_needs {
+            here
+        } else {
+            None
+        };
+        let lits = lits_already(sc, &[fall_arm, halt_arm], &tail_refs);
+        let seed = self.seed_of(&[fall_arm, halt_arm], &tail_refs, sc);
+        let sel = self.src_atom(sc, c)?;
+        let (fall_end, fall_sc) = self.body_arm(
+            &cont, fall, fall_names, &seed, &lits, sc, here, thread, ret_ty, names, None,
+        )?;
+        let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty)?;
+        if !matches!(halt_end, End::Halt(_)) {
+            return Err(self.deny("exit: a loop body does not fall through"));
+        }
+        let (e0, a0, e1, a1) = if fall_then {
+            (halt_end, halt_sc, fall_end, fall_sc)
+        } else {
+            (fall_end, fall_sc, halt_end, halt_sc)
+        };
+        self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, true)?;
+        sc.exit_flag
+            .take()
+            .ok_or_else(|| self.deny("defect: a break flag was not joined"))
     }
 
     /// A loop the schedule did not write, in one of the lowering's shapes
@@ -1117,7 +1524,7 @@ impl Built {
             }
         }
         if let Some(spec) = find_measure(surface, brk, lo, &self.info) {
-            self.build_measure(surface, &spec, sc, parent_omega, ret_ty)?;
+            self.build_measure(surface, &spec, sc, parent_omega, ret_ty, brk)?;
             return Ok(true);
         }
         Ok(false)
@@ -1138,6 +1545,7 @@ impl Built {
             assigned: BTreeSet::new(),
             set_at: vec![],
             lits: vec![],
+            exit_flag: None,
         };
         let mut ix = 0u32;
         if thread {
@@ -1204,12 +1612,13 @@ impl Built {
         };
         let mut bod = self.open_region(sc, parent_omega, &vars, true)?;
         let bw = bod.omega;
-        let end = self.exec(&[rest], &mut bod, bw, ret_ty)?;
-        if !matches!(end, End::Fall) {
-            return Err(self.deny("exit: a loop body does not fall through"));
-        }
-        let bflag = lit_bool(&mut bod, true);
+        // A body break that names this loop is the flag. A pure count still
+        // has no applied form: the flag is a bool and is not a use of ω (O8).
+        let bflag = self.exec_body(rest, &mut bod, bw, ret_ty, brk)?;
         if !region_uses_order(&test) && !region_uses_order(&bod) {
+            // The body may have been read as a flag. A pure count is still
+            // outside Dom, so that reading is not an admission (O8).
+            BODY_BREAK.with(|c| c.set(false));
             return Err(self.deny(
                 "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
             ));
@@ -1251,6 +1660,7 @@ impl Built {
         sc: &mut Scope,
         parent_omega: Option<Src>,
         ret_ty: &BTy,
+        brk: u32,
     ) -> Result<(), Change> {
         let head = &surface[..spec.if_at];
         let tail = &surface[spec.if_at + 1..];
@@ -1321,11 +1731,11 @@ impl Built {
         let mut bod = self.open_region(sc, parent_omega, &vars, thread)?;
         bod.env.insert(spec.iv, Src::In(i_in));
         let bw = bod.omega;
-        let end = self.exec(&[tail], &mut bod, bw, ret_ty)?;
-        if !matches!(end, End::Fall) {
-            return Err(self.deny("exit: a measure body does not fall through"));
-        }
-        let bflag = lit_bool(&mut bod, true);
+        // The continue path still has to raise the index. A break path
+        // returns false and does not have to. A body that raises the index
+        // only on some continuing paths is still not this shape (B5); the
+        // gate rejects it, and this function does not rewrite it into a count.
+        let bflag = self.exec_body(tail, &mut bod, bw, ret_ty, brk)?;
         let lit_slot = matches!(spec.end, Atom::K(_, _));
         let test_b = Body {
             nodes: std::mem::take(&mut test.nodes),
@@ -1409,6 +1819,7 @@ impl Built {
                 assigned: BTreeSet::new(),
                 set_at: vec![],
                 lits: vec![],
+                exit_flag: None,
             };
             let mut ix = 0u32;
             // ω is threaded only when the surrounding function has it; the region receives it first
@@ -1458,6 +1869,11 @@ impl Built {
                     return Ok(region);
                 }
                 End::Fall => {}
+                End::Exit => {
+                    return Err(self.deny(
+                        "break: a break outside a recognised loop is an exit this slice does not restructure",
+                    ));
+                }
             }
             let flag_s = self.src_atom(&mut region, flag)?;
             region.env.insert(u32::MAX - 1, flag_s);
@@ -2160,6 +2576,7 @@ struct UserFn {
 /// Build a canonical Form from a well-formed core module, or the first
 /// construct that requires change.
 pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
+    BODY_BREAK.with(|c| c.set(false));
     let users = users_of(m);
     let mut names = HashMap::new();
     for u in &users {
@@ -2253,6 +2670,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             assigned: BTreeSet::new(),
             set_at: vec![],
             lits: vec![],
+            exit_flag: None,
         };
         let mut ins = me.params.clone();
         for (i, _) in me.params.iter().enumerate() {
@@ -2296,6 +2714,13 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
                     "construction",
                     &at,
                     "exit: a path ends without ret or halt",
+                ));
+            }
+            End::Exit => {
+                return Err(deny(
+                    "construction",
+                    &at,
+                    "break: a break outside a recognised loop is an exit this slice does not restructure",
                 ));
             }
         };
@@ -3291,7 +3716,9 @@ fn schedule_iter(
             ],
             vec![],
         ));
-        let got = sch.fresh(Ty::halt(), true);
+        // The sum is halted inside the arm, so it is not live after the loop.
+        // Marking it live made the schedule drop it where it is not in scope.
+        let got = sch.fresh(Ty::halt(), false);
         debug_assert_eq!(got, h);
     }
     let (body_s, body_o) = run_region(sch, &n.regions[1])?;
