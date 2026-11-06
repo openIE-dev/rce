@@ -185,13 +185,10 @@ fn precompute(
     let mut first = HashMap::new();
     let mut loc = HashMap::new();
     for (i, t) in f.params.iter().enumerate() {
-        loc.insert(
-            i as u32,
-            Loc {
-                ty: t.clone(),
-                var: false,
-            },
-        );
+        loc.insert(i as u32, Loc {
+            ty: t.clone(),
+            var: false,
+        });
     }
     let mut next = f.params.len() as u32;
     fn walk(
@@ -297,6 +294,9 @@ struct Scope {
     omega: Option<Src>,
     caps: Vec<Src>,
     assigned: BTreeSet<u32>,
+    /// `set` targets in the order the arm stores them. Branch outputs follow
+    /// this order, which is the order the schedule writes the stores back.
+    set_at: Vec<u32>,
     /// Literals already built in this region, so a second use is the same source.
     lits: Vec<(Ty, Lit, Src)>,
 }
@@ -353,6 +353,78 @@ impl Built {
         let s = self.lit_node(sc, t, l)?;
         sc.lits.push((t.clone(), l.clone(), s));
         Ok(s)
+    }
+
+    /// A value of `t` the test of a loop overwrites before the body reads it.
+    /// The body receives the test's output, so this initial is not an operand
+    /// of the computation. An owned initial is dropped when the test's result
+    /// is stored, which is what the schedule writes for a carried owned value.
+    fn dummy_src(&self, sc: &mut Scope, t: &Ty) -> Result<Src, Change> {
+        match t {
+            Ty::Bool => self.ensure_lit(sc, t, &Lit::Bool(false)),
+            Ty::Int(lo, hi) => {
+                let v = if *lo <= 0 && *hi >= 0 { 0 } else { *lo };
+                self.ensure_lit(sc, &Ty::Int(v, v), &Lit::Int(v))
+            }
+            Ty::F64 => self.ensure_lit(sc, t, &Lit::F64(0)),
+            Ty::F32 => self.ensure_lit(sc, t, &Lit::F32(0)),
+            Ty::Bytes => self.ensure_lit(sc, t, &Lit::Bytes(vec![])),
+            Ty::List(e) => {
+                let arg = ty_arg(e).map_err(|e| self.deny(format!("defect: {e}")))?;
+                let id = sc.push(Attr::Prim("list.new".into(), vec![arg], None), vec![], vec![]);
+                Ok(Src::Out(id, 0))
+            }
+            Ty::Tup(xs) => {
+                let mut ins = vec![];
+                for x in xs {
+                    ins.push(self.dummy_src(sc, x)?);
+                }
+                let arg = ty_arg(t).map_err(|e| self.deny(format!("defect: {e}")))?;
+                let id = sc.push(Attr::Prim("tup.mk".into(), vec![arg], None), ins, vec![]);
+                Ok(Src::Out(id, 0))
+            }
+            Ty::Sum(xs) => {
+                let inner_ty = xs
+                    .first()
+                    .ok_or_else(|| self.deny("defect: an empty sum"))?;
+                let inner = self.dummy_src(sc, inner_ty)?;
+                let tag = self.ensure_lit(sc, &Ty::Int(0, 0), &Lit::Int(0))?;
+                let arg = ty_arg(t).map_err(|e| self.deny(format!("defect: {e}")))?;
+                let id = sc.push(
+                    Attr::Prim("sum.mk".into(), vec![arg], None),
+                    vec![tag, inner],
+                    vec![],
+                );
+                Ok(Src::Out(id, 0))
+            }
+            Ty::Arr(_) => Err(self.deny(
+                "defect: a value defined in a loop test and used in its body is an array, and this slice has no initial value for it",
+            )),
+        }
+    }
+
+    /// Locals the test binds on every path and the body uses, but the parent
+    /// does not have yet. Each gets a dummy initial so it can be carried.
+    fn seed_flow(
+        &self,
+        sc: &mut Scope,
+        test: &[Stmt],
+        body: &[Stmt],
+        except: &[u32],
+    ) -> Result<(), Change> {
+        let mut defined = BTreeSet::new();
+        straight_bound(test, &self.info, &mut defined);
+        let mut used = BTreeSet::new();
+        stmt_locals(body, &mut used);
+        for v in defined {
+            if except.contains(&v) || !used.contains(&v) || sc.env.contains_key(&v) {
+                continue;
+            }
+            let t = self.loc_ty(v)?;
+            let src = self.dummy_src(sc, &t)?;
+            sc.env.insert(v, src);
+        }
+        Ok(())
     }
 
     fn lit_node(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
@@ -474,7 +546,9 @@ impl Built {
                 Stmt::Set(Place::V(v), a) => {
                     let src = self.src_atom(sc, a)?;
                     sc.env.insert(*v, src);
-                    sc.assigned.insert(*v);
+                    if sc.assigned.insert(*v) {
+                        sc.set_at.push(*v);
+                    }
                     i += 1;
                 }
                 Stmt::Set(Place::G(g), _) => return Err(self.deny(format!("global: g{g} is not part of the working context ω holds"))),
@@ -547,7 +621,12 @@ impl Built {
                     // A literal the parent already built is captured, so the
                     // operation and its domain test are the same value (FG8).
                     let lits = lits_already(&sc, &[t.as_slice(), e.as_slice()], rest);
-                    if !rest.is_empty() && t_falls != e_falls {
+                    // A tail of only drops and stores, whose values the parent
+                    // already has, is the schedule's join of a branch's outputs.
+                    // It stays after this branch. Sinking it into a nested halt
+                    // would put those outputs on the inner branch, and
+                    // construct(schedule(F)) would differ from F.
+                    if !rest.is_empty() && t_falls != e_falls && !tail_is_join(rest, sc) {
                         let (cont, stop, cont_then) = if t_falls { (t.as_slice(), e.as_slice(), true) } else { (e.as_slice(), t.as_slice(), false) };
                         let seed = self.seed_of(&[cont, stop], rest, sc);
                         let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
@@ -634,6 +713,7 @@ impl Built {
             omega: None,
             caps: vec![],
             assigned: BTreeSet::new(),
+            set_at: vec![],
             lits: vec![],
         };
         for (j, l) in seed.iter().enumerate() {
@@ -775,7 +855,7 @@ impl Built {
                 "branch: the arms capture different values, and this slice does not reconcile them",
             ));
         }
-        // outputs: vars assigned in either arm, in index order, then ω
+        // outputs: vars assigned in either arm, then ω
         let mut vars: BTreeSet<u32> = BTreeSet::new();
         for arm in [&a0, &a1] {
             for v in &arm.assigned {
@@ -792,7 +872,64 @@ impl Built {
             // parent knows it, so it is not local to one arm only
             sc.env.contains_key(v)
         });
-        let vars: Vec<u32> = vars.into_iter().collect();
+        // A read-return or a nested branch rebinds a parent local inside an
+        // arm without a `set` on this arm. The new source has to leave the
+        // branch, or the parent still uses the value the branch captured.
+        let rebound = |arm: &Scope, v: &u32| matches!(arm.env.get(v), Some(Src::Out(_, _)));
+        for v in sc.env.keys().copied() {
+            if vars.contains(&v) {
+                continue;
+            }
+            let r0 = rebound(&a0, &v);
+            let r1 = rebound(&a1, &v);
+            if !r0 && !r1 {
+                continue;
+            }
+            let present = match (&e0, &e1) {
+                (End::Fall, End::Fall) => a0.env.contains_key(&v) && a1.env.contains_key(&v),
+                (End::Fall, End::Halt(_)) => a0.env.contains_key(&v),
+                (End::Halt(_), End::Fall) => a1.env.contains_key(&v),
+                _ => false,
+            };
+            if present {
+                vars.insert(v);
+            }
+        }
+        // Stores first, in the order the arms write them, then any rebound
+        // local that has no store, in index order. The schedule writes the
+        // stores in this same order, so the construction reads them back.
+        let mut ordered = vec![];
+        for v in a0.set_at.iter().chain(a1.set_at.iter()) {
+            if vars.contains(v) && !ordered.contains(v) {
+                ordered.push(*v);
+            }
+        }
+        for v in &vars {
+            if !ordered.contains(v) {
+                ordered.push(*v);
+            }
+        }
+        let mut vars = ordered;
+        // Two locals that name one source in every arm that falls through are
+        // one output. Listing the source twice is two consumers (FG6).
+        let mut alias: Vec<(u32, u32)> = vec![];
+        let shares = |u: u32, v: u32| {
+            let same = |arm: &Scope, e: &End| match e {
+                End::Halt(_) => true,
+                End::Fall => arm.env.contains_key(&u) && arm.env.get(&u) == arm.env.get(&v),
+                End::Ret(_) => false,
+            };
+            same(&a0, &e0) && same(&a1, &e1)
+        };
+        let mut kept = vec![];
+        for v in vars {
+            if let Some(rep) = kept.iter().copied().find(|u| shares(*u, v)) {
+                alias.push((v, rep));
+            } else {
+                kept.push(v);
+            }
+        }
+        vars = kept;
         let mut ts = vec![];
         for v in &vars {
             ts.push(bty(&self.loc_ty(*v)?).map_err(|e| self.deny(format!("defect: {e}")))?);
@@ -909,10 +1046,33 @@ impl Built {
                 out: outs1,
             },
         ];
+        let caps: Vec<Src> = ins.iter().skip(1).copied().collect();
         let id = sc.push(Attr::Branch(2, ts), ins, regions);
         if !both_term {
+            let rebound = |v: u32| vars.contains(&v) || alias.iter().any(|(a, _)| *a == v);
+            // A nested branch captured an owned local and did not return it
+            // under that name. The name was moved. Leaving the old source in
+            // the parent makes the next output a second consumer.
+            let mut moved = vec![];
+            for (v, src) in &sc.env {
+                if rebound(*v) || !caps.contains(src) {
+                    continue;
+                }
+                if self.loc_ty(*v).ok().is_some_and(|t| t.owned()) {
+                    moved.push(*v);
+                }
+            }
             for (p, v) in vars.iter().enumerate() {
                 sc.env.insert(*v, Src::Out(id, p as u32));
+            }
+            for (v, rep) in &alias {
+                let Some(p) = vars.iter().position(|u| u == rep) else {
+                    continue;
+                };
+                sc.env.insert(*v, Src::Out(id, p as u32));
+            }
+            for v in moved {
+                sc.env.remove(&v);
             }
         }
         if needs_w {
@@ -976,6 +1136,7 @@ impl Built {
             omega: None,
             caps: vec![],
             assigned: BTreeSet::new(),
+            set_at: vec![],
             lits: vec![],
         };
         let mut ix = 0u32;
@@ -1012,6 +1173,10 @@ impl Built {
         ret_ty: &BTy,
     ) -> Result<(), Change> {
         let (test_stmts, flag_of) = peel_exit(prefix, brk);
+        // A local the test defines and the body uses is not in the parent.
+        // Carry a dummy initial the test overwrites, so the body sees the
+        // test's value (the Iterate passes the test's outputs to the body).
+        self.seed_flow(sc, test_stmts, rest, &[])?;
         let vars = carried_vars(sc, &[test_stmts, rest]);
         let thread = (sc.omega.is_some() || parent_omega.is_some())
             && (self.stmts_need_order(test_stmts)
@@ -1089,6 +1254,9 @@ impl Built {
     ) -> Result<(), Change> {
         let head = &surface[..spec.if_at];
         let tail = &surface[spec.if_at + 1..];
+        // The index let is already the measure's carried index. Other
+        // locals the test defines and the body uses are carried beside it.
+        self.seed_flow(sc, head, tail, &[spec.iv])?;
         let mut vars = carried_vars(sc, &[surface]);
         if !vars.contains(&spec.ivar) {
             vars.push(spec.ivar);
@@ -1187,11 +1355,9 @@ impl Built {
             ins.push(self.lit_node(sc, t, l)?);
             carried_ty.push(bty(t).map_err(|e| self.deny(format!("defect: {e}")))?);
         }
-        let id = sc.push(
-            Attr::Measure(i_in, j_in, carried_ty),
-            ins,
-            vec![test_b, body_b],
-        );
+        let id = sc.push(Attr::Measure(i_in, j_in, carried_ty), ins, vec![
+            test_b, body_b,
+        ]);
         let base = u32::from(thread);
         for (k, v) in vars.iter().enumerate() {
             sc.env.insert(*v, Src::Out(id, base + k as u32));
@@ -1241,6 +1407,7 @@ impl Built {
                 omega: None,
                 caps: vec![],
                 assigned: BTreeSet::new(),
+                set_at: vec![],
                 lits: vec![],
             };
             let mut ix = 0u32;
@@ -1631,6 +1798,56 @@ fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
         })
 }
 
+/// Locals bound by statements that run on every path through `stmts`.
+/// A binding inside `if` or `loop` does not, because the body would then
+/// see the dummy initial on the path that skipped it.
+/// Drops and stores of values the parent already holds: the schedule's
+/// record of a branch's outputs, not a computation that belongs in the arm.
+fn tail_is_join(rest: &[&Stmt], parent: &Scope) -> bool {
+    if rest.is_empty() {
+        return false;
+    }
+    let mut used = BTreeSet::new();
+    for s in rest {
+        match s {
+            Stmt::Set(Place::V(_), a) => atom_locals(a, &mut used),
+            Stmt::Prim(p, _, xs) if p == "drop" => {
+                for a in xs {
+                    atom_locals(a, &mut used);
+                }
+            }
+            _ => return false,
+        }
+    }
+    used.iter().all(|v| parent.env.contains_key(v))
+}
+
+fn straight_bound(stmts: &[Stmt], info: &Info, out: &mut BTreeSet<u32>) {
+    for st in stmts {
+        match st {
+            Stmt::Block(x) => straight_bound(x, info, out),
+            Stmt::If(_, _, _) | Stmt::Loop(_) | Stmt::Break(_) => {}
+            _ => {
+                let Some(&a) = info.first.get(&(st as *const Stmt)) else {
+                    continue;
+                };
+                let n = match st {
+                    Stmt::Let(_)
+                    | Stmt::Var(_, _)
+                    | Stmt::Call(_, _)
+                    | Stmt::Catch(_, _)
+                    | Stmt::Graph(_, _) => 1,
+                    Stmt::Prim(p, ts, _) => core::prim_results(p, ts) as u32,
+                    _ => 0,
+                };
+                for i in 0..n {
+                    out.insert(a + i);
+                }
+            }
+        }
+    }
+}
+
 fn carried_vars(sc: &Scope, parts: &[&[Stmt]]) -> Vec<u32> {
     let mut used = BTreeSet::new();
     for p in parts {
@@ -2000,15 +2217,12 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             .map(bty)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| deny("construction", &u.name, format!("defect: {e}")))?;
-        meta.insert(
-            (u.group.clone(), u.index),
-            Meta {
-                temp: format!("t{n:04}"),
-                omega: omega[&(u.group.clone(), u.index)],
-                params,
-                ret,
-            },
-        );
+        meta.insert((u.group.clone(), u.index), Meta {
+            temp: format!("t{n:04}"),
+            omega: omega[&(u.group.clone(), u.index)],
+            params,
+            ret,
+        });
     }
     let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
     let mut defs = BTreeMap::new();
@@ -2037,6 +2251,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             omega: None,
             caps: vec![],
             assigned: BTreeSet::new(),
+            set_at: vec![],
             lits: vec![],
         };
         let mut ins = me.params.clone();
@@ -2834,11 +3049,9 @@ fn schedule_branch(
                             keep.insert(*id);
                         }
                         if sch.tys[var].owned() && sch.live.contains(var) {
-                            sets.push(Stmt::Prim(
-                                "drop".into(),
-                                vec![sch.tys[var].clone()],
-                                vec![Atom::V(*var)],
-                            ));
+                            sets.push(Stmt::Prim("drop".into(), vec![sch.tys[var].clone()], vec![
+                                Atom::V(*var),
+                            ]));
                             sch.live.remove(var);
                         }
                         sch.consume(&a)?;
@@ -2923,11 +3136,11 @@ fn dummy(sch: &mut Sch, t: &BTy) -> Result<Atom, Change> {
             )?;
             sch.consume(&inner)?;
             let st = cty(t).map_err(|_| sch.deny("defect: a sum"))?;
-            sch.stmts.push(Stmt::Prim(
-                "sum.mk".into(),
-                vec![st.clone()],
-                vec![build::lit(0), inner],
-            ));
+            sch.stmts
+                .push(Stmt::Prim("sum.mk".into(), vec![st.clone()], vec![
+                    build::lit(0),
+                    inner,
+                ]));
             let id = sch.fresh(st, true);
             Atom::V(id)
         }
@@ -3023,14 +3236,25 @@ fn schedule_iter(
             let Av::A(a) = &outs[1 + k] else {
                 return Err(sch.deny("defect: a carried result is ω"));
             };
-            if sch.tys[var].owned() {
-                s.push(Stmt::Prim(
-                    "drop".into(),
-                    vec![sch.tys[var].clone()],
-                    vec![Atom::V(*var)],
-                ));
+            // Both regions store every carried var, so the construction sees
+            // one list. When the region returned the var itself, `set v = v`
+            // moves it onto itself; a drop first would use it twice.
+            let same = matches!(a, Atom::V(id) if id == var);
+            if !same && sch.tys[var].owned() && sch.live.contains(var) {
+                s.push(Stmt::Prim("drop".into(), vec![sch.tys[var].clone()], vec![
+                    Atom::V(*var),
+                ]));
+                sch.live.remove(var);
+            }
+            if let Atom::V(id) = a
+                && *id != *var
+            {
+                sch.live.remove(id);
             }
             s.push(Stmt::Set(Place::V(*var), a.clone()));
+            if sch.tys[var].owned() {
+                sch.live.insert(*var);
+            }
         }
         s.push(Stmt::If(flag, vec![], vec![Stmt::Break(0)]));
         Ok(s)
@@ -3044,28 +3268,25 @@ fn schedule_iter(
         let bound = sch.atom(env, n.ins[0])?;
         loop_body.push(Stmt::Let(Atom::V(cn)));
         let a = sch.fresh(ct.clone(), false);
-        loop_body.push(Stmt::Prim(
-            "int.sadd".into(),
-            vec![ct.clone()],
-            vec![Atom::V(a), build::lit(1)],
-        ));
+        loop_body.push(Stmt::Prim("int.sadd".into(), vec![ct.clone()], vec![
+            Atom::V(a),
+            build::lit(1),
+        ]));
         let c = sch.fresh(ct.clone(), false);
         loop_body.push(Stmt::Set(Place::V(cn), Atom::V(c)));
-        loop_body.push(Stmt::Prim(
-            "int.lt".into(),
-            vec![ct],
-            vec![bound, Atom::V(c)],
-        ));
+        loop_body.push(Stmt::Prim("int.lt".into(), vec![ct], vec![
+            bound,
+            Atom::V(c),
+        ]));
         let o = sch.fresh(Ty::Bool, false);
         let h = sch.next;
         loop_body.push(Stmt::If(
             Atom::V(o),
             vec![
-                Stmt::Prim(
-                    "sum.mk".into(),
-                    vec![Ty::halt()],
-                    vec![build::lit(0), Atom::bytes(b"loop bound")],
-                ),
+                Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+                    build::lit(0),
+                    Atom::bytes(b"loop bound"),
+                ]),
                 Stmt::Halt(Atom::V(h)),
             ],
             vec![],
@@ -3319,10 +3540,15 @@ pub fn schedule(m: &form::Module) -> Result<core::Module, Change> {
         }
     }
     let _ = shim_core;
+    // HashMap iteration is not the schedule. Prefer a function that already
+    // takes no parameters, and otherwise the least core key, so the same Form
+    // always schedules the same entry.
     let mut entry = form_core
         .values()
-        .next()
+        .filter(|k| defs[*k].fns[0].params.is_empty())
         .cloned()
+        .min()
+        .or_else(|| form_core.values().cloned().min())
         .or_else(|| defs.keys().next().cloned())
         .ok_or_else(|| deny("schedule", "", "defect: a Form with no function"))?;
     // W1: the entry takes no parameters. The scheduled functions keep theirs.
