@@ -10,7 +10,9 @@
 //! - literals, `let`, catalogue primitives (read-return and update-return
 //!   included), `drop` (the schedule writes it, the construction ignores it)
 //! - `call` of a non-recursive function, `if` on a bool, `var` and `set`
-//! - `halt`, which makes the function take and return ω
+//! - `halt`, which makes the function take and return ω. A function whose
+//!   outputs are that halt node's outputs schedules as a halt: the core
+//!   does not return after it, and it does not drop what the halt still holds
 //! - calls of `rt.tick`, `rt.charge` and `rt.try_charge`, read back as
 //!   `fuel.tick`, `cost.charge` and `cost.try_charge`
 //! - `loop` in the two-region shape the schedule writes, and the same
@@ -21,6 +23,8 @@
 //!   the break path returns false, the continue path returns true and the
 //!   carried values. That rewrite is not syntactic identity. `body_break_rewrite`
 //!   reports it. A break that does not name the loop still requires change.
+//!   A local the loop's epilogue stores stays bound in that region: a tail
+//!   that binds it is not sunk into an arm.
 //! - a Branch whose arms use different outer values: both arms take the
 //!   union of those captures, ω included when either arm needs it. One arm
 //!   runs, so both arms may use an owned capture. The parent keeps it only
@@ -568,8 +572,21 @@ impl Built {
         parent_omega: Option<Src>,
         ret_ty: &BTy,
     ) -> Result<End, Change> {
+        self.exec_exposed(slices, sc, parent_omega, ret_ty, &BTreeSet::new())
+    }
+
+    /// `exposed` are locals a caller reads after this list, in this same
+    /// scope. A tail that binds one of them stays here.
+    fn exec_exposed(
+        &self,
+        slices: &[&[Stmt]],
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        exposed: &BTreeSet<u32>,
+    ) -> Result<End, Change> {
         let flat: Vec<&Stmt> = slices.iter().copied().flat_map(|p| p.iter()).collect();
-        self.exec_refs(&flat, sc, parent_omega, ret_ty)
+        self.exec_refs(&flat, sc, parent_omega, ret_ty, exposed)
     }
 
     fn exec_refs(
@@ -578,6 +595,7 @@ impl Built {
         sc: &mut Scope,
         parent_omega: Option<Src>,
         ret_ty: &BTy,
+        exposed: &BTreeSet<u32>,
     ) -> Result<End, Change> {
         let mut i = 0;
         while i < flat.len() {
@@ -679,7 +697,16 @@ impl Built {
                     // It stays after this branch. Sinking it into a nested halt
                     // would put those outputs on the inner branch, and
                     // construct(schedule(F)) would differ from F.
-                    if !rest.is_empty() && t_falls != e_falls && !tail_is_join(rest, sc) {
+                    //
+                    // A loop region returns the values its epilogue stores. Those
+                    // locals have to be bound in the region, not inside an arm.
+                    // Sinking a tail that binds one of them hides it, and the
+                    // epilogue then reports `vN has no source in this region`.
+                    if !rest.is_empty()
+                        && t_falls != e_falls
+                        && !tail_is_join(rest, sc)
+                        && !binds_exposed(rest, &self.info, exposed)
+                    {
                         let (cont, stop, cont_then) = if t_falls { (t.as_slice(), e.as_slice(), true) } else { (e.as_slice(), t.as_slice(), false) };
                         let seed = self.seed_of(&[cont, stop], rest, sc);
                         let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
@@ -709,7 +736,7 @@ impl Built {
                     }
                     let mut nlist: Vec<&Stmt> = b.iter().collect();
                     nlist.extend(&flat[i + 1..]);
-                    return self.exec_refs(&nlist, sc, sc.omega.or(parent_omega), ret_ty);
+                    return self.exec_refs(&nlist, sc, sc.omega.or(parent_omega), ret_ty, exposed);
                 }
                 Stmt::Loop(b) => {
                     self.loop_stmt(b, s, sc, sc.omega.or(parent_omega), ret_ty)?;
@@ -788,7 +815,7 @@ impl Built {
         let mut list: Vec<&Stmt> = first.iter().collect();
         list.extend(tail.iter().copied());
         let live = sc.omega.or(parent_omega);
-        let end = self.exec_refs(&list, &mut sc, live, ret_ty)?;
+        let end = self.exec_refs(&list, &mut sc, live, ret_ty, &BTreeSet::new())?;
         Ok((end, sc))
     }
 
@@ -1198,7 +1225,7 @@ impl Built {
         let hits = |s: &&Stmt| has_break(std::slice::from_ref(*s), names);
         if !stmts.iter().any(hits) {
             if !stmts.is_empty() {
-                let end = self.exec_refs(stmts, sc, parent_omega, ret_ty)?;
+                let end = self.exec_refs(stmts, sc, parent_omega, ret_ty, &BTreeSet::new())?;
                 if !matches!(end, End::Fall) {
                     return Err(self.deny("exit: a loop body does not fall through"));
                 }
@@ -1215,7 +1242,8 @@ impl Built {
         // falls, so the condition is in scope where the break is joined.
         if let Some(j) = (0..k).find(|&j| sinking_if(stmts[j])) {
             if j > 0 {
-                let end = self.exec_refs(&stmts[..j], sc, parent_omega, ret_ty)?;
+                let end =
+                    self.exec_refs(&stmts[..j], sc, parent_omega, ret_ty, &BTreeSet::new())?;
                 if !matches!(end, End::Fall) {
                     return Err(self.deny("exit: a loop body does not fall through"));
                 }
@@ -1237,7 +1265,7 @@ impl Built {
             );
         }
         if k > 0 {
-            let end = self.exec_refs(&stmts[..k], sc, parent_omega, ret_ty)?;
+            let end = self.exec_refs(&stmts[..k], sc, parent_omega, ret_ty, &BTreeSet::new())?;
             if !matches!(end, End::Fall) {
                 return Err(self.deny("exit: a loop body does not fall through"));
             }
@@ -1844,7 +1872,15 @@ impl Built {
                 ix += 1;
             }
             let parent_w = region.omega;
-            let end = self.exec(&[stmts], &mut region, parent_w, ret_ty)?;
+            // The flag and the carried results are read in this region after
+            // the statements run. A local one of them names has to be bound
+            // here, not sunk into an arm.
+            let mut exposed = BTreeSet::new();
+            atom_locals(flag, &mut exposed);
+            for (_, a) in sets {
+                atom_locals(a, &mut exposed);
+            }
+            let end = self.exec_exposed(&[stmts], &mut region, parent_w, ret_ty, &exposed)?;
             match end {
                 End::Ret(_) => {
                     return Err(
@@ -2221,6 +2257,47 @@ fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
 /// see the dummy initial on the path that skipped it.
 /// Drops and stores of values the parent already holds: the schedule's
 /// record of a branch's outputs, not a computation that belongs in the arm.
+/// Whether `rest` binds a local the caller still reads in this scope.
+fn binds_exposed(rest: &[&Stmt], info: &Info, exposed: &BTreeSet<u32>) -> bool {
+    if exposed.is_empty() {
+        return false;
+    }
+    let mut bound = BTreeSet::new();
+    fn walk(stmts: &[&Stmt], info: &Info, out: &mut BTreeSet<u32>) {
+        for s in stmts {
+            let Some(&a) = info.first.get(&(*s as *const Stmt)) else {
+                continue;
+            };
+            let n = match *s {
+                Stmt::Let(_)
+                | Stmt::Var(_, _)
+                | Stmt::Call(_, _)
+                | Stmt::Catch(_, _)
+                | Stmt::Graph(_, _) => 1,
+                Stmt::Prim(p, ts, _) => core::prim_results(p, ts) as u32,
+                Stmt::If(_, t, e) => {
+                    let t: Vec<&Stmt> = t.iter().collect();
+                    let e: Vec<&Stmt> = e.iter().collect();
+                    walk(&t, info, out);
+                    walk(&e, info, out);
+                    0
+                }
+                Stmt::Block(x) | Stmt::Loop(x) => {
+                    let x: Vec<&Stmt> = x.iter().collect();
+                    walk(&x, info, out);
+                    0
+                }
+                _ => 0,
+            };
+            for i in 0..n {
+                out.insert(a + i);
+            }
+        }
+    }
+    walk(rest, info, &mut bound);
+    bound.iter().any(|v| exposed.contains(v))
+}
+
 fn tail_is_join(rest: &[&Stmt], parent: &Scope) -> bool {
     if rest.is_empty() {
         return false;
@@ -3072,37 +3149,43 @@ fn schedule_func(
     }
     let mark = sch.next;
     schedule_region(&mut sch, m, group, &f.body, &mut env, None)?;
-    let mut keep = HashSet::new();
-    let mut ret_atom = None;
-    for s in &f.body.out {
-        match sch.val(&env, *s)? {
-            Av::A(Atom::V(i)) => {
-                keep.insert(i);
-                ret_atom = Some(Atom::V(i));
+    // A function whose outputs are the halt node's outputs ends at that halt.
+    // Those outputs are the declared result and ω; they are not core values,
+    // and the core does not return after a halt. W3 does not require a halt
+    // to consume what it still holds, so nothing is dropped after it.
+    if !function_halts(&f.body) {
+        let mut keep = HashSet::new();
+        let mut ret_atom = None;
+        for s in &f.body.out {
+            match sch.val(&env, *s)? {
+                Av::A(Atom::V(i)) => {
+                    keep.insert(i);
+                    ret_atom = Some(Atom::V(i));
+                }
+                Av::A(a) => ret_atom = Some(a),
+                Av::Omega => {}
             }
-            Av::A(a) => ret_atom = Some(a),
-            Av::Omega => {}
         }
+        sch.drop_except(&keep, mark);
+        // also drop owned params that are not the result
+        let gone: Vec<u32> = sch
+            .live
+            .iter()
+            .copied()
+            .filter(|i| !keep.contains(i))
+            .collect();
+        for i in gone {
+            let t = sch.tys[&i].clone();
+            sch.stmts
+                .push(Stmt::Prim("drop".into(), vec![t], vec![Atom::V(i)]));
+            sch.live.remove(&i);
+        }
+        let ret_a = ret_atom.ok_or_else(|| sch.deny("defect: the function has no core result"))?;
+        if let Atom::V(i) = &ret_a {
+            sch.consume(&Atom::V(*i))?;
+        }
+        sch.stmts.push(Stmt::Ret(ret_a));
     }
-    sch.drop_except(&keep, mark);
-    // also drop owned params that are not the result
-    let gone: Vec<u32> = sch
-        .live
-        .iter()
-        .copied()
-        .filter(|i| !keep.contains(i))
-        .collect();
-    for i in gone {
-        let t = sch.tys[&i].clone();
-        sch.stmts
-            .push(Stmt::Prim("drop".into(), vec![t], vec![Atom::V(i)]));
-        sch.live.remove(&i);
-    }
-    let ret_a = ret_atom.ok_or_else(|| sch.deny("defect: the function has no core result"))?;
-    if let Atom::V(i) = &ret_a {
-        sch.consume(&Atom::V(*i))?;
-    }
-    sch.stmts.push(Stmt::Ret(ret_a));
     let _ = omega;
     Ok((
         core::Fn {
@@ -3114,6 +3197,23 @@ fn schedule_func(
         sch.charge,
         sch.try_c,
     ))
+}
+
+/// The function body's outputs are the outputs of its halt node.
+///
+/// Construction writes that when the core ends in `halt`: the node's outputs
+/// are the declared result and ω, and the core does not return a value.
+fn function_halts(b: &Body) -> bool {
+    !b.out.is_empty()
+        && b.out.iter().all(|s| match s {
+            Src::Out(i, _) => {
+                matches!(
+                    b.nodes.get(*i as usize).map(|n| &n.attrs),
+                    Some(Attr::Halt(_))
+                )
+            }
+            Src::In(_) => false,
+        })
 }
 
 fn sig_of(f: &Func) -> Result<(Vec<Ty>, Ty, bool), String> {
