@@ -5,9 +5,11 @@
 //! same arguments, the core evaluator and the Form evaluator agree, and so
 //! does the core evaluator on the scheduled module.
 //!
-//! `spec/examples` is the corpus. A program is covered when construction of
-//! its lowered core succeeds. Anything else requires change, and the reason's
-//! tag says which construct stopped it. The count is the ratchet.
+//! `spec/examples` is the corpus. A whole module still requires change: the
+//! observation driver writes `out` and reads globals outside ω. An example is
+//! counted when every function of the program itself (`fn`, `region`, `delta`,
+//! `initial state`) round-trips through construct(schedule(F)). The reason's
+//! tag says which construct stopped the others. The count is the ratchet.
 use rce_spec_check::form::bridge;
 use rce_spec_check::form::{self, ir as fir};
 use rce_spec_check::one::build::{self, FB};
@@ -58,17 +60,19 @@ fn checked_add() -> core::Module {
         params: vec![t.clone(), t.clone()],
         ret: t.clone(),
         body: vec![
-            Stmt::Prim("int.bad.add".into(), vec![t.clone()], vec![
-                Atom::V(0),
-                Atom::V(1),
-            ]),
+            Stmt::Prim(
+                "int.bad.add".into(),
+                vec![t.clone()],
+                vec![Atom::V(0), Atom::V(1)],
+            ),
             Stmt::If(
                 Atom::V(2),
                 vec![
-                    Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
-                        build::lit(0),
-                        Atom::bytes(b"overflow"),
-                    ]),
+                    Stmt::Prim(
+                        "sum.mk".into(),
+                        vec![Ty::halt()],
+                        vec![build::lit(0), Atom::bytes(b"overflow")],
+                    ),
                     Stmt::Halt(Atom::V(3)),
                 ],
                 vec![],
@@ -87,9 +91,11 @@ fn choose() -> core::Module {
         ret: t.clone(),
         body: vec![
             Stmt::Var(t, build::lit(0)),
-            Stmt::If(Atom::V(0), vec![Stmt::Set(Place::V(3), Atom::V(1))], vec![
-                Stmt::Set(Place::V(3), Atom::V(2)),
-            ]),
+            Stmt::If(
+                Atom::V(0),
+                vec![Stmt::Set(Place::V(3), Atom::V(1))],
+                vec![Stmt::Set(Place::V(3), Atom::V(2))],
+            ),
             Stmt::Ret(Atom::V(3)),
         ],
     };
@@ -196,6 +202,13 @@ fn halt_text(h: &Val) -> String {
 
 fn round_trip(core_m: &core::Module) -> fir::Module {
     wf::check(core_m).unwrap_or_else(|e| panic!("core is not well formed: {e}"));
+    round_trip_unchecked(core_m)
+}
+
+/// Like `round_trip`, without checking the input core. A closure taken out of
+/// a lowered module is not itself an entry: W3 would require it to reset
+/// globals the observation driver owns.
+fn round_trip_unchecked(core_m: &core::Module) -> fir::Module {
     let f = bridge::construct(core_m).unwrap_or_else(|e| panic!("{}", e.line()));
     let bytes = fir::encode(&f);
     assert!(
@@ -272,16 +285,81 @@ fn branch_round_trips_and_agrees() {
     let c = choose();
     let f = round_trip(&c);
     let s = bridge::schedule(&f).unwrap();
-    agree(&c, &f, &s, vec![
-        Val::Bool(true),
-        Val::Int(10),
-        Val::Int(20),
-    ]);
-    agree(&c, &f, &s, vec![
-        Val::Bool(false),
-        Val::Int(10),
-        Val::Int(20),
-    ]);
+    agree(
+        &c,
+        &f,
+        &s,
+        vec![Val::Bool(true), Val::Int(10), Val::Int(20)],
+    );
+    agree(
+        &c,
+        &f,
+        &s,
+        vec![Val::Bool(false), Val::Int(10), Val::Int(20)],
+    );
+}
+
+fn example_closure(file: &str, name: &str) -> core::Module {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../examples")
+        .join(file);
+    let src = std::fs::read_to_string(&path).unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let core_m = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("{e}"));
+    let mut names = vec![];
+    if let Some(fns) = core_m.names.get("fns").and_then(|v| v.as_object()) {
+        for (k, arr) in fns {
+            if let Some(a) = arr.as_array() {
+                for (i, n) in a.iter().enumerate() {
+                    names.push(format!("{k}/{i} {}", n.as_str().unwrap_or("?")));
+                }
+            }
+        }
+    }
+    bridge::closure(&core_m, name)
+        .unwrap_or_else(|| panic!("{name} is not in {file}; names:\n{}", names.join("\n")))
+}
+
+#[test]
+fn escapes_and_axpy_round_trip_and_agree() {
+    let c = example_closure("20_strings.rce", "fn escapes");
+    let f = round_trip_unchecked(&c);
+    let s = bridge::schedule(&f).unwrap();
+    agree(&c, &f, &s, vec![]);
+    let c = example_closure("42_f32.rce", "fn axpy");
+    let f = round_trip_unchecked(&c);
+    let s = bridge::schedule(&f).unwrap();
+    agree(&c, &f, &s, vec![Val::F(2.0), Val::F(0.1), Val::F(1.0)]);
+}
+
+/// `for i in 0..n`, the lowering's measure: read i, leave unless i < n, then
+/// raise i by one. The count is the value i holds when the test fails.
+fn count_up() -> core::Module {
+    let t = i64ty();
+    let mut b = FB::new(vec![t.clone()], t.clone());
+    let n = b.arg(0);
+    let i = b.var(t.clone(), build::lit(0));
+    b.loop_(|b| {
+        let iv = b.let_(Atom::V(i));
+        let more = b.int_cmp("int.lt", iv.clone(), n)?;
+        b.exit_unless(more)?;
+        let i1 = b.add_in(iv, build::lit(1), t.clone())?;
+        b.set(i, i1);
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(i));
+    b.ret(r);
+    module("count_up", b.finish())
+}
+
+#[test]
+fn measure_loop_round_trips_and_agrees() {
+    let c = count_up();
+    let f = round_trip(&c);
+    let s = bridge::schedule(&f).unwrap();
+    agree(&c, &f, &s, vec![Val::Int(0)]);
+    agree(&c, &f, &s, vec![Val::Int(4)]);
 }
 
 #[test]
@@ -332,11 +410,14 @@ fn refused_constructs_name_the_reason() {
         i64ty(),
         "carrier",
     );
-    let mut with_global = module("g", core::Fn {
-        params: vec![],
-        ret: i64ty(),
-        body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
-    });
+    let mut with_global = module(
+        "g",
+        core::Fn {
+            params: vec![],
+            ret: i64ty(),
+            body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
+        },
+    );
     with_global.globals.push((i64ty(), Some(Lit::Int(1))));
     wf::check(&with_global).unwrap_or_else(|e| panic!("{e}"));
     let e = bridge::construct(&with_global).expect_err("global");
@@ -352,23 +433,73 @@ fn refused_constructs_name_the_reason() {
     };
     // not well formed (the callee is missing); the tag is still the one construction would use
     let _ = catch;
-    let halt_only = module("h", core::Fn {
-        params: vec![],
-        ret: i64ty(),
-        body: vec![
-            Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
-                build::lit(0),
-                Atom::bytes(b"no"),
-            ]),
-            Stmt::Halt(Atom::V(0)),
-        ],
-    });
+    let halt_only = module(
+        "h",
+        core::Fn {
+            params: vec![],
+            ret: i64ty(),
+            body: vec![
+                Stmt::Prim(
+                    "sum.mk".into(),
+                    vec![Ty::halt()],
+                    vec![build::lit(0), Atom::bytes(b"no")],
+                ),
+                Stmt::Halt(Atom::V(0)),
+            ],
+        },
+    );
     // a halt is in the slice; this one is applied, which pins the boundary
     let f = bridge::construct(&halt_only).unwrap_or_else(|e| panic!("{}", e.line()));
     assert!(matches!(
         form::check(fir::encode(&f).as_bytes(), None),
         form::Outcome::Applied(_)
     ));
+}
+
+/// A function of the program itself, not the observation driver and not a
+/// runtime helper. The driver (`entry`, `observe *`, `check *`, `out`, fuel
+/// resets) still requires change. Runtime helpers are in a root's closure
+/// when the root calls them; they are not roots.
+fn program_root(name: &str) -> bool {
+    name.split(" = ").any(|n| {
+        n.starts_with("fn ") || n.starts_with("region ") || n == "delta" || n == "initial state"
+    })
+}
+
+fn root_names(m: &core::Module) -> Vec<String> {
+    let mut v = vec![];
+    let Some(fns) = m.names.get("fns").and_then(|x| x.as_object()) else {
+        return v;
+    };
+    for arr in fns.values() {
+        let Some(a) = arr.as_array() else { continue };
+        for n in a {
+            let Some(s) = n.as_str() else { continue };
+            if let Some(part) = s.split(" = ").find(|p| program_root(p)) {
+                v.push(part.to_string());
+            }
+        }
+    }
+    v.sort();
+    v.dedup();
+    v
+}
+
+fn closure_round_trip(core_m: &core::Module, name: &str) -> Result<(), String> {
+    let sub = bridge::closure(core_m, name).ok_or_else(|| "defect".to_string())?;
+    let f = match bridge::construct(&sub) {
+        Ok(f) => f,
+        Err(e) => return Err(e.tag().to_string()),
+    };
+    let s = match bridge::schedule(&f) {
+        Ok(s) => s,
+        Err(e) => return Err(e.tag().to_string()),
+    };
+    match bridge::construct(&s) {
+        Ok(back) if fir::encode(&f) == fir::encode(&back) => Ok(()),
+        Ok(_) => Err("round-trip".into()),
+        Err(e) => Err(e.tag().to_string()),
+    }
 }
 
 #[test]
@@ -381,8 +512,10 @@ fn examples_are_covered_or_require_change() {
         .collect();
     files.sort();
     let mut programs = 0usize;
+    let mut whole = 0usize;
     let mut covered = 0usize;
     let mut tags: BTreeMap<String, usize> = BTreeMap::new();
+    let mut root_tags: BTreeMap<String, usize> = BTreeMap::new();
     for p in &files {
         let src = std::fs::read_to_string(p).unwrap();
         if rce_spec_check::program(&src).is_err() {
@@ -394,6 +527,7 @@ fn examples_are_covered_or_require_change() {
             Ok(c) => c,
             Err(e) => {
                 *tags.entry(format!("lowering: {e}")).or_default() += 1;
+                *root_tags.entry(format!("lowering: {e}")).or_default() += 1;
                 continue;
             }
         };
@@ -404,28 +538,60 @@ fn examples_are_covered_or_require_change() {
                 let back = bridge::construct(&s)
                     .unwrap_or_else(|e| panic!("{}: {}", p.display(), e.line()));
                 assert_eq!(fir::encode(&f), fir::encode(&back), "{}", p.display());
-                covered += 1;
+                whole += 1;
             }
             Err(e) => {
                 *tags.entry(e.tag().to_string()).or_default() += 1;
             }
         }
+        let roots = root_names(&core_m);
+        if roots.is_empty() {
+            *root_tags.entry("no program root".into()).or_default() += 1;
+            continue;
+        }
+        let mut bad: Option<String> = None;
+        for name in &roots {
+            if let Err(e) = closure_round_trip(&core_m, name) {
+                bad = Some(e);
+                break;
+            }
+        }
+        match bad {
+            None => {
+                eprintln!("  covered {}", p.file_name().unwrap().to_string_lossy());
+                covered += 1;
+            }
+            Some(tag) => {
+                *root_tags.entry(tag).or_default() += 1;
+            }
+        }
     }
-    eprintln!("form bridge: {covered} of {programs} examples construct");
+    eprintln!("form bridge: {whole} of {programs} whole examples construct");
     for (k, n) in &tags {
         eprintln!("  {n} {k}");
     }
-    // Ratchet. The observation driver of a lowered program writes `out` and
-    // reads globals outside ω, so no whole example is in the slice yet.
-    // A function is counted when its own closure constructs. Raise the floor
-    // when the slice grows; do not lower it.
+    eprintln!(
+        "form bridge: {covered} of {programs} examples have every program function in the slice"
+    );
+    for (k, n) in &root_tags {
+        eprintln!("  {n} {k}");
+    }
+    // Ratchet. Whole modules still meet the observation driver (`out`, fuel
+    // globals, `catch`). A program function is in the slice when its closure
+    // round-trips through construct(schedule(F)). An example is counted when
+    // every such function does. Raise the floor when the slice grows; do not
+    // lower it.
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
     assert_eq!(
-        covered, 0,
-        "a whole example now constructs; raise the ratchet and check its trace"
+        whole, 0,
+        "a whole example now constructs; raise this floor and check its trace"
+    );
+    assert_eq!(
+        covered, 2,
+        "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
     );
     assert!(
-        tags.values().sum::<usize>() + covered >= programs.saturating_sub(4),
+        tags.values().sum::<usize>() + whole >= programs.saturating_sub(4),
         "every lowered example is covered or tagged"
     );
 }
