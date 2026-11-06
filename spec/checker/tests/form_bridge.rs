@@ -60,19 +60,17 @@ fn checked_add() -> core::Module {
         params: vec![t.clone(), t.clone()],
         ret: t.clone(),
         body: vec![
-            Stmt::Prim(
-                "int.bad.add".into(),
-                vec![t.clone()],
-                vec![Atom::V(0), Atom::V(1)],
-            ),
+            Stmt::Prim("int.bad.add".into(), vec![t.clone()], vec![
+                Atom::V(0),
+                Atom::V(1),
+            ]),
             Stmt::If(
                 Atom::V(2),
                 vec![
-                    Stmt::Prim(
-                        "sum.mk".into(),
-                        vec![Ty::halt()],
-                        vec![build::lit(0), Atom::bytes(b"overflow")],
-                    ),
+                    Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+                        build::lit(0),
+                        Atom::bytes(b"overflow"),
+                    ]),
                     Stmt::Halt(Atom::V(3)),
                 ],
                 vec![],
@@ -91,11 +89,9 @@ fn choose() -> core::Module {
         ret: t.clone(),
         body: vec![
             Stmt::Var(t, build::lit(0)),
-            Stmt::If(
-                Atom::V(0),
-                vec![Stmt::Set(Place::V(3), Atom::V(1))],
-                vec![Stmt::Set(Place::V(3), Atom::V(2))],
-            ),
+            Stmt::If(Atom::V(0), vec![Stmt::Set(Place::V(3), Atom::V(1))], vec![
+                Stmt::Set(Place::V(3), Atom::V(2)),
+            ]),
             Stmt::Ret(Atom::V(3)),
         ],
     };
@@ -285,18 +281,16 @@ fn branch_round_trips_and_agrees() {
     let c = choose();
     let f = round_trip(&c);
     let s = bridge::schedule(&f).unwrap();
-    agree(
-        &c,
-        &f,
-        &s,
-        vec![Val::Bool(true), Val::Int(10), Val::Int(20)],
-    );
-    agree(
-        &c,
-        &f,
-        &s,
-        vec![Val::Bool(false), Val::Int(10), Val::Int(20)],
-    );
+    agree(&c, &f, &s, vec![
+        Val::Bool(true),
+        Val::Int(10),
+        Val::Int(20),
+    ]);
+    agree(&c, &f, &s, vec![
+        Val::Bool(false),
+        Val::Int(10),
+        Val::Int(20),
+    ]);
 }
 
 fn example_closure(file: &str, name: &str) -> core::Module {
@@ -351,6 +345,30 @@ fn count_up() -> core::Module {
     let r = b.let_(Atom::V(i));
     b.ret(r);
     module("count_up", b.finish())
+}
+
+#[test]
+fn borrow_round_trips_and_agrees() {
+    let c = example_closure("12_borrow.rce", "fn demo");
+    let f = round_trip_unchecked(&c);
+    let s = bridge::schedule(&f).unwrap();
+    agree(&c, &f, &s, vec![]);
+    let c = example_closure("12_borrow.rce", "fn push_all");
+    let f = round_trip_unchecked(&c);
+    let s = bridge::schedule(&f).unwrap();
+    agree(&c, &f, &s, vec![
+        Val::List(vec![]),
+        Val::List(vec![Val::Int(4), Val::Int(5)]),
+    ]);
+    let c = example_closure("43_simd_lanes.rce", "fn blend");
+    let f = round_trip_unchecked(&c);
+    let s = bridge::schedule(&f).unwrap();
+    let lane = |xs: [f64; 4]| Val::Arr(xs.into_iter().map(Val::F).collect());
+    agree(&c, &f, &s, vec![
+        lane([1.0, 2.0, 3.0, 4.0]),
+        lane([0.0, 0.0, 0.0, 0.0]),
+        lane([1.0, 0.5, 0.0, 1.0]),
+    ]);
 }
 
 #[test]
@@ -410,14 +428,11 @@ fn refused_constructs_name_the_reason() {
         i64ty(),
         "carrier",
     );
-    let mut with_global = module(
-        "g",
-        core::Fn {
-            params: vec![],
-            ret: i64ty(),
-            body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
-        },
-    );
+    let mut with_global = module("g", core::Fn {
+        params: vec![],
+        ret: i64ty(),
+        body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
+    });
     with_global.globals.push((i64ty(), Some(Lit::Int(1))));
     wf::check(&with_global).unwrap_or_else(|e| panic!("{e}"));
     let e = bridge::construct(&with_global).expect_err("global");
@@ -433,21 +448,17 @@ fn refused_constructs_name_the_reason() {
     };
     // not well formed (the callee is missing); the tag is still the one construction would use
     let _ = catch;
-    let halt_only = module(
-        "h",
-        core::Fn {
-            params: vec![],
-            ret: i64ty(),
-            body: vec![
-                Stmt::Prim(
-                    "sum.mk".into(),
-                    vec![Ty::halt()],
-                    vec![build::lit(0), Atom::bytes(b"no")],
-                ),
-                Stmt::Halt(Atom::V(0)),
-            ],
-        },
-    );
+    let halt_only = module("h", core::Fn {
+        params: vec![],
+        ret: i64ty(),
+        body: vec![
+            Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+                build::lit(0),
+                Atom::bytes(b"no"),
+            ]),
+            Stmt::Halt(Atom::V(0)),
+        ],
+    });
     // a halt is in the slice; this one is applied, which pins the boundary
     let f = bridge::construct(&halt_only).unwrap_or_else(|e| panic!("{}", e.line()));
     assert!(matches!(
@@ -587,7 +598,7 @@ fn examples_are_covered_or_require_change() {
         "a whole example now constructs; raise this floor and check its trace"
     );
     assert_eq!(
-        covered, 2,
+        covered, 3,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
     );
     assert!(
