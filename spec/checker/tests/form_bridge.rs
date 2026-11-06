@@ -397,6 +397,369 @@ fn fuel_tick_round_trips_and_agrees() {
     agree(&c, &f, &s, vec![Val::Int(7)]);
 }
 
+fn tick_parts() -> (core::Fn, String) {
+    let mut tick = FB::new(vec![Ty::u64()], Ty::Bool);
+    let n = tick.arg(0);
+    let cur = tick.let_global(0, Ty::u64());
+    let c = tick.int_cmp("int.lt", cur.clone(), n.clone()).unwrap();
+    tick.guard_halt(c, |b| b.trap_value(Atom::bytes(b"comptime fuel exhausted")))
+        .unwrap();
+    let r = tick.sub_in(cur, n, Ty::u64()).unwrap();
+    tick.setg(0, r);
+    tick.ret(Atom::bool(true));
+    let tick = tick.finish();
+    let (tg, _) = canonical_group(std::slice::from_ref(&tick));
+    let tkey = group_key(&tg);
+    (tick, tkey)
+}
+
+fn assemble(tick: core::Fn, tkey: String, name: &str, user: core::Fn) -> core::Module {
+    let (tg, _) = canonical_group(std::slice::from_ref(&tick));
+    let (ug, _) = canonical_group(std::slice::from_ref(&user));
+    let ukey = group_key(&ug);
+    let main = core::Fn {
+        params: vec![],
+        ret: i64ty(),
+        body: vec![Stmt::Ret(build::lit(0))],
+    };
+    let (mg, _) = canonical_group(std::slice::from_ref(&main));
+    let mkey = group_key(&mg);
+    core::Module {
+        globals: vec![(Ty::u64(), Some(Lit::Int(form::eval::FUEL as i128)))],
+        defs: BTreeMap::from([(tkey.clone(), tg), (ukey.clone(), ug), (mkey.clone(), mg)]),
+        entry: (mkey.clone(), 0),
+        names: serde_json::json!({
+            "fns": {tkey: ["rt.tick"], ukey: [name], mkey: ["main"]},
+            "globals": ["fuel"]
+        }),
+        graphs: BTreeMap::new(),
+    }
+}
+
+/// A count loop that ticks, then breaks when the carried value is 2.
+/// The break names the loop. The bound is the parameter.
+fn early_count() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        let iv = b.let_(Atom::V(i));
+        let stop = b.int_cmp("int.eq", iv.clone(), build::lit(2))?;
+        b.exit_if(stop)?;
+        let i1 = b.add_in(iv, build::lit(1), ct.clone())?;
+        b.set(i, i1);
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(i));
+    b.ret(r);
+    assemble(tick, tkey, "early", b.finish())
+}
+
+fn fuel_of(m: &core::Module, args: Vec<Val>) -> (Result<Val, String>, Val) {
+    let (k, i) = by_arity(m, args.len());
+    let mut ev = eval::Eval::new(m);
+    let r = match ev.call_key(&k, i, args) {
+        Ok(v) => Ok(v),
+        Err(Flow::Halt(h)) => Err(format!("halt: {}", halt_text(&h))),
+        Err(Flow::Bad(e)) => Err(e),
+    };
+    let g = ev.global(0).cloned().unwrap_or(Val::Int(-1));
+    (r, g)
+}
+
+/// The break arm's flag is a literal false with no inputs, not a carried bool.
+fn flag_is_fresh_false(f: &fir::Module) -> bool {
+    fn false_lit(b: &fir::Body, s: &fir::Src) -> bool {
+        match s {
+            fir::Src::Out(i, 0) => matches!(
+                b.nodes.get(*i as usize),
+                Some(fir::Node {
+                    attrs: fir::Attr::Lit(_, Lit::Bool(false)),
+                    ins,
+                    ..
+                }) if ins.is_empty()
+            ),
+            _ => false,
+        }
+    }
+    fn arm_false(b: &fir::Body, flag: &fir::Src) -> bool {
+        if false_lit(b, flag) {
+            return true;
+        }
+        let fir::Src::Out(i, p) = *flag else {
+            return false;
+        };
+        let Some(n) = b.nodes.get(i as usize) else {
+            return false;
+        };
+        if !matches!(n.attrs, fir::Attr::Branch(..)) {
+            return false;
+        }
+        n.regions.iter().any(|arm| {
+            let Some(s) = arm.out.get(p as usize) else {
+                return false;
+            };
+            if false_lit(arm, s) || arm_false(arm, s) {
+                return true;
+            }
+            // The schedule's dummy initial is the same literal, so the arm
+            // returns that capture. It is still not a carried loop input.
+            let fir::Src::In(j) = *s else {
+                return false;
+            };
+            n.ins
+                .get(1 + j as usize)
+                .is_some_and(|cap| false_lit(b, cap) && !matches!(cap, fir::Src::In(_)))
+        })
+    }
+    f.defs.values().any(|g| {
+        g.fns.iter().any(|func| {
+            func.body.nodes.iter().any(|n| match &n.attrs {
+                fir::Attr::Count(_) | fir::Attr::Measure(..) => {
+                    let body = &n.regions[1];
+                    let Some(flag) = body.out.first() else {
+                        return false;
+                    };
+                    !matches!(flag, fir::Src::In(_)) && arm_false(body, flag)
+                }
+                _ => false,
+            })
+        })
+    })
+}
+
+#[test]
+fn body_break_is_option_b_not_syntactic_identity() {
+    // Option B of spec/proposals/break-carried-flag.md. The bytes below are
+    // the flag form against its schedule. They are not syntactic identity
+    // with the core break: Lean Stmt has no break constructor (B1), so this
+    // Iterate has no preimage there. Admission is three-way eval, O6' and O7'.
+    let c = early_count();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(
+        bridge::body_break_rewrite(),
+        "the body break was not restructured into a flag"
+    );
+    assert!(
+        flag_is_fresh_false(&f),
+        "the break path must return a literal false, not a carried bool (B4)"
+    );
+    assert!(
+        matches!(
+            form::check(fir::encode(&f).as_bytes(), None),
+            form::Outcome::Applied(_)
+        ),
+        "the flag form is not applied"
+    );
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back =
+        bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    // The flag form matches its schedule. This is not syntactic identity for
+    // the core break.
+    assert_eq!(
+        fir::encode(&f),
+        fir::encode(&back),
+        "construct(schedule(F)) is not the flag form"
+    );
+    // Break before the last legal iteration. Bound 10, stop at 2: not "loop bound" (O6').
+    agree(&c, &f, &s, vec![Val::Int(10)]);
+    let (src, fuel_src) = fuel_of(&c, vec![Val::Int(10)]);
+    let (sch, fuel_sch) = fuel_of(&s, vec![Val::Int(10)]);
+    assert_eq!(src, Ok(Val::Int(2)));
+    assert_eq!(sch, src);
+    // The flag does not tick. Fuel on the flag path equals fuel on the source (O7').
+    assert_eq!(fuel_src, fuel_sch, "O7': fuel differs on the break path");
+    // The bound trap is still the path that does not break.
+    agree(&c, &f, &s, vec![Val::Int(2)]);
+    let (src_b, fuel_b) = fuel_of(&c, vec![Val::Int(2)]);
+    let (sch_b, fuel_sb) = fuel_of(&s, vec![Val::Int(2)]);
+    assert_eq!(src_b, Err("halt: loop bound".into()));
+    assert_eq!(sch_b, src_b);
+    assert_eq!(fuel_b, fuel_sb, "O7': fuel differs on the bound path");
+}
+
+#[test]
+fn pure_count_break_stays_outside_dom() {
+    // O8. A break flag is a bool. It does not put a pure count into Dom.
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        let iv = b.let_(Atom::V(i));
+        // `int.eq` does not halt, so neither region uses ω. The flag is not a use of ω.
+        let stop = b.int_cmp("int.eq", iv, build::lit(0))?;
+        b.exit_if(stop)?;
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(i));
+    b.ret(r);
+    let m = module("pure", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("pure count");
+    assert_eq!(e.tag(), "bound", "{}", e.line());
+    assert!(
+        !bridge::body_break_rewrite(),
+        "a refused pure count is not an admitted break rewrite"
+    );
+}
+
+#[test]
+fn conditional_increment_is_not_rewritten_into_a_count() {
+    // B5. The continue path does not always raise the index. The refusal is
+    // not a count.
+    let mut b = FB::new(vec![Ty::Bool, Ty::u64()], Ty::u64());
+    let c = b.arg(0);
+    let n = b.arg(1);
+    let i = b.var(Ty::u64(), build::lit(0));
+    b.loop_(|b| {
+        let iv = b.let_(Atom::V(i));
+        let more = b.int_cmp("int.lt", iv.clone(), n.clone())?;
+        b.exit_unless(more)?;
+        b.if_(
+            c.clone(),
+            |b| {
+                let i1 = b.add_in(iv.clone(), build::lit(1), Ty::u64())?;
+                b.set(i, i1);
+                Ok(())
+            },
+            |_| Ok(()),
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(i));
+    b.ret(r);
+    let m = module("step", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    match bridge::construct(&m) {
+        Err(e) => {
+            assert_ne!(e.tag(), "bound", "{}", e.line());
+            assert!(
+                e.tag() == "loop" || e.tag() == "break" || e.tag() == "FG8",
+                "a conditional increment became {}: {}",
+                e.tag(),
+                e.line()
+            );
+            assert!(
+                e.line().contains("raised by exactly one") || e.tag() != "FG8",
+                "{}",
+                e.line()
+            );
+        }
+        Ok(f) => {
+            let mut counts = 0;
+            let mut measures = 0;
+            for g in f.defs.values() {
+                for func in &g.fns {
+                    for n in &func.body.nodes {
+                        match &n.attrs {
+                            fir::Attr::Count(_) => counts += 1,
+                            fir::Attr::Measure(..) => measures += 1,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                counts, 0,
+                "a conditional increment was rewritten into a count"
+            );
+            assert!(measures > 0, "the loop was not read as a measure");
+            let bytes = fir::encode(&f);
+            assert!(
+                !matches!(
+                    form::check(bytes.as_bytes(), None),
+                    form::Outcome::Applied(_)
+                ),
+                "a body that steps the index only on some continuing paths was applied as a measure"
+            );
+        }
+    }
+}
+
+#[test]
+fn breaks_that_do_not_name_the_loop_still_require_change() {
+    // A break out of a block that is not the loop. A later `exit_if` names the
+    // loop, so the function can return; the block break is still refused.
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.open();
+        b.brk(0);
+        let inner = b.close();
+        b.push(Stmt::Block(inner));
+        b.exit_if(Atom::bool(true))?;
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    refuse_with(tick, tkey, b.finish());
+
+    // A break that leaves the inner loop and the outer loop. Depth 1 from the
+    // inner loop names the outer one. Item 3 does not restructure that.
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let mut b = FB::new(vec![ct.clone()], ct);
+    let bound = b.arg(0);
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.loop_(|b| {
+            b.brk(1);
+            Ok(())
+        })?;
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    refuse_with(tick, tkey, b.finish());
+
+    // A depth that names no enclosing loop. The core rejects it, or construction
+    // does, under the break rule.
+    let mut b = FB::new(vec![build::count_t()], build::count_t());
+    b.loop_(|b| {
+        b.brk(2);
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    let m = module("deep", b.finish());
+    match wf::check(&m) {
+        Err(e) => assert!(e.contains("W2") || e.starts_with("W"), "{e}"),
+        Ok(()) => {
+            let e = bridge::construct(&m).expect_err("break");
+            assert_eq!(e.tag(), "break", "{}", e.line());
+        }
+    }
+}
+
+fn refuse_with(tick: core::Fn, tkey: String, user: core::Fn) {
+    let m = assemble(tick, tkey, "no", user);
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("break");
+    assert_eq!(e.tag(), "break", "{}", e.line());
+}
+
 #[test]
 fn refused_constructs_name_the_reason() {
     let refuse = |body: Vec<Stmt>, ret: Ty, tag: &str| {
@@ -496,18 +859,19 @@ fn root_names(m: &core::Module) -> Vec<String> {
     v
 }
 
-fn closure_round_trip(core_m: &core::Module, name: &str) -> Result<(), String> {
+fn closure_round_trip(core_m: &core::Module, name: &str) -> Result<bool, String> {
     let sub = bridge::closure(core_m, name).ok_or_else(|| "defect".to_string())?;
     let f = match bridge::construct(&sub) {
         Ok(f) => f,
         Err(e) => return Err(e.tag().to_string()),
     };
+    let semantic = bridge::body_break_rewrite();
     let s = match bridge::schedule(&f) {
         Ok(s) => s,
         Err(e) => return Err(e.tag().to_string()),
     };
     match bridge::construct(&s) {
-        Ok(back) if fir::encode(&f) == fir::encode(&back) => Ok(()),
+        Ok(back) if fir::encode(&f) == fir::encode(&back) => Ok(semantic),
         Ok(_) => Err("round-trip".into()),
         Err(e) => Err(e.tag().to_string()),
     }
@@ -525,6 +889,7 @@ fn examples_are_covered_or_require_change() {
     let mut programs = 0usize;
     let mut whole = 0usize;
     let mut covered = 0usize;
+    let mut semantic = 0usize;
     let mut tags: BTreeMap<String, usize> = BTreeMap::new();
     let mut root_tags: BTreeMap<String, usize> = BTreeMap::new();
     for p in &files {
@@ -561,16 +926,26 @@ fn examples_are_covered_or_require_change() {
             continue;
         }
         let mut bad: Option<String> = None;
+        let mut rewrote = false;
         for name in &roots {
-            if let Err(e) = closure_round_trip(&core_m, name) {
-                bad = Some(e);
-                break;
+            match closure_round_trip(&core_m, name) {
+                Ok(sem) => rewrote |= sem,
+                Err(e) => {
+                    bad = Some(e);
+                    break;
+                }
             }
         }
         match bad {
-            None => {
+            None if !rewrote => {
                 eprintln!("  covered {}", p.file_name().unwrap().to_string_lossy());
                 covered += 1;
+            }
+            // Option B. The flag form's bytes match its schedule. That is not
+            // syntactic identity for the break, so it does not raise the floor.
+            None => {
+                eprintln!("  semantic {}", p.file_name().unwrap().to_string_lossy());
+                semantic += 1;
             }
             Some(tag) => {
                 *root_tags.entry(tag).or_default() += 1;
@@ -582,16 +957,21 @@ fn examples_are_covered_or_require_change() {
         eprintln!("  {n} {k}");
     }
     eprintln!(
-        "form bridge: {covered} of {programs} examples have every program function in the slice"
+        "form bridge: {covered} of {programs} examples have every program function in the syntactic slice"
+    );
+    eprintln!(
+        "form bridge: {semantic} of {programs} examples admit a body break under option B (not syntactic identity)"
     );
     for (k, n) in &root_tags {
         eprintln!("  {n} {k}");
     }
     // Ratchet. Whole modules still meet the observation driver (`out`, fuel
-    // globals, `catch`). A program function is in the slice when its closure
-    // round-trips through construct(schedule(F)). An example is counted when
-    // every such function does. Raise the floor when the slice grows; do not
-    // lower it.
+    // globals, `catch`). A program function is in the syntactic slice when its
+    // closure round-trips through construct(schedule(F)) and the construction
+    // did not restructure a body break. Option B admits that break by
+    // three-way eval, O6' and O7'; the byte match of the flag form is not
+    // syntactic identity, and those examples stay off this floor. Raise the
+    // floor when the syntactic slice grows; do not lower it.
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
     assert_eq!(
         whole, 0,

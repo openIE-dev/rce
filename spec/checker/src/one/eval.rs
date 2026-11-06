@@ -219,6 +219,11 @@ impl<'a> Eval<'a> {
         }
     }
 
+    /// Global `i` after the calls on this evaluator, when it holds a value.
+    pub fn global(&self, i: usize) -> Option<&Val> {
+        self.globals.get(i).and_then(|v| v.as_ref())
+    }
+
     pub fn call_key(&mut self, key: &str, i: u32, args: Vec<Val>) -> Result<Val, Flow> {
         let m = self.m;
         let Some((k, g)) = m.defs.get_key_value(key) else {

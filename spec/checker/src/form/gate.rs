@@ -1365,7 +1365,7 @@ impl<'a> Visit<'a> for Fg14 {
 /// FG1 to FG15 on a module's bytes and, when given, its admission vectors.
 pub fn gate(bytes: &[u8], vectors: Option<&[u8]>) -> Result<Module, RequiresChange> {
     let m = decode::decode(bytes)?;
-    let raw: J = serde_json::from_slice(bytes).map_err(|e| frame("FG1", "", format!("C1: {e}")))?;
+    let raw: J = decode::json_of(bytes).map_err(|e| frame("FG1", "", format!("C1: {e}")))?;
     fg2(&m, &raw)?;
     fg3(bytes, &m)?;
     fg4(&m)?;
