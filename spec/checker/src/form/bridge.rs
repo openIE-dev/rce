@@ -22,7 +22,9 @@
 //!   carried values. That rewrite is not syntactic identity. `body_break_rewrite`
 //!   reports it. A break that does not name the loop still requires change.
 //! - a Branch whose arms use different outer values: both arms take the
-//!   union of those captures, ω included when either arm needs it
+//!   union of those captures, ω included when either arm needs it. One arm
+//!   runs, so both arms may use an owned capture. The parent keeps it only
+//!   when every arm that falls through still holds it
 //!
 //! A construct outside that fragment requires change. The reason starts with
 //! a tag (`global`, `out`, `carrier`, `graph`, `catch`, `recursion`, `loop`,
@@ -3448,7 +3450,16 @@ fn schedule_branch(
         vars.push((p, id));
     }
     let dom = dom_from(sch, body, n.ins[0], env);
-    let mut arm = |region: &Body, dom: Option<&Dom>| -> Result<Vec<Stmt>, Change> {
+    // Snapshot after the output vars exist. Each arm restores it, so a capture
+    // the first arm moves is live again for the second arm.
+    let saved_live = sch.live.clone();
+    // Live set each arm leaves, and whether that arm falls through.
+    // One arm runs, so each arm starts from the same set. The parent then
+    // keeps a capture only when every arm that falls through still holds it.
+    let mut arm_live = [saved_live.clone(), saved_live.clone()];
+    let mut arm_falls = [false, false];
+    let mut arm = |region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
+        sch.live.clone_from(&saved_live);
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
         for (j, s) in n.ins.iter().skip(1).enumerate() {
@@ -3492,13 +3503,36 @@ fn schedule_branch(
         }
         let mut stmts = std::mem::take(&mut sch.stmts);
         stmts.extend(sets);
+        arm_falls[slot] = !halted;
+        arm_live[slot] = sch.live.clone();
         sch.stmts = saved;
         Ok(stmts)
     };
     // then is arm 1 (selector true), else is arm 0. A `bad` test is false in arm 0,
     // which is where the partial primitive sits, so that arm inherits the test's operand order.
-    let then_s = arm(&n.regions[1], None)?;
-    let else_s = arm(&n.regions[0], dom.as_ref())?;
+    // Each arm may move an owned capture. The other arm starts with that capture
+    // live again. After both arms, a capture that every falling arm moved is
+    // not live in the parent: the arm that runs moved it.
+    let then_s = arm(&n.regions[1], None, 1)?;
+    let else_s = arm(&n.regions[0], dom.as_ref(), 0)?;
+    sch.live = match (arm_falls[1], arm_falls[0]) {
+        (true, true) => saved_live
+            .iter()
+            .copied()
+            .filter(|id| arm_live[1].contains(id) && arm_live[0].contains(id))
+            .collect(),
+        (true, false) => saved_live
+            .iter()
+            .copied()
+            .filter(|id| arm_live[1].contains(id))
+            .collect(),
+        (false, true) => saved_live
+            .iter()
+            .copied()
+            .filter(|id| arm_live[0].contains(id))
+            .collect(),
+        (false, false) => saved_live,
+    };
     sch.stmts.push(Stmt::If(sel, then_s, else_s));
     for (p, var) in vars {
         env.insert(Src::Out(i as u32, p as u32), Av::A(Atom::V(var)));

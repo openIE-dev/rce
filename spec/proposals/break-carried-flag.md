@@ -278,6 +278,15 @@ a conditional increment is still not a measure (B5).
 Option B is an honest weakening. It is not syntactic identity under another
 name.
 
+The schedule reads both arms of a branch from the same live set. One arm
+runs, so both may use an owned capture. The parent keeps that capture only
+when every arm that falls through still holds it. Leaving the first arm's
+move in place made the second arm require change, including the branch a
+body break becomes when the loop carries a list (`rt.dec_limbs`). The bytes
+of that flag form, where they match, are the flag form against its
+schedule. A plain branch that does not break stays inside syntactic
+identity.
+
 ## 7. What a later implementation could unlock
 
 Nothing in this section constructs today. The counts are the refusals PR
@@ -349,6 +358,12 @@ example stays off the syntactic floor.
    name the loop, still require change under the tag `break`.
 6. No test of catch shapes changes. No test asserts that the hand emitters
    have been replaced, or that a production Form compiler exists.
+7. A count loop that uses ω, carries a list, and breaks when the list is
+   empty. The continue path pushes. Under option B the schedule consumes
+   the list once, three-way eval agrees, and O6' and O7' hold. Byte
+   equality of that flag form is not the claim when the canonical form
+   differs; the corpus counts the difference as round-trip. A plain branch
+   that moves one list on both arms, with no break, keeps syntactic identity.
 
 ## 9. What this note refuses
 
