@@ -64,7 +64,7 @@ jobs:
   # that may not expose the energy counters, so the last step accepts a
   # D.11 `reported` receipt or the no-counter line and prints which.
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     defaults:
       run:

@@ -13,8 +13,12 @@
 //! - `halt`, which makes the function take and return ω
 //! - calls of `rt.tick`, `rt.charge` and `rt.try_charge`, read back as
 //!   `fuel.tick`, `cost.charge` and `cost.try_charge`
-//! - `loop` in the two-region shape the schedule writes: a measure, or a
-//!   count bound whose test or body uses ω
+//! - `loop` in the two-region shape the schedule writes, and the same
+//!   count and measure shapes the lowering writes (`one/shape.rs`): a
+//!   measure (`for` over a range or a list), or a count bound whose test
+//!   or body uses ω
+//! - a Branch whose arms use different outer values: both arms take the
+//!   union of those captures, ω included when either arm needs it
 //!
 //! A construct outside that fragment requires change. The reason starts with
 //! a tag (`global`, `out`, `carrier`, `graph`, `catch`, `recursion`, `loop`,
@@ -181,10 +185,13 @@ fn precompute(
     let mut first = HashMap::new();
     let mut loc = HashMap::new();
     for (i, t) in f.params.iter().enumerate() {
-        loc.insert(i as u32, Loc {
-            ty: t.clone(),
-            var: false,
-        });
+        loc.insert(
+            i as u32,
+            Loc {
+                ty: t.clone(),
+                var: false,
+            },
+        );
     }
     let mut next = f.params.len() as u32;
     fn walk(
@@ -290,6 +297,8 @@ struct Scope {
     omega: Option<Src>,
     caps: Vec<Src>,
     assigned: BTreeSet<u32>,
+    /// Literals already built in this region, so a second use is the same source.
+    lits: Vec<(Ty, Lit, Src)>,
 }
 
 impl Scope {
@@ -335,6 +344,17 @@ impl Built {
             ))),
         }
     }
+    /// A literal node. A second use of the same literal in this region is the
+    /// same source, so a domain test and the operation it guards compare equal.
+    fn ensure_lit(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
+        if let Some(s) = find_lit(sc, t, l) {
+            return Ok(s);
+        }
+        let s = self.lit_node(sc, t, l)?;
+        sc.lits.push((t.clone(), l.clone(), s));
+        Ok(s)
+    }
+
     fn lit_node(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
         let bt = bty(t).map_err(|e| self.deny(format!("defect: {e}")))?;
         let i = sc.push(Attr::Lit(bt, l.clone()), vec![], vec![]);
@@ -347,7 +367,7 @@ impl Built {
                 .get(i)
                 .copied()
                 .ok_or_else(|| self.deny(format!("defect: v{i} has no source in this region"))),
-            Atom::K(t, l) => self.lit_node(sc, t, l),
+            Atom::K(t, l) => self.ensure_lit(sc, t, l),
             Atom::G(i) => Err(self.deny(format!(
                 "global: g{i} is not part of the working context ω holds"
             ))),
@@ -363,6 +383,33 @@ impl Built {
         }
         want.retain(|v| parent.env.contains_key(v));
         want.into_iter().collect()
+    }
+
+    /// Whether a statement list halts, ticks, or calls a function that takes ω.
+    /// Both arms of a branch that needs ω capture it, so the lists match.
+    fn stmts_need_order(&self, stmts: &[Stmt]) -> bool {
+        stmts.iter().any(|s| self.stmt_needs_order(s))
+    }
+
+    fn stmt_needs_order(&self, s: &Stmt) -> bool {
+        match s {
+            Stmt::Halt(_) => true,
+            Stmt::Call(r, _) | Stmt::Catch(r, _) => self.ref_needs_order(r),
+            Stmt::If(_, t, e) => self.stmts_need_order(t) || self.stmts_need_order(e),
+            Stmt::Block(x) | Stmt::Loop(x) => self.stmts_need_order(x),
+            _ => false,
+        }
+    }
+
+    fn ref_needs_order(&self, r: &FnRef) -> bool {
+        let id = match r {
+            FnRef::Key(k, i) => (k.clone(), *i),
+            FnRef::Rec(i) => (self.group.clone(), *i),
+        };
+        if self.names.get(&id).is_some_and(|n| shim_of(n).is_some()) {
+            return true;
+        }
+        self.meta.get(&id).is_some_and(|m| m.omega)
     }
 
     fn need_omega(&self, sc: &mut Scope, parent: Option<Src>) -> Result<Src, Change> {
@@ -488,12 +535,24 @@ impl Built {
                     }
                     let t_falls = build::falls(t);
                     let e_falls = build::falls(e);
-                    let here = parent_omega.or(sc.omega);
+                    // The ω this region already holds. A source from outside the
+                    // region is not one of its inputs.
+                    let here = sc.omega.or(parent_omega);
+                    let tail_needs = rest.iter().copied().any(|s| self.stmt_needs_order(s));
+                    let thread = if self.stmts_need_order(t) || self.stmts_need_order(e) || tail_needs {
+                        here
+                    } else {
+                        None
+                    };
+                    // A literal the parent already built is captured, so the
+                    // operation and its domain test are the same value (FG8).
+                    let lits = lits_already(&sc, &[t.as_slice(), e.as_slice()], rest);
                     if !rest.is_empty() && t_falls != e_falls {
                         let (cont, stop, cont_then) = if t_falls { (t.as_slice(), e.as_slice(), true) } else { (e.as_slice(), t.as_slice(), false) };
                         let seed = self.seed_of(&[cont, stop], rest, sc);
-                        let stop_end = self.arm(stop, &seed, sc, here, ret_ty)?;
-                        let cont_end = self.arm_then(cont, rest, &seed, sc, here, ret_ty)?;
+                        let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
+                        let cont_end =
+                            self.arm_then(cont, rest, &seed, &lits, sc, here, thread, ret_ty)?;
                         let (e0, a0, e1, a1) = if cont_then {
                             (stop_end.0, stop_end.1, cont_end.0, cont_end.1)
                         } else {
@@ -504,8 +563,8 @@ impl Built {
                     }
                     let sel = self.src_atom(sc, c)?;
                     let seed = self.seed_of(&[t, e], &[], sc);
-                    let (e1, a1) = self.arm(t, &seed, sc, here, ret_ty)?;
-                    let (e0, a0) = self.arm(e, &seed, sc, here, ret_ty)?;
+                    let (e1, a1) = self.arm(t, &seed, &lits, sc, here, thread, ret_ty)?;
+                    let (e0, a0) = self.arm(e, &seed, &lits, sc, here, thread, ret_ty)?;
                     let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty)?;
                     match end {
                         End::Fall => i += 1,
@@ -518,10 +577,10 @@ impl Built {
                     }
                     let mut nlist: Vec<&Stmt> = b.iter().collect();
                     nlist.extend(&flat[i + 1..]);
-                    return self.exec_refs(&nlist, sc, parent_omega.or(sc.omega), ret_ty);
+                    return self.exec_refs(&nlist, sc, sc.omega.or(parent_omega), ret_ty);
                 }
                 Stmt::Loop(b) => {
-                    self.loop_stmt(b, s, sc, parent_omega.or(sc.omega), ret_ty)?;
+                    self.loop_stmt(b, s, sc, sc.omega.or(parent_omega), ret_ty)?;
                     i += 1;
                 }
                 Stmt::Ret(a) => {
@@ -541,24 +600,32 @@ impl Built {
     }
 
     /// An arm. `seed` is the shared capture list, the same for both arms.
+    /// `thread` is the parent's ω when either arm needs it; both arms capture
+    /// it at the same index, whether or not this arm uses it.
+    #[allow(clippy::too_many_arguments)]
     fn arm(
         &self,
         stmts: &[Stmt],
         seed: &[u32],
+        lits: &[(Ty, Lit, Src)],
         parent: &Scope,
         parent_omega: Option<Src>,
+        thread: Option<Src>,
         ret_ty: &BTy,
     ) -> Result<(End, Scope), Change> {
-        self.arm_then(stmts, &[], seed, parent, parent_omega, ret_ty)
+        self.arm_then(stmts, &[], seed, lits, parent, parent_omega, thread, ret_ty)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn arm_then(
         &self,
         first: &[Stmt],
         tail: &[&Stmt],
         seed: &[u32],
+        lits: &[(Ty, Lit, Src)],
         parent: &Scope,
         parent_omega: Option<Src>,
+        thread: Option<Src>,
         ret_ty: &BTy,
     ) -> Result<(End, Scope), Change> {
         let mut sc = Scope {
@@ -567,15 +634,27 @@ impl Built {
             omega: None,
             caps: vec![],
             assigned: BTreeSet::new(),
+            lits: vec![],
         };
         for (j, l) in seed.iter().enumerate() {
             sc.env.insert(*l, Src::In(j as u32));
             sc.caps.push(parent.env[l]);
         }
+        for (t, l, src) in lits {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(*src);
+            sc.lits.push((t.clone(), l.clone(), Src::In(j)));
+        }
+        if let Some(p) = thread {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(p);
+            sc.omega = Some(Src::In(j));
+        }
         // One sequence, so a domain test sinks the statements that follow it into its arm.
         let mut list: Vec<&Stmt> = first.iter().collect();
         list.extend(tail.iter().copied());
-        let end = self.exec_refs(&list, &mut sc, parent_omega, ret_ty)?;
+        let live = sc.omega.or(parent_omega);
+        let end = self.exec_refs(&list, &mut sc, live, ret_ty)?;
         Ok((end, sc))
     }
 
@@ -667,20 +746,34 @@ impl Built {
         let _ = needs_w;
         let arm_needs = |scj: &Scope, e: &End| matches!(e, End::Halt(_)) || scj.omega.is_some();
         let needs_w = arm_needs(&a0, &e0) || arm_needs(&a1, &e1);
+        // Both arms take the outer sources either of them captured. C7 then
+        // drops a capture neither arm uses and orders the rest by digest.
+        reconcile_caps(&mut a0, &mut a1);
         if needs_w {
-            let p = parent_omega
-                .or(sc.omega)
+            let p = sc
+                .omega
+                .or(parent_omega)
                 .ok_or_else(|| self.deny("omega: a branch needs ω and has none"))?;
+            if !a0.caps.contains(&p) {
+                a0.caps.push(p);
+                a1.caps.push(p);
+            }
+            let j = a0
+                .caps
+                .iter()
+                .position(|s| *s == p)
+                .ok_or_else(|| self.deny("defect: ω is not a capture of the branch"))?
+                as u32;
             for arm in [&mut a0, &mut a1] {
                 if arm.omega.is_none() {
-                    let j = arm.caps.len() as u32;
-                    arm.caps.push(p);
                     arm.omega = Some(Src::In(j));
                 }
             }
-            if a0.caps.len() != a1.caps.len() {
-                return Err(self.deny("branch: the arms capture different values, and this slice does not reconcile them"));
-            }
+        }
+        if a0.caps != a1.caps {
+            return Err(self.deny(
+                "branch: the arms capture different values, and this slice does not reconcile them",
+            ));
         }
         // outputs: vars assigned in either arm, in index order, then ω
         let mut vars: BTreeSet<u32> = BTreeSet::new();
@@ -803,11 +896,6 @@ impl Built {
                 outs1.len()
             )));
         }
-        if a0.caps != a1.caps {
-            return Err(self.deny(
-                "branch: the arms capture different values, and this slice does not reconcile them",
-            ));
-        }
         let caps = a0.caps.clone();
         let mut ins = vec![sel];
         ins.extend(caps);
@@ -836,6 +924,284 @@ impl Built {
         Ok(End::Fall)
     }
 
+    /// A loop the schedule did not write, in one of the lowering's shapes
+    /// (`one/shape.rs`): a count bound, or a measure over a range or a list.
+    /// `Ok(false)` means the statement list is neither; the caller keeps the
+    /// `loop` tag. A recognised shape that still cannot be an Iterate returns
+    /// the reason (`bound`, `break`, `exit`, `global`, …).
+    fn try_lowered_loop(
+        &self,
+        body: &[Stmt],
+        lo: u32,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+    ) -> Result<bool, Change> {
+        let (surface, brk) = match body {
+            [Stmt::Block(x)] => (x.as_slice(), 1u32),
+            other => (other, 0u32),
+        };
+        if let Some((at, count, end)) = find_count_span(surface, lo, &self.info) {
+            let Stmt::Let(Atom::V(counter)) = &surface[at] else {
+                return Ok(false);
+            };
+            let counter = *counter;
+            let prefix = &surface[..at];
+            let rest = &surface[end..];
+            let mut used = BTreeSet::new();
+            stmt_locals(prefix, &mut used);
+            stmt_locals(rest, &mut used);
+            if !used.contains(&counter) {
+                self.build_count(prefix, rest, &count, brk, sc, parent_omega, ret_ty)?;
+                return Ok(true);
+            }
+        }
+        if let Some(spec) = find_measure(surface, brk, lo, &self.info) {
+            self.build_measure(surface, &spec, sc, parent_omega, ret_ty)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn open_region(
+        &self,
+        sc: &Scope,
+        parent_omega: Option<Src>,
+        vars: &[u32],
+        thread: bool,
+    ) -> Result<Scope, Change> {
+        let mut region = Scope {
+            nodes: vec![],
+            env: HashMap::new(),
+            omega: None,
+            caps: vec![],
+            assigned: BTreeSet::new(),
+            lits: vec![],
+        };
+        let mut ix = 0u32;
+        if thread {
+            let p = sc
+                .omega
+                .or(parent_omega)
+                .ok_or_else(|| self.deny("omega: a loop needs ω and the region has none"))?;
+            region.omega = Some(Src::In(0));
+            region.caps.push(p);
+            ix = 1;
+        }
+        for v in vars {
+            let p =
+                sc.env.get(v).copied().ok_or_else(|| {
+                    self.deny("defect: a carried var has no source before the loop")
+                })?;
+            region.env.insert(*v, Src::In(ix));
+            region.caps.push(p);
+            ix += 1;
+        }
+        Ok(region)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_count(
+        &self,
+        prefix: &[Stmt],
+        rest: &[Stmt],
+        count: &CountP,
+        brk: u32,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+    ) -> Result<(), Change> {
+        let (test_stmts, flag_of) = peel_exit(prefix, brk);
+        let vars = carried_vars(sc, &[test_stmts, rest]);
+        let thread = (sc.omega.is_some() || parent_omega.is_some())
+            && (self.stmts_need_order(test_stmts)
+                || self.stmts_need_order(rest)
+                || sc.omega.is_some());
+        // A count Iterate may halt, so it has no applied form unless a region
+        // actually consumes ω (C7 drops a carried ω that is only passed through).
+        if !thread {
+            return Err(self.deny(
+                "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
+            ));
+        }
+        let mut test = self.open_region(sc, parent_omega, &vars, true)?;
+        let tw = test.omega;
+        let end = self.exec(&[test_stmts], &mut test, tw, ret_ty)?;
+        if !matches!(end, End::Fall) {
+            return Err(self.deny("exit: a loop test does not fall through"));
+        }
+        let flag = match &flag_of {
+            None => lit_bool(&mut test, true),
+            Some((atom, neg)) => {
+                let s = self.src_atom(&mut test, atom)?;
+                if *neg { bool_not(&mut test, s) } else { s }
+            }
+        };
+        let mut bod = self.open_region(sc, parent_omega, &vars, true)?;
+        let bw = bod.omega;
+        let end = self.exec(&[rest], &mut bod, bw, ret_ty)?;
+        if !matches!(end, End::Fall) {
+            return Err(self.deny("exit: a loop body does not fall through"));
+        }
+        let bflag = lit_bool(&mut bod, true);
+        if !region_uses_order(&test) && !region_uses_order(&bod) {
+            return Err(self.deny(
+                "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
+            ));
+        }
+        let test_b = Body {
+            nodes: std::mem::take(&mut test.nodes),
+            out: region_outs(&test, flag, &vars, true, None)
+                .map_err(|m| self.deny(format!("loop: {m}")))?,
+        };
+        let body_b = Body {
+            nodes: std::mem::take(&mut bod.nodes),
+            out: region_outs(&bod, bflag, &vars, true, None)
+                .map_err(|m| self.deny(format!("loop: {m}")))?,
+        };
+        let bound = self.src_atom(sc, &count.bound)?;
+        let mut ins = vec![
+            bound,
+            sc.omega
+                .or(parent_omega)
+                .ok_or_else(|| self.deny("defect: a count loop has no ω"))?,
+        ];
+        let mut carried_ty = vec![BTy::Order];
+        for v in &vars {
+            ins.push(sc.env[v]);
+            carried_ty.push(bty(&self.loc_ty(*v)?).map_err(|e| self.deny(format!("defect: {e}")))?);
+        }
+        let id = sc.push(Attr::Count(carried_ty), ins, vec![test_b, body_b]);
+        sc.omega = Some(Src::Out(id, 0));
+        for (k, v) in vars.iter().enumerate() {
+            sc.env.insert(*v, Src::Out(id, 1 + k as u32));
+        }
+        Ok(())
+    }
+
+    fn build_measure(
+        &self,
+        surface: &[Stmt],
+        spec: &MeasureSpec,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+    ) -> Result<(), Change> {
+        let head = &surface[..spec.if_at];
+        let tail = &surface[spec.if_at + 1..];
+        let mut vars = carried_vars(sc, &[surface]);
+        if !vars.contains(&spec.ivar) {
+            vars.push(spec.ivar);
+        }
+        let end_var = match &spec.end {
+            Atom::V(v) if sc.env.contains_key(v) => Some(*v),
+            Atom::V(v) => {
+                return Err(self.deny(format!("defect: the measure end v{v} is not in scope")));
+            }
+            Atom::G(g) => {
+                return Err(self.deny(format!(
+                    "global: g{g} is not part of the working context ω holds"
+                )));
+            }
+            Atom::K(_, _) => None,
+        };
+        if let Some(v) = end_var
+            && !vars.contains(&v)
+        {
+            vars.push(v);
+        }
+        vars.sort();
+        vars.dedup();
+        let thread = (sc.omega.is_some() || parent_omega.is_some())
+            && (self.stmts_need_order(head) || self.stmts_need_order(tail));
+        let i_in = u32::from(thread) + vars.iter().position(|v| *v == spec.ivar).unwrap() as u32;
+        let j_in = match end_var {
+            Some(v) => u32::from(thread) + vars.iter().position(|x| *x == v).unwrap() as u32,
+            None => u32::from(thread) + vars.len() as u32,
+        };
+        let mut test = self.open_region(sc, parent_omega, &vars, thread)?;
+        test.env.insert(spec.iv, Src::In(i_in));
+        let tw = test.omega;
+        let end = self.exec(&[&surface[..spec.cmp]], &mut test, tw, ret_ty)?;
+        if !matches!(end, End::Fall) {
+            return Err(self.deny("exit: a measure test does not fall through"));
+        }
+        let Stmt::Prim(_, ts, _) = &surface[spec.cmp] else {
+            return Err(self.deny("defect: a measure test is not a comparison"));
+        };
+        let args_ty = ts
+            .iter()
+            .map(ty_arg)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| self.deny(format!("defect: {e}")))?;
+        let cmp = test.push(
+            Attr::Prim("int.lt".into(), args_ty, None),
+            vec![Src::In(i_in), Src::In(j_in)],
+            vec![],
+        );
+        let flag = Src::Out(cmp, 0);
+        if spec.cmp + 1 < spec.if_at {
+            let tw = test.omega;
+            let end = self.exec(&[&surface[spec.cmp + 1..spec.if_at]], &mut test, tw, ret_ty)?;
+            if !matches!(end, End::Fall) {
+                return Err(self.deny("exit: a measure test does not fall through"));
+            }
+        }
+        if test.env.get(&spec.ivar) != Some(&Src::In(i_in)) {
+            return Err(self.deny("loop: a measure test changes the index it compares"));
+        }
+        let mut bod = self.open_region(sc, parent_omega, &vars, thread)?;
+        bod.env.insert(spec.iv, Src::In(i_in));
+        let bw = bod.omega;
+        let end = self.exec(&[tail], &mut bod, bw, ret_ty)?;
+        if !matches!(end, End::Fall) {
+            return Err(self.deny("exit: a measure body does not fall through"));
+        }
+        let bflag = lit_bool(&mut bod, true);
+        let lit_slot = matches!(spec.end, Atom::K(_, _));
+        let test_b = Body {
+            nodes: std::mem::take(&mut test.nodes),
+            out: region_outs(&test, flag, &vars, thread, lit_slot.then_some(j_in))
+                .map_err(|m| self.deny(format!("loop: {m}")))?,
+        };
+        let body_b = Body {
+            nodes: std::mem::take(&mut bod.nodes),
+            out: region_outs(&bod, bflag, &vars, thread, lit_slot.then_some(j_in))
+                .map_err(|m| self.deny(format!("loop: {m}")))?,
+        };
+        let mut ins = vec![];
+        let mut carried_ty = vec![];
+        if thread {
+            ins.push(
+                sc.omega
+                    .or(parent_omega)
+                    .ok_or_else(|| self.deny("defect: a measure has no ω"))?,
+            );
+            carried_ty.push(BTy::Order);
+        }
+        for v in &vars {
+            ins.push(sc.env[v]);
+            carried_ty.push(bty(&self.loc_ty(*v)?).map_err(|e| self.deny(format!("defect: {e}")))?);
+        }
+        if let Atom::K(t, l) = &spec.end {
+            ins.push(self.lit_node(sc, t, l)?);
+            carried_ty.push(bty(t).map_err(|e| self.deny(format!("defect: {e}")))?);
+        }
+        let id = sc.push(
+            Attr::Measure(i_in, j_in, carried_ty),
+            ins,
+            vec![test_b, body_b],
+        );
+        let base = u32::from(thread);
+        for (k, v) in vars.iter().enumerate() {
+            sc.env.insert(*v, Src::Out(id, base + k as u32));
+        }
+        if thread {
+            sc.omega = Some(Src::Out(id, 0));
+        }
+        Ok(())
+    }
+
     fn loop_stmt(
         &self,
         body: &[Stmt],
@@ -846,7 +1212,11 @@ impl Built {
     ) -> Result<(), Change> {
         let lo = self.info.first[&(stmt as *const Stmt)];
         let Some(parts) = split_loop(body) else {
-            return Err(self.deny(loop_reason(body, &self.info, lo)));
+            return if self.try_lowered_loop(body, lo, sc, parent_omega, ret_ty)? {
+                Ok(())
+            } else {
+                Err(self.deny(loop_reason(body, &self.info, lo)))
+            };
         };
         let carried = parts.carried.clone();
         let count = parse_count(&parts.middle, &carried, lo, &self.info);
@@ -871,6 +1241,7 @@ impl Built {
                 omega: None,
                 caps: vec![],
                 assigned: BTreeSet::new(),
+                lits: vec![],
             };
             let mut ix = 0u32;
             // ω is threaded only when the surrounding function has it; the region receives it first
@@ -1101,6 +1472,50 @@ impl Built {
     }
 }
 
+/// Give both arms the same capture list: the union, in the order the first
+/// arm already uses, then any capture only the second arm has. Inputs of
+/// each arm are renumbered. Nested regions keep their own inputs.
+fn reconcile_caps(a0: &mut Scope, a1: &mut Scope) {
+    if a0.caps == a1.caps {
+        return;
+    }
+    let mut union = a0.caps.clone();
+    for s in &a1.caps {
+        if !union.contains(s) {
+            union.push(*s);
+        }
+    }
+    renumber_caps(a0, &union);
+    renumber_caps(a1, &union);
+}
+
+fn renumber_caps(arm: &mut Scope, union: &[Src]) {
+    let map: Vec<u32> = arm
+        .caps
+        .iter()
+        .map(|s| union.iter().position(|u| u == s).unwrap_or(0) as u32)
+        .collect();
+    let fix = |s: &mut Src, map: &[u32]| {
+        if let Src::In(j) = s
+            && let Some(n) = map.get(*j as usize)
+        {
+            *j = *n;
+        }
+    };
+    for n in &mut arm.nodes {
+        for i in &mut n.ins {
+            fix(i, &map);
+        }
+    }
+    for s in arm.env.values_mut() {
+        fix(s, &map);
+    }
+    if let Some(s) = arm.omega.as_mut() {
+        fix(s, &map);
+    }
+    arm.caps = union.to_vec();
+}
+
 fn spread_of(e: &catalogue::Entry, of: usize) -> usize {
     let mut s = 0;
     for (i, (_, p)) in e.operands.iter().enumerate() {
@@ -1148,6 +1563,203 @@ struct Parts<'a> {
     sets0: Vec<(u32, Atom)>,
     sets1: Vec<(u32, Atom)>,
     middle_looks_like_count: bool,
+}
+
+struct MeasureSpec {
+    ivar: u32,
+    /// the local the head `let` binds, a copy of `ivar` for this iteration
+    iv: u32,
+    end: Atom,
+    cmp: usize,
+    if_at: usize,
+}
+
+fn push_lit(a: &Atom, out: &mut Vec<(Ty, Lit)>) {
+    if let Atom::K(t, l) = a
+        && !out.iter().any(|(tt, ll)| tt == t && ll == l)
+    {
+        out.push((t.clone(), l.clone()));
+    }
+}
+
+fn stmt_lits(b: &[Stmt], out: &mut Vec<(Ty, Lit)>) {
+    for s in b {
+        match s {
+            Stmt::Let(a) | Stmt::Var(_, a) | Stmt::Ret(a) | Stmt::Halt(a) | Stmt::Out(a) => {
+                push_lit(a, out)
+            }
+            Stmt::Set(_, a) => push_lit(a, out),
+            Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) | Stmt::Graph(_, xs) => {
+                xs.iter().for_each(|a| push_lit(a, out))
+            }
+            Stmt::If(c, t, e) => {
+                push_lit(c, out);
+                stmt_lits(t, out);
+                stmt_lits(e, out);
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => stmt_lits(x, out),
+            Stmt::Break(_) => {}
+        }
+    }
+}
+
+/// Literals mentioned in the arms that this region has already built.
+fn lits_already(sc: &Scope, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
+    let mut ks = vec![];
+    for a in arms {
+        stmt_lits(a, &mut ks);
+    }
+    for s in tail {
+        stmt_lits(std::slice::from_ref(s), &mut ks);
+    }
+    ks.into_iter()
+        .filter_map(|(t, l)| find_lit(sc, &t, &l).map(|src| (t, l, src)))
+        .collect()
+}
+
+fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
+    if let Some((_, _, s)) = sc.lits.iter().find(|(tt, ll, _)| tt == t && ll == l) {
+        return Some(*s);
+    }
+    let bt = bty(t).ok()?;
+    sc.nodes
+        .iter()
+        .enumerate()
+        .find_map(|(i, n)| match &n.attrs {
+            Attr::Lit(ty, lit) if ty == &bt && lit == l => Some(Src::Out(i as u32, 0)),
+            _ => None,
+        })
+}
+
+fn carried_vars(sc: &Scope, parts: &[&[Stmt]]) -> Vec<u32> {
+    let mut used = BTreeSet::new();
+    for p in parts {
+        stmt_locals(p, &mut used);
+    }
+    used.retain(|v| sc.env.contains_key(v));
+    used.into_iter().collect()
+}
+
+fn lit_bool(region: &mut Scope, v: bool) -> Src {
+    let i = region.push(Attr::Lit(BTy::Bool, Lit::Bool(v)), vec![], vec![]);
+    Src::Out(i, 0)
+}
+
+fn bool_not(region: &mut Scope, s: Src) -> Src {
+    let i = region.push(Attr::Prim("bool.not".into(), vec![], None), vec![s], vec![]);
+    Src::Out(i, 0)
+}
+
+fn region_uses_order(region: &Scope) -> bool {
+    matches!(region.omega, Some(Src::Out(..)))
+        || region.nodes.iter().any(|n| n.ins.contains(&Src::In(0)))
+}
+
+fn region_outs(
+    region: &Scope,
+    flag: Src,
+    vars: &[u32],
+    thread: bool,
+    lit: Option<u32>,
+) -> Result<Vec<Src>, String> {
+    let mut out = vec![flag];
+    if thread {
+        out.push(region.omega.ok_or("a loop region lost ω")?);
+    }
+    for v in vars {
+        out.push(*region.env.get(v).ok_or("a carried value is not returned")?);
+    }
+    if let Some(j) = lit {
+        out.push(Src::In(j));
+    }
+    Ok(out)
+}
+
+fn is_break_arm(arm: &[Stmt], brk: u32) -> bool {
+    matches!(arm, [Stmt::Break(d)] if *d == brk)
+}
+
+/// `(statements to run, Some((condition, negated)))`. Negated means the arm
+/// breaks when the condition is true, so the continue flag is its negation.
+fn peel_exit(prefix: &[Stmt], brk: u32) -> (&[Stmt], Option<(Atom, bool)>) {
+    if let Some(Stmt::If(c, t, e)) = prefix.last() {
+        if t.is_empty() && is_break_arm(e, brk) {
+            return (&prefix[..prefix.len() - 1], Some((c.clone(), false)));
+        }
+        if e.is_empty() && is_break_arm(t, brk) {
+            return (&prefix[..prefix.len() - 1], Some((c.clone(), true)));
+        }
+    }
+    (prefix, None)
+}
+
+fn find_count_span(body: &[Stmt], lo: u32, info: &Info) -> Option<(usize, CountP, usize)> {
+    (0..body.len()).find_map(|k| parse_count(&body[k..], &[], lo, info).map(|(c, n)| (k, c, k + n)))
+}
+
+fn stmt_key(s: &Stmt) -> *const Stmt {
+    s as *const Stmt
+}
+
+/// The head of a lowering `for`: read the index, compare it with an end,
+/// leave when the comparison fails. The end is the second operand of
+/// `int.lt`, or the first of `int.le`.
+fn find_measure(stmts: &[Stmt], brk: u32, lo: u32, info: &Info) -> Option<MeasureSpec> {
+    let mut k = 0;
+    while matches!(stmts.get(k), Some(Stmt::Call(..))) {
+        k += 1;
+    }
+    let Stmt::Let(Atom::V(var)) = stmts.get(k)? else {
+        return None;
+    };
+    let ivar = *var;
+    if ivar >= lo || !info.loc.get(&ivar).is_some_and(|l| l.var) {
+        return None;
+    }
+    let iv = *info.first.get(&stmt_key(&stmts[k]))?;
+    k += 1;
+    while matches!(stmts.get(k), Some(Stmt::Call(..))) {
+        k += 1;
+    }
+    let Stmt::Prim(op, _, xs) = stmts.get(k)? else {
+        return None;
+    };
+    if xs.len() != 2 {
+        return None;
+    }
+    let direct = op == "int.lt" && xs[0] == Atom::V(iv);
+    let swapped = op == "int.le" && xs[1] == Atom::V(iv);
+    if !direct && !swapped {
+        return None;
+    }
+    let end = if direct { xs[1].clone() } else { xs[0].clone() };
+    let cmp = k;
+    k += 1;
+    while matches!(stmts.get(k), Some(Stmt::Call(..))) {
+        k += 1;
+    }
+    let Stmt::If(c, t, e) = stmts.get(k)? else {
+        return None;
+    };
+    let cmp_local = *info.first.get(&stmt_key(&stmts[cmp]))?;
+    if *c != Atom::V(cmp_local) {
+        return None;
+    }
+    let leaves = if direct {
+        t.is_empty() && is_break_arm(e, brk)
+    } else {
+        e.is_empty() && is_break_arm(t, brk)
+    };
+    if !leaves || k + 1 >= stmts.len() {
+        return None;
+    }
+    Some(MeasureSpec {
+        ivar,
+        iv,
+        end,
+        cmp,
+        if_at: k,
+    })
 }
 
 fn break_if(s: &Stmt) -> Option<Atom> {
@@ -1388,12 +2000,15 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             .map(bty)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| deny("construction", &u.name, format!("defect: {e}")))?;
-        meta.insert((u.group.clone(), u.index), Meta {
-            temp: format!("t{n:04}"),
-            omega: omega[&(u.group.clone(), u.index)],
-            params,
-            ret,
-        });
+        meta.insert(
+            (u.group.clone(), u.index),
+            Meta {
+                temp: format!("t{n:04}"),
+                omega: omega[&(u.group.clone(), u.index)],
+                params,
+                ret,
+            },
+        );
     }
     let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
     let mut defs = BTreeMap::new();
@@ -1422,6 +2037,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             omega: None,
             caps: vec![],
             assigned: BTreeSet::new(),
+            lits: vec![],
         };
         let mut ins = me.params.clone();
         for (i, _) in me.params.iter().enumerate() {
@@ -1581,6 +2197,64 @@ pub fn functions(m: &core::Module) -> Vec<(String, Result<(), Change>)> {
         out.push((u.name.clone(), construct(&sub).map(|_| ())));
     }
     out
+}
+
+/// The core module of the user function `name` and the functions it calls,
+/// plus any shim those calls name. `None` when no user function has that
+/// name. A joined concept name matches when one of its parts is `name`.
+pub fn closure(m: &core::Module, name: &str) -> Option<core::Module> {
+    let users = users_of(m);
+    let mut by_id: HashMap<(String, u32), usize> = HashMap::new();
+    for (n, u) in users.iter().enumerate() {
+        by_id.insert((u.group.clone(), u.index), n);
+    }
+    let n = users
+        .iter()
+        .position(|u| u.name.split(" = ").any(|p| p == name))?;
+    let mut need: Vec<Vec<usize>> = vec![vec![]; users.len()];
+    for (i, u) in users.iter().enumerate() {
+        let mut cs = vec![];
+        calls_of(&u.func.body, &mut cs);
+        for r in cs {
+            if let FnRef::Key(k, idx) = r
+                && let Some(j) = by_id.get(&(k, idx))
+            {
+                need[i].push(*j);
+            }
+        }
+    }
+    let mut seen = HashSet::new();
+    let mut stack = vec![n];
+    let mut ids = vec![];
+    while let Some(x) = stack.pop() {
+        if !seen.insert(x) {
+            continue;
+        }
+        ids.push(x);
+        stack.extend(&need[x]);
+    }
+    ids.sort();
+    let mut sub = submodule(m, &users, &ids);
+    // W1: the entry takes no parameters. A closure whose root takes some
+    // gets a trivial entry that returns 0, as `schedule` does.
+    let entry_ok = sub
+        .func(&sub.entry.0, sub.entry.1)
+        .is_some_and(|f| f.params.is_empty());
+    if !entry_ok {
+        let main = core::Fn {
+            params: vec![],
+            ret: Ty::i64(),
+            body: vec![Stmt::Ret(build::lit(0))],
+        };
+        let (g, _) = canonical_group(std::slice::from_ref(&main));
+        let key = group_key(&g);
+        if let Some(map) = sub.names.get_mut("fns").and_then(|v| v.as_object_mut()) {
+            map.insert(key.clone(), serde_json::json!(["main"]));
+        }
+        sub.defs.insert(key.clone(), g);
+        sub.entry = (key, 0);
+    }
+    Some(sub)
 }
 
 fn submodule(m: &core::Module, users: &[UserFn], ids: &[usize]) -> core::Module {
@@ -2160,9 +2834,11 @@ fn schedule_branch(
                             keep.insert(*id);
                         }
                         if sch.tys[var].owned() && sch.live.contains(var) {
-                            sets.push(Stmt::Prim("drop".into(), vec![sch.tys[var].clone()], vec![
-                                Atom::V(*var),
-                            ]));
+                            sets.push(Stmt::Prim(
+                                "drop".into(),
+                                vec![sch.tys[var].clone()],
+                                vec![Atom::V(*var)],
+                            ));
                             sch.live.remove(var);
                         }
                         sch.consume(&a)?;
@@ -2247,11 +2923,11 @@ fn dummy(sch: &mut Sch, t: &BTy) -> Result<Atom, Change> {
             )?;
             sch.consume(&inner)?;
             let st = cty(t).map_err(|_| sch.deny("defect: a sum"))?;
-            sch.stmts
-                .push(Stmt::Prim("sum.mk".into(), vec![st.clone()], vec![
-                    build::lit(0),
-                    inner,
-                ]));
+            sch.stmts.push(Stmt::Prim(
+                "sum.mk".into(),
+                vec![st.clone()],
+                vec![build::lit(0), inner],
+            ));
             let id = sch.fresh(st, true);
             Atom::V(id)
         }
@@ -2348,9 +3024,11 @@ fn schedule_iter(
                 return Err(sch.deny("defect: a carried result is ω"));
             };
             if sch.tys[var].owned() {
-                s.push(Stmt::Prim("drop".into(), vec![sch.tys[var].clone()], vec![
-                    Atom::V(*var),
-                ]));
+                s.push(Stmt::Prim(
+                    "drop".into(),
+                    vec![sch.tys[var].clone()],
+                    vec![Atom::V(*var)],
+                ));
             }
             s.push(Stmt::Set(Place::V(*var), a.clone()));
         }
@@ -2366,25 +3044,28 @@ fn schedule_iter(
         let bound = sch.atom(env, n.ins[0])?;
         loop_body.push(Stmt::Let(Atom::V(cn)));
         let a = sch.fresh(ct.clone(), false);
-        loop_body.push(Stmt::Prim("int.sadd".into(), vec![ct.clone()], vec![
-            Atom::V(a),
-            build::lit(1),
-        ]));
+        loop_body.push(Stmt::Prim(
+            "int.sadd".into(),
+            vec![ct.clone()],
+            vec![Atom::V(a), build::lit(1)],
+        ));
         let c = sch.fresh(ct.clone(), false);
         loop_body.push(Stmt::Set(Place::V(cn), Atom::V(c)));
-        loop_body.push(Stmt::Prim("int.lt".into(), vec![ct], vec![
-            bound,
-            Atom::V(c),
-        ]));
+        loop_body.push(Stmt::Prim(
+            "int.lt".into(),
+            vec![ct],
+            vec![bound, Atom::V(c)],
+        ));
         let o = sch.fresh(Ty::Bool, false);
         let h = sch.next;
         loop_body.push(Stmt::If(
             Atom::V(o),
             vec![
-                Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
-                    build::lit(0),
-                    Atom::bytes(b"loop bound"),
-                ]),
+                Stmt::Prim(
+                    "sum.mk".into(),
+                    vec![Ty::halt()],
+                    vec![build::lit(0), Atom::bytes(b"loop bound")],
+                ),
                 Stmt::Halt(Atom::V(h)),
             ],
             vec![],
