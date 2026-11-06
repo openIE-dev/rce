@@ -287,6 +287,14 @@ of that flag form, where they match, are the flag form against its
 schedule. A plain branch that does not break stays inside syntactic
 identity.
 
+A function whose outputs are its halt node's outputs schedules as a halt.
+Those outputs are the declared result and ω, not core values, so the core
+does not return after the halt and does not drop what the halt still holds.
+A loop region's epilogue stores the carried results. A tail that binds a
+local the epilogue names stays in the region. Sinking that tail into an arm
+would hide the local. Neither change is a new break shape, and neither
+weakens FG8.
+
 ## 7. What a later implementation could unlock
 
 Nothing in this section constructs today. The counts are the refusals PR

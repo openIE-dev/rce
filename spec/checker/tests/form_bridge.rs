@@ -1093,11 +1093,126 @@ fn examples_are_covered_or_require_change() {
         "a whole example now constructs; raise this floor and check its trace"
     );
     assert_eq!(
-        covered, 3,
+        covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
     );
     assert!(
         tags.values().sum::<usize>() + whole >= programs.saturating_sub(4),
         "every lowered example is covered or tagged"
     );
+}
+
+#[test]
+fn a_function_that_halts_schedules_without_a_return() {
+    // The same shape as `48_linear_handle`'s `fn main`: a trap value, then
+    // halt. The function's outputs are the halt node's outputs. They are not
+    // core values, so the schedule ends at the halt.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::unit(),
+        body: vec![
+            Stmt::Prim(
+                "sum.mk".into(),
+                vec![Ty::halt()],
+                vec![
+                    build::lit(0),
+                    Atom::bytes(b"cannot call c_open at comptime"),
+                ],
+            ),
+            Stmt::Halt(Atom::V(0)),
+        ],
+    };
+    let m = module("main", f);
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let form = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(
+        matches!(
+            form::check(fir::encode(&form).as_bytes(), None),
+            form::Outcome::Applied(_)
+        ),
+        "a halting function is not applied"
+    );
+    let s = bridge::schedule(&form).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back =
+        bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    assert_eq!(
+        fir::encode(&form),
+        fir::encode(&back),
+        "construct(schedule(F)) is not F for a function that halts"
+    );
+    let user = s
+        .names
+        .get("fns")
+        .and_then(|v| v.as_object())
+        .and_then(|map| {
+            map.iter().find_map(|(k, names)| {
+                let arr = names.as_array()?;
+                arr.iter().enumerate().find_map(|(i, n)| {
+                    let s = n.as_str()?;
+                    s.split(" = ")
+                        .any(|p| p == "main")
+                        .then_some((k.clone(), i as u32))
+                })
+            })
+        });
+    // `module` names the entry `main` when the function takes no parameters.
+    // The scheduled name is `f` (one function, keyed on its own). Either way
+    // the body ends in halt and has no ret.
+    let body = match user {
+        Some((k, i)) => s.func(&k, i).unwrap().body.clone(),
+        None => s.defs.values().next().unwrap().fns[0].body.clone(),
+    };
+    assert!(
+        body.iter().any(|st| matches!(st, Stmt::Halt(_))),
+        "the schedule dropped the halt: {body:?}"
+    );
+    assert!(
+        !body.iter().any(|st| matches!(st, Stmt::Ret(_))),
+        "the schedule returned after a halt: {body:?}"
+    );
+}
+
+#[test]
+fn a_finished_branch_keeps_the_next_node_outside_the_arm() {
+    // A domain test whose success arm already holds the operation, followed
+    // by another node. Sinking that node into the arm hides the local it
+    // binds from the region that returns it. `[0; 4]` lowers to that shape:
+    // the schedule writes the branch and the push as siblings. A literal may
+    // sit on either side of the branch, so the bytes are not the claim.
+    let src = "fn zeros() -> List[u32]\n    return [0; 4]\n";
+    let ast = rce_spec_check::program(src).unwrap_or_else(|e| panic!("{e}"));
+    let core_m = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("{e}"));
+    let sub = bridge::closure(&core_m, "fn zeros").unwrap_or_else(|| panic!("no fn zeros"));
+    // The closure is not an entry: a helper may hold a global the driver owns.
+    let form = bridge::construct(&sub).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(!bridge::body_break_rewrite(), "a repeat has no body break");
+    let s = bridge::schedule(&form).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back =
+        bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    assert!(
+        push_follows_branch(&form) && push_follows_branch(&back),
+        "list.push was sunk into the branch arm"
+    );
+}
+
+/// A region has `list.push` as a later sibling of a branch, not only inside an arm.
+fn push_follows_branch(m: &fir::Module) -> bool {
+    fn go(b: &fir::Body) -> bool {
+        let mut branch = None;
+        let mut push = None;
+        for (i, n) in b.nodes.iter().enumerate() {
+            match &n.attrs {
+                fir::Attr::Branch(..) if branch.is_none() => branch = Some(i),
+                fir::Attr::Prim(p, ..) if p == "list.push" && push.is_none() => push = Some(i),
+                _ => {}
+            }
+            if n.regions.iter().any(go) {
+                return true;
+            }
+        }
+        matches!((branch, push), (Some(i), Some(j)) if j > i)
+    }
+    m.defs.values().any(|g| g.fns.iter().any(|f| go(&f.body)))
 }
