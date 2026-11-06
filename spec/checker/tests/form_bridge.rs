@@ -587,6 +587,121 @@ fn body_break_is_option_b_not_syntactic_identity() {
     assert_eq!(fuel_b, fuel_sb, "O7': fuel differs on the bound path");
 }
 
+/// Both arms move one list. The schedule consumes that capture once.
+fn owned_branch() -> core::Module {
+    let e = i64ty();
+    let lt = Ty::list(e.clone());
+    let mut b = FB::new(vec![Ty::Bool, lt.clone()], lt.clone());
+    let c = b.arg(0);
+    let l = b.var(lt, b.arg(1));
+    b.if_(
+        c,
+        |b| {
+            let cur = b.take(l);
+            let p = b.p("list.push", vec![e.clone()], vec![cur, build::lit(1)])?;
+            b.set(l, p);
+            Ok(())
+        },
+        |b| {
+            let cur = b.take(l);
+            let p = b.p("list.push", vec![e.clone()], vec![cur, build::lit(2)])?;
+            b.set(l, p);
+            Ok(())
+        },
+    )
+    .unwrap();
+    let r = b.take(l);
+    b.ret(r);
+    module("owned_branch", b.finish())
+}
+
+#[test]
+fn owned_branch_round_trips_and_agrees() {
+    // No break. Syntactic identity holds: construct(schedule(F)) is F.
+    let c = owned_branch();
+    let f = round_trip(&c);
+    let s = bridge::schedule(&f).unwrap();
+    let one = Val::List(vec![Val::Int(7)]);
+    agree(&c, &f, &s, vec![Val::Bool(true), one.clone()]);
+    agree(&c, &f, &s, vec![Val::Bool(false), one]);
+}
+
+/// A count loop that carries a list, ticks, and breaks when the list is empty.
+/// The continue path pushes. The break names the loop.
+fn owned_early() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let e = i64ty();
+    let lt = Ty::list(e.clone());
+    let ct = build::count_t();
+    let mut b = FB::new(vec![lt.clone(), ct.clone()], lt.clone());
+    let bound = b.arg(1);
+    let l = b.var(lt, b.arg(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        let n = b.p("list.len", vec![e.clone()], vec![Atom::V(l)])?;
+        let empty = b.int_cmp("int.eq", n, build::lit(0))?;
+        b.exit_if(empty)?;
+        let cur = b.take(l);
+        let pushed = b.p("list.push", vec![e.clone()], vec![cur, build::lit(1)])?;
+        b.set(l, pushed);
+        Ok(())
+    })
+    .unwrap();
+    let r = b.take(l);
+    b.ret(r);
+    assemble(tick, tkey, "owned_early", b.finish())
+}
+
+#[test]
+fn owned_body_break_is_scheduled_once() {
+    // Option B. The list is an owned capture of the break branch. Each arm
+    // starts with that list live, because one arm runs. Lean Stmt has no
+    // break constructor (B1), so byte equality is not the claim: the corpus
+    // counts a differing canonical form as round-trip. Admission is
+    // three-way eval, O6' and O7'.
+    let c = owned_early();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(
+        bridge::body_break_rewrite(),
+        "the body break was not restructured into a flag"
+    );
+    assert!(
+        flag_is_fresh_false(&f),
+        "the break path must return a literal false, not a carried bool (B4)"
+    );
+    assert!(
+        matches!(
+            form::check(fir::encode(&f).as_bytes(), None),
+            form::Outcome::Applied(_)
+        ),
+        "the flag form is not applied"
+    );
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    let empty = Val::List(vec![]);
+    // Bound 1. The body breaks on the first iteration, so the next bound check
+    // does not run (O6').
+    agree(&c, &f, &s, vec![empty.clone(), Val::Int(1)]);
+    let (src, fuel_src) = fuel_of(&c, vec![empty.clone(), Val::Int(1)]);
+    let (sch, fuel_sch) = fuel_of(&s, vec![empty, Val::Int(1)]);
+    assert_eq!(src, Ok(Val::List(vec![])));
+    assert_eq!(sch, src);
+    assert_eq!(fuel_src, fuel_sch, "O7': fuel differs on the break path");
+    // A list that never becomes empty hits the bound. The flag is not that halt.
+    let grown = Val::List(vec![Val::Int(7)]);
+    agree(&c, &f, &s, vec![grown.clone(), Val::Int(1)]);
+    let (src_b, fuel_b) = fuel_of(&c, vec![grown.clone(), Val::Int(1)]);
+    let (sch_b, fuel_sb) = fuel_of(&s, vec![grown, Val::Int(1)]);
+    assert_eq!(src_b, Err("halt: loop bound".into()));
+    assert_eq!(sch_b, src_b);
+    assert_eq!(fuel_b, fuel_sb, "O7': fuel differs on the bound path");
+}
+
 #[test]
 fn pure_count_break_stays_outside_dom() {
     // O8. A break flag is a bool. It does not put a pure count into Dom.
