@@ -40,78 +40,95 @@ inductive LoopRes where
   | fuel (v : Nat) (ω : Ω)
   deriving DecidableEq, Repr
 
+/-- One run of a test or a body. `.fuel` keeps the order value at the
+    trap, including effects already recorded. It is not a request to
+    restore the value from before the step. -/
+inductive StepRes where
+  | cont (go : Bool) (v : Nat) (ω : Ω)
+  | fuel (v : Nat) (ω : Ω)
+  deriving DecidableEq, Repr
+
 /-- §6, with the body flag. `n` is how many body runs are still allowed.
     The test runs first. On true, `n = 0` traps before the body. On
     `n + 1` the body runs, and a false flag returns `.stopped` without
-    another test. -/
+    another test. A fuel result keeps the ω that step reported. -/
 def countLoop
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω)) :
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes) :
     Nat → Nat → Ω → LoopRes
   | n, v, ω =>
     match test v ω with
-    | none => .fuel v ω
-    | some (false, v1, ω1) => .done v1 ω1
-    | some (true, v1, ω1) =>
+    | .fuel v1 ω1 => .fuel v1 ω1
+    | .cont false v1 ω1 => .done v1 ω1
+    | .cont true v1 ω1 =>
       match n with
       | 0 => .bound v1 ω1
       | n + 1 =>
         match body v1 ω1 with
-        | none => .fuel v1 ω1
-        | some (false, v2, ω2) => .stopped v2 ω2
-        | some (true, v2, ω2) => countLoop test body n v2 ω2
+        | .fuel v2 ω2 => .fuel v2 ω2
+        | .cont false v2 ω2 => .stopped v2 ω2
+        | .cont true v2 ω2 => countLoop test body n v2 ω2
 
 /-- The same shape with the body flag ignored, so a break falls into the
     next iteration. This is the late test named by the carried-flag note:
     a break is then able to meet the bound trap, and the next test runs. -/
 def countLoopLate
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω)) :
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes) :
     Nat → Nat → Ω → LoopRes
   | n, v, ω =>
     match test v ω with
-    | none => .fuel v ω
-    | some (false, v1, ω1) => .done v1 ω1
-    | some (true, v1, ω1) =>
+    | .fuel v1 ω1 => .fuel v1 ω1
+    | .cont false v1 ω1 => .done v1 ω1
+    | .cont true v1 ω1 =>
       match n with
       | 0 => .bound v1 ω1
       | n + 1 =>
         match body v1 ω1 with
-        | none => .fuel v1 ω1
-        | some (_, v2, ω2) => countLoopLate test body n v2 ω2
+        | .fuel v2 ω2 => .fuel v2 ω2
+        | .cont _ v2 ω2 => countLoopLate test body n v2 ω2
 
 theorem bound_before_body
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω))
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes)
     (v v1 : Nat) (ω ω1 : Ω)
-    (ht : test v ω = some (true, v1, ω1)) :
+    (ht : test v ω = .cont true v1 ω1) :
     countLoop test body 0 v ω = .bound v1 ω1 := by
   simp [countLoop, ht]
 
 theorem done_skips_body
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω))
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes)
     (n v v1 : Nat) (ω ω1 : Ω)
-    (ht : test v ω = some (false, v1, ω1)) :
+    (ht : test v ω = .cont false v1 ω1) :
     countLoop test body n v ω = .done v1 ω1 := by
   simp [countLoop, ht]
 
 theorem break_skips_next_iteration
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω))
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes)
     (n v v1 v2 : Nat) (ω ω1 ω2 : Ω)
-    (ht : test v ω = some (true, v1, ω1))
-    (hb : body v1 ω1 = some (false, v2, ω2)) :
+    (ht : test v ω = .cont true v1 ω1)
+    (hb : body v1 ω1 = .cont false v2 ω2) :
     countLoop test body (n + 1) v ω = .stopped v2 ω2 := by
   simp [countLoop, ht, hb]
 
-theorem fuel_test_skips_body
-    (test : Nat → Ω → Option (Bool × Nat × Ω))
-    (body : Nat → Ω → Option (Bool × Nat × Ω))
-    (n v : Nat) (ω : Ω)
-    (ht : test v ω = none) :
-    countLoop test body n v ω = .fuel v ω := by
+theorem fuel_test_keeps_reported_state
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes)
+    (n v v1 : Nat) (ω ω1 : Ω)
+    (ht : test v ω = .fuel v1 ω1) :
+    countLoop test body n v ω = .fuel v1 ω1 := by
   simp [countLoop, ht]
+
+theorem fuel_body_keeps_reported_state
+    (test : Nat → Ω → StepRes)
+    (body : Nat → Ω → StepRes)
+    (n v v1 v2 : Nat) (ω ω1 ω2 : Ω)
+    (ht : test v ω = .cont true v1 ω1)
+    (hb : body v1 ω1 = .fuel v2 ω2) :
+    countLoop test body (n + 1) v ω = .fuel v2 ω2 := by
+  simp [countLoop, ht, hb]
 
 /-- Why a false flag was produced. The boolean does not carry this. -/
 inductive Why where
@@ -193,17 +210,26 @@ theorem existing_iter_traps_before_body :
 
 /-- A test that records `0` and spends one unit of fuel. Fuel 0 stops
     before a boolean is produced. -/
-def effTest (v : Nat) (ω : Ω) : Option (Bool × Nat × Ω) :=
-  if ω.fuel = 0 then none
-  else some (true, v, ⟨ω.fuel - 1, ω.log ++ [0]⟩)
+def effTest (v : Nat) (ω : Ω) : StepRes :=
+  if ω.fuel = 0 then .fuel v ω
+  else .cont true v ⟨ω.fuel - 1, ω.log ++ [0]⟩
 
 /-- A body that breaks, records `1`, and does not spend fuel. -/
-def brkBody (v : Nat) (ω : Ω) : Option (Bool × Nat × Ω) :=
-  some (false, v + 1, ⟨ω.fuel, ω.log ++ [1]⟩)
+def brkBody (v : Nat) (ω : Ω) : StepRes :=
+  .cont false (v + 1) ⟨ω.fuel, ω.log ++ [1]⟩
 
 /-- A body that continues and records `1` without spending fuel. -/
-def goBody (v : Nat) (ω : Ω) : Option (Bool × Nat × Ω) :=
-  some (true, v, ⟨ω.fuel, ω.log ++ [1]⟩)
+def goBody (v : Nat) (ω : Ω) : StepRes :=
+  .cont true v ⟨ω.fuel, ω.log ++ [1]⟩
+
+/-- The body records `7` and then reports fuel. The loop result keeps that
+    log. It does not restore the order value from after the test alone. -/
+def bodyRecordsThenFuel (v : Nat) (ω : Ω) : StepRes :=
+  .fuel (v + 1) ⟨ω.fuel, ω.log ++ [7]⟩
+
+theorem body_fuel_keeps_partial_log :
+    countLoop effTest bodyRecordsThenFuel 1 0 ⟨3, []⟩ =
+      .fuel 1 ⟨2, [0, 7]⟩ := rfl
 
 /-- The one legal iteration breaks. The result is `.stopped`, the test ran
     once, and the bound trap is not the result. -/
@@ -272,19 +298,39 @@ def noBreak : List Act → Bool
   | .note _ :: xs => noBreak xs
   | .tick :: xs => noBreak xs
 
-def run (fuel : Nat) : List Act → Except String (List Nat × Nat × Option Nat)
-  | [] => .ok ([], fuel, none)
+/-- A finished trace. `log` is the notes already run. `fuel` is what
+    remains. `exit` is a break depth when the list stopped for a break. -/
+structure Trace where
+  log : List Nat
+  fuel : Nat
+  exit : Option Nat
+  deriving DecidableEq, Repr
+
+/-- `.fuel` keeps the trace at the trap: notes already run stay, and fuel
+    already spent stays spent. -/
+inductive RunEnd where
+  | done (t : Trace)
+  | fuel (t : Trace)
+  deriving DecidableEq, Repr
+
+def run (fuel : Nat) : List Act → RunEnd
+  | [] => .done ⟨[], fuel, none⟩
   | .note n :: rest =>
     match run fuel rest with
-    | .ok (log, f, e) => .ok (n :: log, f, e)
-    | .error s => .error s
+    | .done ⟨log, f, e⟩ => .done ⟨n :: log, f, e⟩
+    | .fuel ⟨log, f, e⟩ => .fuel ⟨n :: log, f, e⟩
   | .tick :: rest =>
-    if fuel = 0 then .error "comptime fuel exhausted"
+    if fuel = 0 then .fuel ⟨[], fuel, none⟩
     else
       match run (fuel - 1) rest with
-      | .ok (log, f, e) => .ok (log, f, e)
-      | .error s => .error s
-  | .break d :: _ => .ok ([], fuel, some d)
+      | .done t => .done t
+      | .fuel t => .fuel t
+  | .break d :: _ => .done ⟨[], fuel, some d⟩
+
+/-- One unit of fuel, a note, a tick that spends it, and a second tick.
+    The note stays, and the fuel left is 0. -/
+theorem fuel_keeps_prior_note :
+    run 1 [.note 1, .tick, .tick] = .fuel ⟨[1], 0, none⟩ := rfl
 
 theorem run_note_cong {n fuel : Nat} {a b : List Act}
     (h : run fuel a = run fuel b) :
@@ -331,35 +377,118 @@ theorem bool_cannot_separate_three_depths (encode : Nat → Bool) :
     encode 0 = encode 1 ∨ encode 0 = encode 2 ∨ encode 1 = encode 2 := by
   cases encode 0 <;> cases encode 1 <;> cases encode 2 <;> simp_all
 
-inductive Leave where
-  | inner (log : List Nat) (fuel : Nat)
-  | outer (log : List Nat) (fuel : Nat)
-  | fell (log : List Nat) (fuel : Nat)
-  | stuck (text : String)
+/-- A frame the exit count can meet. `eval.rs` decrements `Break` on
+    `Block` and `Loop` only. `If` runs one arm and does not decrement. -/
+inductive Frame where
+  | block
+  | loop
+  | ite
   deriving DecidableEq, Repr
 
+/-- Structural depth counts enclosing blocks and loops. An `if` adds none.
+    This is the source nesting, not the residual count after one exit. -/
+def structuralDepth : List Frame → Nat
+  | [] => 0
+  | .ite :: fs => structuralDepth fs
+  | .block :: fs => structuralDepth fs + 1
+  | .loop :: fs => structuralDepth fs + 1
+
+/-- Decrement once when the frame is a block or a loop. An `if` returns
+    the same count. `none` means this frame consumed a 0 and stopped. -/
+def stepExit : Frame → Nat → Option Nat
+  | .ite, d => some d
+  | .block, 0 => none
+  | .loop, 0 => none
+  | .block, d + 1 => some d
+  | .loop, d + 1 => some d
+
+theorem if_does_not_decrement (d : Nat) : stepExit .ite d = some d := rfl
+
+theorem block_decrements_once (d : Nat) : stepExit .block (d + 1) = some d := rfl
+
+theorem source_depth_is_not_the_residual :
+    structuralDepth [.block, .ite, .loop] = 2 ∧
+    stepExit .block 2 = some 1 ∧
+    (1 ≠ 2) := by
+  refine ⟨rfl, rfl, ?_⟩
+  intro h
+  cases h
+
+inductive Leave where
+  | stopHere (log : List Nat) (fuel : Nat)
+  | propagate (residual : Nat) (log : List Nat) (fuel : Nat)
+  | fell (log : List Nat) (fuel : Nat)
+  | fuelHalt (log : List Nat) (fuel : Nat)
+  deriving DecidableEq, Repr
+
+/-- `break 0` stops at this construct. `break (d + 1)` leaves it with
+    residual `d`. The residual is kept, so `break 1` and `break 2` do not
+    become one result. -/
 def runTwo (fuel : Nat) (inner : List Act) : Leave :=
   match run fuel inner with
-  | .error s => .stuck s
-  | .ok (log, f, none) => .fell log f
-  | .ok (log, f, some d) =>
-    match propagate d with
-    | none => .inner log f
-    | some _ => .outer log f
+  | .fuel ⟨log, f, _⟩ => .fuelHalt log f
+  | .done ⟨log, f, none⟩ => .fell log f
+  | .done ⟨log, f, some 0⟩ => .stopHere log f
+  | .done ⟨log, f, some (d + 1)⟩ => .propagate d log f
+
+/-- After this construct has been exited, apply one more block or loop.
+    Residual 0 stops there. Residual `n + 1` becomes residual `n`.
+    The tail of the enclosing construct is not run: this function does not
+    take it. -/
+def afterEnclosing : Leave → Leave
+  | .propagate 0 log f => .stopHere log f
+  | .propagate (n + 1) log f => .propagate n log f
+  | r => r
+
+def runEnclosing (fuel : Nat) (inner tail : List Act) : Leave :=
+  match runTwo fuel inner with
+  | .fell log f =>
+    match run f tail with
+    | .done ⟨log2, f2, none⟩ => .fell (log ++ log2) f2
+    | .done ⟨log2, f2, some 0⟩ => .stopHere (log ++ log2) f2
+    | .done ⟨log2, f2, some (d + 1)⟩ => .propagate d (log ++ log2) f2
+    | .fuel ⟨log2, f2, _⟩ => .fuelHalt (log ++ log2) f2
+  | r => r
 
 theorem depth0_suppresses_later_effects :
-    runTwo 3 [.note 1, .break 0, .note 9] = .inner [1] 3 := rfl
+    runTwo 3 [.note 1, .break 0, .note 9] = .stopHere [1] 3 := rfl
 
-theorem depth1_propagates_and_suppresses_later_effects :
-    runTwo 3 [.note 1, .break 1, .note 9] = .outer [1] 3 := rfl
+theorem depth1_keeps_residual_zero :
+    runTwo 3 [.note 1, .break 1, .note 9] = .propagate 0 [1] 3 := rfl
+
+theorem depth2_keeps_residual_one :
+    runTwo 3 [.break 2] = .propagate 1 [] 3 := rfl
+
+theorem break1_ne_break2 :
+    runTwo 3 [.break 1] ≠ runTwo 3 [.break 2] := by
+  intro h
+  cases h
+
+theorem enclosing_tail_not_run :
+    runEnclosing 3 [.break 1] [.note 9] = .propagate 0 [] 3 ∧
+    runEnclosing 3 [.note 1] [.note 9] = .fell [1, 9] 3 := by
+  refine ⟨rfl, rfl⟩
+
+theorem enclosing_consumes_one_residual :
+    afterEnclosing (runTwo 3 [.break 1]) = .stopHere [] 3 ∧
+    afterEnclosing (runTwo 3 [.break 2]) = .propagate 0 [] 3 := by
+  refine ⟨rfl, rfl⟩
 
 theorem prior_tick_kept_later_tick_not_run :
-    runTwo 3 [.tick, .note 1, .break 0, .tick] = .inner [1] 2 := rfl
+    runTwo 3 [.tick, .note 1, .break 0, .tick] = .stopHere [1] 2 := rfl
 
 theorem depth0_ne_depth1 :
     runTwo 3 [.break 0] ≠ runTwo 3 [.break 1] := by
   intro h
   cases h
+
+/-- ONE-15 writes `if e > 0` around the decrement. `eval.rs` does not
+    decrement on `If`. This file follows `eval.rs` for `stepExit`. It does
+    not prove that a printed `if e > 0 { set e = e − 1; break 0 }` is free
+    of an extra block. That encoding is not identified with `stepExit`. -/
+theorem one15_if_is_not_proved_here :
+    stepExit .ite 1 = some 1 ∧ stepExit .block 1 = some 0 :=
+  ⟨rfl, rfl⟩
 
 /-- A measure continue path raises the index by one. The break path may
     leave the index. A continue path that raises the index only on some
@@ -401,11 +530,17 @@ def stripOmega : List Name → List Name
   | .omega :: xs => stripOmega xs
   | .v n :: xs => .v n :: stripOmega xs
 
-def dedup : List Name → List Name
-  | [] => []
-  | x :: xs =>
-    let ys := dedup xs
-    if mem x ys then ys else x :: ys
+/-- Left to right, the first occurrence of each name. A later copy is
+    dropped. -/
+def dedup (xs : List Name) : List Name :=
+  xs.foldl (fun acc x => if mem x acc then acc else acc ++ [x]) []
+
+theorem dedup_keeps_first :
+    dedup [.v 1, .v 2, .v 1] = [.v 1, .v 2] ∧
+    dedup [.v 1, .v 2, .v 1] ≠ [.v 2, .v 1] := by
+  refine ⟨rfl, ?_⟩
+  intro h
+  cases h
 
 /-- Captures, with ω last when either list holds it. Plain names keep the
     first-seen order of `dedup` after ω is removed. This is not an order by

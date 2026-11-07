@@ -7,12 +7,18 @@
   fuel trap included, and the schedule writes a Branch after it that halts
   again on the fuel trap. §13 reads that pair back as one Form `catch`.
 
-  The definitions below are that adapter on values: pack and unpack by the
-  declared output list, keep ω beside the sum, and rethrow the fuel trap.
-  They do not change a core type. They are not extracted from
-  `spec/checker/src/form/bridge.rs`, and no theorem in this file says they
-  agree with that Rust. On the commit these proofs were written against,
-  the bridge refuses catch.
+  Two maps are defined, and they are not the same map.
+
+  `pack` and `adapt` are the Form declared list: `sum` of that list with a
+  halt, ω beside the sum, and a fuel rethrow. That is the schedule story in
+  `rce-form.md` §6. `coreCatch` is the core evaluator in
+  `spec/checker/src/one/eval.rs`: variant 0 holds the callee's one return
+  value unchanged, and every halt, the fuel trap included, is variant 1.
+  `sig_of` in `bridge.rs` admits a core return only when the non-ω outputs
+  number exactly one. Zero and several results are outside that slice.
+
+  Neither map is extracted from `bridge.rs`. The bridge still refuses a
+  catch. Pull request 153, which is not on this main, is not assumed here.
 -/
 namespace RCE.FormBridge.Catch
 
@@ -146,24 +152,70 @@ theorem no_silent_flatten (ω : Order) :
   intro h
   cases h
 
-/-- Core `catch` stays `sum(ret_F, Halt)`. `ret_F` is one value. Several
-    outputs are that one value as a tuple. This is the schedule view of the
-    value, not a second core type. -/
+/-- The core sum `sum(ret_F, Halt)`. The success payload is `ret_F` itself. -/
 inductive CoreCatch where
   | ok (v : Payload)
   | halt (h : HaltKind)
 
-def toCore : CalleeEnd → CoreCatch × Order
-  | .ret o ω => (.ok (.tup o.vals), ω)
-  | .halt h ω => (.halt h, ω)
+/-- What `eval.rs` sees from the callee. `.other` is not a halt and is not
+    caught. -/
+inductive CoreFlow where
+  | returned (v : Payload)
+  | halt (h : HaltKind)
+  | other
 
-theorem toCore_one_value (o : Outputs) (ω : Order) :
-    toCore (.ret o ω) = (.ok (.tup o.vals), ω) := rfl
+/-- `P::Catch` in `eval.rs`: `Ok(v)` becomes `Sum(0, v)` and `Flow::Halt`
+    becomes `Sum(1, h)`. The value `v` is not wrapped again. -/
+def coreCatch : CoreFlow → Except Unit CoreCatch
+  | .returned v => .ok (.ok v)
+  | .halt h => .ok (.halt h)
+  | .other => .error ()
 
-theorem one_tuple_result_ne_several_outputs (a b : Payload) (ω : Order) :
-    toCore (.ret ⟨[.tup [a, b]]⟩ ω) ≠ toCore (.ret ⟨[a, b]⟩ ω) := by
+/-- `sig_of` admits the core return only for exactly one non-ω result. -/
+def coreSliceAdmits (nonOmegaResults : Nat) : Bool :=
+  decide (nonOmegaResults = 1)
+
+theorem core_slice_admits_one : coreSliceAdmits 1 = true := rfl
+
+theorem core_slice_refuses_zero : coreSliceAdmits 0 = false := rfl
+
+theorem core_slice_refuses_two : coreSliceAdmits 2 = false := rfl
+
+theorem core_keeps_scalar :
+    coreCatch (.returned (.num 7)) = .ok (.ok (.num 7)) := rfl
+
+theorem core_keeps_tuple :
+    coreCatch (.returned (.tup [.num 1, .num 2])) =
+      .ok (.ok (.tup [.num 1, .num 2])) := rfl
+
+theorem core_does_not_wrap_scalar :
+    coreCatch (.returned (.num 7)) ≠ .ok (.ok (.tup [.num 7])) := by
   intro h
-  simp [toCore] at h
+  cases h
+
+theorem core_does_not_nest_tuple (a b : Payload) :
+    coreCatch (.returned (.tup [a, b])) ≠
+      .ok (.ok (.tup [.tup [a, b]])) := by
+  intro h
+  simp [coreCatch] at h
+
+/-- A declared list of one scalar is the Form packing. The core payload of
+    that scalar is the scalar. The inequality of a tuple-valued declared
+    output with two declared outputs is `tuple_singleton_ne_two_outputs`,
+    and it is a fact about those lists, not about `coreCatch`. -/
+theorem form_list_is_not_core_payload (ω : Order) :
+    adapt (.ret ⟨[.num 7]⟩ ω) = .returned [.num 7] ω ∧
+    coreCatch (.returned (.num 7)) = .ok (.ok (.num 7)) :=
+  ⟨rfl, rfl⟩
+
+theorem core_catches_fuel :
+    coreCatch (.halt (.trap fuelTrap)) = .ok (.halt (.trap fuelTrap)) := rfl
+
+theorem schedule_rethrow_is_not_the_core_catch (ω : Order) :
+    adapt (.halt (.trap fuelTrap) ω) = .rethrow (.trap fuelTrap) ω ∧
+    coreCatch (.halt (.trap fuelTrap)) = .ok (.halt (.trap fuelTrap)) := by
+  refine ⟨?_, rfl⟩
+  simp [adapt, isFuel, fuelTrap]
 
 /-- A map is bijective when it is injective and surjective. Defined here
     so the statement does not depend on a name outside this file. -/
@@ -177,9 +229,7 @@ def Bijective {α β : Type} (f : α → β) : Prop :=
   Injective f ∧ Surjective f
 
 /-- Swap 0 and 1 inside a raw numeric success value. Halt values stay,
-    and a tuple success value stays. This is a bijection of the core sum.
-    It moves `.ok (.num 0)`. It does not move the tuple that `toCore`
-    builds for one numeric output, so the bijection is not the adapter. -/
+    and a tuple success value stays. -/
 def flipNum : Nat → Nat
   | 0 => 1
   | 1 => 0
@@ -214,16 +264,23 @@ theorem twist_bijective : Bijective twist := by
   · intro c
     exact ⟨twist c, twist_involutive c⟩
 
-theorem bijection_is_not_evaluator :
-    twist (.ok (.num 0)) ≠ .ok (.num 0) := by
+theorem id_bijective : Bijective (fun c : CoreCatch => c) := by
+  refine ⟨?_, ?_⟩
+  · intro a b h
+    exact h
+  · intro c
+    exact ⟨c, rfl⟩
+
+/-- The identity is bijective, and so is `twist`, and they disagree on
+    `.ok (.num 0)`. A proof that a map is bijective does not say which
+    value the evaluator returns. -/
+theorem bijective_insufficient :
+    Bijective (fun c : CoreCatch => c) ∧
+    Bijective twist ∧
+    (fun c : CoreCatch => c) (.ok (.num 0)) ≠ twist (.ok (.num 0)) := by
+  refine ⟨id_bijective, twist_bijective, ?_⟩
   intro h
   simp [twist, flipNum] at h
-
-theorem twist_leaves_packed_singleton (ω : Order) :
-    twist (toCore (.ret ⟨[.num 0]⟩ ω)).1 =
-      (toCore (.ret ⟨[.num 0]⟩ ω)).1 ∧
-    (toCore (.ret ⟨[.num 0]⟩ ω)).1 = .ok (.tup [.num 0]) := by
-  simp [twist, toCore]
 
 /-- Run the adapter. The handler is applied only on `.caught`. It receives
     the halt payload and the ω the callee consumed. A return does not apply

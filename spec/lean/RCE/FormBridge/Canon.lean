@@ -3,17 +3,20 @@ import RCE.Form
 /-!
   What this development does not decide, and the identity it does state.
 
-  C7 (`rce-form.md` §10) removes a carried value that neither region uses
-  and both return unchanged. §6 says a count-bounded Iterate may halt, so
-  it always takes ω. FG7 (§11) says every node that may halt consumes and
-  returns ω. On a pure count those sentences disagree. The note
-  `break-carried-flag.md` records the same disagreement as obligation O8
-  and does not pick a side. Neither does this file.
+  The predicates below are readings of sentences in `rce-form.md`. They
+  are not `spec/checker/src/form/canon.rs`. On main `7e4e968c`,
+  `c7_carried` removes a carried slot of an Iterate with two regions when
+  both regions return that slot's input at output `1 + k` and neither uses
+  it otherwise. Output 0 is the flag and is not that slot. The function has
+  no clause that names ω. Pull request 153 is open and is not this main;
+  its text says C7 and FG7 are unchanged. This file does not adopt an
+  erratum and does not prove that the Rust function deletes ω.
 
-  `RCE.Stmt` has no break. A normalization relation on the small terms
-  below is not raw equality, and schedule ∘ construct is not the identity
-  on a core term that still has a break. Neither relation is a proof about
-  `spec/checker/src/form/canon.rs` or `bridge.rs`.
+  `CanonRel` drops a leading plain carrier in this file's term. It is not
+  `canon.rs`.
+
+  `RCE.Stmt` has no break. schedule ∘ construct is not the identity on a
+  core term that still has a break.
 -/
 
 namespace RCE.FormBridge.Canon
@@ -23,50 +26,50 @@ inductive Carry where
   | plain (n : Nat)
   deriving DecidableEq, Repr
 
-/-- Whether a region uses ω, and whether it returns that carrier unchanged.
-    A plain carrier is outside this record. -/
-structure RegionSpec where
-  usesOmega : Bool
-  returnsOmegaUnchanged : Bool
+/-- One arm of the two-region test in `c7_carried`, abstracted. `usesSlot`
+    is a use other than returning the input. `returnsInputAt` is the output
+    index of that return, when the arm returns the slot input. -/
+structure ArmCarry where
+  usesSlot : Bool
+  returnsInputAt : Option Nat
   deriving DecidableEq, Repr
 
-/-- The C7 deletion test, read as written, applied to ω. A plain carrier
-    is not removed by this function. -/
-def c7RemovesOmega (test body : RegionSpec) : Bool :=
-  (!test.usesOmega) && (!body.usesOmega) &&
-    test.returnsOmegaUnchanged && body.returnsOmegaUnchanged
+/-- Removal test shaped like `c7_carried`: exactly two regions, the output
+    index is at least 1 (a carried slot, not the flag at output 0), and both
+    arms return the slot input there and do not use it otherwise. This
+    function does not rewrite a body and is not `canon.rs`. -/
+def c7RemovesCarried (arms : List ArmCarry) (outputIndex : Nat) : Bool :=
+  decide (arms.length = 2) && decide (outputIndex ≥ 1) &&
+    arms.all fun a => !a.usesSlot && a.returnsInputAt == some outputIndex
 
-/-- The FG7 / §6 demand, read as written: a count-bounded Iterate takes ω.
-    This function does not delete a carrier. -/
-def fg7DemandsOmega (countBounded : Bool) : Bool :=
+theorem flag_output_is_not_removed :
+    c7RemovesCarried
+      [⟨false, some 0⟩, ⟨false, some 0⟩] 0 = false := rfl
+
+theorem two_arms_unused_slot_removed :
+    c7RemovesCarried
+      [⟨false, some 1⟩, ⟨false, some 1⟩] 1 = true := rfl
+
+theorem one_arm_is_not_removed :
+    c7RemovesCarried [⟨false, some 1⟩] 1 = false := rfl
+
+theorem a_use_keeps_the_slot :
+    c7RemovesCarried
+      [⟨true, some 1⟩, ⟨false, some 1⟩] 1 = false := rfl
+
+/-- The proposal sentences, as two predicates on a record. Both hold of
+    this record. That is not a proof that `canon.rs` and the gate
+    contradict, and it does not delete or keep ω. -/
+def proposalRemovesUnusedOmega (uses returnsUnchanged : Bool) : Bool :=
+  (!uses) && returnsUnchanged
+
+def proposalDemandsOmega (countBounded : Bool) : Bool :=
   countBounded
 
-def pureCountTest : RegionSpec where
-  usesOmega := false
-  returnsOmegaUnchanged := true
-
-def pureCountBody : RegionSpec where
-  usesOmega := false
-  returnsOmegaUnchanged := true
-
-/-- Both sentences hold of one pure count. This theorem does not delete ω
-    and does not keep it. -/
-theorem c7_fg7_disagree :
-    c7RemovesOmega pureCountTest pureCountBody = true ∧
-    fg7DemandsOmega true = true := by
+theorem proposal_sentences_both_hold :
+    proposalRemovesUnusedOmega false true = true ∧
+    proposalDemandsOmega true = true := by
   decide
-
-/-- A carried flag that is returned unchanged and unused meets the same
-    deletion test. A break path that returns the literal false does not
-    return the incoming flag unchanged, so the test does not remove it. -/
-def c7RemovesFlag (usesFlag returnsUnchanged : Bool) : Bool :=
-  (!usesFlag) && returnsUnchanged
-
-theorem passthrough_flag_removed :
-    c7RemovesFlag false true = true := rfl
-
-theorem replaced_break_flag_not_removed :
-    c7RemovesFlag false false = false := rfl
 
 /-- `Stmt` in `RCE/Form.lean` cannot mention a break. The flag definitions
     in `Break.lean` are not a constructor of this inductive. -/
@@ -126,9 +129,8 @@ theorem construct_schedule_not_raw :
   intro h
   simp [construct, schedule] at h
 
-/-- Drop a leading plain carrier. ω is not a clause of this relation.
-    Dropping or keeping a pure-count ω would choose a side of
-    `c7_fg7_disagree`, and this relation does not. -/
+/-- Drop a leading plain carrier in this term language. ω is not a clause.
+    This relation is not `canon.rs`. -/
 inductive CanonRel : FormTerm → FormTerm → Prop where
   | refl (t : FormTerm) : CanonRel t t
   | dropPlain (n : Nat) (rest : List Carry) :
