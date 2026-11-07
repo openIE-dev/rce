@@ -111,7 +111,11 @@ jobs:
 
   s390x-qemu:
     name: parity s390x (big-endian, QEMU user mode)
-    runs-on: ubuntu-latest
+    # ubuntu-latest resolved to ubuntu-26.04 (image ubuntu26/20261101.186),
+    # where qemu-user-static has no installation candidate. The same apt
+    # line installed qemu-user-static 1:8.2.2+ds-0ubuntu1.18 on ubuntu-24.04
+    # (image ubuntu24/20261101.360). The parity command is unchanged.
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     defaults:
       run:
