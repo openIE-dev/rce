@@ -17,7 +17,11 @@ on:
 jobs:
   render:
     name: DOM renderer and axe-core
-    runs-on: ubuntu-latest
+    # ubuntu-latest resolved to ubuntu-26.04 (image ubuntu26/20261101.186).
+    # Playwright 1.56.1, pinned in ui/web/package.json, refuses Chromium
+    # there. This same job passed on ubuntu-24.04 (image ubuntu24/20261101.360)
+    # with that pin. The test step is unchanged.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
