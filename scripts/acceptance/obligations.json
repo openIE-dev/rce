@@ -1,0 +1,65 @@
+{
+  "format": "rce-prod-obligations/1",
+  "obligations": [
+    {
+      "id": "whole-module-form-path",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "Every module in the claimed corpus is built as a Form, the schedule of that Form builds back to the same bytes, and the source interpreter, the Form evaluator and the scheduled core agree on outputs, state and refusal or halt behaviour. A count of program functions does not discharge this obligation."
+    },
+    {
+      "id": "source-form-scheduled-equivalence",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "For each claimed case the source result, the Form result and the scheduled result agree on outputs, state and failure or refusal behaviour. Equal process exit status alone does not discharge this obligation."
+    },
+    {
+      "id": "backend-parity",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "Each claimed backend is gated on its own. A backend is ready only when every corpus case agrees with the reference on outputs, state and refusal behaviour. Exit success alone is not agreement. A backend with no cases is not ready."
+    },
+    {
+      "id": "refusal-accounting",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "A refusal may keep a run safe. It is not successful support of the refused construct. A semantic defect and a process error are not support either."
+    },
+    {
+      "id": "output-semantics",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "emit and out are required for every claimed surface that includes output semantics, including whole-module Form evaluation. Naming the target Form does not make this obligation optional."
+    },
+    {
+      "id": "semantic-budget-omega",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "The order value omega is semantic fuel, cost, output and memo state. Discharge is agreement of that state. A missing physical meter reading does not by itself fail this obligation, and a joule figure does not discharge it."
+    },
+    {
+      "id": "break-admission",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "Each break in the claimed surface is admitted under the stated rule or refused by name. A refusal is not support. A model proof discharges the rule. A test does not."
+    },
+    {
+      "id": "catch-shape",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "Each catch in the claimed surface is admitted under the stated shape or refused by name. A refusal is not support. A model proof discharges the rule. A test does not."
+    },
+    {
+      "id": "pure-count-c7-fg7",
+      "normative": true,
+      "needs_model_proof": true,
+      "statement": "A pure count stays outside the syntactic domain under the C7 and FG7 rule. The rule is discharged by a model proof. A test does not discharge it."
+    },
+    {
+      "id": "measured-joules",
+      "normative": false,
+      "needs_model_proof": false,
+      "statement": "A claim of measured joules cites a meter reading and the meter that produced it. A modelled figure, an estimate or an empty reading does not discharge it. This obligation applies only when the claim asserts measured joules. It is not the semantic order value."
+    }
+  ]
+}
