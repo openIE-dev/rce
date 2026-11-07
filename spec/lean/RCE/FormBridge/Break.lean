@@ -431,24 +431,55 @@ def runTwo (fuel : Nat) (inner : List Act) : Leave :=
   | .done ⟨log, f, some 0⟩ => .stopHere log f
   | .done ⟨log, f, some (d + 1)⟩ => .propagate d log f
 
-/-- After this construct has been exited, apply one more block or loop.
-    Residual 0 stops there. Residual `n + 1` becomes residual `n`.
-    The tail of the enclosing construct is not run: this function does not
-    take it. -/
-def afterEnclosing : Leave → Leave
-  | .propagate 0 log f => .stopHere log f
-  | .propagate (n + 1) log f => .propagate n log f
-  | r => r
+/-- Run `tail` after `log`, keeping a fuel trap's partial trace. A `break`
+    in `tail` is still pending: this function does not consume it. -/
+def resume (fuel : Nat) (log : List Nat) (tail : List Act) : Leave :=
+  match run fuel tail with
+  | .done ⟨log2, f2, none⟩ => .fell (log ++ log2) f2
+  | .done ⟨log2, f2, some 0⟩ => .stopHere (log ++ log2) f2
+  | .done ⟨log2, f2, some (d + 1)⟩ => .propagate d (log ++ log2) f2
+  | .fuel ⟨log2, f2, _⟩ => .fuelHalt (log ++ log2) f2
 
+/-- A block, as `eval.rs` does for `Block`. Fallthrough is `Next`. `Break 0`
+    is also `Next`, so the continuation after the block runs. `Break (d+1)`
+    becomes residual `d` and that continuation does not run. Statements
+    after a `break` in the same list are already absent from `run`. -/
 def runEnclosing (fuel : Nat) (inner tail : List Act) : Leave :=
   match runTwo fuel inner with
-  | .fell log f =>
-    match run f tail with
-    | .done ⟨log2, f2, none⟩ => .fell (log ++ log2) f2
-    | .done ⟨log2, f2, some 0⟩ => .stopHere (log ++ log2) f2
-    | .done ⟨log2, f2, some (d + 1)⟩ => .propagate d (log ++ log2) f2
-    | .fuel ⟨log2, f2, _⟩ => .fuelHalt (log ++ log2) f2
+  | .fell log f => resume f log tail
+  | .stopHere log f => resume f log tail
+  | .propagate d log f => .propagate d log f
+  | .fuelHalt log f => .fuelHalt log f
+
+/-- A loop, as `eval.rs` does for `Loop`. Fallthrough repeats the body, so
+    the continuation after the loop does not run on that result. `Break 0`
+    leaves the loop and that continuation runs. This function does not
+    re-enter the body. -/
+def runLoopFrame (fuel : Nat) (inner tail : List Act) : Leave :=
+  match runTwo fuel inner with
+  | .stopHere log f => resume f log tail
+  | .fell log f => .fell log f
+  | .propagate d log f => .propagate d log f
+  | .fuelHalt log f => .fuelHalt log f
+
+/-- An `if`, as `eval.rs` does for `If`: the arm's control is returned
+    unchanged. `Break 0` is not consumed, so the continuation after the
+    `if` does not run. -/
+def runIte (fuel : Nat) (inner tail : List Act) : Leave :=
+  match runTwo fuel inner with
+  | .fell log f => resume f log tail
   | r => r
+
+/-- The parent block around `runEnclosing`. Residual 0 and a pending
+    `break 0` are each consumed once, and then `outer` runs. Residual
+    `n + 1` is decremented and `outer` does not run. -/
+def runParentBlock (fuel : Nat) (inner mid outer : List Act) : Leave :=
+  match runEnclosing fuel inner mid with
+  | .fell log f => resume f log outer
+  | .stopHere log f => resume f log outer
+  | .propagate 0 log f => resume f log outer
+  | .propagate (n + 1) log f => .propagate n log f
+  | .fuelHalt log f => .fuelHalt log f
 
 theorem depth0_suppresses_later_effects :
     runTwo 3 [.note 1, .break 0, .note 9] = .stopHere [1] 3 := rfl
@@ -469,10 +500,31 @@ theorem enclosing_tail_not_run :
     runEnclosing 3 [.note 1] [.note 9] = .fell [1, 9] 3 := by
   refine ⟨rfl, rfl⟩
 
-theorem enclosing_consumes_one_residual :
-    afterEnclosing (runTwo 3 [.break 1]) = .stopHere [] 3 ∧
-    afterEnclosing (runTwo 3 [.break 2]) = .propagate 0 [] 3 := by
+theorem break0_runs_after_block :
+    runEnclosing 3 [.break 0] [.note 9] = .fell [9] 3 := rfl
+
+theorem break0_in_list_still_drops_later_note :
+    runTwo 3 [.break 0, .note 9] = .stopHere [] 3 ∧
+    runEnclosing 3 [.break 0, .note 9] [.note 8] = .fell [8] 3 := by
   refine ⟨rfl, rfl⟩
+
+theorem break1_skips_mid_parent_runs_outer :
+    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .fell [2] 4 ∧
+    runParentBlock 4 [.note 1] [.note 8] [.note 2] = .fell [1, 8, 2] 4 ∧
+    runParentBlock 4 [.break 0] [.note 1] [.note 2] = .fell [1, 2] 4 := by
+  refine ⟨rfl, rfl, rfl⟩
+
+theorem residual0_consumed_once :
+    runEnclosing 4 [.break 1] [.note 1] = .propagate 0 [] 4 ∧
+    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .fell [2] 4 ∧
+    runParentBlock 4 [.break 2] [.note 1] [.note 2] = .propagate 0 [] 4 := by
+  refine ⟨rfl, rfl, rfl⟩
+
+theorem loop_fallthrough_is_not_the_exit :
+    runLoopFrame 3 [.note 1] [.note 9] = .fell [1] 3 ∧
+    runLoopFrame 3 [.break 0] [.note 9] = .fell [9] 3 ∧
+    runIte 3 [.break 0] [.note 9] = .stopHere [] 3 := by
+  refine ⟨rfl, rfl, rfl⟩
 
 theorem prior_tick_kept_later_tick_not_run :
     runTwo 3 [.tick, .note 1, .break 0, .tick] = .stopHere [1] 2 := rfl
