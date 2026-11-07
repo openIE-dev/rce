@@ -54,7 +54,15 @@ passes only when `scope.text` says it is not a production claim, the
 exclusions are allowed for that surface, and it does not assert production
 or whole-module readiness.
 
-Evidence is bound to `revision`, to `built_from` (the checker commit, for a
-repository record) and to the bytes of `obligations.json`. A stale record
-does not authorise a newer claim. The positive fixtures under the tests are
-labelled `test-only`.
+The revision argument is the tree being authorised. The claim revision, the
+evidence revision and that argument are one binding: a receipt for another
+tree, including an older base, does not authorise the tree named on the
+command. `built_from` is the checker commit. On a repository record it is
+12 hexadecimal digits and a prefix of that same revision, so a checker built
+from another commit does not apply. The evidence hash binds every action row
+to that record. A changed row with the old hash is rejected, and a row that
+says `equal` for a module the record does not mark supported is rejected.
+One module has one result on each backend. A repository record is also bound
+to the bytes of `obligations.json`. These checks do not make the tests a
+proof of the compiler. The positive fixtures under the tests are labelled
+`test-only`.

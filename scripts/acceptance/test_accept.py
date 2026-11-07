@@ -141,6 +141,23 @@ def green_claim():
     }
 
 
+def drop_equal_actions(evidence, status):
+    """An action row may say equal only when the module record says supported."""
+    for name in evidence["backends"]:
+        for row in evidence["backends"][name]["cases"]:
+            row["status"] = status
+            row["outputs_equal"] = None
+            row["state_equal"] = None
+            row["refusal_equal"] = None
+            row["compared"] = []
+    for row in evidence["equivalence"]["modules"]:
+        row["status"] = status
+        row["outputs_equal"] = None
+        row["state_equal"] = None
+        row["refusal_equal"] = None
+        row["compared"] = []
+
+
 def judge(claim, evidence, revision=REV, corpus=None):
     tmp = tempfile.mkdtemp()
     try:
@@ -231,6 +248,51 @@ class GateTests(unittest.TestCase):
         evidence = accept.seal(evidence)
         reasons = judge(green_claim(), evidence, revision=REV)
         self.assertIn("stale-revision", codes(reasons))
+        claim = green_claim()
+        claim["revision"] = OTHER
+        reasons = judge(claim, green_evidence(), revision=REV)
+        self.assertIn("stale-revision", codes(reasons))
+        reasons = judge(green_claim(), green_evidence(), revision=OTHER)
+        self.assertIn("stale-revision", codes(reasons))
+
+    def test_stale_checker_revision(self):
+        evidence = green_evidence()
+        evidence["label"] = "repository"
+        evidence["built_from"] = "b" * 12
+        evidence = accept.seal(evidence)
+        claim = green_claim()
+        claim["subject"] = "repository"
+        reasons = judge(claim, evidence)
+        self.assertIn("stale-revision", codes(reasons))
+        self.assertTrue(any("checker build" in r for r in reasons))
+        evidence = green_evidence()
+        evidence["label"] = "repository"
+        evidence["built_from"] = ""
+        evidence = accept.seal(evidence)
+        reasons = judge(claim, evidence)
+        self.assertIn("stale-revision", codes(reasons))
+
+    def test_stale_action_mapping(self):
+        evidence = green_evidence()
+        digest = evidence["evidence_sha256"]
+        evidence["backends"]["form"]["cases"][0]["outputs_equal"] = False
+        self.assertEqual(evidence["evidence_sha256"], digest)
+        reasons = judge(green_claim(), evidence)
+        self.assertIn("malformed-evidence", codes(reasons))
+        self.assertTrue(any("evidence_sha256 does not match" in r for r in reasons))
+        evidence = green_evidence()
+        evidence["modules"][0]["status"] = "refused"
+        evidence["floor"] = accept.recompute_floor(evidence["modules"])
+        evidence = accept.seal(evidence)
+        reasons = judge(green_claim(), evidence)
+        self.assertIn("malformed-evidence", codes(reasons))
+        self.assertTrue(any("marks case.rce equal" in r for r in reasons))
+        evidence = green_evidence()
+        evidence["backends"]["core"]["cases"].append(dict(evidence["backends"]["core"]["cases"][0]))
+        evidence = accept.seal(evidence)
+        reasons = judge(green_claim(), evidence)
+        self.assertIn("malformed-evidence", codes(reasons))
+        self.assertTrue(any("maps case.rce twice" in r for r in reasons))
 
     def test_malformed_evidence(self):
         tmp = tempfile.mkdtemp()
@@ -338,6 +400,7 @@ class GateTests(unittest.TestCase):
         module["output_semantics"] = {"hard": True, "status": "refused", "compared": []}
         module["program_functions"] = {"class": "syntactic", "roots": 1, "tag": None}
         evidence = green_evidence([module])
+        drop_equal_actions(evidence, "refused")
         evidence["metering"]["semantic_budget"]["agrees"] = None
         evidence["constructs"] = {
             "break": {"status": "unverified", "modules": 0, "counted_as_support": False},
@@ -475,6 +538,7 @@ class GateTests(unittest.TestCase):
         }
         module["output_semantics"] = {"hard": True, "status": "process_error", "compared": []}
         evidence = green_evidence([module])
+        drop_equal_actions(evidence, "process_error")
         evidence["refusals"] = [{
             "module": "case.rce", "tag": "lowering: internal: broken",
             "class": "process_error", "counted_as_support": False,

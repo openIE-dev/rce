@@ -703,7 +703,10 @@ def check_backends(claim, evidence, ids, reasons):
         by_id = {}
         for row in cases:
             if isinstance(row, dict) and isinstance(row.get("module"), str):
-                by_id[row["module"]] = row
+                ident = row["module"]
+                if ident in by_id:
+                    add(reasons, "malformed-evidence", "%s maps %s twice; one action has one result" % (name, ident))
+                by_id[ident] = row
         grouped = {}
         for ident in ids:
             row = by_id.get(ident)
@@ -850,19 +853,37 @@ def decide(claim, evidence, revision, corpus_dir, evidence_path):
     good = valid_proofs(evidence, evidence_path, reasons)
     proved = check_unproved(evidence, good, reasons)
     check_measurement(claim, evidence, reasons)
-    # Cross-check: a supported module's equivalence and form case agree.
+    # A supported module's equivalence and form case must agree. An equal
+    # action row for any other module status is a forged mapping.
+    module_status = {}
+    for module in evidence["modules"]:
+        if isinstance(module, dict):
+            module_status[module.get("id")] = module.get("status")
     eq_rows = (evidence.get("equivalence") or {}).get("modules")
     eq_by = {}
     if isinstance(eq_rows, list):
         for row in eq_rows:
             if isinstance(row, dict):
-                eq_by[row.get("module")] = row
+                ident = row.get("module")
+                if ident in eq_by:
+                    add(reasons, "malformed-evidence", "equivalence maps %s twice; one action has one result" % ident)
+                eq_by[ident] = row
+                if row.get("status") == "equal" and module_status.get(ident) != "supported":
+                    add(reasons, "malformed-evidence", "equivalence marks %s equal but the module is %s" % (ident, module_status.get(ident)))
     form_cases = ((evidence.get("backends") or {}).get("form") or {}).get("cases") if isinstance(evidence.get("backends"), dict) else None
     form_by = {}
     if isinstance(form_cases, list):
         for row in form_cases:
             if isinstance(row, dict):
                 form_by[row.get("module")] = row
+    if isinstance(evidence.get("backends"), dict):
+        for name, block in evidence["backends"].items():
+            cases = block.get("cases") if isinstance(block, dict) else None
+            if not isinstance(cases, list):
+                continue
+            for row in cases:
+                if isinstance(row, dict) and row.get("status") == "equal" and module_status.get(row.get("module")) != "supported":
+                    add(reasons, "malformed-evidence", "%s marks %s equal but the module is %s" % (name, row.get("module"), module_status.get(row.get("module"))))
     for module in evidence["modules"]:
         if not isinstance(module, dict) or module.get("status") != "supported":
             continue
