@@ -29,6 +29,18 @@
 //!   union of those captures, ω included when either arm needs it. One arm
 //!   runs, so both arms may use an owned capture. The parent keeps it only
 //!   when every arm that falls through still holds it
+//! - `catch`. The core value stays `sum(ret, Halt)`. The schedule packs it
+//!   by the callee's declared outputs into `sum(tup(outputs…), Halt)` and
+//!   rethrows the fuel trap (§13, E1). That rethrow is the schedule's
+//!   composition with the core, which catches every halt. It is not the
+//!   B2 exception lift. A bare core `catch` is lowered as the Form `catch`
+//!   plus the inverse of the pack, so a later reader still sees
+//!   `sum(ret, Halt)`. The inverse's domain is the values the pack returns:
+//!   the fuel trap is not among them. Zero declared outputs schedule as the
+//!   unit tuple, and several declared outputs as `tup(outputs…)`. The core
+//!   has one return, so reading that schedule back does not restore a
+//!   zero-output or multi-output signature. A list or array singleton has
+//!   no dummy value in this slice
 //!
 //! A construct outside that fragment requires change. The reason starts with
 //! a tag (`global`, `out`, `carrier`, `graph`, `catch`, `recursion`, `loop`,
@@ -222,6 +234,12 @@ struct Loc {
     var: bool,
 }
 
+struct TagFold<'a> {
+    selector: Src,
+    arm0: &'a [Stmt],
+    arm1: &'a [Stmt],
+}
+
 struct Info {
     first: HashMap<*const Stmt, u32>,
     loc: HashMap<u32, Loc>,
@@ -373,6 +391,10 @@ impl Scope {
 struct Built {
     at: String,
     info: Info,
+    /// Locals of statements synthesized while adopting a bare `catch`.
+    /// They are not locals of the original core function.
+    extra: std::cell::RefCell<HashMap<*const Stmt, u32>>,
+    extra_loc: std::cell::RefCell<HashMap<u32, Loc>>,
     /// (group, index) -> meta, for user functions
     meta: HashMap<(String, u32), Meta>,
     names: HashMap<(String, u32), String>,
@@ -386,11 +408,24 @@ impl Built {
         deny(self.phase, &self.at, reason)
     }
     fn loc_ty(&self, i: u32) -> Result<Ty, Change> {
-        self.info
-            .loc
-            .get(&i)
-            .map(|l| l.ty.clone())
-            .ok_or_else(|| self.deny(format!("defect: v{i} is not bound")))
+        if let Some(l) = self.info.loc.get(&i) {
+            return Ok(l.ty.clone());
+        }
+        if let Some(l) = self.extra_loc.borrow().get(&i) {
+            return Ok(l.ty.clone());
+        }
+        Err(self.deny(format!("defect: v{i} is not bound")))
+    }
+    fn stmt_local(&self, s: &Stmt) -> u32 {
+        let p = s as *const Stmt;
+        if let Some(i) = self.info.first.get(&p) {
+            return *i;
+        }
+        self.extra
+            .borrow()
+            .get(&p)
+            .copied()
+            .unwrap_or_else(|| panic!("a synthesized statement has no local: {s:?}"))
     }
     fn atom_ty(&self, a: &Atom) -> Result<Ty, Change> {
         match a {
@@ -565,6 +600,191 @@ impl Built {
             .cloned()
             .ok_or_else(|| self.deny("defect: a call names no function"))
     }
+    /// A core `catch`, the schedule's fuel-trap rethrow and pack, and the
+    /// inverse of that pack when the core has no boundary yet.
+    ///
+    /// The Form node output is `sum(tup(declared outputs…), Halt)` (§6).
+    /// The fuel rethrow is the schedule's composition with the core (§13,
+    /// E1), not the B2 exception lift. A bare catch lowers the inverse so
+    /// later statements still read `sum(ret, Halt)`.
+    #[allow(clippy::too_many_arguments)]
+    fn adopt_catch(
+        &self,
+        r: &FnRef,
+        args: &[Atom],
+        raw: u32,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        flat: &[&Stmt],
+        i: usize,
+        ret_ty: &BTy,
+    ) -> Result<usize, Change> {
+        let id = match r {
+            FnRef::Key(k, i) => (k.clone(), *i),
+            FnRef::Rec(_) => {
+                return Err(self.deny(
+                    "recursion: a recursive function needs a declared bound, and rce-core/1 does not carry one",
+                ));
+            }
+        };
+        let meta = self
+            .meta
+            .get(&id)
+            .ok_or_else(|| self.deny("defect: a catch names no user function"))?;
+        let ret = cty(&meta.ret).map_err(|e| self.deny(format!("defect: {e}")))?;
+        let mut ins = vec![];
+        for a in args {
+            ins.push(self.src_atom(sc, a)?);
+        }
+        if meta.omega {
+            ins.push(self.need_omega(sc, parent_omega)?);
+        }
+        let node = sc.push(Attr::Catch(Ref::Key(meta.temp.clone(), 0)), ins, vec![]);
+        if meta.omega {
+            sc.omega = Some(Src::Out(node, 1));
+        }
+        // The schedule writes one of these boundaries. Fold the one that is
+        // actually there. A bare catch matches none of them.
+        for pack in [CatchPack::Singleton, CatchPack::Zero, CatchPack::Multiple] {
+            let Ok(boundary) = catch_boundary_for(pack, &ret, raw) else {
+                continue;
+            };
+            let end = i + 1 + boundary.stmts.len();
+            let Some(tail) = flat.get(i + 1..end) else {
+                continue;
+            };
+            if tail.iter().zip(&boundary.stmts).all(|(got, want)| *got == want) {
+                sc.env.insert(boundary.wrapped, Src::Out(node, 0));
+                return Ok(end);
+            }
+        }
+        // One core result is one declared output. Zero outputs and several
+        // outputs are not a bare core signature; their schedules carry the
+        // boundary matched above.
+        self.lower_bare_catch(sc, parent_omega, ret_ty, &ret, raw, node)?;
+        Ok(i + 1)
+    }
+
+    /// Inverse of the singleton pack, written into the Form so `v{raw}` stays
+    /// `sum(ret, Halt)`. The fuel trap does not reach here: the Form `catch`
+    /// and the scheduled boundary both rethrow it.
+    fn lower_bare_catch(
+        &self,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        ret: &Ty,
+        raw: u32,
+        node: u32,
+    ) -> Result<(), Change> {
+        let base = self
+            .info
+            .loc
+            .keys()
+            .copied()
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1)
+            .max(1_000_000);
+        let payload = catch_form_payload(CatchPack::Singleton, ret)
+            .map_err(|e| self.deny(format!("catch: {e}")))?;
+        let unpack = catch_unpack_for(CatchPack::Singleton, ret, base, base + 1)
+            .map_err(|e| self.deny(format!("catch: {e}")))?;
+        self.bind_synth(&unpack.stmts, &unpack.binds)?;
+        self.extra_loc.borrow_mut().insert(
+            base,
+            Loc {
+                ty: catch_sum(&payload),
+                var: false,
+            },
+        );
+        sc.env.insert(base, Src::Out(node, 0));
+        let refs: Vec<&Stmt> = unpack.stmts.iter().collect();
+        let end = self.exec_refs(&refs, sc, parent_omega, ret_ty, &BTreeSet::new());
+        self.extra.borrow_mut().clear();
+        self.extra_loc.borrow_mut().clear();
+        match end? {
+            End::Fall => {}
+            _ => {
+                return Err(self.deny("defect: the catch unpack does not fall through"));
+            }
+        }
+        let src = sc
+            .env
+            .get(&unpack.wrapped)
+            .copied()
+            .ok_or_else(|| self.deny("defect: the catch unpack has no result"))?;
+        sc.env.insert(raw, src);
+        Ok(())
+    }
+
+    /// Locals of statements synthesized for a bare `catch`. The statements
+    /// are not part of the original core function, so `info` has no row.
+    fn bind_synth(&self, stmts: &[Stmt], binds: &[CatchBind]) -> Result<(), Change> {
+        fn walk(
+            stmts: &[Stmt],
+            binds: &[CatchBind],
+            bi: &mut usize,
+            extra: &mut HashMap<*const Stmt, u32>,
+            extra_loc: &mut HashMap<u32, Loc>,
+        ) -> Result<(), String> {
+            for s in stmts {
+                let n = match s {
+                    Stmt::Let(_) | Stmt::Var(_, _) | Stmt::Call(..) | Stmt::Catch(..) => 1,
+                    Stmt::Prim(p, ts, _) => core::prim_results(p, ts),
+                    Stmt::If(_, t, e) => {
+                        walk(t, binds, bi, extra, extra_loc)?;
+                        walk(e, binds, bi, extra, extra_loc)?;
+                        0
+                    }
+                    Stmt::Block(x) | Stmt::Loop(x) => {
+                        walk(x, binds, bi, extra, extra_loc)?;
+                        0
+                    }
+                    _ => 0,
+                };
+                if n == 0 {
+                    continue;
+                }
+                if *bi >= binds.len() {
+                    return Err("a synthesized statement has no local".into());
+                }
+                extra.insert(s as *const Stmt, binds[*bi].local);
+                let var = matches!(s, Stmt::Var(_, _));
+                for k in 0..n {
+                    if *bi >= binds.len() {
+                        return Err(
+                            "a synthesized primitive binds more locals than were recorded".into(),
+                        );
+                    }
+                    let b = &binds[*bi];
+                    extra_loc.insert(
+                        b.local,
+                        Loc {
+                            ty: b.ty.clone(),
+                            var: var && k == 0,
+                        },
+                    );
+                    *bi += 1;
+                }
+            }
+            Ok(())
+        }
+        let mut extra = self.extra.borrow_mut();
+        let mut extra_loc = self.extra_loc.borrow_mut();
+        extra.clear();
+        extra_loc.clear();
+        let mut bi = 0usize;
+        walk(stmts, binds, &mut bi, &mut extra, &mut extra_loc)
+            .map_err(|e| self.deny(format!("defect: {e}")))?;
+        if bi != binds.len() {
+            return Err(self.deny(
+                "defect: the catch unpack's locals do not match its statements",
+            ));
+        }
+        Ok(())
+    }
+
     fn exec(
         &self,
         slices: &[&[Stmt]],
@@ -603,13 +823,13 @@ impl Built {
             let rest = &flat[i + 1..];
             match s {
                 Stmt::Let(a) => {
-                    let local = self.info.first[&(s as *const Stmt)];
+                    let local = self.stmt_local(s);
                     let src = self.src_atom(sc, a)?;
                     sc.env.insert(local, src);
                     i += 1;
                 }
                 Stmt::Var(_, a) => {
-                    let local = self.info.first[&(s as *const Stmt)];
+                    let local = self.stmt_local(s);
                     let src = self.src_atom(sc, a)?;
                     sc.env.insert(local, src);
                     i += 1;
@@ -631,16 +851,20 @@ impl Built {
                     return Err(self.deny(format!("carrier: `{p}` is not in the catalogue; it is a printed carrier only")));
                 }
                 Stmt::Prim(p, ts, args) => {
-                    let local0 = self.info.first[&(s as *const Stmt)];
+                    let local0 = self.stmt_local(s);
                     self.prim(sc, p, ts, args, local0, parent_omega)?;
                     i += 1;
                 }
                 Stmt::Call(r, args) | Stmt::Catch(r, args) => {
                     if matches!(s, Stmt::Catch(..)) {
-                        return Err(self.deny("catch: a catch and the fuel-trap branch are not in this slice"));
+                        let local = self.stmt_local(s);
+                        let adopted =
+                            self.adopt_catch(r, args, local, sc, parent_omega, flat, i, ret_ty)?;
+                        i = adopted;
+                        continue;
                     }
                     let name = self.ref_name(r)?;
-                    let local = self.info.first[&(s as *const Stmt)];
+                    let local = self.stmt_local(s);
                     if let Some(entry) = shim_of(&name) {
                         if args.len() != 1 {
                             return Err(self.deny(format!("defect: {name} takes one argument")));
@@ -678,20 +902,29 @@ impl Built {
                     if self.atom_ty(c)? != Ty::Bool {
                         return Err(self.deny("selector: the core if is not on a bool, and this slice schedules only a bool selector"));
                     }
-                    let t_falls = build::falls(t);
-                    let e_falls = build::falls(e);
+                    // `if int.eq(sum.tag(x), k)` split into the two tag arms is one
+                    // Branch on that `sum.tag`. FG8's tag test is the selector, and
+                    // the arm index is the variant. A bool branch does not carry it.
+                    let fold = self.tag_fold(sc, c, t, e);
+                    let (t_b, e_b): (&[Stmt], &[Stmt]) = match &fold {
+                        // Region 1 is the `then` of a bool branch. Region 0 is the `else`.
+                        Some(f) => (f.arm1, f.arm0),
+                        None => (t.as_slice(), e.as_slice()),
+                    };
+                    let t_falls = build::falls(t_b);
+                    let e_falls = build::falls(e_b);
                     // The ω this region already holds. A source from outside the
                     // region is not one of its inputs.
                     let here = sc.omega.or(parent_omega);
                     let tail_needs = rest.iter().copied().any(|s| self.stmt_needs_order(s));
-                    let thread = if self.stmts_need_order(t) || self.stmts_need_order(e) || tail_needs {
+                    let thread = if self.stmts_need_order(t_b) || self.stmts_need_order(e_b) || tail_needs {
                         here
                     } else {
                         None
                     };
                     // A literal the parent already built is captured, so the
                     // operation and its domain test are the same value (FG8).
-                    let lits = lits_already(&sc, &[t.as_slice(), e.as_slice()], rest);
+                    let lits = lits_already(sc, &[t_b, e_b], rest);
                     // A tail of only drops and stores, whose values the parent
                     // already has, is the schedule's join of a branch's outputs.
                     // It stays after this branch. Sinking it into a nested halt
@@ -707,7 +940,11 @@ impl Built {
                         && !tail_is_join(rest, sc)
                         && !binds_exposed(rest, &self.info, exposed)
                     {
-                        let (cont, stop, cont_then) = if t_falls { (t.as_slice(), e.as_slice(), true) } else { (e.as_slice(), t.as_slice(), false) };
+                        let (cont, stop, cont_then) = if t_falls {
+                            (t_b, e_b, true)
+                        } else {
+                            (e_b, t_b, false)
+                        };
                         let seed = self.seed_of(&[cont, stop], rest, sc);
                         let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
                         let cont_end =
@@ -717,13 +954,21 @@ impl Built {
                         } else {
                             (cont_end.0, cont_end.1, stop_end.0, stop_end.1)
                         };
-                        let sel = self.src_atom(sc, c)?;
+                        let sel = if let Some(f) = &fold {
+                            f.selector
+                        } else {
+                            self.src_atom(sc, c)?
+                        };
                         return self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false);
                     }
-                    let sel = self.src_atom(sc, c)?;
-                    let seed = self.seed_of(&[t, e], &[], sc);
-                    let (e1, a1) = self.arm(t, &seed, &lits, sc, here, thread, ret_ty)?;
-                    let (e0, a0) = self.arm(e, &seed, &lits, sc, here, thread, ret_ty)?;
+                    let sel = if let Some(f) = &fold {
+                        f.selector
+                    } else {
+                        self.src_atom(sc, c)?
+                    };
+                    let seed = self.seed_of(&[t_b, e_b], &[], sc);
+                    let (e1, a1) = self.arm(t_b, &seed, &lits, sc, here, thread, ret_ty)?;
+                    let (e0, a0) = self.arm(e_b, &seed, &lits, sc, here, thread, ret_ty)?;
                     let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
                     match end {
                         End::Fall => i += 1,
@@ -756,6 +1001,120 @@ impl Built {
             }
         }
         Ok(End::Fall)
+    }
+
+    /// `if int.eq(sum.tag(x), k) { this } else { the other tag, then a proof arm }`.
+    /// The proof arm does not get, call or return. It is the core's evidence
+    /// that the tag is the other variant, not a third Form arm.
+    fn tag_fold<'a>(
+        &self,
+        sc: &Scope,
+        cond: &Atom,
+        then: &'a [Stmt],
+        else_s: &'a [Stmt],
+    ) -> Option<TagFold<'a>> {
+        let (selector, k, tag_node) = self.tag_eq(sc, cond)?;
+        if k != 0 && k != 1 {
+            return None;
+        }
+        let tag_local = sc
+            .env
+            .iter()
+            .find(|(_, src)| **src == selector)
+            .map(|(id, _)| *id)?;
+        let other = self.other_tag_arm(sc, else_s, tag_local, tag_node, 1 - k)?;
+        let (arm0, arm1) = if k == 0 { (then, other) } else { (other, then) };
+        Some(TagFold { selector, arm0, arm1 })
+    }
+
+    /// `(selector, literal, sum.tag node)`. The selector is output 0 of that node.
+    fn tag_eq(&self, sc: &Scope, cond: &Atom) -> Option<(Src, i128, u32)> {
+        let Atom::V(v) = cond else { return None };
+        let Src::Out(n, 0) = sc.env.get(v).copied()? else { return None };
+        let node = sc.nodes.get(n as usize)?;
+        let Attr::Prim(name, _, _) = &node.attrs else { return None };
+        if name != "int.eq" || node.ins.len() != 2 {
+            return None;
+        }
+        let lit = |s: &Src| -> Option<i128> {
+            let Src::Out(i, 0) = *s else { return None };
+            match &sc.nodes.get(i as usize)?.attrs {
+                Attr::Lit(_, Lit::Int(v)) => Some(*v),
+                _ => None,
+            }
+        };
+        let (tag_src, k) = if let Some(k) = lit(&node.ins[1]) {
+            (node.ins[0], k)
+        } else {
+            (node.ins[1], lit(&node.ins[0])?)
+        };
+        let Src::Out(tn, 0) = tag_src else { return None };
+        let tnode = sc.nodes.get(tn as usize)?;
+        let Attr::Prim(tnm, _, _) = &tnode.attrs else { return None };
+        if tnm != "sum.tag" {
+            return None;
+        }
+        Some((tag_src, k, tn))
+    }
+
+    fn other_tag_arm<'a>(
+        &self,
+        sc: &Scope,
+        stmts: &'a [Stmt],
+        outer_tag: u32,
+        tag_node: u32,
+        want: i128,
+    ) -> Option<&'a [Stmt]> {
+        let mut i = 0;
+        let mut tag_op = outer_tag;
+        let mut cond_local = None;
+        while i < stmts.len() {
+            match &stmts[i] {
+                Stmt::Prim(n, _, args) if n == "sum.tag" && args.len() == 1 => {
+                    let Atom::V(v) = &args[0] else { return None };
+                    let src = sc.env.get(v).copied()?;
+                    let node = sc.nodes.get(tag_node as usize)?;
+                    if src != node.ins[0] && src != Src::Out(tag_node, 1) {
+                        return None;
+                    }
+                    tag_op = self.stmt_local(&stmts[i]);
+                    i += 1;
+                }
+                Stmt::Prim(n, _, args) if n == "int.eq" => {
+                    let (t, k) = match args.as_slice() {
+                        [Atom::V(t), Atom::K(_, Lit::Int(k))] => (*t, *k),
+                        [Atom::K(_, Lit::Int(k)), Atom::V(t)] => (*t, *k),
+                        _ => return None,
+                    };
+                    if t != tag_op || k != want {
+                        return None;
+                    }
+                    cond_local = Some(self.stmt_local(&stmts[i]));
+                    i += 1;
+                }
+                Stmt::If(c, body, tail) => {
+                    let Atom::V(v) = c else { return None };
+                    if cond_local != Some(*v) || i + 1 != stmts.len() {
+                        return None;
+                    }
+                    let proof = tail.iter().all(|s| {
+                        !matches!(
+                            s,
+                            Stmt::Prim(p, _, _) if p == "sum.get"
+                        ) && !matches!(
+                            s,
+                            Stmt::Call(..) | Stmt::Catch(..) | Stmt::Ret(_) | Stmt::Loop(_) | Stmt::If(..)
+                        )
+                    });
+                    if !proof {
+                        return None;
+                    }
+                    return Some(body.as_slice());
+                }
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// An arm. `seed` is the shared capture list, the same for both arms.
@@ -2629,8 +2988,11 @@ fn empty_form() -> form::Module {
 fn direct_omega(f: &core::Fn, names: &HashMap<(String, u32), String>, group: &str) -> bool {
     fn go(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
         b.iter().any(|s| match s {
-            Stmt::Halt(_) => true,
-            Stmt::Call(r, _) | Stmt::Catch(r, _) => {
+            // A `catch` rethrows the fuel trap in the Form, so the function may
+            // halt even when the core text has no `halt` yet. The schedule
+            // writes that halt; both shapes take ω.
+            Stmt::Halt(_) | Stmt::Catch(_, _) => true,
+            Stmt::Call(r, _) => {
                 let id = match r {
                     FnRef::Key(k, i) => (k.clone(), *i),
                     FnRef::Rec(i) => (group.to_string(), *i),
@@ -2734,6 +3096,8 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
         let built = Built {
             at: at.clone(),
             info,
+            extra: std::cell::RefCell::new(HashMap::new()),
+            extra_loc: std::cell::RefCell::new(HashMap::new()),
             meta: meta.clone(),
             names: names.clone(),
             group: u.group.clone(),
@@ -3109,13 +3473,12 @@ fn schedule_func(
     at: &str,
 ) -> Result<(core::Fn, bool, bool, bool), Change> {
     let (params, ret, omega) = sig_of(f).map_err(|r| deny("schedule", at, r))?;
-    if f.body
-        .nodes
-        .iter()
-        .any(|n| matches!(n.attrs, Attr::Catch(_) | Attr::Cap(_)))
-        || has_kind(&f.body, |a| matches!(a, Attr::Catch(_) | Attr::Cap(_)))
-    {
-        return Err(deny("schedule", at, cap_or_catch(&f.body)));
+    if has_kind(&f.body, |a| matches!(a, Attr::Cap(_))) {
+        return Err(deny(
+            "schedule",
+            at,
+            "cap: a cap node waits for the host statement of rce-core/2",
+        ));
     }
     let mut sch = Sch {
         next: params.len() as u32,
@@ -3154,6 +3517,78 @@ fn schedule_func(
     // and the core does not return after a halt. W3 does not require a halt
     // to consume what it still holds, so nothing is dropped after it.
     if !function_halts(&f.body) {
+        let declared = f.outs.iter().filter(|t| **t != BTy::Order).count();
+        // One declared output keeps the schedule this slice already checked.
+        // Zero outputs return the unit tuple. Several outputs return that
+        // tuple. Both are one core return; constructing the schedule does
+        // not restore the declared list.
+        if declared != 1 {
+            let mut keep = HashSet::new();
+            let mut values = vec![];
+            for s in &f.body.out {
+                match sch.val(&env, *s)? {
+                    Av::A(Atom::V(i)) => {
+                        keep.insert(i);
+                        values.push(Atom::V(i));
+                    }
+                    Av::A(a) => values.push(a),
+                    Av::Omega => {}
+                }
+            }
+            if values.len() != declared {
+                return Err(sch.deny(
+                    "defect: the function's results do not match its declared outputs",
+                ));
+            }
+            sch.drop_except(&keep, mark);
+            let gone: Vec<u32> = sch
+                .live
+                .iter()
+                .copied()
+                .filter(|i| !keep.contains(i))
+                .collect();
+            for i in gone {
+                let t = sch.tys[&i].clone();
+                sch.stmts
+                    .push(Stmt::Prim("drop".into(), vec![t], vec![Atom::V(i)]));
+                sch.live.remove(&i);
+            }
+            let ret_a = if values.is_empty() {
+                let unit = Ty::unit();
+                sch.stmts
+                    .push(Stmt::Prim("tup.mk".into(), vec![unit.clone()], vec![]));
+                Atom::V(sch.fresh(unit, true))
+            } else {
+                let parts = f
+                    .outs
+                    .iter()
+                    .filter(|t| **t != BTy::Order)
+                    .map(|t| cty(t).map_err(|_| sch.deny("defect: a result type the core cannot hold")))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let tup = Ty::Tup(parts);
+                for a in &values {
+                    sch.consume(a)?;
+                }
+                sch.stmts
+                    .push(Stmt::Prim("tup.mk".into(), vec![tup.clone()], values));
+                Atom::V(sch.fresh(tup, true))
+            };
+            if let Atom::V(i) = &ret_a {
+                sch.consume(&Atom::V(*i))?;
+            }
+            sch.stmts.push(Stmt::Ret(ret_a));
+            let _ = omega;
+            return Ok((
+                core::Fn {
+                    params,
+                    ret,
+                    body: sch.stmts,
+                },
+                sch.tick,
+                sch.charge,
+                sch.try_c,
+            ));
+        }
         let mut keep = HashSet::new();
         let mut ret_atom = None;
         for s in &f.body.out {
@@ -3237,11 +3672,6 @@ fn sig_of(f: &Func) -> Result<(Vec<Ty>, Ty, bool), String> {
     } else {
         &f.outs[..]
     };
-    if outs.len() != 1 {
-        return Err(
-            "exit: a function with several results has no single core return in this slice".into(),
-        );
-    }
     if ins.iter().any(|t| *t == BTy::Order) {
         return Err("defect: ω is not only the last input".into());
     }
@@ -3250,8 +3680,22 @@ fn sig_of(f: &Func) -> Result<(Vec<Ty>, Ty, bool), String> {
         .map(cty)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "defect: a type the core cannot hold".to_string())?;
-    let ret =
-        cty(&outs[0]).map_err(|_| "defect: a result type the core cannot hold".to_string())?;
+    // The core has one return. Zero declared outputs are the unit tuple.
+    // Several declared outputs are that tuple, with no extra wrap. One
+    // declared output, scalar or tuple, is that one type.
+    let ret = match outs {
+        [] => Ty::unit(),
+        [one] => {
+            cty(one).map_err(|_| "defect: a result type the core cannot hold".to_string())?
+        }
+        many => {
+            let parts = many
+                .iter()
+                .map(|t| cty(t).map_err(|_| "defect: a result type the core cannot hold".to_string()))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ty::Tup(parts)
+        }
+    };
     Ok((params, ret, omega))
 }
 
@@ -3265,14 +3709,6 @@ fn has_kind(b: &Body, pred: impl Fn(&Attr) -> bool + Copy) -> bool {
     b.nodes
         .iter()
         .any(|n| pred(&n.attrs) || n.regions.iter().any(|r| has_kind(r, pred)))
-}
-
-fn cap_or_catch(b: &Body) -> String {
-    if has_kind(b, |a| matches!(a, Attr::Cap(_))) {
-        "cap: a cap node waits for the host statement of rce-core/2".into()
-    } else {
-        "catch: a catch and the fuel-trap branch are not in this slice".into()
-    }
 }
 
 struct Dom {
@@ -3295,6 +3731,429 @@ fn align_with_test(dom: Option<&Dom>, name: &str, targs: &[Ty], args: &mut [Atom
     {
         args.swap(0, 1);
     }
+}
+
+/// How a Form `catch` packs the callee's declared outputs into
+/// `sum(tup(outputs…), halt)`. The core catch value stays `sum(ret_F, Halt)`.
+///
+/// A tuple-valued singleton is one declared output whose type is a tuple:
+/// the pack is a one-component tuple holding that tuple. Several outputs
+/// are the tuple of those outputs, with no extra wrap. Zero outputs are the
+/// empty tuple, which is the core unit, with no extra wrap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CatchPack {
+    /// No declared output. The payload is `tup()`.
+    Zero,
+    /// One declared output, scalar or tuple. The payload is `tup(that output)`.
+    Singleton,
+    /// Two or more declared outputs. The payload is `tup(outputs…)`.
+    Multiple,
+}
+
+/// Packing from the declared output list, ω excluded (rce-form.md §6, §17 B2).
+pub fn catch_pack(outputs: &[BTy]) -> CatchPack {
+    match outputs.len() {
+        0 => CatchPack::Zero,
+        1 => CatchPack::Singleton,
+        _ => CatchPack::Multiple,
+    }
+}
+
+/// The success payload of the Form sum for this pack and the core return.
+///
+/// `ret` is `ret_F`: the unit tuple for zero outputs, the one output for a
+/// singleton, and `tup(outputs…)` for several outputs.
+pub fn catch_form_payload(pack: CatchPack, ret: &Ty) -> Result<Ty, String> {
+    match pack {
+        CatchPack::Zero => {
+            if *ret != Ty::unit() {
+                return Err("zero declared outputs pack the unit tuple".into());
+            }
+            Ok(Ty::unit())
+        }
+        CatchPack::Singleton => Ok(Ty::Tup(vec![ret.clone()])),
+        CatchPack::Multiple => match ret {
+            Ty::Tup(xs) if xs.len() >= 2 => Ok(ret.clone()),
+            _ => Err("several declared outputs pack as that tuple, with no extra wrap".into()),
+        },
+    }
+}
+
+/// `sum(payload, Halt)` for the Form catch, or `sum(ret, Halt)` for the core.
+pub fn catch_sum(payload: &Ty) -> Ty {
+    Ty::Sum(vec![payload.clone(), Ty::halt()])
+}
+
+struct CatchBind {
+    local: u32,
+    ty: Ty,
+    /// Still live when the boundary finishes. Only the packed result is.
+    live: bool,
+}
+
+/// The core statements that pack a catch and rethrow the fuel trap.
+pub struct CatchBoundary {
+    /// Statements that follow `v{raw} = catch`.
+    pub stmts: Vec<Stmt>,
+    binds: Vec<CatchBind>,
+    /// The local of `sum(form payload, Halt)`.
+    pub wrapped: u32,
+    /// The next local a following statement would bind.
+    pub next: u32,
+}
+
+struct Bld {
+    n: u32,
+    stmts: Vec<Stmt>,
+    binds: Vec<CatchBind>,
+}
+
+impl Bld {
+    fn prim(&mut self, name: &str, targs: Vec<Ty>, args: Vec<Atom>, ty: Ty) -> u32 {
+        self.stmts.push(Stmt::Prim(name.into(), targs, args));
+        let i = self.n;
+        self.n += 1;
+        self.binds.push(CatchBind {
+            local: i,
+            ty,
+            live: false,
+        });
+        i
+    }
+    fn var(&mut self, ty: Ty, init: Atom) -> u32 {
+        self.stmts.push(Stmt::Var(ty.clone(), init));
+        let i = self.n;
+        self.n += 1;
+        self.binds.push(CatchBind {
+            local: i,
+            ty,
+            live: true,
+        });
+        i
+    }
+    fn arm(&mut self, body: impl FnOnce(&mut Bld)) -> Vec<Stmt> {
+        let saved = std::mem::take(&mut self.stmts);
+        body(self);
+        std::mem::replace(&mut self.stmts, saved)
+    }
+}
+
+fn lit_dummy(ty: &Ty) -> Option<Atom> {
+    Some(match ty {
+        Ty::Bool => Atom::bool(false),
+        Ty::Int(lo, _) => Atom::K(ty.clone(), Lit::Int(*lo)),
+        Ty::Bytes => Atom::bytes(b""),
+        Ty::F64 => Atom::K(Ty::F64, Lit::F64(0)),
+        Ty::F32 => Atom::K(Ty::F32, Lit::F32(0)),
+        _ => return None,
+    })
+}
+
+fn dummy_atom(b: &mut Bld, ty: &Ty) -> Result<Atom, String> {
+    if let Some(a) = lit_dummy(ty) {
+        return Ok(a);
+    }
+    match ty {
+        Ty::Tup(xs) => {
+            let mut args = vec![];
+            for x in xs {
+                args.push(dummy_atom(b, x)?);
+            }
+            let id = b.prim("tup.mk", vec![ty.clone()], args, ty.clone());
+            Ok(Atom::V(id))
+        }
+        Ty::List(_) => Err("a list singleton has no dummy in this slice".into()),
+        Ty::Arr(_) => Err("an array singleton has no dummy in this slice".into()),
+        Ty::Sum(xs) => {
+            let first = xs.first().ok_or("an empty sum has no dummy")?;
+            let inner = dummy_atom(b, first)?;
+            let id = b.prim(
+                "sum.mk",
+                vec![ty.clone()],
+                vec![build::lit(0), inner],
+                ty.clone(),
+            );
+            Ok(Atom::V(id))
+        }
+        _ => Err(format!("this slice has no dummy for a catch of {ty:?}")),
+    }
+}
+
+/// The core statements after `v{raw} = catch …` (`v{raw}` : `sum(ret, Halt)`).
+///
+/// They rethrow a caught fuel trap (§13, E1) and pack the success value by
+/// `pack`. The packed local is `sum(form payload, Halt)`.
+pub fn catch_boundary_for(pack: CatchPack, ret: &Ty, raw: u32) -> Result<CatchBoundary, String> {
+    let payload = catch_form_payload(pack, ret)?;
+    let form_ty = catch_sum(&payload);
+    let core_ty = catch_sum(ret);
+    let tag_ty = Ty::Int(0, 1);
+    let mut b = Bld {
+        n: raw + 1,
+        stmts: vec![],
+        binds: vec![],
+    };
+    let tag = b.prim(
+        "sum.tag",
+        vec![core_ty.clone()],
+        vec![Atom::V(raw)],
+        tag_ty.clone(),
+    );
+    let is_ok = b.prim(
+        "int.eq",
+        vec![tag_ty.clone()],
+        vec![Atom::V(tag), build::lit(0)],
+        Ty::Bool,
+    );
+    let init = dummy_atom(&mut b, &form_ty)?;
+    let wrapped = b.var(form_ty.clone(), init);
+    let halt_ty = Ty::halt();
+    let ok = b.arm(|b| {
+        if pack == CatchPack::Singleton {
+            let val = b.prim(
+                "sum.get",
+                vec![core_ty.clone()],
+                vec![Atom::V(raw), build::lit(0)],
+                ret.clone(),
+            );
+            let packed = b.prim(
+                "tup.mk",
+                vec![payload.clone()],
+                vec![Atom::V(val)],
+                payload.clone(),
+            );
+            let w = b.prim(
+                "sum.mk",
+                vec![form_ty.clone()],
+                vec![build::lit(0), Atom::V(packed)],
+                form_ty.clone(),
+            );
+            b.stmts
+                .push(Stmt::Prim("drop".into(), vec![form_ty.clone()], vec![
+                    Atom::V(wrapped),
+                ]));
+            b.stmts.push(Stmt::Set(Place::V(wrapped), Atom::V(w)));
+        } else {
+            b.stmts
+                .push(Stmt::Prim("drop".into(), vec![form_ty.clone()], vec![
+                    Atom::V(wrapped),
+                ]));
+            b.stmts.push(Stmt::Set(Place::V(wrapped), Atom::V(raw)));
+        }
+    });
+    let bad = b.arm(|b| {
+        // The else of `tag = 0` does not by itself tell W4 that the tag is 1.
+        let is_one = b.prim(
+            "int.eq",
+            vec![tag_ty.clone()],
+            vec![Atom::V(tag), build::lit(1)],
+            Ty::Bool,
+        );
+        let take = b.arm(|b| {
+            let h = b.prim(
+                "sum.get",
+                vec![core_ty.clone()],
+                vec![Atom::V(raw), build::lit(1)],
+                halt_ty.clone(),
+            );
+            let htag = b.prim(
+                "sum.tag",
+                vec![halt_ty.clone()],
+                vec![Atom::V(h)],
+                tag_ty.clone(),
+            );
+            let is_trap = b.prim(
+                "int.eq",
+                vec![tag_ty.clone()],
+                vec![Atom::V(htag), build::lit(0)],
+                Ty::Bool,
+            );
+            let probe = b.arm(|b| {
+                let c = b.prim(
+                    "copy",
+                    vec![halt_ty.clone()],
+                    vec![Atom::V(h)],
+                    halt_ty.clone(),
+                );
+                let text = b.prim(
+                    "sum.get",
+                    vec![halt_ty.clone()],
+                    vec![Atom::V(c), build::lit(0)],
+                    Ty::Bytes,
+                );
+                let fuel = b.prim(
+                    "bytes.eq",
+                    vec![],
+                    vec![
+                        Atom::V(text),
+                        Atom::bytes(crate::interp::TRAP_FUEL.as_bytes()),
+                    ],
+                    Ty::Bool,
+                );
+                b.stmts
+                    .push(Stmt::If(Atom::V(fuel), vec![Stmt::Halt(Atom::V(h))], vec![]));
+            });
+            b.stmts.push(Stmt::If(Atom::V(is_trap), probe, vec![]));
+            b.stmts
+                .push(Stmt::Prim("drop".into(), vec![form_ty.clone()], vec![
+                    Atom::V(wrapped),
+                ]));
+            let w = b.prim(
+                "sum.mk",
+                vec![form_ty.clone()],
+                vec![build::lit(1), Atom::V(h)],
+                form_ty.clone(),
+            );
+            b.stmts.push(Stmt::Set(Place::V(wrapped), Atom::V(w)));
+        });
+        let miss = b.arm(|b| {
+            let msg = b.prim(
+                "sum.mk",
+                vec![halt_ty.clone()],
+                vec![build::lit(0), Atom::bytes(b"internal: tag")],
+                halt_ty.clone(),
+            );
+            b.stmts.push(Stmt::Halt(Atom::V(msg)));
+        });
+        b.stmts.push(Stmt::If(Atom::V(is_one), take, miss));
+    });
+    b.stmts.push(Stmt::If(Atom::V(is_ok), ok, bad));
+    Ok(CatchBoundary {
+        next: b.n,
+        stmts: b.stmts,
+        binds: b.binds,
+        wrapped,
+    })
+}
+
+/// Inverse of [`catch_boundary_for`] on a value the boundary returned.
+///
+/// The fuel trap is not in this domain: the boundary rethrows it and does
+/// not return a sum. This function does not rethrow, and it is not an
+/// inverse of every sum. A singleton unpacks one component, so a
+/// tuple-valued singleton stays a tuple. Zero outputs and several outputs
+/// are already the payload tuple.
+pub fn catch_unpack_for(
+    pack: CatchPack,
+    ret: &Ty,
+    wrapped: u32,
+    start: u32,
+) -> Result<CatchBoundary, String> {
+    let payload = catch_form_payload(pack, ret)?;
+    let form_ty = catch_sum(&payload);
+    let core_ty = catch_sum(ret);
+    let tag_ty = Ty::Int(0, 1);
+    let mut b = Bld {
+        n: start,
+        stmts: vec![],
+        binds: vec![],
+    };
+    if pack != CatchPack::Singleton {
+        b.stmts.push(Stmt::Let(Atom::V(wrapped)));
+        let out = b.n;
+        b.n += 1;
+        b.binds.push(CatchBind {
+            local: out,
+            ty: core_ty,
+            live: true,
+        });
+        return Ok(CatchBoundary {
+            next: b.n,
+            stmts: b.stmts,
+            binds: b.binds,
+            wrapped: out,
+        });
+    }
+    let tag = b.prim(
+        "sum.tag",
+        vec![form_ty.clone()],
+        vec![Atom::V(wrapped)],
+        tag_ty.clone(),
+    );
+    let is_ok = b.prim(
+        "int.eq",
+        vec![tag_ty.clone()],
+        vec![Atom::V(tag), build::lit(0)],
+        Ty::Bool,
+    );
+    let init = dummy_atom(&mut b, &core_ty)?;
+    let out = b.var(core_ty.clone(), init);
+    let ok = b.arm(|b| {
+        let tup = b.prim(
+            "sum.get",
+            vec![form_ty.clone()],
+            vec![Atom::V(wrapped), build::lit(0)],
+            payload.clone(),
+        );
+        let val = b.prim(
+            "tup.get",
+            vec![payload.clone()],
+            vec![Atom::V(tup), build::lit(0)],
+            ret.clone(),
+        );
+        // `tup.get` reads. The tuple is owned, so the arm drops it.
+        b.stmts
+            .push(Stmt::Prim("drop".into(), vec![payload.clone()], vec![
+                Atom::V(tup),
+            ]));
+        let w = b.prim(
+            "sum.mk",
+            vec![core_ty.clone()],
+            vec![build::lit(0), Atom::V(val)],
+            core_ty.clone(),
+        );
+        b.stmts
+            .push(Stmt::Prim("drop".into(), vec![core_ty.clone()], vec![
+                Atom::V(out),
+            ]));
+        b.stmts.push(Stmt::Set(Place::V(out), Atom::V(w)));
+    });
+    let bad = b.arm(|b| {
+        let is_one = b.prim(
+            "int.eq",
+            vec![tag_ty.clone()],
+            vec![Atom::V(tag), build::lit(1)],
+            Ty::Bool,
+        );
+        let take = b.arm(|b| {
+            let h = b.prim(
+                "sum.get",
+                vec![form_ty.clone()],
+                vec![Atom::V(wrapped), build::lit(1)],
+                Ty::halt(),
+            );
+            let w = b.prim(
+                "sum.mk",
+                vec![core_ty.clone()],
+                vec![build::lit(1), Atom::V(h)],
+                core_ty.clone(),
+            );
+            b.stmts
+                .push(Stmt::Prim("drop".into(), vec![core_ty.clone()], vec![
+                    Atom::V(out),
+                ]));
+            b.stmts.push(Stmt::Set(Place::V(out), Atom::V(w)));
+        });
+        // A two-variant sum's tag is 0 or 1, so this arm does not run. It
+        // drops the packed sum and leaves the initial core sum. It does not
+        // halt: the fuel trap is rethrown by the boundary, before this
+        // inverse, and a halt here would demand ω from a pure function.
+        let miss = b.arm(|b| {
+            b.stmts.push(Stmt::Prim(
+                "drop".into(),
+                vec![form_ty.clone()],
+                vec![Atom::V(wrapped)],
+            ));
+        });
+        b.stmts.push(Stmt::If(Atom::V(is_one), take, miss));
+    });
+    b.stmts.push(Stmt::If(Atom::V(is_ok), ok, bad));
+    Ok(CatchBoundary {
+        next: b.n,
+        stmts: b.stmts,
+        binds: b.binds,
+        wrapped: out,
+    })
 }
 
 fn schedule_region(
@@ -3466,11 +4325,7 @@ fn schedule_region(
                     env.insert(Src::Out(i as u32, 1), Av::Omega);
                 }
             }
-            Attr::Catch(_) => {
-                return Err(
-                    sch.deny("catch: a catch and the fuel-trap branch are not in this slice")
-                );
-            }
+            Attr::Catch(r) => schedule_catch(sch, m, group, i, n, r, env)?,
             Attr::Cap(_) => {
                 return Err(sch.deny("cap: a cap node waits for the host statement of rce-core/2"));
             }
@@ -3517,6 +4372,68 @@ fn dom_from(sch: &mut Sch, body: &Body, sel: Src, env: &HashMap<Src, Av>) -> Opt
     })
 }
 
+fn schedule_catch(
+    sch: &mut Sch,
+    m: &form::Module,
+    group: &str,
+    i: usize,
+    n: &Node,
+    r: &Ref,
+    env: &mut HashMap<Src, Av>,
+) -> Result<(), Change> {
+    let tx = Tx::new(m);
+    let cf = tx
+        .callee(group, r)
+        .ok_or_else(|| sch.deny("defect: a catch names no function"))?;
+    let (cp, cr, co) = sig_of(cf).map_err(|e| sch.deny(e))?;
+    let _ = cp;
+    // `cr` is the one core return: the unit tuple, the one output, or
+    // `tup(outputs…)`. The boundary packs by the declared list.
+    let declared = if co {
+        &cf.outs[..cf.outs.len() - 1]
+    } else {
+        &cf.outs[..]
+    };
+    let pack = catch_pack(declared);
+    let mut args = vec![];
+    for (k, s) in n.ins.iter().enumerate() {
+        if cf.ins.get(k) == Some(&BTy::Order) {
+            continue;
+        }
+        let a = sch.atom(env, *s)?;
+        sch.consume(&a)?;
+        args.push(a);
+    }
+    let rf = match r {
+        Ref::Key(k, i) => FnRef::Key(k.clone(), *i),
+        Ref::Rec(_) => {
+            return Err(sch.deny(
+                "recursion: a recursive function needs a declared bound, and rce-core/1 does not carry one",
+            ));
+        }
+    };
+    sch.stmts.push(Stmt::Catch(rf, args));
+    let raw = sch.fresh(catch_sum(&cr), true);
+    let boundary = catch_boundary_for(pack, &cr, raw)
+        .map_err(|e| sch.deny(format!("catch: {e}")))?;
+    for bind in &boundary.binds {
+        let id = sch.fresh(bind.ty.clone(), bind.live);
+        if id != bind.local {
+            return Err(sch.deny(
+                "defect: the catch boundary's locals do not follow the core numbering",
+            ));
+        }
+    }
+    sch.stmts.extend(boundary.stmts);
+    sch.live.remove(&raw);
+    env.insert(Src::Out(i as u32, 0), Av::A(Atom::V(boundary.wrapped)));
+    if co {
+        env.insert(Src::Out(i as u32, 1), Av::Omega);
+    }
+    let _ = n;
+    Ok(())
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -3528,14 +4445,23 @@ fn schedule_branch(
     env: &mut HashMap<Src, Av>,
 ) -> Result<(), Change> {
     let sel = sch.atom(env, n.ins[0])?;
-    if sch.tys_of(&sel)? != Ty::Bool && !matches!(sel, Atom::V(_)) {
-        // a bool literal is fine; a non-bool local is not
-    }
-    if sch.tys_of(&sel)? != Ty::Bool {
+    let tag_sel = if sch.tys_of(&sel)? == Ty::Bool {
+        false
+    } else if let Src::Out(ni, 0) = n.ins[0] {
+        let is_tag = body.nodes.get(ni as usize).is_some_and(|node| {
+            matches!(&node.attrs, Attr::Prim(name, _, _) if name == "sum.tag")
+        });
+        if !is_tag {
+            return Err(sch.deny(
+                "selector: this slice schedules only a Branch with a bool selector and two arms",
+            ));
+        }
+        true
+    } else {
         return Err(sch.deny(
             "selector: this slice schedules only a Branch with a bool selector and two arms",
         ));
-    }
+    };
     let omega_at = ts.iter().position(|t| *t == BTy::Order);
     let mut vars = vec![];
     for (p, t) in ts.iter().enumerate() {
@@ -3558,7 +4484,7 @@ fn schedule_branch(
     // keeps a capture only when every arm that falls through still holds it.
     let mut arm_live = [saved_live.clone(), saved_live.clone()];
     let mut arm_falls = [false, false];
-    let mut arm = |region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
+    let mut arm = |sch: &mut Sch, region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
         sch.live.clone_from(&saved_live);
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
@@ -3613,8 +4539,50 @@ fn schedule_branch(
     // Each arm may move an owned capture. The other arm starts with that capture
     // live again. After both arms, a capture that every falling arm moved is
     // not live in the parent: the arm that runs moved it.
-    let then_s = arm(&n.regions[1], None, 1)?;
-    let else_s = arm(&n.regions[0], dom.as_ref(), 0)?;
+    // A bool branch schedules the true arm first: that is the textual then-arm,
+    // and construction numbers locals in that order. A tag branch's text is
+    // `int.eq(tag, 0)` then arm 0, then in the other arm `int.eq(tag, 1)`,
+    // arm 1, and a proof arm that drops what it holds. That arm is not a Form
+    // arm. W4 does not treat the else of `tag = 0` as `tag = 1`. A halt there
+    // would make a pure function take ω.
+    let (cond, then_s, else_s) = if tag_sel {
+        let tag_ty = sch.tys_of(&sel)?;
+        sch.stmts.push(Stmt::Prim(
+            "int.eq".into(),
+            vec![tag_ty.clone()],
+            vec![sel.clone(), build::lit(0)],
+        ));
+        let is0 = sch.fresh(Ty::Bool, false);
+        let arm0 = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
+        let eq1 = Stmt::Prim(
+            "int.eq".into(),
+            vec![tag_ty],
+            vec![sel.clone(), build::lit(1)],
+        );
+        let is1 = sch.fresh(Ty::Bool, false);
+        let arm1 = arm(sch, &n.regions[1], None, 1)?;
+        // The remaining tag is not a value the branch returns. Drop what the
+        // arm still holds. A halt here would make a pure function take ω.
+        let mut proof = vec![];
+        for s in n.ins.iter().skip(1) {
+            let Some(Av::A(Atom::V(id))) = env.get(s).cloned() else {
+                continue;
+            };
+            if sch.tys.get(&id).is_some_and(|t| t.owned()) {
+                proof.push(Stmt::Prim(
+                    "drop".into(),
+                    vec![sch.tys[&id].clone()],
+                    vec![Atom::V(id)],
+                ));
+            }
+        }
+        let else_body = vec![eq1, Stmt::If(Atom::V(is1), arm1, proof)];
+        (Atom::V(is0), arm0, else_body)
+    } else {
+        let then_s = arm(sch, &n.regions[1], None, 1)?;
+        let else_s = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
+        (sel, then_s, else_s)
+    };
     sch.live = match (arm_falls[1], arm_falls[0]) {
         (true, true) => saved_live
             .iter()
@@ -3633,7 +4601,7 @@ fn schedule_branch(
             .collect(),
         (false, false) => saved_live,
     };
-    sch.stmts.push(Stmt::If(sel, then_s, else_s));
+    sch.stmts.push(Stmt::If(cond, then_s, else_s));
     for (p, var) in vars {
         env.insert(Src::Out(i as u32, p as u32), Av::A(Atom::V(var)));
     }
