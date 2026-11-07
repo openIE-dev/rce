@@ -1216,3 +1216,338 @@ fn push_follows_branch(m: &fir::Module) -> bool {
     }
     m.defs.values().any(|g| g.fns.iter().any(|f| go(&f.body)))
 }
+
+fn eval_core(f: core::Fn) -> Result<Val, String> {
+    let n = f.params.len();
+    let m = module("f", f);
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let (k, i) = by_arity(&m, n);
+    core_apply(&m, &k, i, vec![])
+}
+
+fn i64_lit(v: i128) -> Atom {
+    Atom::K(i64ty(), Lit::Int(v))
+}
+
+/// `sum(ret, Halt)` holding `value` at variant 0, or a trap at variant 1.
+fn raw_sum(ret: &Ty, success: Option<Atom>, trap: Option<&[u8]>) -> (Vec<Stmt>, u32) {
+    let mut body = vec![];
+    let raw = if let Some(msg) = trap {
+        body.push(Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+            build::lit(0),
+            Atom::bytes(msg),
+        ]));
+        body.push(Stmt::Prim(
+            "sum.mk".into(),
+            vec![bridge::catch_sum(ret)],
+            vec![build::lit(1), Atom::V(0)],
+        ));
+        1
+    } else {
+        body.push(Stmt::Prim(
+            "sum.mk".into(),
+            vec![bridge::catch_sum(ret)],
+            vec![build::lit(0), success.unwrap()],
+        ));
+        0
+    };
+    (body, raw)
+}
+
+fn finish_boundary(pack: bridge::CatchPack, ret: Ty, success: Option<Atom>, trap: Option<&[u8]>) -> core::Fn {
+    let (mut body, raw) = raw_sum(&ret, success, trap);
+    let b = bridge::catch_boundary_for(pack, &ret, raw).unwrap_or_else(|e| panic!("{e}"));
+    body.extend(b.stmts);
+    let payload = bridge::catch_form_payload(pack, &ret).unwrap();
+    core::Fn {
+        params: vec![],
+        ret: bridge::catch_sum(&payload),
+        body: {
+            body.push(Stmt::Ret(Atom::V(b.wrapped)));
+            body
+        },
+    }
+}
+
+#[test]
+fn catch_pack_follows_declared_arity() {
+    let i64t = i64ty();
+    let pair = Ty::Tup(vec![i64t.clone(), i64t.clone()]);
+    // Zero outputs: the payload is the unit tuple, the same value the core holds.
+    let mut zbody = vec![Stmt::Prim(
+        "tup.mk".into(),
+        vec![Ty::unit()],
+        vec![],
+    )];
+    zbody.push(Stmt::Prim(
+        "sum.mk".into(),
+        vec![bridge::catch_sum(&Ty::unit())],
+        vec![build::lit(0), Atom::V(0)],
+    ));
+    let zb = bridge::catch_boundary_for(bridge::CatchPack::Zero, &Ty::unit(), 1).unwrap();
+    zbody.extend(zb.stmts);
+    zbody.push(Stmt::Ret(Atom::V(zb.wrapped)));
+    let zero = eval_core(core::Fn {
+        params: vec![],
+        ret: bridge::catch_sum(&Ty::unit()),
+        body: zbody,
+    })
+    .unwrap();
+    assert_eq!(zero, Val::Sum(0, Box::new(Val::unit())), "{zero:?}");
+
+    // Scalar singleton: one component, not the bare integer.
+    let scalar = eval_core(finish_boundary(
+        bridge::CatchPack::Singleton,
+        i64t.clone(),
+        Some(i64_lit(7)),
+        None,
+    ))
+    .unwrap();
+    assert_eq!(scalar, Val::Sum(0, Box::new(Val::Tup(vec![Val::Int(7)]))));
+
+    // Tuple singleton: the pair stays one component. It is not opened.
+    let mut pbody = vec![Stmt::Prim(
+        "tup.mk".into(),
+        vec![pair.clone()],
+        vec![i64_lit(3), i64_lit(4)],
+    )];
+    pbody.push(Stmt::Prim(
+        "sum.mk".into(),
+        vec![bridge::catch_sum(&pair)],
+        vec![build::lit(0), Atom::V(0)],
+    ));
+    let pb = bridge::catch_boundary_for(bridge::CatchPack::Singleton, &pair, 1).unwrap();
+    pbody.extend(pb.stmts);
+    let packed_at = pb.wrapped;
+    let up = bridge::catch_unpack_for(bridge::CatchPack::Singleton, &pair, packed_at, pb.next).unwrap();
+    pbody.extend(up.stmts);
+    pbody.push(Stmt::Ret(Atom::V(up.wrapped)));
+    let back = eval_core(core::Fn {
+        params: vec![],
+        ret: bridge::catch_sum(&pair),
+        body: pbody,
+    })
+    .unwrap();
+    assert_eq!(
+        back,
+        Val::Sum(0, Box::new(Val::Tup(vec![Val::Int(3), Val::Int(4)]))),
+        "a tuple singleton unpacks to the pair, not to two outputs"
+    );
+
+    // Several outputs: the payload is the tuple itself, with no extra wrap.
+    let mut mbody = vec![Stmt::Prim(
+        "tup.mk".into(),
+        vec![pair.clone()],
+        vec![i64_lit(3), i64_lit(4)],
+    )];
+    mbody.push(Stmt::Prim(
+        "sum.mk".into(),
+        vec![bridge::catch_sum(&pair)],
+        vec![build::lit(0), Atom::V(0)],
+    ));
+    let mb = bridge::catch_boundary_for(bridge::CatchPack::Multiple, &pair, 1).unwrap();
+    mbody.extend(mb.stmts);
+    mbody.push(Stmt::Ret(Atom::V(mb.wrapped)));
+    let many = eval_core(core::Fn {
+        params: vec![],
+        ret: bridge::catch_sum(&pair),
+        body: mbody,
+    })
+    .unwrap();
+    assert_eq!(
+        many,
+        Val::Sum(0, Box::new(Val::Tup(vec![Val::Int(3), Val::Int(4)]))),
+        "several outputs are not wrapped again"
+    );
+}
+
+#[test]
+fn catch_boundary_keeps_halt_payload_and_rethrows_fuel() {
+    let i64t = i64ty();
+    let ordinary = eval_core(finish_boundary(
+        bridge::CatchPack::Singleton,
+        i64t.clone(),
+        None,
+        Some(b"no"),
+    ))
+    .unwrap();
+    assert_eq!(
+        ordinary,
+        Val::Sum(
+            1,
+            Box::new(Val::Sum(0, Box::new(Val::bytes(b"no"))))
+        )
+    );
+    let fuel = eval_core(finish_boundary(
+        bridge::CatchPack::Singleton,
+        i64t,
+        None,
+        Some(b"comptime fuel exhausted"),
+    ));
+    assert_eq!(fuel, Err("halt: comptime fuel exhausted".into()));
+    // Zero outputs rethrow the same way. The pack is not what decides the trap.
+    let fuel0 = eval_core(finish_boundary(
+        bridge::CatchPack::Zero,
+        Ty::unit(),
+        None,
+        Some(b"comptime fuel exhausted"),
+    ));
+    assert_eq!(fuel0, Err("halt: comptime fuel exhausted".into()));
+}
+
+fn callee_fn(ret: Ty, body: Vec<Stmt>) -> core::Fn {
+    core::Fn {
+        params: vec![],
+        ret,
+        body,
+    }
+}
+
+fn catch_caller(callee_key: &str, ret: &Ty) -> core::Fn {
+    let payload = bridge::catch_form_payload(bridge::CatchPack::Singleton, ret).unwrap();
+    let b = bridge::catch_boundary_for(bridge::CatchPack::Singleton, ret, 0).unwrap();
+    let mut body = vec![Stmt::Catch(FnRef::Key(callee_key.into(), 0), vec![])];
+    body.extend(b.stmts);
+    body.push(Stmt::Ret(Atom::V(b.wrapped)));
+    core::Fn {
+        params: vec![],
+        ret: bridge::catch_sum(&payload),
+        body,
+    }
+}
+
+fn round_trip_catch(callee: core::Fn) -> (Result<Val, String>, Result<Val, String>) {
+    let (cg, _) = canonical_group(std::slice::from_ref(&callee));
+    let ck = group_key(&cg);
+    let caller = catch_caller(&ck, &callee.ret);
+    let (ug, _) = canonical_group(std::slice::from_ref(&caller));
+    let uk = group_key(&ug);
+    let mut names = serde_json::Map::new();
+    names.insert(ck.clone(), serde_json::json!(["callee"]));
+    names.insert(uk.clone(), serde_json::json!(["caller"]));
+    let m = core::Module {
+        globals: vec![],
+        defs: BTreeMap::from([(ck, cg), (uk.clone(), ug)]),
+        entry: (uk, 0),
+        names: serde_json::json!({"fns": names, "globals": []}),
+        graphs: BTreeMap::new(),
+    };
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let form = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&form).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    let scheduled = bridge::schedule(&form).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&scheduled).unwrap_or_else(|e| panic!("schedule: {e}"));
+    let back = bridge::construct(&scheduled).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_eq!(
+        fir::encode(&form),
+        fir::encode(&back),
+        "construct(schedule(F)) is not F"
+    );
+    let (fk, fi) = form_catch(&form);
+    let form_v = form::eval::apply(&form, &fk, fi, vec![]);
+    let (sk, si) = by_arity(&scheduled, 0);
+    let core_v = core_apply(&scheduled, &sk, si, vec![]);
+    (
+        form_v.map(|mut v| v.pop().unwrap()),
+        core_v,
+    )
+}
+
+fn form_catch(m: &fir::Module) -> (String, u32) {
+    for (k, g) in &m.defs {
+        for (i, f) in g.fns.iter().enumerate() {
+            if f.body
+                .nodes
+                .iter()
+                .any(|n| matches!(n.attrs, fir::Attr::Catch(_)))
+            {
+                return (k.clone(), i as u32);
+            }
+        }
+    }
+    panic!("no catch");
+}
+
+#[test]
+fn singleton_catch_round_trips_for_success_halt_and_fuel() {
+    let i64t = i64ty();
+    let (form_v, core_v) = round_trip_catch(callee_fn(i64t.clone(), vec![Stmt::Ret(i64_lit(7))]));
+    let want = Val::Sum(0, Box::new(Val::Tup(vec![Val::Int(7)])));
+    assert_eq!(form_v.as_ref().unwrap(), &want);
+    assert_eq!(core_v.as_ref().unwrap(), &want);
+
+    let ordinary = callee_fn(i64t.clone(), vec![
+        Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+            build::lit(0),
+            Atom::bytes(b"no"),
+        ]),
+        Stmt::Halt(Atom::V(0)),
+    ]);
+    let (form_v, core_v) = round_trip_catch(ordinary);
+    let want = Val::Sum(1, Box::new(Val::Sum(0, Box::new(Val::bytes(b"no")))));
+    assert_eq!(form_v.as_ref().unwrap(), &want, "form {form_v:?}");
+    assert_eq!(core_v.as_ref().unwrap(), &want, "core {core_v:?}");
+
+    let fuel = callee_fn(i64t, vec![
+        Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![
+            build::lit(0),
+            Atom::bytes(b"comptime fuel exhausted"),
+        ]),
+        Stmt::Halt(Atom::V(0)),
+    ]);
+    let (form_v, core_v) = round_trip_catch(fuel);
+    assert_eq!(form_v, Err("halt: comptime fuel exhausted".into()));
+    assert_eq!(core_v, Err("halt: comptime fuel exhausted".into()));
+}
+
+#[test]
+fn tuple_singleton_catch_does_not_flatten() {
+    let pair = Ty::Tup(vec![i64ty(), i64ty()]);
+    let callee = callee_fn(pair, vec![
+        Stmt::Prim("tup.mk".into(), vec![Ty::Tup(vec![i64ty(), i64ty()])], vec![
+            i64_lit(3),
+            i64_lit(4),
+        ]),
+        Stmt::Ret(Atom::V(0)),
+    ]);
+    let (form_v, core_v) = round_trip_catch(callee);
+    let want = Val::Sum(
+        0,
+        Box::new(Val::Tup(vec![Val::Tup(vec![Val::Int(3), Val::Int(4)])])),
+    );
+    assert_eq!(form_v.as_ref().unwrap(), &want, "{form_v:?}");
+    assert_eq!(core_v.as_ref().unwrap(), &want, "{core_v:?}");
+}
+
+#[test]
+fn a_catch_without_the_boundary_still_requires_change() {
+    let callee = callee_fn(i64ty(), vec![Stmt::Ret(i64_lit(1))]);
+    let (cg, _) = canonical_group(std::slice::from_ref(&callee));
+    let ck = group_key(&cg);
+    let caller = core::Fn {
+        params: vec![],
+        ret: Ty::Sum(vec![i64ty(), Ty::halt()]),
+        body: vec![
+            Stmt::Catch(FnRef::Key(ck.clone(), 0), vec![]),
+            Stmt::Ret(Atom::V(0)),
+        ],
+    };
+    let (ug, _) = canonical_group(std::slice::from_ref(&caller));
+    let uk = group_key(&ug);
+    let mut names = serde_json::Map::new();
+    names.insert(ck.clone(), serde_json::json!(["callee"]));
+    names.insert(uk.clone(), serde_json::json!(["caller"]));
+    let m = core::Module {
+        globals: vec![],
+        defs: BTreeMap::from([(ck, cg), (uk.clone(), ug)]),
+        entry: (uk, 0),
+        names: serde_json::json!({"fns": names, "globals": []}),
+        graphs: BTreeMap::new(),
+    };
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("bare catch");
+    assert_eq!(e.tag(), "catch", "{}", e.line());
+}
