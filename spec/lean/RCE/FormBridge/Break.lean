@@ -414,125 +414,234 @@ theorem source_depth_is_not_the_residual :
   intro h
   cases h
 
-inductive Leave where
-  | stopHere (log : List Nat) (fuel : Nat)
-  | propagate (residual : Nat) (log : List Nat) (fuel : Nat)
-  | fell (log : List Nat) (fuel : Nat)
-  | fuelHalt (log : List Nat) (fuel : Nat)
+/-- Control at a boundary.
+    `.break d` is a raw pending exit depth: the next block or loop has not
+    consumed it. `.next` is normal continuation, including a `Break 0` that
+    a block or loop has already consumed. `.again` is a loop body that fell
+    through; it is not an exit. `.ret` passes through every frame.
+    `.fuel` is a failure and keeps the partial trace. A sequence and an
+    `if` do not change a `.break` depth. -/
+inductive Ctrl where
+  | next (log : List Nat) (fuel : Nat)
+  | break (depth : Nat) (log : List Nat) (fuel : Nat)
+  | again (log : List Nat) (fuel : Nat)
+  | ret (log : List Nat) (fuel : Nat)
+  | fuel (log : List Nat) (fuel : Nat)
   deriving DecidableEq, Repr
 
-/-- `break 0` stops at this construct. `break (d + 1)` leaves it with
-    residual `d`. The residual is kept, so `break 1` and `break 2` do not
-    become one result. -/
-def runTwo (fuel : Nat) (inner : List Act) : Leave :=
-  match run fuel inner with
-  | .fuel ⟨log, f, _⟩ => .fuelHalt log f
-  | .done ⟨log, f, none⟩ => .fell log f
-  | .done ⟨log, f, some 0⟩ => .stopHere log f
-  | .done ⟨log, f, some (d + 1)⟩ => .propagate d log f
+/-- A statement list. The depth in `.break` is the depth the `break` wrote.
+    This is not a frame, so the depth is not decremented. `run` does not
+    produce `.ret` or `.again`: `Act` has no return. -/
+def rawCtrl : RunEnd → Ctrl
+  | .fuel ⟨log, f, _⟩ => .fuel log f
+  | .done ⟨log, f, none⟩ => .next log f
+  | .done ⟨log, f, some d⟩ => .break d log f
 
-/-- Run `tail` after `log`, keeping a fuel trap's partial trace. A `break`
-    in `tail` is still pending: this function does not consume it. -/
-def resume (fuel : Nat) (log : List Nat) (tail : List Act) : Leave :=
-  match run fuel tail with
-  | .done ⟨log2, f2, none⟩ => .fell (log ++ log2) f2
-  | .done ⟨log2, f2, some 0⟩ => .stopHere (log ++ log2) f2
-  | .done ⟨log2, f2, some (d + 1)⟩ => .propagate d (log ++ log2) f2
-  | .fuel ⟨log2, f2, _⟩ => .fuelHalt (log ++ log2) f2
+/-- Continuation of a sequence. A pending break, a return, a loop
+    fallthrough, and a fuel trap do not run `tail`, and a break depth is
+    not decremented. -/
+def resumeCtrl : Ctrl → List Act → Ctrl
+  | .next log f, tail =>
+    match rawCtrl (run f tail) with
+    | .next log2 f2 => .next (log ++ log2) f2
+    | .break d log2 f2 => .break d (log ++ log2) f2
+    | .fuel log2 f2 => .fuel (log ++ log2) f2
+    | .again log2 f2 => .again (log ++ log2) f2
+    | .ret log2 f2 => .ret (log ++ log2) f2
+  | c, _ => c
 
-/-- A block, as `eval.rs` does for `Block`. Fallthrough is `Next`. `Break 0`
-    is also `Next`, so the continuation after the block runs. `Break (d+1)`
-    becomes residual `d` and that continuation does not run. Statements
-    after a `break` in the same list are already absent from `run`. -/
-def runEnclosing (fuel : Nat) (inner tail : List Act) : Leave :=
-  match runTwo fuel inner with
-  | .fell log f => resume f log tail
-  | .stopHere log f => resume f log tail
-  | .propagate d log f => .propagate d log f
-  | .fuelHalt log f => .fuelHalt log f
+/-- One frame boundary. A block or a loop decrements a pending break once.
+    An `if` returns the control unchanged. A loop body that falls through
+    becomes `.again`, not `.next`, so the continuation after the loop is
+    not run by `resumeCtrl`. -/
+def cross : Frame → Ctrl → Ctrl
+  | .ite, c => c
+  | .block, .break 0 log f => .next log f
+  | .loop, .break 0 log f => .next log f
+  | .block, .break (d + 1) log f => .break d log f
+  | .loop, .break (d + 1) log f => .break d log f
+  | .loop, .next log f => .again log f
+  | _, c => c
 
-/-- A loop, as `eval.rs` does for `Loop`. Fallthrough repeats the body, so
-    the continuation after the loop does not run on that result. `Break 0`
-    leaves the loop and that continuation runs. This function does not
-    re-enter the body. -/
-def runLoopFrame (fuel : Nat) (inner tail : List Act) : Leave :=
-  match runTwo fuel inner with
-  | .stopHere log f => resume f log tail
-  | .fell log f => .fell log f
-  | .propagate d log f => .propagate d log f
-  | .fuelHalt log f => .fuelHalt log f
+/-- A block. `Break 0` becomes `Next`, so `tail` runs. `Break (d + 1)`
+    becomes raw depth `d`, and `tail` does not run. -/
+def runEnclosing (fuel : Nat) (inner tail : List Act) : Ctrl :=
+  resumeCtrl (cross .block (rawCtrl (run fuel inner))) tail
 
-/-- An `if`, as `eval.rs` does for `If`: the arm's control is returned
-    unchanged. `Break 0` is not consumed, so the continuation after the
-    `if` does not run. -/
-def runIte (fuel : Nat) (inner tail : List Act) : Leave :=
-  match runTwo fuel inner with
-  | .fell log f => resume f log tail
-  | r => r
+/-- A loop. Body fallthrough stays inside (`.again`) and `tail` does not
+    run. `Break 0` leaves the loop and `tail` runs. This does not re-enter
+    the body. -/
+def runLoopFrame (fuel : Nat) (inner tail : List Act) : Ctrl :=
+  match cross .loop (rawCtrl (run fuel inner)) with
+  | .next log f => resumeCtrl (.next log f) tail
+  | c => c
 
-/-- The parent block around `runEnclosing`. Residual 0 and a pending
-    `break 0` are each consumed once, and then `outer` runs. Residual
-    `n + 1` is decremented and `outer` does not run. -/
-def runParentBlock (fuel : Nat) (inner mid outer : List Act) : Leave :=
-  match runEnclosing fuel inner mid with
-  | .fell log f => resume f log outer
-  | .stopHere log f => resume f log outer
-  | .propagate 0 log f => resume f log outer
-  | .propagate (n + 1) log f => .propagate n log f
-  | .fuelHalt log f => .fuelHalt log f
+/-- An `if`. The arm's break depth is unchanged, so `tail` runs only on
+    fallthrough. -/
+def runIte (fuel : Nat) (inner tail : List Act) : Ctrl :=
+  resumeCtrl (cross .ite (rawCtrl (run fuel inner))) tail
+
+/-- Inner block, then `mid` still inside the parent, then the parent
+    boundary, then `outer`. Each block decrements once. `mid` is a
+    sequence, so a break there keeps its raw depth until the parent
+    boundary. -/
+def runParentBlock (fuel : Nat) (inner mid outer : List Act) : Ctrl :=
+  resumeCtrl (cross .block (runEnclosing fuel inner mid)) outer
 
 theorem depth0_suppresses_later_effects :
-    runTwo 3 [.note 1, .break 0, .note 9] = .stopHere [1] 3 := rfl
+    rawCtrl (run 3 [.note 1, .break 0, .note 9]) = .break 0 [1] 3 := rfl
 
-theorem depth1_keeps_residual_zero :
-    runTwo 3 [.note 1, .break 1, .note 9] = .propagate 0 [1] 3 := rfl
-
-theorem depth2_keeps_residual_one :
-    runTwo 3 [.break 2] = .propagate 1 [] 3 := rfl
+theorem raw_break_is_not_decremented :
+    rawCtrl (run 3 [.note 1, .break 1, .note 9]) = .break 1 [1] 3 ∧
+    rawCtrl (run 3 [.break 2]) = .break 2 [] 3 := by
+  refine ⟨rfl, rfl⟩
 
 theorem break1_ne_break2 :
-    runTwo 3 [.break 1] ≠ runTwo 3 [.break 2] := by
+    rawCtrl (run 3 [.break 1]) ≠ rawCtrl (run 3 [.break 2]) := by
   intro h
   cases h
 
 theorem enclosing_tail_not_run :
-    runEnclosing 3 [.break 1] [.note 9] = .propagate 0 [] 3 ∧
-    runEnclosing 3 [.note 1] [.note 9] = .fell [1, 9] 3 := by
+    runEnclosing 3 [.break 1] [.note 9] = .break 0 [] 3 ∧
+    runEnclosing 3 [.note 1] [.note 9] = .next [1, 9] 3 := by
   refine ⟨rfl, rfl⟩
 
 theorem break0_runs_after_block :
-    runEnclosing 3 [.break 0] [.note 9] = .fell [9] 3 := rfl
+    runEnclosing 3 [.break 0] [.note 9] = .next [9] 3 := rfl
 
 theorem break0_in_list_still_drops_later_note :
-    runTwo 3 [.break 0, .note 9] = .stopHere [] 3 ∧
-    runEnclosing 3 [.break 0, .note 9] [.note 8] = .fell [8] 3 := by
+    rawCtrl (run 3 [.break 0, .note 9]) = .break 0 [] 3 ∧
+    runEnclosing 3 [.break 0, .note 9] [.note 8] = .next [8] 3 := by
   refine ⟨rfl, rfl⟩
 
 theorem break1_skips_mid_parent_runs_outer :
-    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .fell [2] 4 ∧
-    runParentBlock 4 [.note 1] [.note 8] [.note 2] = .fell [1, 8, 2] 4 ∧
-    runParentBlock 4 [.break 0] [.note 1] [.note 2] = .fell [1, 2] 4 := by
+    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .next [2] 4 ∧
+    runParentBlock 4 [.note 1] [.note 8] [.note 2] = .next [1, 8, 2] 4 ∧
+    runParentBlock 4 [.break 0] [.note 1] [.note 2] = .next [1, 2] 4 := by
   refine ⟨rfl, rfl, rfl⟩
 
+/-- `break 1` in the parent, after the inner block, is still raw depth 1
+    until the parent boundary. The parent emits raw depth 0 and does not
+    run the outer note. -/
+theorem mid_break_is_raw_until_parent :
+    runParentBlock 3 [.note 1] [.break 1] [.note 2] = .break 0 [1] 3 ∧
+    runParentBlock 3 [.note 1] [.break 2] [.note 2] = .break 1 [1] 3 := by
+  refine ⟨rfl, rfl⟩
+
 theorem residual0_consumed_once :
-    runEnclosing 4 [.break 1] [.note 1] = .propagate 0 [] 4 ∧
-    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .fell [2] 4 ∧
-    runParentBlock 4 [.break 2] [.note 1] [.note 2] = .propagate 0 [] 4 := by
+    runEnclosing 4 [.break 1] [.note 1] = .break 0 [] 4 ∧
+    runParentBlock 4 [.break 1] [.note 1] [.note 2] = .next [2] 4 ∧
+    runParentBlock 4 [.break 2] [.note 1] [.note 2] = .break 0 [] 4 := by
+  refine ⟨rfl, rfl, rfl⟩
+
+theorem if_keeps_raw_depth :
+    runIte 3 [.break 0] [.note 9] = .break 0 [] 3 ∧
+    runIte 3 [.break 1] [.note 9] = .break 1 [] 3 ∧
+    runIte 3 [.break 2] [.note 9] = .break 2 [] 3 ∧
+    runIte 3 [.note 1] [.note 9] = .next [1, 9] 3 := by
+  refine ⟨rfl, rfl, rfl, rfl⟩
+
+theorem if_inside_block_and_loop :
+    let arm := rawCtrl (run 5 [.note 4, .break 2])
+    let afterIf := cross .ite arm
+    let afterBlock := cross .block afterIf
+    let afterLoop := cross .loop afterBlock
+    afterIf = .break 2 [4] 5 ∧
+    afterBlock = .break 1 [4] 5 ∧
+    afterLoop = .break 0 [4] 5 := by
   refine ⟨rfl, rfl, rfl⟩
 
 theorem loop_fallthrough_is_not_the_exit :
-    runLoopFrame 3 [.note 1] [.note 9] = .fell [1] 3 ∧
-    runLoopFrame 3 [.break 0] [.note 9] = .fell [9] 3 ∧
-    runIte 3 [.break 0] [.note 9] = .stopHere [] 3 := by
+    runLoopFrame 3 [.note 1] [.note 9] = .again [1] 3 ∧
+    runLoopFrame 3 [.break 0] [.note 9] = .next [9] 3 ∧
+    runLoopFrame 3 [.break 1] [.note 9] = .break 0 [] 3 := by
   refine ⟨rfl, rfl, rfl⟩
 
+theorem block_in_loop :
+    let inner0 := runEnclosing 5 [.break 0] [.note 7]
+    let inner1 := runEnclosing 5 [.break 1] [.note 7]
+    cross .loop inner0 = .again [7] 5 ∧
+    cross .loop inner1 = .next [] 5 := by
+  refine ⟨rfl, rfl⟩
+
 theorem prior_tick_kept_later_tick_not_run :
-    runTwo 3 [.tick, .note 1, .break 0, .tick] = .stopHere [1] 2 := rfl
+    rawCtrl (run 3 [.tick, .note 1, .break 0, .tick]) = .break 0 [1] 2 := rfl
 
 theorem depth0_ne_depth1 :
-    runTwo 3 [.break 0] ≠ runTwo 3 [.break 1] := by
+    rawCtrl (run 3 [.break 0]) ≠ rawCtrl (run 3 [.break 1]) := by
   intro h
   cases h
+
+theorem cross_keeps_ret (fr : Frame) (log : List Nat) (f : Nat) :
+    cross fr (.ret log f) = .ret log f := by
+  cases fr <;> rfl
+
+theorem cross_keeps_fuel (fr : Frame) (log : List Nat) (f : Nat) :
+    cross fr (.fuel log f) = .fuel log f := by
+  cases fr <;> rfl
+
+theorem cross_agrees_with_stepExit (fr : Frame) (d : Nat) (log : List Nat) (f : Nat) :
+    cross fr (.break d log f) =
+      match stepExit fr d with
+      | none => .next log f
+      | some d' => .break d' log f := by
+  cases fr <;> cases d <;> rfl
+
+def nCons : List Frame → Nat
+  | [] => 0
+  | .ite :: fs => nCons fs
+  | .block :: fs => nCons fs + 1
+  | .loop :: fs => nCons fs + 1
+
+/-- Innermost frame first. `none` means a block or loop consumed a raw 0
+    and the later frames in the list are not applied. -/
+def crossAll : List Frame → Nat → Option Nat
+  | [], d => some d
+  | .ite :: fs, d => crossAll fs d
+  | .block :: _, 0 => none
+  | .loop :: _, 0 => none
+  | .block :: fs, d + 1 => crossAll fs d
+  | .loop :: fs, d + 1 => crossAll fs d
+
+theorem depth_conserved :
+    ∀ (fs : List Frame) (d : Nat), nCons fs ≤ d →
+      crossAll fs d = some (d - nCons fs)
+  | [], _, _ => by simp [crossAll, nCons]
+  | .ite :: fs, d, h => by
+      simp [crossAll, nCons] at h ⊢
+      exact depth_conserved fs d h
+  | .block :: _, 0, h => by simp [nCons] at h
+  | .loop :: _, 0, h => by simp [nCons] at h
+  | .block :: fs, d + 1, h => by
+      simp [crossAll, nCons] at h ⊢
+      have h' : nCons fs ≤ d := by omega
+      rw [depth_conserved fs d h']
+  | .loop :: fs, d + 1, h => by
+      simp [crossAll, nCons] at h ⊢
+      have h' : nCons fs ≤ d := by omega
+      rw [depth_conserved fs d h']
+
+def crossFrames : List Frame → Ctrl → Ctrl
+  | [], c => c
+  | fr :: fs, c => crossFrames fs (cross fr c)
+
+theorem crossFrames_pending :
+    ∀ (fs : List Frame) (d : Nat) (log : List Nat) (f : Nat), nCons fs ≤ d →
+      crossFrames fs (.break d log f) = .break (d - nCons fs) log f
+  | [], _, _, _, _ => by simp [crossFrames, nCons]
+  | .ite :: fs, d, log, f, h => by
+      simp [crossFrames, cross, nCons] at h ⊢
+      exact crossFrames_pending fs d log f h
+  | .block :: _, 0, _, _, h => by simp [nCons] at h
+  | .loop :: _, 0, _, _, h => by simp [nCons] at h
+  | .block :: fs, d + 1, log, f, h => by
+      simp [crossFrames, cross, nCons] at h ⊢
+      have h' : nCons fs ≤ d := by omega
+      rw [crossFrames_pending fs d log f h']
+  | .loop :: fs, d + 1, log, f, h => by
+      simp [crossFrames, cross, nCons] at h ⊢
+      have h' : nCons fs ≤ d := by omega
+      rw [crossFrames_pending fs d log f h']
 
 /-- ONE-15 writes `if e > 0` around the decrement. `eval.rs` does not
     decrement on `If`. This file follows `eval.rs` for `stepExit`. It does

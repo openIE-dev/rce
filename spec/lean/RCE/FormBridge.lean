@@ -37,11 +37,14 @@ import RCE.FormBridge.Canon
      not a bridge scope environment.
   6. The further Branch that a lift of RCE writes, which halts again on a
      trap text other than the budget trap, is not `Catch.adapt`.
-  7. `Break.stepExit`, `runEnclosing`, `runLoopFrame` and `runIte` follow
-     the cases of `Block`, `Loop` and `If` in `eval.rs` as definitions in
-     this file. They are not proved equal to that Rust. `one15_if_is_not_proved_here`
-     records that the printed ONE-15 `if` is not identified with `stepExit`.
-     A break that does not name the loop still requires change in the bridge.
+  7. `Break.cross` decrements a raw `.break` once on a block or a loop and
+     does not decrement on an `if`. `resumeCtrl` does not decrement.
+     `one15_if_is_not_proved_here` records that the printed ONE-15 `if` is
+     not identified with `stepExit`. These drivers are one list plus
+     explicit frames, not the recursive `eval.rs` walker, and a loop is
+     not re-entered. `Act` has no return, so `run` does not produce
+     `.ret`; `cross` preserves a `.ret` it is given. A break that does not
+     name the loop still requires change in the bridge.
   8. Fuel in these files is a `Nat`. It is not a `fuel.tick` node and not
      the reference limit. `run` and `countLoop` keep the trace they are
      given. They are not the reference fuel accounting.
