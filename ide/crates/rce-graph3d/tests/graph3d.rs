@@ -256,6 +256,7 @@ fn time_scrubbing_versions_facts_receipts() {
     let inc = s1.graph.nodes.iter().find(|n| n.label == "Inc").unwrap();
     assert_eq!(inc.energy.joules, Some(2.0));
     assert_eq!(inc.energy.measured_j, None, "E_sim only: hardware reading absent");
+    assert_eq!(inc.energy.simulated_j, Some(2.0));
     let s2 = tl.at(245, 1.4);
     assert_eq!(s2.version, Some(1));
     assert!(s2.added.iter().any(|i| i.ends_with(":Reset")));

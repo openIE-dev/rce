@@ -113,7 +113,7 @@ pub fn apply(g: &mut Graph, actions: &[Action], k: f64) {
                 if a.e_meas_j.is_some() {
                     crate::graph::add_opt(&mut e.measured_j, s);
                 } else {
-                    e.simulated_j += s;
+                    crate::graph::add_opt(&mut e.simulated_j, s);
                 }
                 e.joules = Some(e.joules.unwrap_or(0.0) + s);
             }

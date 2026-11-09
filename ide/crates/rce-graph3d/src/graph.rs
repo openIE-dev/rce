@@ -124,8 +124,10 @@ pub struct Energy {
     /// measured meter). `None` is absent, not zero joules.
     #[serde(default)]
     pub measured_j: Option<f64>,
-    /// Joules that are predictions (E_sim) because nothing was measured.
-    pub simulated_j: f64,
+    /// Predicted joules attributed because no hardware reading was present.
+    /// `None` is absent, not zero joules.
+    #[serde(default)]
+    pub simulated_j: Option<f64>,
     /// Actions attributed.
     pub actions: u32,
     /// Some attributed |delta| exceeded k sigma.

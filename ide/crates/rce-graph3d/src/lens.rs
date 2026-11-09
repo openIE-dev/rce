@@ -25,7 +25,7 @@ pub fn value(g: &Graph, i: usize, m: Metric) -> Option<f64> {
         Metric::Rank => Some(n.rank),
         Metric::Joules => n.energy.joules,
         Metric::Measured => n.energy.measured_j,
-        Metric::Simulated => (n.energy.simulated_j > 0.0).then_some(n.energy.simulated_j),
+        Metric::Simulated => n.energy.simulated_j,
         Metric::Divergence => n.energy.divergence(),
         Metric::Actions => Some(n.energy.actions as f64),
         Metric::Watts => n.live.as_ref().and_then(|l| l.watts),
@@ -94,7 +94,9 @@ pub fn fold_files_except(g: &Graph, pos: &Positions, expanded: &std::collections
             if let Some(x) = e.measured_j {
                 crate::graph::add_opt(&mut d.energy.measured_j, x);
             }
-            d.energy.simulated_j += e.simulated_j;
+            if let Some(x) = e.simulated_j {
+                crate::graph::add_opt(&mut d.energy.simulated_j, x);
+            }
             d.energy.pair_meas_j += e.pair_meas_j;
             d.energy.pair_sim_j += e.pair_sim_j;
             d.energy.actions += e.actions;
