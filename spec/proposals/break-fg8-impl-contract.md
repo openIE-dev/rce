@@ -35,16 +35,27 @@ of one closure.
 | `loop` | 1 | 1 |
 | lowering | 4 | 4 |
 | no program root | 21 | 21 |
-| round-trip, off the syntactic floor | 9 | 9 |
+| byte mismatch, tag `round-trip` | 9, named below | 9 |
 
 No mismatch with the coordinator's floor, whole-module count, or defect
 count. Whole-module first tags, which that report did not list, are
 `break` 2, `catch` 11, `global` 35, `out` 8, plus the 4 that do not lower.
 
 The eight `break` examples and the one `FG8` example are named in the
-witness test. `rt.dec_limbs` constructs. `fn fib` in
-`spec/examples/03_fib_loop.rce` is a round-trip, not a `break`. The
-remaining `break` rows are not that option B flag.
+witness test. `21_maps.rce` (`fn table`) is that `FG8` row. It is not one
+of the nine byte mismatches. A future form with `body_break_rewrite` set
+and `construct(schedule(F))` equal to F is the option B row, which is 0
+today. It is not the syntactic floor, and it does not join the nine.
+
+The nine files whose first program-function tag is `round-trip` are
+`03_fib_loop.rce`, `10_comptime.rce`, `22_tuples.rce`, `25_labels.rce`,
+`36_multiline_brackets.rce`, `43_simd_lanes.rce`, `45_byte_text.rce`,
+`46_u64.rce`, and `49_loop_limit.rce`. The tag means the scheduled bytes
+differ. `22_tuples.rce` is in this list because `fn divmod` differs; a
+later root, `fn use_it`, is `FG8`. `56_utf8.rce` has roots whose bytes
+differ and is not in the list: its first tag is `catch`. `fn fib` in
+`03_fib_loop.rce` is one of the nine, not a `break`. The remaining
+`break` rows are not the option B flag.
 
 ## 2. Two gaps, and what is not a gap
 
@@ -133,16 +144,73 @@ gate already accepts that shape for `mset`. This statement order does not
 present it. The fix is the trace of section 4.2, not a weaker FG8.
 
 An exit count is the representation when the depth still names a construct
-after the innermost loop. ONE-15 and the core evaluator decrement once per
-block or loop left.
+after the innermost loop. The following is the coordinator's semantic
+target for that count. It is not, by itself, a decision that the Form's
+text has been amended.
 
-Representation, from ONE-15 and §13, using no new node kind:
+- The carried count is the number of blocks and loops still to leave.
+- The source depth is the `d` written on `break d`. Residual depth is what
+  remains after some of those constructs have been left. They are not the
+  same number once a construct has been left.
+- Two initialisations are distinct. They are not one rule, and they are
+  not combined.
+  - Origin first, source depth `d`. ONE-15 writes `set e = d; break 0`,
+    and after each construct left that way, `if e > 0 { set e = e − 1;
+    break 0 }`. The originating `break 0` leaves the innermost block or
+    loop and does not decrement `e`. The first decrement is at the edge
+    after that construct has been left. `e` then counts the blocks and
+    loops still to leave.
+  - Decrement at the first exit, initial value `d + 1`. `e` starts one
+    higher, and the originating exit decrements `e` as it leaves the
+    innermost construct. Later edges decrement once each, as in the other
+    case.
+  Taking the initial value from one case and the first-exit decrement
+  from the other counts the innermost exit twice, or drops it. Neither
+  ONE-15 nor §13 says that the second case is the first. The coordinator's
+  target is the first case. The second case stays a different
+  initialisation. An implementation uses one of them for the whole exit,
+  never both.
+- Decrement once per block or loop that is left. Do not decrement on `if`.
+  The core evaluator does this (`Block` and `Loop` subtract one; `If`
+  returns the inner control unchanged). ONE-15 says "construct" and does
+  not say "not an if". §13 cites ONE-15 and does not restate the `if`
+  exception. The evaluator and W2, which counts enclosing blocks and
+  loops, agree with the coordinator. That agreement is not a new sentence
+  in ONE-15.
+- Residual 0 at a block or loop means that construct is the target: its
+  continuation runs. Residual greater than 0 suppresses that continuation
+  and propagates outward. For a count loop, the propagation happens before
+  the next iteration's counter increment and before the "loop bound" halt.
+  It does not erase a count or a tick that the source has already executed
+  earlier in the same iteration. Bound 0 on the two-loop witness halts
+  with "loop bound" because `count` stands before the inner break. Bound 1
+  with `break 1` returns, and the counter is 1.
+- Normal fall-through is not a break whose residual has become 0. ONE-15
+  keeps them apart because the `break 0` statement is the exit and `e`
+  only says whether another `break 0` follows. A representation that uses
+  only an integer, with 0 meaning both "no exit" and "exit finished",
+  conflates them. The block-inside-if witness returns 30 when `break 0`
+  is taken and 31 when the arm falls through: the same continuations, and
+  the statement after the break runs only on the fall-through.
+- The option B bool is used only once the structural depth has resolved to
+  the loop that is the target and no further block or loop remains. Until
+  then the carried value is the count, not a bool. This is a composition
+  of §13's exit count and the break note's flag. No sentence in those
+  texts says "bool only after". It is the coordinator's composition, not a
+  third rule.
+- A `ret` stays a separate control from the count. The arms are not padded
+  to a common width. The `defect` witness stands.
 
-- The exit count is a plain integer carried out of each construct the
-  break leaves. At the break, the arm stores d and does not fall through.
-  After a block or a loop, the continuation is a Branch on `int.lt` of 0
-  and the count: the zero arm runs the continuation and carries 0; the
-  other arm carries the count minus one and does not run the continuation.
+The Form shape below is the origin-first case only (`e` starts at source
+depth `d`; the originating `break 0` does not subtract). It is not the
+`d + 1` initialisation, and it does not include that decrement.
+
+- The exit count is a plain integer. At the break, the arm stores the
+  source depth `d` and leaves the innermost block or loop. It does not
+  subtract from `d` there. After each further block or loop, a Branch on
+  `int.lt` of 0 and the count either runs that construct's continuation
+  and carries 0, or carries the count minus one and does not run the
+  continuation.
 - Decrement happens once per construct left, at that construct's edge, not
   inside the arm that issued the break. A block decrements. A loop
   decrements. An `if` does not.
@@ -370,16 +438,18 @@ construct a second Form of their own.
 | Witness | Today | Future, when the partner lands the fix |
 |---|---|---|
 | Corpus floor | 5 covered, 0 whole, 0 defect, 8 `break`, 1 `FG8` | Floor stays 5. `fn table` may leave `FG8` for the option B row. It does not become covered while `body_break_rewrite` is set. |
-| `fn table` closure | first `construct` applied, rewrite set; `construct(schedule(F))` is FG8 at node 3 | byte equality of the two forms; three-way eval of `table()` is the list `(a, 1), (b, 2)` |
+| `fn table` (`21_maps.rce`) | `FG8` today, not one of the nine byte mismatches. First `construct` applied, rewrite set; `construct(schedule(F))` is FG8 at node 3 | If the bytes then match and the rewrite flag stays set, the file moves to the option B row (0 today). It does not become covered, and it does not join the nine. Three-way eval of `table()` is the list `(a, 1), (b, 2)` |
 | Block break, both selectors, ticks | tag `break`, the block sentence; core results 0 and 1; fuel as counted | Branch outputs; continuation runs; the tick after `break` is absent on that arm; fuel matches |
 | `break 1` out of a block in a measure | FG8, index not raised on every continue path; core 0, 0, and 4; fuel 0, 8, and 0 | the option B flag, because this depth names the loop; increment and its tick do not run on the break; not "loop bound" |
-| Flat measure with a body `break 0` | FG8, index not raised on every continue path; core results for 0, 1, and 4 iterations | the same Branch shape `mset` already has; FG8 accepts it; fuel matches |
+| Flat measure with a body `break 0` | FG8, index not raised on every continue path; core results for 0, 1, and 4 iterations | Unchanged until a construction chooses to recognize this statement order. That choice is slice coverage, not a weaker gate. A recognized form still has to pass FG8 as `mset` does |
 | Nested `ret` outside a loop | applied, round trip, both selectors | unchanged |
 | Nested `ret` inside a loop | `defect`, arms return 1 and 2 values | region's outputs on the return path; results 7, 4, and 0; not a break flag |
 | Owned list, asymmetric arms | tag `break` | one capture; the two list results; FG6 holds |
 | Conditional increment | FG8, not a count | still refused |
 | Mutated end | `loop`, not a measure; core results 0 and 1 | still not a measure |
 | Pure count, stale and foreign guards | `bound`, or W4 | still refused |
+| Two-loop `break 1` | tag `break`, "leaves more than one loop". Core: markers 2; counter 1; fuel 2. Bound 0 halts "loop bound". Inner `break 0` with bound 1 halts "loop bound" after fuel 3 | exit count, not a bool, while the outer loop remains. Next count does not run. The count already passed in this iteration still runs |
+| Block inside `if` inside loop | Depth 0: tag `break`, the block sentence; core 30 if the break is taken and 31 if the arm falls through. Depth 1: FG8; core 8. Depth 2, and a `break 1` with no such construct: W2, not the evaluator's "break outside a block or loop" | `if` does not decrement. Depth 1 is the loop's flag only if nothing further remains; otherwise the count. W2 stays the refusal for a depth the function does not have |
 
 ## 7. The next change, for the partner who edits the bridge
 
@@ -393,8 +463,11 @@ One change, in the bridge only, after this contract:
    once at each block and each loop, tested before a count bound. A break
    that names only the loop under construction stays the option B flag.
 3. In `schedule_iter` and in the construction that reads that loop back,
-   keep the measure body's flag and index as section 4.2 requires, so the
-   `fn table` closure round-trips without a change to `measure_shape`.
+   keep the measure body's flag and index as two outputs of one Branch,
+   each tracing to the carried index and the literal 1 through captures,
+   so `construct(schedule(F))` equals F for `fn table`. That file then
+   sits on the option B row. It is not one of the nine byte mismatches,
+   and it is not covered. `measure_shape` stays.
 4. Leave FG8, C7, FG6, FG7, and the pure-count `bound` refusal as they are.
    Leave catch, `out`, globals, and a loop that is not a measure or a
    count (`rt.f64.parts` in the `fn dot4` closure is "a break outside a
@@ -417,10 +490,10 @@ only when a new example round-trips without `body_break_rewrite`.
    intended reading of "whenever it continues", and that the scheduled
    core must be brought up to that Form. The gate is not to be widened to
    accept the scheduled core as it is built today.
-4. The flat `loop` with `break 0` before the increment is the same meaning
-   as `mset`'s search loop and is refused FG8 on the first construction.
-   Confirm that this statement order should reach the shape `mset` already
-   reaches, rather than `mset` being a special case.
+4. The flat `loop` with `break 0` before the increment is refused FG8 on
+   the first construction. Recognizing that statement order is a choice of
+   what the slice supports. Confirm that the choice is not a change to
+   FG8, and that the witness stays FG8 until the construction changes.
 5. A `ret` inside a loop is `defect` (the arms of the branch the bridge
    builds do not have one width), not `exit` and not the break flag.
    Confirm that a later change may restructure it as the region's outputs

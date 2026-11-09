@@ -270,21 +270,40 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(defect, 0, "a program function is tagged defect");
     let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
-    assert_eq!(names("break"), [
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "54_secret.rce",
-        "57_float_vectors.rce",
-        "60_dim_hidden_period.rce",
-    ]);
+    assert_eq!(
+        names("break"),
+        [
+            "02_hello_main.rce",
+            "04_bank_account.rce",
+            "16_multi_region.rce",
+            "44_device_region.rce",
+            "51_refined_input.rce",
+            "54_secret.rce",
+            "57_float_vectors.rce",
+            "60_dim_hidden_period.rce",
+        ]
+    );
     assert_eq!(names("FG8"), ["21_maps.rce"]);
     assert_eq!(names("catch").len(), 10);
     assert_eq!(names("global"), ["32_comptime_block.rce"]);
     assert_eq!(names("loop"), ["50_iterators.rce"]);
-    assert_eq!(names("round-trip").len(), 9);
+    // Byte mismatches only. `21_maps.rce` is the FG8 row, not one of these.
+    // A later root of `22_tuples.rce` is FG8; the file's first tag is still
+    // this mismatch. `56_utf8.rce` has round-trip roots and is tagged catch.
+    assert_eq!(
+        names("round-trip"),
+        [
+            "03_fib_loop.rce",
+            "10_comptime.rce",
+            "22_tuples.rce",
+            "25_labels.rce",
+            "36_multiline_brackets.rce",
+            "43_simd_lanes.rce",
+            "45_byte_text.rce",
+            "46_u64.rce",
+            "49_loop_limit.rce",
+        ]
+    );
     assert_eq!(names("no program root").len(), 21);
     let lowering: usize = root_tags
         .iter()
@@ -595,9 +614,12 @@ fn a_nested_return_outside_a_loop_round_trips() {
         assert_eq!(got, Ok(Val::Int(want)));
         let (k, i) = by_arity(&m, 1);
         let _ = (k, i);
-        let got = feval::apply(&f, &form_key(&f, 1).0, form_key(&f, 1).1, vec![Val::Bool(
-            bit,
-        )])
+        let got = feval::apply(
+            &f,
+            &form_key(&f, 1).0,
+            form_key(&f, 1).1,
+            vec![Val::Bool(bit)],
+        )
         .unwrap();
         assert_eq!(got, vec![Val::Int(want)]);
         let (sg, _) = core_eval(&s, vec![Val::Bool(bit)]);
@@ -837,14 +859,16 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
     bad(
         vec![
             Stmt::Prim("list.new".into(), vec![e.clone()], vec![]),
-            Stmt::Prim("list.push".into(), vec![e.clone()], vec![
-                Atom::V(0),
-                build::lit(7),
-            ]),
-            Stmt::Prim("list.get".into(), vec![e.clone()], vec![
-                Atom::V(1),
-                build::lit(0),
-            ]),
+            Stmt::Prim(
+                "list.push".into(),
+                vec![e.clone()],
+                vec![Atom::V(0), build::lit(7)],
+            ),
+            Stmt::Prim(
+                "list.get".into(),
+                vec![e.clone()],
+                vec![Atom::V(1), build::lit(0)],
+            ),
             Stmt::Ret(Atom::V(2)),
         ],
         "missing guard",
@@ -966,5 +990,262 @@ fn a_break_that_leaves_two_loops_is_refused() {
         "break: a break that leaves more than one loop is an exit this slice does not restructure",
         "{}",
         e.line()
+    );
+}
+
+fn loop_bound(r: &Result<Val, String>) -> bool {
+    match r {
+        Err(e) => e.contains("[108, 111, 111, 112, 32, 98, 111, 117, 110, 100]"),
+        Ok(_) => false,
+    }
+}
+
+fn spent(fuel: Option<Val>) -> i128 {
+    match fuel {
+        Some(Val::Int(n)) => feval::FUEL as i128 - n,
+        other => panic!("fuel {other:?}"),
+    }
+}
+
+/// Two loops, `break 1` from the inner one. The return is
+/// `after_inner + 2*after_outer`. A count at the top of the outer loop is
+/// this iteration's bound work; the next iteration's count must not run
+/// when the break leaves the outer loop.
+fn two_loop_exit(with_tick: bool, ret_counter: bool) -> CoreModule {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let ret = if ret_counter { ct.clone() } else { i64ty() };
+    let mut b = FB::new(vec![ct.clone(), Ty::Bool], ret);
+    let bound = b.arg(0);
+    let stop = b.arg(1);
+    let cnt = b.counter();
+    let after_inner = b.var(i64ty(), build::lit(0));
+    let after_outer = b.var(i64ty(), build::lit(0));
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        if with_tick {
+            let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        }
+        b.loop_(|b| {
+            b.if_(
+                stop.clone(),
+                |b| {
+                    b.brk(1);
+                    Ok(())
+                },
+                |_| Ok(()),
+            )?;
+            if with_tick {
+                let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+            }
+            b.brk(0);
+            Ok(())
+        })?;
+        b.set(after_inner, build::lit(1));
+        if with_tick {
+            let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        }
+        Ok(())
+    })
+    .unwrap();
+    b.set(after_outer, build::lit(1));
+    if with_tick {
+        let _ = b.call(FnRef::Key(key, 0), Ty::Bool, vec![build::lit(1)]);
+    }
+    if ret_counter {
+        let c = b.let_(Atom::V(cnt));
+        b.ret(c);
+        return module("counter", b.finish());
+    }
+    let inner = b.let_(Atom::V(after_inner));
+    let outer = b.let_(Atom::V(after_outer));
+    let outer2 = b.add_in(outer.clone(), outer, i64ty()).unwrap();
+    let sum = b.add_in(inner, outer2, i64ty()).unwrap();
+    b.ret(sum);
+    if with_tick {
+        assemble(tick, tkey, "markers", b.finish())
+    } else {
+        module("markers", b.finish())
+    }
+}
+
+#[test]
+fn two_loop_exit_core_results() {
+    // The refusal test above does not say what the core does. These results
+    // are that witness. The bridge refusal is unchanged.
+    let markers = two_loop_exit(false, false);
+    let e = refuse(&markers);
+    assert_eq!(
+        e.reason,
+        "break: a break that leaves more than one loop is an exit this slice does not restructure"
+    );
+    let (leave, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(true)]);
+    let (stay, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(false)]);
+    let (early, _) = core_eval(&markers, vec![Val::Int(0), Val::Bool(true)]);
+    // after_inner is 0, after_outer is 1. The continuation after the outer loop ran.
+    assert_eq!(leave, Ok(Val::Int(2)));
+    // Inner break 0 only. The outer loop reaches its next count and halts.
+    assert!(loop_bound(&stay), "{stay:?}");
+    // The count stands before the break, so bound 0 halts before the exit.
+    assert!(loop_bound(&early), "{early:?}");
+
+    let counter = two_loop_exit(false, true);
+    let (once, _) = core_eval(&counter, vec![Val::Int(1), Val::Bool(true)]);
+    let (again, _) = core_eval(&counter, vec![Val::Int(1), Val::Bool(false)]);
+    let (wide, _) = core_eval(&counter, vec![Val::Int(10), Val::Bool(true)]);
+    assert_eq!(once, Ok(Val::Int(1)), "one count, then both loops are left");
+    assert!(loop_bound(&again), "{again:?}");
+    assert_eq!(
+        wide,
+        Ok(Val::Int(1)),
+        "a wide bound still does not start a second count"
+    );
+
+    let fuelled = two_loop_exit(true, false);
+    let (leave, fuel_leave) = core_eval(&fuelled, vec![Val::Int(1), Val::Bool(true)]);
+    let (stay, fuel_stay) = core_eval(&fuelled, vec![Val::Int(1), Val::Bool(false)]);
+    let (wide, fuel_wide) = core_eval(&fuelled, vec![Val::Int(10), Val::Bool(true)]);
+    assert_eq!(leave, Ok(Val::Int(2)));
+    // Tick before the break, and the tick after the outer loop. Not the tick
+    // after the break inside the inner loop, and not the tick after the inner loop.
+    assert_eq!(spent(fuel_leave), 2);
+    assert!(loop_bound(&stay), "{stay:?}");
+    // First iteration charges three ticks, then the next count halts before its tick.
+    assert_eq!(spent(fuel_stay), 3);
+    assert_eq!(wide, Ok(Val::Int(2)));
+    assert_eq!(spent(fuel_wide), 2);
+}
+
+/// `loop { if { block { break depth } } }`. The packed result is
+/// `tail + 2*after_block + 4*after_if + 8*after_loop + 16*steps`.
+fn block_if_loop(depth: u32) -> CoreModule {
+    let t = Ty::u64();
+    let mut b = FB::new(vec![t.clone(), Ty::Bool, Ty::Bool], i64ty());
+    let n = b.arg(0);
+    let gate = b.arg(1);
+    let take = b.arg(2);
+    let steps = b.var(t.clone(), build::lit(0));
+    let tail = b.var(i64ty(), build::lit(0));
+    let after_block = b.var(i64ty(), build::lit(0));
+    let after_if = b.var(i64ty(), build::lit(0));
+    let after_loop = b.var(i64ty(), build::lit(0));
+    b.loop_(|b| {
+        let iv = b.let_(Atom::V(steps));
+        let more = b.int_cmp("int.lt", iv.clone(), n.clone())?;
+        b.exit_unless(more)?;
+        b.if_(
+            gate.clone(),
+            |b| {
+                b.open();
+                b.if_(
+                    take.clone(),
+                    |b| {
+                        b.brk(depth);
+                        Ok(())
+                    },
+                    |_| Ok(()),
+                )?;
+                b.set(tail, build::lit(1));
+                let inner = b.close();
+                b.push(Stmt::Block(inner));
+                b.set(after_block, build::lit(1));
+                Ok(())
+            },
+            |_| Ok(()),
+        )?;
+        b.set(after_if, build::lit(1));
+        let s1 = b.add_in(iv, build::lit(1), t.clone())?;
+        b.set(steps, s1);
+        Ok(())
+    })
+    .unwrap();
+    b.set(after_loop, build::lit(1));
+    let t1 = b.let_(Atom::V(tail));
+    let a1 = b.let_(Atom::V(after_block));
+    let a1 = b.add_in(a1.clone(), a1, i64ty()).unwrap();
+    let a2 = b.let_(Atom::V(after_if));
+    let a2 = b.add_in(a2.clone(), a2.clone(), i64ty()).unwrap();
+    let a2 = b.add_in(a2.clone(), a2, i64ty()).unwrap();
+    let a3 = b.let_(Atom::V(after_loop));
+    let a3 = b.add_in(a3.clone(), a3.clone(), i64ty()).unwrap();
+    let a3 = b.add_in(a3.clone(), a3.clone(), i64ty()).unwrap();
+    let a3 = b.add_in(a3.clone(), a3, i64ty()).unwrap();
+    let s0 = b.let_(Atom::V(steps));
+    let s0 = b.cast_in(s0, i64ty()).unwrap();
+    let s = b.add_in(s0.clone(), s0, i64ty()).unwrap();
+    let s = b.add_in(s.clone(), s.clone(), i64ty()).unwrap();
+    let s = b.add_in(s.clone(), s.clone(), i64ty()).unwrap();
+    let s = b.add_in(s.clone(), s, i64ty()).unwrap();
+    let acc = b.add_in(t1, a1, i64ty()).unwrap();
+    let acc = b.add_in(acc, a2, i64ty()).unwrap();
+    let acc = b.add_in(acc, a3, i64ty()).unwrap();
+    let acc = b.add_in(acc, s, i64ty()).unwrap();
+    b.ret(acc);
+    module("bifl", b.finish())
+}
+
+#[test]
+fn block_if_loop_distinguishes_depth_from_residual() {
+    // Source depth 0 names the block. The if is not a level. Depth 1 names
+    // the loop. Depth 2 names nothing: the core rejects it before it runs.
+    let args = vec![Val::Int(1), Val::Bool(true), Val::Bool(true)];
+    let depth0 = block_if_loop(0);
+    assert_break_block(&depth0);
+    let (take, _) = core_eval(&depth0, args.clone());
+    let (fall, _) = core_eval(
+        &depth0,
+        vec![Val::Int(1), Val::Bool(true), Val::Bool(false)],
+    );
+    // Break 0: tail skipped, after_block, after_if, after_loop, one step.
+    assert_eq!(take, Ok(Val::Int(30)));
+    // No break taken: the tail runs as well. Same continuations, different control.
+    assert_eq!(fall, Ok(Val::Int(31)));
+
+    let depth1 = block_if_loop(1);
+    let e = refuse(&depth1);
+    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    assert!(
+        e.reason
+            .contains("raised by exactly one whenever it continues"),
+        "{}",
+        e.line()
+    );
+    let (leave, _) = core_eval(&depth1, args);
+    // Only after_loop. The if did not consume a level. steps stayed 0.
+    assert_eq!(leave, Ok(Val::Int(8)));
+
+    let deep = block_if_loop(2);
+    let err = wf::check(&deep).expect_err("break 2");
+    assert!(
+        err.contains("W2: break 2 names no enclosing block or loop"),
+        "{err}"
+    );
+    // A residual that still names a construct the function does not have.
+    // The evaluator's sentence for a break that leaves the function is
+    // "break outside a block or loop". W2 rejects these cores first, so
+    // that sentence is not what a well-formed module returns.
+    let mut b = FB::new(vec![], i64ty());
+    b.open();
+    b.brk(1);
+    let inner = b.close();
+    b.push(Stmt::Block(inner));
+    b.ret(build::lit(1));
+    let err = wf::check(&module("esc", b.finish())).unwrap_err();
+    assert!(
+        err.contains("W2: break 1 names no enclosing block or loop"),
+        "{err}"
+    );
+    let mut b = FB::new(vec![], i64ty());
+    b.loop_(|b| {
+        b.brk(1);
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(1));
+    let err = wf::check(&module("esc2", b.finish())).unwrap_err();
+    assert!(
+        err.contains("W2: break 1 names no enclosing block or loop"),
+        "{err}"
     );
 }
