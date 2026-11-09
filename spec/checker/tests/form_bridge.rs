@@ -810,9 +810,9 @@ fn conditional_increment_is_not_rewritten_into_a_count() {
 }
 
 #[test]
-fn breaks_that_do_not_name_the_loop_still_require_change() {
-    // A break out of a block that is not the loop. A later `exit_if` names the
-    // loop, so the function can return; the block break is still refused.
+fn a_block_break_and_a_nested_loop_break_follow_the_exit_count() {
+    // `break 0` ends the block. The `exit_if` then names the loop, so the
+    // function returns. The block break is not a refusal.
     let (tick, tkey) = tick_parts();
     let key = tkey.clone();
     let ct = build::count_t();
@@ -831,19 +831,26 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
     })
     .unwrap();
     b.ret(build::lit(0));
-    refuse_with(tick, tkey, b.finish());
+    let m = assemble(tick, tkey, "block", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    agree(&m, &f, &s, vec![Val::Int(4)]);
 
-    // A break that leaves the inner loop and the outer loop. Depth 1 from the
-    // inner loop names the outer one. Item 3 does not restructure that.
+    // `break 1` leaves the inner loop and the outer loop. Each loop
+    // decrements once.
     let (tick, tkey) = tick_parts();
     let key = tkey.clone();
     let mut b = FB::new(vec![ct.clone()], ct);
     let bound = b.arg(0);
     let cnt = b.counter();
+    let cnt2 = b.counter();
     b.loop_(|b| {
-        b.count(cnt, bound)?;
+        b.count(cnt, bound.clone())?;
         let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
         b.loop_(|b| {
+            b.count(cnt2, bound.clone())?;
+            let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
             b.brk(1);
             Ok(())
         })?;
@@ -851,10 +858,13 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
     })
     .unwrap();
     b.ret(build::lit(0));
-    refuse_with(tick, tkey, b.finish());
+    let m = assemble(tick, tkey, "two", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    agree(&m, &f, &s, vec![Val::Int(4)]);
 
-    // A depth that names no enclosing loop. The core rejects it, or construction
-    // does, under the break rule.
+    // A depth that names no enclosing block or loop still requires change.
     let mut b = FB::new(vec![build::count_t()], build::count_t());
     b.loop_(|b| {
         b.brk(2);
@@ -870,13 +880,6 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
             assert_eq!(e.tag(), "break", "{}", e.line());
         }
     }
-}
-
-fn refuse_with(tick: core::Fn, tkey: String, user: core::Fn) {
-    let m = assemble(tick, tkey, "no", user);
-    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
-    let e = bridge::construct(&m).expect_err("break");
-    assert_eq!(e.tag(), "break", "{}", e.line());
 }
 
 #[test]
@@ -2015,4 +2018,234 @@ fn catch_keeps_cost_charged_by_the_callee() {
     );
     assert_eq!(eval_form_catch(&bare).unwrap(), want_sum, "form sum");
     assert_eq!(eval_scheduled_catch(&bare).unwrap(), want_sum, "scheduled sum");
+}
+
+#[test]
+fn exit_class_matches_the_lean_witnesses() {
+    use bridge::ExitClass::*;
+    // `if` is not a block, so these depths are the raw depths Break.lean keeps.
+    assert_eq!(bridge::exit_class(0, 0), Stop);
+    assert_eq!(bridge::exit_class(1, 0), Pending(0));
+    assert_eq!(bridge::exit_class(2, 0), Pending(1));
+    // A block consumes 0. The loop then continues (`.again`), it does not exit.
+    assert_eq!(bridge::exit_class(0, 1), ConsumedHere);
+    // break 1: the block decrements once, and the loop stops.
+    assert_eq!(bridge::exit_class(1, 1), Stop);
+    // if, then block, then loop: 2 stays 2 across the if, then 1, then 0.
+    assert_eq!(bridge::exit_class(2, 1), Pending(0));
+    // break 1 inside a nested block is consumed by the outer block, not here.
+    assert_eq!(bridge::exit_class(1, 2), ConsumedOuter);
+    assert_eq!(bridge::exit_class(2, 2), Stop);
+    assert_ne!(bridge::exit_class(0, 0), bridge::exit_class(1, 0));
+}
+
+/// `break 0` inside a block is consumed there. The assignment after the
+/// block runs, and the loop iterates again. `break 1` leaves the loop and
+/// does not run that assignment.
+fn block_consumes_zero_and_continues() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let seen = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.open();
+        let iv = b.let_(Atom::V(i));
+        let first = b.int_cmp("int.eq", iv, build::lit(0))?;
+        b.if_(
+            first,
+            |b| {
+                let i1 = b.add_in(Atom::V(i), build::lit(1), ct.clone())?;
+                b.set(i, i1);
+                b.brk(0);
+                Ok(())
+            },
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+        )?;
+        let inner = b.close();
+        b.push(Stmt::Block(inner));
+        let s = b.let_(Atom::V(seen));
+        let s1 = b.add_in(s, build::lit(1), ct.clone())?;
+        b.set(seen, s1);
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(seen));
+    b.ret(r);
+    assemble(tick, tkey, "again", b.finish())
+}
+
+#[test]
+fn block_in_loop_consumed_zero_continues() {
+    let c = block_consumes_zero_and_continues();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(bridge::body_break_rewrite());
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    // One continue after break 0, then break 1. The later note ran once.
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+/// `break 1` in a loop with no extra block is still raw 1 at the `if`.
+/// The loop decrements it to a pending 0. The block around the loop consumes
+/// that 0, so the return after the loop runs. The assignment after the `if`
+/// does not.
+fn if_keeps_depth_until_the_loop() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let skipped = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    // The `if` does not decrement. `break 1` is still 1 at the loop, so the
+    // loop leaves a residual 0. The block consumes that 0 and the return
+    // runs. A continue would iterate until the bound and halt.
+    b.open();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.set(skipped, build::lit(4));
+        let yes = Atom::bool(true);
+        b.if_(
+            yes,
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let outer = b.close();
+    b.push(Stmt::Block(outer));
+    let r = b.let_(Atom::V(skipped));
+    b.ret(r);
+    assemble(tick, tkey, "depth", b.finish())
+}
+
+/// `break 1` inside an inner block is still 1 there. The inner block
+/// decrements it and does not run its tail. The outer block consumes 0 and
+/// does run its tail. The loop then iterates. `break 2` leaves the loop.
+fn mid_break_raw_until_parent() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let mid = b.var(ct.clone(), build::lit(0));
+    let outer = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.open();
+        b.open();
+        let iv = b.let_(Atom::V(i));
+        let first = b.int_cmp("int.eq", iv, build::lit(0))?;
+        b.if_(
+            first,
+            |b| {
+                let i1 = b.add_in(Atom::V(i), build::lit(1), ct.clone())?;
+                b.set(i, i1);
+                b.brk(1);
+                Ok(())
+            },
+            |b| {
+                let iv = b.let_(Atom::V(i));
+                let second = b.int_cmp("int.eq", iv, build::lit(1))?;
+                b.if_(
+                    second,
+                    |b| {
+                        b.brk(2);
+                        Ok(())
+                    },
+                    |b| {
+                        b.brk(0);
+                        Ok(())
+                    },
+                )?;
+                Ok(())
+            },
+        )?;
+        let inner = b.close();
+        b.push(Stmt::Block(inner));
+        let m = b.let_(Atom::V(mid));
+        let m1 = b.add_in(m, build::lit(1), ct.clone())?;
+        b.set(mid, m1);
+        let mid_block = b.close();
+        b.push(Stmt::Block(mid_block));
+        let o = b.let_(Atom::V(outer));
+        let o1 = b.add_in(o, build::lit(1), ct.clone())?;
+        b.set(outer, o1);
+        Ok(())
+    })
+    .unwrap();
+    // 10 * mid + outer. The first iteration is break 1: mid stays 0, outer
+    // becomes 1. The second is break 2: neither note runs, and the loop exits.
+    let m = b.let_(Atom::V(mid));
+    let scaled = b.mul_in(m, build::lit(10), ct.clone()).unwrap();
+    let o = b.let_(Atom::V(outer));
+    let sum = b.add_in(scaled, o, ct).unwrap();
+    b.ret(sum);
+    assemble(tick, tkey, "mid", b.finish())
+}
+
+#[test]
+fn if_keeps_raw_depth_and_the_loop_decrements_once() {
+    let c = if_keeps_depth_until_the_loop();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let core_v = {
+        let (k, i) = by_arity(&c, 1);
+        core_apply(&c, &k, i, vec![Val::Int(4)])
+    };
+    assert_eq!(core_v.as_ref().unwrap(), &Val::Int(4), "core {core_v:?}");
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+#[test]
+fn mid_break_is_raw_until_the_parent() {
+    let c = mid_break_raw_until_parent();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    // mid stayed 0, outer ran once: 10 * 0 + 1.
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+#[test]
+fn return_in_a_loop_is_not_a_continue() {
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        b.ret(build::lit(1));
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    let m = module("ret", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let err = bridge::construct(&m).expect_err("return");
+    assert_eq!(err.tag(), "exit", "{}", err.line());
 }
