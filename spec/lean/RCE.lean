@@ -77,3 +77,4 @@ import RCE.Core.Events
 import RCE.Behaviour
 import RCE.LogPO
 import RCE.Law
+import RCE.FormBridge
