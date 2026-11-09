@@ -60,7 +60,7 @@ use super::types::Tx;
 use crate::one::build::{self, FB};
 use crate::one::ir::{self as core, Atom, FnRef, Lit, Place, Stmt, Ty};
 use crate::one::json::{canonical_group, group_key};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 thread_local! {
@@ -68,6 +68,10 @@ thread_local! {
     /// Option B of break-carried-flag.md: that form is outside syntactic
     /// identity. See `body_break_rewrite`.
     static BODY_BREAK: Cell<bool> = const { Cell::new(false) };
+    /// When set, `construct` records every user function's first refusal
+    /// and still returns the first one. Admission does not use this.
+    static COLLECT: Cell<bool> = const { Cell::new(false) };
+    static FOUND: RefCell<Vec<Change>> = const { RefCell::new(Vec::new()) };
 }
 
 fn note_body_break() {
@@ -467,6 +471,8 @@ struct Built {
     /// (group, index) -> meta, for user functions
     meta: HashMap<(String, u32), Meta>,
     names: HashMap<(String, u32), String>,
+    /// Global names in index order. Empty when the module does not record them.
+    gnames: Vec<String>,
     group: String,
     index: u32,
     phase: &'static str,
@@ -605,6 +611,27 @@ impl Built {
                 "global: g{i} is not part of the working context ω holds"
             ))),
         }
+    }
+    /// The global `outputs` is the output list inside ω (rce-form.md §5).
+    /// A fresh ω holds that list empty. A store of `list.new` of bytes is
+    /// that empty list, so it is not a node. Any other global, and a store
+    /// of any other value, still requires change.
+    fn fresh_output_list(&self, sc: &Scope, g: u32, a: &Atom) -> bool {
+        if self.gnames.get(g as usize).map(String::as_str) != Some("outputs") {
+            return false;
+        }
+        let Atom::V(v) = a else { return false };
+        let Some(Src::Out(n, 0)) = sc.env.get(v).copied() else {
+            return false;
+        };
+        let Some(node) = sc.nodes.get(n as usize) else {
+            return false;
+        };
+        matches!(
+            &node.attrs,
+            Attr::Prim(p, args, _)
+                if p == "list.new" && matches!(args.first(), Some(TyArg::Body(BTy::Bytes)))
+        )
     }
     fn seed_of(&self, arms: &[&[Stmt]], tail: &[&Stmt], parent: &Scope) -> Vec<u32> {
         let mut want = BTreeSet::new();
@@ -911,7 +938,14 @@ impl Built {
                     }
                     i += 1;
                 }
-                Stmt::Set(Place::G(g), _) => return Err(self.deny(format!("global: g{g} is not part of the working context ω holds"))),
+                Stmt::Set(Place::G(g), a) => {
+                    if !self.fresh_output_list(sc, *g, a) {
+                        return Err(self.deny(format!(
+                            "global: g{g} is not part of the working context ω holds"
+                        )));
+                    }
+                    i += 1;
+                }
                 Stmt::Prim(p, ts, args) if p == "drop" || p == "io.byte" || p == "mem.get" || p == "mem.set" => {
                     if p == "drop" {
                         i += 1;
@@ -3299,6 +3333,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
     let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
     let mut defs = BTreeMap::new();
     for u in &users {
+        let outcome = (|| -> Result<(), Change> {
         let at = u.name.clone();
         let callee = |r: &FnRef| -> Option<Ty> {
             match r {
@@ -3314,6 +3349,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             extra_loc: std::cell::RefCell::new(HashMap::new()),
             meta: meta.clone(),
             names: names.clone(),
+            gnames: global_names(m),
             group: u.group.clone(),
             index: u.index,
             phase: "construction",
@@ -3394,6 +3430,18 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             },
         };
         defs.insert(me.temp.clone(), form::Group { fns: vec![func] });
+        Ok(())
+        })();
+        match outcome {
+            Ok(()) => {}
+            Err(e) if COLLECT.with(|c| c.get()) => FOUND.with(|f| f.borrow_mut().push(e)),
+            Err(e) => return Err(e),
+        }
+    }
+    if COLLECT.with(|c| c.get()) {
+        if let Some(e) = FOUND.with(|f| f.borrow().first().cloned()) {
+            return Err(e);
+        }
     }
     let module = form::Module {
         catalogue: catalogue::key().into(),
@@ -3423,6 +3471,35 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             format!("{}: {}", k.rule, k.reason),
         )),
     }
+}
+
+/// Each user function's own first refusal, in the order `construct` walks.
+///
+/// The walk goes on to the next function after one refuses. It does not go
+/// on inside a function. `construct` still returns the first refusal, then
+/// the gate when every function builds. `body_break_rewrite` is restored.
+pub fn refusals(m: &core::Module) -> Vec<Change> {
+    let saved = body_break_rewrite();
+    COLLECT.with(|c| c.set(true));
+    FOUND.with(|f| f.borrow_mut().clear());
+    let result = construct(m);
+    COLLECT.with(|c| c.set(false));
+    let mut out = FOUND.with(|f| std::mem::take(&mut *f.borrow_mut()));
+    if out.is_empty() {
+        if let Err(e) = result {
+            out.push(e);
+        }
+    }
+    BODY_BREAK.with(|c| c.set(saved));
+    out
+}
+
+fn global_names(m: &core::Module) -> Vec<String> {
+    m.names
+        .get("globals")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
 }
 
 fn users_of(m: &core::Module) -> Vec<UserFn> {
