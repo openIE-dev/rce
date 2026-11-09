@@ -903,11 +903,18 @@ fn refused_constructs_name_the_reason() {
             }
         }
     };
-    refuse(
-        vec![Stmt::Out(Atom::bytes(b"x")), Stmt::Ret(build::lit(0))],
-        i64ty(),
-        "out",
+    // Bytes `out` is `emit[text]`. A value that is not bytes is not a
+    // well-formed core (W1). Construction still names it `out`.
+    let odd = module(
+        "odd",
+        core::Fn {
+            params: vec![],
+            ret: i64ty(),
+            body: vec![Stmt::Out(build::lit(1)), Stmt::Ret(build::lit(0))],
+        },
     );
+    let e = bridge::construct(&odd).expect_err("out");
+    assert_eq!(e.tag(), "out", "{}", e.line());
     refuse(
         vec![
             Stmt::Prim("io.byte".into(), vec![], vec![build::lit(1)]),
@@ -1049,6 +1056,134 @@ fn resetting_outputs_to_an_empty_list_round_trips() {
     assert_eq!(e.tag(), "global", "{}", e.line());
 }
 
+fn one_fn(globals: Vec<(Ty, Option<Lit>)>, gnames: &[&str], f: core::Fn) -> core::Module {
+    let (g, _) = canonical_group(std::slice::from_ref(&f));
+    let key = group_key(&g);
+    let mut names = serde_json::Map::new();
+    names.insert(key.clone(), serde_json::json!(["fn show"]));
+    core::Module {
+        globals,
+        defs: BTreeMap::from([(key.clone(), g)]),
+        entry: (key, 0),
+        names: serde_json::json!({"fns": names, "globals": gnames}),
+        graphs: BTreeMap::new(),
+    }
+}
+
+#[test]
+fn reading_outputs_is_the_empty_list_a_fresh_omega_holds() {
+    // A read of `outputs` is the output list inside ω. A fresh ω holds it
+    // empty, so the read is `list.new` of bytes and the schedule builds the
+    // same Form.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    // The function is the module entry, so W3 wants the global set before
+    // the read. The bridge is what this test checks; the lowered corpus
+    // sets the global in `entry` and reads it from the other functions.
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("list.new"), "{text}");
+}
+
+#[test]
+fn appending_to_outputs_extends_that_list() {
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![
+            Stmt::Let(Atom::G(0)),
+            Stmt::Prim(
+                "list.push".into(),
+                vec![Ty::Bytes],
+                vec![Atom::V(0), Atom::bytes(b"hi")],
+            ),
+            Stmt::Set(Place::G(0), Atom::V(1)),
+            Stmt::Ret(Atom::V(1)),
+        ],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("list.push"), "{text}");
+}
+
+#[test]
+fn a_read_after_a_branch_that_appended_requires_change() {
+    // One arm appends and the other does not. This scope does not join the
+    // two lists, so a later read is not the list ω holds.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![
+            Stmt::If(
+                Atom::bool(true),
+                vec![
+                    Stmt::Let(Atom::G(0)),
+                    Stmt::Prim(
+                        "list.push".into(),
+                        vec![Ty::Bytes],
+                        vec![Atom::V(0), Atom::bytes(b"a")],
+                    ),
+                    Stmt::Set(Place::G(0), Atom::V(1)),
+                ],
+                vec![],
+            ),
+            Stmt::Let(Atom::G(0)),
+            Stmt::Ret(Atom::V(2)),
+        ],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    let e = bridge::construct(&m).expect_err("unjoined append");
+    assert_eq!(e.tag(), "global", "{}", e.line());
+}
+
+#[test]
+fn core_out_of_bytes_is_emit_text() {
+    // `out` is `emit` on ω (rce-form.md §13). The value is already bytes, so
+    // the frame type is text and the effect class is 2.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::unit(),
+        body: vec![
+            Stmt::Out(Atom::bytes(b"hi")),
+            Stmt::Prim("tup.mk".into(), vec![Ty::unit()], vec![]),
+            Stmt::Ret(Atom::V(0)),
+        ],
+    };
+    let m = one_fn(vec![], &[], f);
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("emit"), "{text}");
+    assert!(text.contains("\"eff\":2") || text.contains("2"), "{text}");
+}
+
+#[test]
+fn a_read_of_fuel_limit_stays_refused() {
+    // The fuel limit is not a field of a module (rce-form.md §5). Fuel is
+    // charged only by `fuel.tick`.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::u64(),
+        body: vec![Stmt::Let(Atom::G(1)), Stmt::Ret(Atom::V(0))],
+    };
+    let m = one_fn(
+        vec![
+            (Ty::u64(), Some(Lit::Int(0))),
+            (Ty::u64(), Some(Lit::Int(0))),
+        ],
+        &["fuel", "fuel.limit"],
+        f,
+    );
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("fuel.limit");
+    assert_eq!(e.tag(), "global", "{}", e.line());
+}
+
 fn set_label(tags: &BTreeSet<String>) -> String {
     if tags.is_empty() {
         "clear".into()
@@ -1112,6 +1247,12 @@ fn whole_census(
         "sets were: global 18, global+out 12, break+global+out 20, lowering 4,".to_string(),
         "and six sets of one module. no-root and out alone unblocked no whole".to_string(),
         "module. global alone unblocked 18, and those 18 were entry-only cores.".to_string(),
+        String::new(),
+        "A read of `outputs` is the output list inside ω, and `out` of bytes".to_string(),
+        "is `emit[text]`. `out` is then in no whole-module set. `fuel` and".to_string(),
+        "`fuel.limit` stay refused. A function that stopped on the output".to_string(),
+        "list now shows its next refusal, so break is in more sets. whole".to_string(),
+        "stays 2, because the observation driver still reads the fuel limit.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
         format!("floor\t{covered}"),
