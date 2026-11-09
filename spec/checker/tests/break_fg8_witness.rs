@@ -270,40 +270,86 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(defect, 0, "a program function is tagged defect");
     let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
-    assert_eq!(
-        names("break"),
-        [
-            "02_hello_main.rce",
-            "04_bank_account.rce",
-            "16_multi_region.rce",
-            "44_device_region.rce",
-            "51_refined_input.rce",
-            "54_secret.rce",
-            "57_float_vectors.rce",
-            "60_dim_hidden_period.rce",
-        ]
-    );
+    // Recorded on 50294e05. This binary's bridge is the merge of 924f88e4,
+    // so these lists are not the live rows. They stay the measurement of
+    // that parent and are not rewritten to match a later main.
+    let break_50294e05 = [
+        "02_hello_main.rce",
+        "04_bank_account.rce",
+        "16_multi_region.rce",
+        "44_device_region.rce",
+        "51_refined_input.rce",
+        "54_secret.rce",
+        "57_float_vectors.rce",
+        "60_dim_hidden_period.rce",
+    ];
+    let catch_50294e05 = 10usize;
+    let loop_50294e05 = ["50_iterators.rce"];
+    let module_catch_50294e05 = 11usize;
+    let module_global_50294e05 = 35usize;
+    let module_out_50294e05 = 8usize;
+    assert_eq!(break_50294e05, [
+        "02_hello_main.rce",
+        "04_bank_account.rce",
+        "16_multi_region.rce",
+        "44_device_region.rce",
+        "51_refined_input.rce",
+        "54_secret.rce",
+        "57_float_vectors.rce",
+        "60_dim_hidden_period.rce",
+    ]);
+    assert_eq!(catch_50294e05, 10);
+    assert_eq!(loop_50294e05, ["50_iterators.rce"]);
+    assert_eq!(module_catch_50294e05, 11);
+    assert_eq!(module_global_50294e05, 35);
+    assert_eq!(module_out_50294e05, 8);
+    assert_ne!(break_50294e05.len(), names("break").len());
+    // Live rows of the checker after merging 924f88e4. Catch no longer
+    // stops a file first, so those files show their next tag. FG8 is still
+    // only 21_maps. The nine byte mismatches are the same names.
+    assert_eq!(names("break"), [
+        "01_counter.rce",
+        "02_hello_main.rce",
+        "04_bank_account.rce",
+        "16_multi_region.rce",
+        "17_traffic_light.rce",
+        "30_state_machine_guarded.rce",
+        "44_device_region.rce",
+        "51_refined_input.rce",
+        "52_context_text.rce",
+        "53_capability.rce",
+        "54_secret.rce",
+        "56_utf8.rce",
+        "57_float_vectors.rce",
+        "58_float_keys.rce",
+        "59_dim_redundant_field.rce",
+        "60_dim_hidden_period.rce",
+        "61_dim_minimal.rce",
+    ]);
     assert_eq!(names("FG8"), ["21_maps.rce"]);
-    assert_eq!(names("catch").len(), 10);
-    assert_eq!(names("global"), ["32_comptime_block.rce"]);
-    assert_eq!(names("loop"), ["50_iterators.rce"]);
-    // Byte mismatches only. `21_maps.rce` is the FG8 row, not one of these.
-    // A later root of `22_tuples.rce` is FG8; the file's first tag is still
-    // this mismatch. `56_utf8.rce` has round-trip roots and is tagged catch.
-    assert_eq!(
-        names("round-trip"),
-        [
-            "03_fib_loop.rce",
-            "10_comptime.rce",
-            "22_tuples.rce",
-            "25_labels.rce",
-            "36_multiline_brackets.rce",
-            "43_simd_lanes.rce",
-            "45_byte_text.rce",
-            "46_u64.rce",
-            "49_loop_limit.rce",
-        ]
+    assert!(
+        names("catch").is_empty(),
+        "924f88e4 still has a first-tag catch: {:?}",
+        names("catch")
     );
+    assert_eq!(names("global"), ["32_comptime_block.rce"]);
+    assert_eq!(names("loop"), ["50_iterators.rce", "55_rcedb.rce"]);
+    // Byte mismatches only. `21_maps.rce` is the FG8 row on both revisions,
+    // not one of these. On 50294e05, `56_utf8.rce`'s first tag is catch and
+    // `22_tuples.rce`'s later root `fn use_it` is FG8. On 924f88e4,
+    // `56_utf8.rce`'s first tag is break and `fn use_it` is defect. Neither
+    // file joins or leaves this nine.
+    assert_eq!(names("round-trip"), [
+        "03_fib_loop.rce",
+        "10_comptime.rce",
+        "22_tuples.rce",
+        "25_labels.rce",
+        "36_multiline_brackets.rce",
+        "43_simd_lanes.rce",
+        "45_byte_text.rce",
+        "46_u64.rce",
+        "49_loop_limit.rce",
+    ]);
     assert_eq!(names("no program root").len(), 21);
     let lowering: usize = root_tags
         .iter()
@@ -312,9 +358,13 @@ fn corpus_baseline_on_50294e05() {
         .sum();
     assert_eq!(lowering, 4);
     assert_eq!(module_tags.get("break").copied().unwrap_or(0), 2);
-    assert_eq!(module_tags.get("catch").copied().unwrap_or(0), 11);
-    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 35);
-    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 8);
+    assert!(
+        !module_tags.contains_key("catch"),
+        "924f88e4 whole-module catch: {:?}",
+        module_tags.get("catch")
+    );
+    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 36);
+    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 18);
     assert!(!module_tags.contains_key("defect"));
 }
 
@@ -614,12 +664,9 @@ fn a_nested_return_outside_a_loop_round_trips() {
         assert_eq!(got, Ok(Val::Int(want)));
         let (k, i) = by_arity(&m, 1);
         let _ = (k, i);
-        let got = feval::apply(
-            &f,
-            &form_key(&f, 1).0,
-            form_key(&f, 1).1,
-            vec![Val::Bool(bit)],
-        )
+        let got = feval::apply(&f, &form_key(&f, 1).0, form_key(&f, 1).1, vec![Val::Bool(
+            bit,
+        )])
         .unwrap();
         assert_eq!(got, vec![Val::Int(want)]);
         let (sg, _) = core_eval(&s, vec![Val::Bool(bit)]);
@@ -859,16 +906,14 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
     bad(
         vec![
             Stmt::Prim("list.new".into(), vec![e.clone()], vec![]),
-            Stmt::Prim(
-                "list.push".into(),
-                vec![e.clone()],
-                vec![Atom::V(0), build::lit(7)],
-            ),
-            Stmt::Prim(
-                "list.get".into(),
-                vec![e.clone()],
-                vec![Atom::V(1), build::lit(0)],
-            ),
+            Stmt::Prim("list.push".into(), vec![e.clone()], vec![
+                Atom::V(0),
+                build::lit(7),
+            ]),
+            Stmt::Prim("list.get".into(), vec![e.clone()], vec![
+                Atom::V(1),
+                build::lit(0),
+            ]),
             Stmt::Ret(Atom::V(2)),
         ],
         "missing guard",
@@ -1193,10 +1238,11 @@ fn block_if_loop_distinguishes_depth_from_residual() {
     let depth0 = block_if_loop(0);
     assert_break_block(&depth0);
     let (take, _) = core_eval(&depth0, args.clone());
-    let (fall, _) = core_eval(
-        &depth0,
-        vec![Val::Int(1), Val::Bool(true), Val::Bool(false)],
-    );
+    let (fall, _) = core_eval(&depth0, vec![
+        Val::Int(1),
+        Val::Bool(true),
+        Val::Bool(false),
+    ]);
     // Break 0: tail skipped, after_block, after_if, after_loop, one step.
     assert_eq!(take, Ok(Val::Int(30)));
     // No break taken: the tail runs as well. Same continuations, different control.
