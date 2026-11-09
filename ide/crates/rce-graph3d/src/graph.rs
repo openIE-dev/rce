@@ -118,10 +118,12 @@ pub enum EdgeKind {
 /// Energy on a node, with where the number came from.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Energy {
-    /// Joules: sum of E_meas where present, else E_sim.
+    /// Joules: sum of a hardware reading where present, else E_sim.
     pub joules: Option<f64>,
-    /// Joules that are hardware measurements (E_meas).
-    pub measured_j: f64,
+    /// Hardware reading attributed to the node (a reported counter or a
+    /// measured meter). `None` is absent, not zero joules.
+    #[serde(default)]
+    pub measured_j: Option<f64>,
     /// Joules that are predictions (E_sim) because nothing was measured.
     pub simulated_j: f64,
     /// Actions attributed.
@@ -136,6 +138,11 @@ pub struct Energy {
     pub pair_meas_j: f64,
     #[serde(default)]
     pub pair_sim_j: f64,
+}
+
+/// Add `extra` into an optional joule slot. `None` stays absent until a value arrives.
+pub fn add_opt(slot: &mut Option<f64>, extra: f64) {
+    *slot = Some(slot.unwrap_or(0.0) + extra);
 }
 
 impl Energy {

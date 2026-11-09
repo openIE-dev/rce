@@ -4,8 +4,9 @@
 //! test run, and `rce host run energy` and `rce host serve energy` around a
 //! host run, which they record in D as `host.Energy` (HC-38): RAPL on Linux, IOReport on macOS (Apple silicon). Both are
 //! on-chip energy counters, so the term's basis is `reported` (D.11: "an
-//! OS or on-chip energy counter: RAPL, NVML, IOReport"), never `measured`,
-//! which D.11 keeps for a wall or shunt meter on a named rail. The term carries D.11's `provenance` = {`sampler`,
+//! OS or on-chip energy counter: RAPL, NVML, IOReport, macmon, powermetrics,
+//! SMC, hwmon"), never `measured`, which D.11 keeps for an external wall or
+//! shunt meter on a named rail. The term carries D.11's `provenance` = {`sampler`,
 //! `counter`, `interval_s`, `idle_baseline_w`, `machine`, `boundary`,
 //! `start_unix_ns`, `end_unix_ns`, `wraps`} and an `amortization`, and
 //! nothing else, since D.11 reports a provenance with unknown fields as
@@ -26,8 +27,8 @@
 //! their maximum, and a negative one is refused as a failed read, so
 //! `wraps` is 0 there. Either way the figure is not the test run's own
 //! share: everything else the machine ran in the interval is in it. No idle
-//! baseline is subtracted, so `idle_baseline_w` is 0 (D.11: "0 when no
-//! baseline was subtracted").
+//! baseline is subtracted, so `idle_baseline_w` is null. Null is absent,
+//! not a 0 W baseline. A finite number >= 0 is watts that were subtracted.
 //!
 //! No counter, a failed read or a counter that did not move gives no figure:
 //! the result says "unmeasured", never an estimate.
@@ -197,7 +198,9 @@ pub struct Provenance {
     pub sampler: String,
     pub counter: String,
     pub interval_s: f64,
-    pub idle_baseline_w: f64,
+    /// Watts subtracted as an idle baseline, or `None` when no baseline
+    /// was subtracted. `None` is absent, not 0 W.
+    pub idle_baseline_w: Option<f64>,
     pub machine: String,
     pub boundary: String,
     pub start_unix_ns: u64,
@@ -219,8 +222,8 @@ fn jf(x: f64) -> String {
 
 impl Provenance {
     /// D.11 rule 1: the four names non-empty, `interval_s` finite and > 0,
-    /// `idle_baseline_w` finite and >= 0, `start_unix_ns` < `end_unix_ns`.
-    /// `wraps` and the timestamps are unsigned by their type.
+    /// `idle_baseline_w` null or a finite number >= 0, `start_unix_ns` <
+    /// `end_unix_ns`. `wraps` and the timestamps are unsigned by their type.
     pub fn check(&self) -> Result<(), String> {
         for (k, v) in [("sampler", &self.sampler), ("counter", &self.counter), ("machine", &self.machine), ("boundary", &self.boundary)] {
             if v.is_empty() {
@@ -230,8 +233,10 @@ impl Provenance {
         if !(self.interval_s.is_finite() && self.interval_s > 0.0) {
             return Err(format!("`interval_s` {} is not finite and > 0", self.interval_s));
         }
-        if !(self.idle_baseline_w.is_finite() && self.idle_baseline_w >= 0.0) {
-            return Err(format!("`idle_baseline_w` {} is not finite and >= 0", self.idle_baseline_w));
+        if let Some(w) = self.idle_baseline_w {
+            if !(w.is_finite() && w >= 0.0) {
+                return Err(format!("`idle_baseline_w` {w} is not finite and >= 0"));
+            }
         }
         if self.start_unix_ns >= self.end_unix_ns {
             return Err(format!("`start_unix_ns` {} is not before `end_unix_ns` {}", self.start_unix_ns, self.end_unix_ns));
@@ -252,11 +257,21 @@ impl Provenance {
         let text = |k: &str| get(k)?.as_str().map(String::from).ok_or(format!("`{k}` is not a string"));
         let num = |k: &str| get(k)?.as_f64().ok_or(format!("`{k}` is not a number"));
         let int = |k: &str| get(k)?.as_u64().ok_or(format!("`{k}` is not an integer >= 0"));
+        let idle = match get("idle_baseline_w")? {
+            serde_json::Value::Null => None,
+            v => {
+                let n = v.as_f64().ok_or("`idle_baseline_w` is not a number or null")?;
+                if !(n.is_finite() && n >= 0.0) {
+                    return Err(format!("`idle_baseline_w` {n} is not finite and >= 0"));
+                }
+                Some(n)
+            }
+        };
         let p = Provenance {
             sampler: text("sampler")?,
             counter: text("counter")?,
             interval_s: num("interval_s")?,
-            idle_baseline_w: num("idle_baseline_w")?,
+            idle_baseline_w: idle,
             machine: text("machine")?,
             boundary: text("boundary")?,
             start_unix_ns: int("start_unix_ns")?,
@@ -274,7 +289,10 @@ impl Provenance {
             js(&self.boundary),
             js(&self.counter),
             self.end_unix_ns,
-            jf(self.idle_baseline_w),
+            match self.idle_baseline_w {
+                None => "null".to_string(),
+                Some(w) => jf(w),
+            },
             jf(self.interval_s),
             js(&self.machine),
             js(&self.sampler),
@@ -302,10 +320,17 @@ impl Basis {
     }
 }
 
-/// A D.11 reading: joules, a label and a checked provenance. The only
-/// constructor, [`Term::new`], checks the provenance, so there is no term
-/// from a bare number. One `rce test` run is one call, so the amortization
-/// is `per_call`.
+/// A sampler or counter text that names an OS or on-chip counter.
+fn names_counter(p: &Provenance) -> bool {
+    let t = format!("{} {}", p.sampler, p.counter).to_ascii_lowercase();
+    ["rapl", "nvml", "ioreport", "macmon", "powermetrics", "hwmon", "smc", "powercap", "intel-rapl"]
+        .iter()
+        .any(|k| t.contains(k))
+}
+
+/// A D.11 reading: joules, a label and a checked provenance. [`Term::new`]
+/// checks the provenance, so there is no term from a bare number. One
+/// `rce test` run is one call, so the amortization is `per_call`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Term {
     j: f64,
@@ -316,11 +341,19 @@ pub struct Term {
 impl Term {
     /// A reading of `j` joules, finite and >= 0, with a provenance valid by
     /// D.11 rule 1.
+    ///
+    /// RAPL, NVML, IOReport, macmon, powermetrics, hwmon and SMC are
+    /// `reported`. `measured` requires a wall or shunt sampler. This
+    /// constructor checks that a `measured` term does not name one of
+    /// those counters in its sampler or counter text.
     pub fn new(j: f64, basis: Basis, provenance: Provenance) -> Result<Term, String> {
         if !(j.is_finite() && j >= 0.0) {
             return Err(format!("J {j} is not a finite figure >= 0"));
         }
         provenance.check()?;
+        if basis == Basis::Measured && names_counter(&provenance) {
+            return Err("basis `measured` needs a wall or shunt sampler; RAPL, NVML, IOReport, macmon, powermetrics, hwmon and SMC are `reported`".into());
+        }
         Ok(Term { j, basis, provenance })
     }
     pub fn j(&self) -> f64 {
@@ -510,7 +543,7 @@ impl Sampling {
             sampler: src.sampler,
             counter: src.counter,
             interval_s: elapsed,
-            idle_baseline_w: 0.0,
+            idle_baseline_w: None,
             machine: self.machine,
             boundary: src.boundary,
             start_unix_ns: self.first.t_ns,
@@ -545,7 +578,7 @@ pub mod fixtures {
             sampler: "rce test measure (IDE build): Linux powercap RAPL energy_uj".into(),
             counter: "powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)".into(),
             interval_s: 2.25,
-            idle_baseline_w: 0.0,
+            idle_baseline_w: None,
             machine: "h; cpu \"X\"; kernel Linux 6.1".into(),
             boundary: "package".into(),
             start_unix_ns: 10,
@@ -582,7 +615,7 @@ pub(crate) mod tests {
         assert_eq!(t.basis(), Basis::Reported);
         assert_eq!(g.wraps, 1);
         assert_eq!(g.boundary, "package");
-        assert_eq!(g.idle_baseline_w, 0.0);
+        assert_eq!(g.idle_baseline_w, None);
         assert_eq!(g.machine, "test-host; cpu Test CPU; kernel Linux 0.0");
         assert_eq!(g.counter, format!("powercap intel-rapl:0 package-0 ({}, max_energy_range_uj 1000000000)", r.join("intel-rapl:0/energy_uj").display()));
         assert!(g.interval_s > 0.0 && g.end_unix_ns > g.start_unix_ns && r0.samples == 2);
@@ -619,13 +652,21 @@ pub(crate) mod tests {
     fn formatting_is_deterministic() {
         let g = Reading { term: Term::new(12.5, Basis::Reported, prov()).unwrap(), samples: 4, period_s: 1.0 };
         let want = [
-            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":0.0,"interval_s":2.25,"machine":"h; cpu \"X\"; kernel Linux 6.1","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}"#.to_string(),
+            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":null,"interval_s":2.25,"machine":"h; cpu \"X\"; kernel Linux 6.1","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}"#.to_string(),
             "energy sampling: samples 4 period_s 1.0 (not fields of the D.11 provenance)".to_string(),
         ];
         assert_eq!(g.lines(), want);
         assert_eq!(g.clone().lines(), g.lines());
-        let m = Term::new(3.0, Basis::Measured, prov()).unwrap();
-        assert!(m.line().starts_with(r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"measured","j":3.0,"provenance":{"boundary":"package","#), "{}", m.line());
+        let shunt = Provenance {
+            sampler: "bench shunt logger".into(),
+            counter: "shunt meter energy register, rail:VDD".into(),
+            boundary: "rail:VDD".into(),
+            ..prov()
+        };
+        let m = Term::new(3.0, Basis::Measured, shunt).unwrap();
+        assert!(m.line().starts_with(r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"measured","j":3.0,"provenance":{"boundary":"rail:VDD","#), "{}", m.line());
+        let rapl_as_measured = Term::new(3.0, Basis::Measured, prov()).unwrap_err();
+        assert!(rapl_as_measured.contains("RAPL") && rapl_as_measured.contains("`reported`"), "{rapl_as_measured}");
     }
 
     #[test]
@@ -667,7 +708,7 @@ pub(crate) mod tests {
             sampler: src.sampler,
             counter: src.counter,
             interval_s: 4.0,
-            idle_baseline_w: 0.0,
+            idle_baseline_w: None,
             machine: "HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE".into(),
             boundary: src.boundary,
             start_unix_ns: 1_000_000_000,
@@ -677,7 +718,7 @@ pub(crate) mod tests {
         let g = Reading { term: Term::new(70.19388037, Basis::Reported, p).unwrap(), samples: 5, period_s: 1.0 };
         assert_eq!(
             g.lines()[0],
-            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":0.0,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}"#
+            r#"energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":null,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}"#
         );
         assert_eq!(g.kind(), "reported: IOReport package counters, cpu + gpu + ane");
         // all nine fields, read back as the same provenance
@@ -717,10 +758,14 @@ pub(crate) mod tests {
         assert_eq!(with("boundary", 1.into()).unwrap_err(), "`boundary` is not a string");
         assert_eq!(with("interval_s", 0.into()).unwrap_err(), "`interval_s` 0 is not finite and > 0");
         assert_eq!(with("idle_baseline_w", (-1.0).into()).unwrap_err(), "`idle_baseline_w` -1 is not finite and >= 0");
+        assert_eq!(with("idle_baseline_w", serde_json::Value::Null).unwrap().idle_baseline_w, None);
+        assert_eq!(with("idle_baseline_w", 1.25.into()).unwrap().idle_baseline_w, Some(1.25));
         assert_eq!(with("wraps", (-1).into()).unwrap_err(), "`wraps` is not an integer >= 0");
         assert_eq!(with("wraps", 1.5.into()).unwrap_err(), "`wraps` is not an integer >= 0");
         assert_eq!(with("end_unix_ns", 10.into()).unwrap_err(), "`start_unix_ns` 10 is not before `end_unix_ns` 10");
-        assert_eq!(with("idle_baseline_w", 0.into()).unwrap(), prov());
+        // A number 0 is a 0 W baseline. Absent is null, which `prov` uses.
+        assert_eq!(with("idle_baseline_w", 0.into()).unwrap().idle_baseline_w, Some(0.0));
+        assert_ne!(with("idle_baseline_w", 0.into()).unwrap(), prov());
         assert!(Provenance::parse("[]").unwrap_err().starts_with("not a JSON object"));
         assert!(Provenance::parse("2").unwrap_err().starts_with("not a JSON object"));
         assert!(Provenance::parse("x").unwrap_err().starts_with("not JSON ("));

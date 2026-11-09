@@ -119,7 +119,7 @@ compilers.
 | C, cost | a stated cost ranks the candidates that the checker accepted | Almost every cost is a local heuristic in cycles, bytes or node counts [K]. Cranelift's acyclic e-graph is the only production case found that ranks the members of an explicit equivalence class [K]. No cost is in joules [K]. |
 | K, checker | a named checker certifies the declared contract | The strongest part across the field, but it guards the source program far more than the lowering; checks of lowering exist only in pieces (Alive2 for some LLVM rewrites, SMT verification of some Cranelift ISLE rules) [K]. Only CompCert and CakeML check all of their lowering, and CompCert leaves the preprocessor, assembler and linker outside the proof [S]. |
 | U, reuse | earlier results are reused, keyed by the name-free hash of R together with the contract | Content-addressed caches exist in Go, rustc, LLVM, Wasmtime, JAX, Triton and TVM [K], but their keys hash names and paths, so equal programs with different names miss the cache [K]. |
-| E, energy | every released output is reported with measured energy in its regime | Absent in every compiler surveyed [K; no counterexample found]. The research language Eel (MIT, 2016) annotates energy, charging for bit creation and destruction [S]. E is a part the framework adds, supplied by an external meter. |
+| E, energy | every released output carries an energy receipt whose basis is recorded (`reported` for a counter, `measured` for a wall or shunt meter) | Absent in every compiler surveyed [K; no counterexample found]. The research language Eel (MIT, 2016) annotates energy, charging for bit creation and destruction [S]. E is a part the framework adds, supplied by an external meter. |
 | G, gate | nothing is released unless G records K's acceptance; each gate states what it guarantees | Present in some compilers: rustc emits no code after a type or borrow error, Go stops on unused imports and variables, Wasm engines do not load an invalid module, Erlang's `beam_validator` checks generated code [K]. tsc emits JavaScript despite type errors unless `noEmitOnError` is set [K]. |
 
 The letter G names both the gate part and, with a digit, a rung of the gear
@@ -315,7 +315,7 @@ a compiler chooses, changes the physical floor.
 ### 5.3 The measurable replacement
 
 The convergence function is replaced by two computable counts, each
-reported next to measured energy:
+reported next to an energy receipt (basis `reported` or `measured`):
 
 1. **ε, the erasure count**: the number of bits a run overwrites
    irreversibly, computed from the IR (bits overwritten or discarded
@@ -327,25 +327,25 @@ reported next to measured energy:
    measurement and not changed after it.
 
 Both are computed under equivalence checked on a decidable fragment, and
-both are reported with the joules measured in one of three *energy
+both are reported with the joules, basis recorded, in one of three *energy
 regimes*:
 
 | Regime | Energy scales with | Typical hardware |
 |---|---|---|
 | A | counted operations | in-order cores, FPGAs (field-programmable gate arrays) |
 | B | time multiplied by power | out-of-order CPUs (central processors), GPUs (graphics processors) |
-| C | entropy production; Landauer units apply directly | simulation, or thermodynamic hardware once a measured device exists |
+| C | entropy production; Landauer units apply directly | simulation, or thermodynamic hardware once that hardware exists |
 
 Regimes A and B are approximations: static power scales with time in both
 [K]. The claim becomes testable (H4): does lowering ε and λ predict lower
-measured energy in each regime? The report found no published measurement
+energy in each regime, with the basis recorded per file? The report found no published measurement
 of the erasure content of real compiled programs against their energy [NOT
 FOUND], so the result is new evidence whichever way it comes out. The
 self-published preprints that claim convergence to the Landauer limit at a
 stated rate are unreviewed, and their rate concerns estimating work, not
 programs approaching a floor (for example Zenodo 18922172) [S]; they are not
 cited as support. Energy figures in this project are *modelled* unless a
-meter reading backs them.
+counter (`reported`) or a meter (`measured`) reading backs them.
 
 ## 6. The gear ladder
 

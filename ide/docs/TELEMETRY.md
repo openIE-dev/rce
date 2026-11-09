@@ -28,16 +28,16 @@ terminal it asks nothing and changes nothing.
 
 ## Implemented
 
-| Tag | Platform | Domain | How | Resolution | Accuracy |
-|---|---|---|---|---|---|
-| `rapl` | Linux (Intel, AMD Zen) | CPU package (and DRAM on servers) | powercap `intel-rapl:N/energy_uj`, wrap handled, `psys` skipped | energy counter, ~1 ms update | measured on Haswell+ and Zen; model-based before |
-| `ioreport` | macOS, Apple silicon | CPU, GPU, ANE (DRAM where it moves); `package` = CPU + GPU + ANE for `rce test measure` | IOReport `CLPC/Energy Counters` (macOS 27) or `Energy Model`, `libIOReport.dylib` opened with `dlopen` | nJ/mJ counter, on demand | Apple's on-chip energy model, not a shunt |
-| `smc` | macOS | whole system | SMC key `PSTR` (W), polled every 100 ms, trapezoid integrated | 100 ms | SMC sensor reading; faster changes smoothed |
-| `powermetrics` | macOS | CPU, GPU, ANE, combined | `sudo -n powermetrics`, only after setup | 200 ms average power | Apple's tool, same counters as IOReport |
-| `nvml` | Linux, Windows (NVIDIA) | GPU board | `nvmlDeviceGetTotalEnergyConsumption` (feature `nvml`) | mJ counter (Volta+) | about +/-5 W on datacenter boards |
-| `hwmon` | Linux | GPU (amdgpu, i915, xe, nouveau), CPU (amd_energy, zenpower), other | `energy*_input` (uJ counter) else `power*_average`/`power*_input` (uW, polled) | driver-defined | driver-defined |
-| `jetson` | Linux (NVIDIA Jetson, INA3221 boards) | board rails | hwmon `in*_input` x `curr*_input`, sum/VDD_IN channels skipped | 100 ms | shunt, about 1-2 % |
-| `power-supply` | Linux, Android, Raspberry Pi with battery | whole device | `power_now` or `current_now` x `voltage_now`, only while discharging | 100 ms | fuel gauge, often averaged over seconds |
+| Tag | Basis | Platform | Domain | How | Resolution | Accuracy |
+|---|---|---|---|---|---|---|
+| `rapl` | reported | Linux (Intel, AMD Zen) | CPU package (and DRAM on servers) | powercap `intel-rapl:N/energy_uj`, wrap handled, `psys` skipped | energy counter, ~1 ms update | reported (on-chip model; Haswell+ and Zen). Model-based before Haswell is `est` |
+| `ioreport` | reported | macOS, Apple silicon | CPU, GPU, ANE (DRAM where it moves); `package` = CPU + GPU + ANE for `rce test measure` | IOReport `CLPC/Energy Counters` (macOS 27) or `Energy Model`, `libIOReport.dylib` opened with `dlopen` | nJ/mJ counter, on demand | Apple's on-chip energy model, not a shunt |
+| `smc` | reported | macOS | whole system | SMC key `PSTR` (W), polled every 100 ms, trapezoid integrated | 100 ms | SMC sensor reading; faster changes smoothed |
+| `powermetrics` | reported | macOS | CPU, GPU, ANE, combined | `sudo -n powermetrics`, after setup | 200 ms average power | Apple's tool, same counters as IOReport |
+| `nvml` | reported | Linux, Windows (NVIDIA) | GPU board | `nvmlDeviceGetTotalEnergyConsumption` (feature `nvml`) | mJ counter (Volta+) | vendor-stated, not verified here |
+| `hwmon` | reported | Linux | GPU (amdgpu, i915, xe, nouveau), CPU (amd_energy, zenpower), other | `energy*_input` (uJ counter) else `power*_average`/`power*_input` (uW, polled) | driver-defined | driver-defined |
+| `jetson` | measured | Linux (NVIDIA Jetson, INA3221 boards) | board rails | hwmon `in*_input` x `curr*_input`, sum/VDD_IN channels skipped | 100 ms | shunt on board rails; accuracy vendor-stated, not verified here |
+| `power-supply` | reported | Linux, Android, Raspberry Pi with battery | whole device | `power_now` or `current_now` x `voltage_now`, while discharging | 100 ms | fuel gauge, often averaged over seconds |
 
 ### macOS details (measured on the 128GB M5 Max, macOS 27.0.1)
 
@@ -139,20 +139,22 @@ outcome it saw.
   `sudo -n -l` confirms it; it never relies on a cached sudo timestamp.
 - IOReport, SMC, hwmon (most drivers), power_supply: no setup.
 
-### Measurement on the M5 Max (2026-10-12, 14:52 to 14:54 EDT)
+### Readings on the M5 Max (reported counters and SMC sensor; host not quiet)
+
+2026-10-12, 14:52 to 14:54 EDT.
 
 The machine was not idle: other users' rustc jobs held the load average at
 114 to 188 throughout, so "idle" means "no work of ours", and the compile's
 own share cannot be separated from the background.
 
-| Source | 5 s with no work of ours | `cargo build --release` of rce-spec-check (62.85 s, exit 0) |
-|---|---|---|
-| `ioreport` CPU (CLPC) | 131.649 J / 5.029 s = 26.18 W | 1346.149 J / 62.847 s = 21.42 W |
-| `ioreport` GPU (CLPC) | 12.050 J = 2.40 W | 215.375 J = 3.43 W |
-| `ioreport` ANE | 0.000 J (idle; allowed for ANE) | 0.000 J |
-| `ioreport` DRAM | Unsupported (counter does not move) | Unsupported |
-| `smc` PSTR (system) | 352.286 J / 5.003 s = 70.42 W | 4437.447 J / 62.897 s = 70.55 W |
-| `powermetrics` CPU | no sample yet at window start | 1179.030 J / 62.875 s = 18.75 W |
+| Source | Basis | 5 s with no work of ours | `cargo build --release` of rce-spec-check (62.85 s, exit 0) |
+|---|---|---|---|
+| `ioreport` CPU (CLPC) | reported | 131.649 J / 5.029 s = 26.18 W | 1346.149 J / 62.847 s = 21.42 W |
+| `ioreport` GPU (CLPC) | reported | 12.050 J = 2.40 W | 215.375 J = 3.43 W |
+| `ioreport` ANE | reported | 0.000 J (idle; allowed for ANE) | 0.000 J |
+| `ioreport` DRAM | reported | Unsupported (counter does not move) | Unsupported |
+| `smc` PSTR (system) | reported | 352.286 J / 5.003 s = 70.42 W | 4437.447 J / 62.897 s = 70.55 W |
+| `powermetrics` CPU | reported | no sample yet at window start | 1179.030 J / 62.875 s = 18.75 W |
 
 powermetrics ran in that one measurement because `sudo -n` succeeded
 without a prompt on this Mac at the time (no rce sudoers entry exists). The

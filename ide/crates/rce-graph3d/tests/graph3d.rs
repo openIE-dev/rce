@@ -255,7 +255,7 @@ fn time_scrubbing_versions_facts_receipts() {
     );
     let inc = s1.graph.nodes.iter().find(|n| n.label == "Inc").unwrap();
     assert_eq!(inc.energy.joules, Some(2.0));
-    assert_eq!(inc.energy.measured_j, 0.0, "E_sim only");
+    assert_eq!(inc.energy.measured_j, None, "E_sim only: hardware reading absent");
     let s2 = tl.at(245, 1.4);
     assert_eq!(s2.version, Some(1));
     assert!(s2.added.iter().any(|i| i.ends_with(":Reset")));
@@ -263,7 +263,7 @@ fn time_scrubbing_versions_facts_receipts() {
     assert_eq!(s2.facts["Counter"], vec!["owner david".to_string()]);
     let reset = s2.graph.nodes.iter().find(|n| n.label == "Reset").unwrap();
     assert!(reset.energy.anomaly, "delta 2.0 is > 1.4 sigma");
-    assert_eq!(reset.energy.measured_j, 1.5);
+    assert_eq!(reset.energy.measured_j, Some(1.5));
     // Measured actions reach the hardware they ran on.
     let p = s2.graph.index("hw:pkg0").unwrap();
     assert!(
@@ -272,7 +272,7 @@ fn time_scrubbing_versions_facts_receipts() {
             .iter()
             .any(|e| e.kind == EdgeKind::Ran && e.b == p)
     );
-    assert!(s2.graph.nodes[p].energy.measured_j > 0.0);
+    assert!(s2.graph.nodes[p].energy.measured_j.unwrap_or(0.0) > 0.0);
     assert_eq!(tl.at(260, 1.5).facts.len(), 0, "valid_to passed");
     assert_eq!(tl.scrub(0.0), Some(100));
     assert_eq!(

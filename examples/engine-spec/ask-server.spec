@@ -19,7 +19,7 @@ objective O3 "Bridge JWP to WebSocket on port 9091"
 
 objective O4 "Execute AI cascade queries with energy metering"
   metric queries_per_second target 100
-  reason "Core AI functionality — every query gets a picojoule energy receipt" by "david"
+  reason "Every query gets an energy receipt in picojoules with its basis (est, reported, measured or unpriced)" by "david"
 
 # ── Constraints ──────────────────────────────────────────────────
 
@@ -50,8 +50,8 @@ acceptance A3 validates O3
   reason "Bridge latency SLA" by "david"
 
 acceptance A4 validates O4
-  property "for all cascade queries, energy receipt is non-zero and accurate"
-  reason "Energy metering is the key differentiator — must be trustworthy" by "david"
+  property "for all cascade queries, the energy receipt is in picojoules with its basis (est, reported, measured or unpriced); an absent reading is not 0"
+  reason "The energy receipt names its basis" by "david"
 
 # ── Deliverables ──────────────────────────────────────────────────
 

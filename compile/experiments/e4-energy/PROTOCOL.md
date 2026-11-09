@@ -1,8 +1,10 @@
 # E4: erasure and description length against measured energy (protocol)
 
-Status: protocol and harness. The harness runs; no energy has been read on
-a metered host yet. The committed results file is an ε and λ run on a
-machine with no energy counter, and it contains no joules. Tests H4 of
+Status: protocol and harness. The harness has been run on two Apple M4 Max
+hosts with macmon (basis `reported`, see RESULTS.md); neither host was
+quiet. No Linux RAPL run and no wall-meter run exists yet. A committed
+results file is also an ε and λ run on a machine with no energy counter,
+and that file contains no joules. Tests H4 of
 [HYPOTHESES.md](../../HYPOTHESES.md): the erasure count ε and a declared
 description-length proxy λ ([CHARTER.md](../../CHARTER.md) section 5.3)
 predict measured energy in regime C, and explain less variance than the

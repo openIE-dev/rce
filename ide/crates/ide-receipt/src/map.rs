@@ -6,7 +6,7 @@
 //! only what the source asserts: a measurement is carried over only when the
 //! source names a real meter that has a tag here; anything else stays `None`
 //! and the reason is kept in `detail.unmapped`.
-use crate::{ActionKind, Draft, Measured, MeterSource, Verdict};
+use crate::{ActionKind, Draft, MeterSource, Reading, Verdict};
 use serde_json::{Value, json};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -59,7 +59,7 @@ pub fn from_mol(v: &Value, policy_hash: &str) -> Result<Draft, MapError> {
     let mut unmapped = vec![];
     match (f64_at(v, "measured_j"), mol_source(src)) {
         (Some(j), Some(s)) => {
-            d.e_meas = Some(Measured {
+            d.e_meas = Some(Reading {
                 joules: j,
                 source: s,
             })
@@ -121,25 +121,25 @@ pub fn from_mei(v: &Value, policy_hash: &str) -> Result<Draft, MapError> {
             .find(|s| substrate.contains(*s));
         match src {
             Some(&"rapl") => {
-                d.e_meas = Some(Measured {
+                d.e_meas = Some(Reading {
                     joules: j,
                     source: MeterSource::Rapl,
                 })
             }
             Some(&"nvml") => {
-                d.e_meas = Some(Measured {
+                d.e_meas = Some(Reading {
                     joules: j,
                     source: MeterSource::Nvml,
                 })
             }
             Some(&"powermetrics") => {
-                d.e_meas = Some(Measured {
+                d.e_meas = Some(Reading {
                     joules: j,
                     source: MeterSource::Powermetrics,
                 })
             }
             Some(_) => {
-                d.e_meas = Some(Measured {
+                d.e_meas = Some(Reading {
                     joules: j,
                     source: MeterSource::Jetson,
                 })

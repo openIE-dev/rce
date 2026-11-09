@@ -213,11 +213,13 @@ query standards converged on trails and on typed results.
   ratio to work and as the raw interval with the idle baseline
   subtracted. For a replicated deployment the unit is committed events
   per joule. No per-event advantage is claimed until a `measured_j` figure
-  exists. The baselines the record offers are the 2010 audited figure of
-  5.93 W per kilo-tpmC and the 2017 phone measurement of about 800 µJ per
-  kilobyte; the first `measured_j` figure RCEdb publishes with an idle
-  baseline will be, as far as the survey could find, the first of its kind
-  for a database.
+  exists. The baselines the record offers, as stated by the survey of
+  23 October 2026 (`openie-research-experiments/rce/surveys/2026-10-23/`)
+  and not verified in this file, are 5.93 W per kilo-tpmC (described there
+  as a 2010 audited figure) and about 800 µJ per kilobyte (described there
+  as a 2017 phone measurement). This file does not name the publications
+  those figures come from. A `measured_j` figure with an idle baseline is
+  not in this repository.
 
 ## 9. From Delta
 

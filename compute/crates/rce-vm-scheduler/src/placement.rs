@@ -10,7 +10,7 @@
 //! placement is incrementally adoptable per op.
 //!
 //! `PricedBackend` is a deliberately small, concrete trait (typed `HostTensor`
-//! inputs, scalar `(picojoules, measured)` cost) rather than the
+//! inputs, scalar `(picojoules, basis)` cost) rather than the
 //! `rce-vm-core::Backend` trait's `TensorHandle` + `Plan` indirection, which
 //! needs a value store the scheduler doesn't have today. The two coexist: the
 //! `Backend` trait remains the architectural contract for `compile` / `cost`
@@ -20,6 +20,7 @@
 use std::sync::Arc;
 
 use rce_vm_backend_cpu::Value;
+use rce_vm_core::EnergyBasis;
 
 /// A backend that prices an op (cost) and executes it on `Value` inputs.
 ///
@@ -42,9 +43,9 @@ pub trait PricedBackend: Send + Sync {
     fn handles(&self) -> &[&'static str];
 
     /// Energy estimate (picojoules) for executing `op` with the given input
-    /// shapes, plus a flag indicating whether the estimate is measurement-
-    /// derived (`true`) or analytical (`false`) — the §4.5 provenance seam.
-    fn cost(&self, op: &str, input_shapes: &[&[usize]]) -> (f64, bool);
+    /// shapes, plus the D.11 basis of that figure. A counter is `reported`.
+    /// A wall or shunt meter is `measured`. A model is `est`.
+    fn cost(&self, op: &str, input_shapes: &[&[usize]]) -> (f64, EnergyBasis);
 
     /// Execute the op on the given `Value` inputs; return the result `Value`.
     /// Inputs may arrive as `Tensor` or `DeviceTensor`; output residency is
@@ -98,16 +99,16 @@ pub fn pick_priced<'a>(
     backends: &'a [Arc<dyn PricedBackend>],
     op: &str,
     input_shapes: &[&[usize]],
-) -> Option<(&'a Arc<dyn PricedBackend>, f64, bool)> {
-    let mut best: Option<(&'a Arc<dyn PricedBackend>, f64, bool)> = None;
+) -> Option<(&'a Arc<dyn PricedBackend>, f64, EnergyBasis)> {
+    let mut best: Option<(&'a Arc<dyn PricedBackend>, f64, EnergyBasis)> = None;
     for be in backends {
         if !be.handles().iter().any(|h| *h == op) {
             continue;
         }
-        let (pj, measured) = be.cost(op, input_shapes);
+        let (pj, basis) = be.cost(op, input_shapes);
         let cheaper = best.as_ref().map_or(true, |(_, prev_pj, _)| pj < *prev_pj);
         if cheaper {
-            best = Some((be, pj, measured));
+            best = Some((be, pj, basis));
         }
     }
     best
@@ -124,13 +125,13 @@ mod tests {
         id_: String,
         handles_: Vec<&'static str>,
         cost_pj: f64,
-        measured: bool,
+        basis: EnergyBasis,
     }
     impl PricedBackend for Fixed {
         fn id(&self) -> &str { &self.id_ }
         fn handles(&self) -> &[&'static str] { &self.handles_ }
-        fn cost(&self, _op: &str, _shapes: &[&[usize]]) -> (f64, bool) {
-            (self.cost_pj, self.measured)
+        fn cost(&self, _op: &str, _shapes: &[&[usize]]) -> (f64, EnergyBasis) {
+            (self.cost_pj, self.basis)
         }
         fn execute(&self, _op: &str, inputs: &[Value]) -> Result<Value, String> {
             // Echo back the first input as a clone (correctness isn't the
@@ -140,7 +141,7 @@ mod tests {
     }
 
     fn fixed(id: &str, cost_pj: f64, handles: Vec<&'static str>) -> Arc<dyn PricedBackend> {
-        Arc::new(Fixed { id_: id.into(), handles_: handles, cost_pj, measured: true })
+        Arc::new(Fixed { id_: id.into(), handles_: handles, cost_pj, basis: EnergyBasis::Reported })
     }
 
     #[test]
@@ -173,26 +174,26 @@ mod tests {
     }
 
     #[test]
-    fn pick_priced_propagates_measured_flag() {
+    fn pick_priced_propagates_basis() {
         let backends: Vec<Arc<dyn PricedBackend>> = vec![
             Arc::new(Fixed {
                 id_: "estimate".into(),
                 handles_: vec!["matmul"],
                 cost_pj: 1.0,
-                measured: false,
+                basis: EnergyBasis::Est,
             }),
             Arc::new(Fixed {
-                id_: "measured".into(),
+                id_: "counter".into(),
                 handles_: vec!["matmul"],
-                cost_pj: 2.0, // costlier but measured
-                measured: true,
+                cost_pj: 2.0, // costlier, basis reported
+                basis: EnergyBasis::Reported,
             }),
         ];
-        let (be, pj, measured) = pick_priced(&backends, "matmul", &[&[1]]).unwrap();
-        // Cheapest still wins (the policy is min-joules); the `measured` bit
-        // is reported alongside so callers can downweight estimates if desired.
+        let (be, pj, basis) = pick_priced(&backends, "matmul", &[&[1]]).unwrap();
+        // Cheapest still wins (the policy is min-joules). The basis travels
+        // with the figure so a caller can tell an estimate from a counter.
         assert_eq!(be.id(), "estimate");
         assert_eq!(pj, 1.0);
-        assert!(!measured);
+        assert_eq!(basis, EnergyBasis::Est);
     }
 }

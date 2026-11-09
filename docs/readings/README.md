@@ -10,7 +10,9 @@ every file here by D.11 on each CI run.
 
 Each figure is the package's: CPU, GPU and Neural Engine together, with
 everything else the machine ran in the interval. No idle baseline is
-subtracted (`idle_baseline_w` is 0). None of these runs was made on a quiet
+subtracted. These files write `idle_baseline_w` 0, which under the rule
+in force when they were written meant not subtracted. A reading written
+now uses null for that absent baseline. None of these runs was made on a quiet
 machine, so a figure says what the counter read during the run, not what
 the program alone drew.
 
