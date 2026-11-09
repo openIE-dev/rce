@@ -7433,11 +7433,74 @@ impl<'m> Lw<'m> {
     /// The whole module: functions, steps, then one observation per item in
     /// item order and `fn main` last, each from full fuel with no constant
     /// evaluated; returns the entry.
+    /// Definitions the observation driver does not call.
+    ///
+    /// Book 4.2: a module with only functions, types, constants and impls
+    /// is a library and denotes that set of functions. A module with a
+    /// state, an event or an actor is a Form module: its regions, δ and
+    /// initial state are the Form whether or not an example runs them.
+    /// rce-form.md (FG5) monomorphises a generic at a use, so a generic
+    /// with no use has no core function. The reference trace (10.5, ONE-5)
+    /// runs constants, checks, zero-argument functions, examples and
+    /// `fn main` only, so `entry` does not gain a call.
+    fn retain_definitions(&mut self) -> R<()> {
+        let fns: Vec<String> = self
+            .m
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Fn(f)
+                    if f.sig.generics.is_empty()
+                        && !matches!(f.sig.ret, Some(ast::Ty::Iter(_))) =>
+                {
+                    Some(f.sig.name.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        for name in fns {
+            self.user_fn(&name)?;
+        }
+        let methods: Vec<(String, String)> = self
+            .m
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Impl { generics, ty, members, .. } if generics.is_empty() => {
+                    let h = crate::check::ty_head(ty);
+                    Some(
+                        members
+                            .iter()
+                            .filter(|f| {
+                                f.sig.generics.is_empty()
+                                    && !matches!(f.sig.ret, Some(ast::Ty::Iter(_)))
+                            })
+                            .map(|f| (h.clone(), f.sig.name.clone()))
+                            .collect::<Vec<_>>(),
+                    )
+                }
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        for (h, name) in methods {
+            self.method_fn(&h, &name)?;
+        }
+        Ok(())
+    }
+
     fn module(&mut self) -> R<usize> {
         self.functions()?;
+        self.retain_definitions()?;
         let m = self.m;
         let has_examples = m.items.iter().any(|i| matches!(i, Item::Example(_)) || matches!(i, Item::Intent(_, xs, _) if !xs.is_empty()));
-        let (delta, init) = if has_examples { (Some(self.delta_fn()?), Some(self.init_state_fn()?)) } else { (None, None) };
+        // A Form module has δ even when no example observes it (book 4.2).
+        // An example with no region still builds δ, as before.
+        let (delta, init) = if has_examples || !self.regions().is_empty() {
+            (Some(self.delta_fn()?), Some(self.init_state_fn()?))
+        } else {
+            (None, None)
+        };
         let mut bodies = vec![];
         let mut main = None;
         for it in &m.items {

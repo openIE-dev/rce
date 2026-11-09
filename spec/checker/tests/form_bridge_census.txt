@@ -12,108 +12,131 @@ those two. no-root means the lowered module has no program root
 (`fn`, `region`, `delta`, `initial state`). It is not a refusal of
 construction, so it is counted with the roots, not as a whole-module tag.
 
+whole is every module whose core constructs and schedules back.
+whole-entry-only is that count restricted to entry-only cores: the
+lowered core holds only `entry`, because nothing calls the program
+functions, so no user code is constructed. It is not a count of user
+programs round-tripping. whole-with-user is the same count for cores
+that contain at least one user function.
+
 On 924f88e4, before the nested-break slice, the whole-module exact
 sets were: global 18, global+out 12, break+global+out 20, lowering 4,
 and six sets of one module. no-root and out alone unblocked no whole
-module. global alone unblocked 18.
+module. global alone unblocked 18, and those 18 were entry-only cores.
 
 programs	60
 floor	5
 semantic	0
-whole	18
+whole	2
+whole-entry-only	1
+whole-with-user	1
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
 20	global,out
-4	lowering
+9	lowering
+6	round-trip
+2	break
+1	break,defect
+1	defect
+1	exit,global
 
 whole modules, every exact set
 modules	set
 20	global,out
-18	clear
-7	exit,global,out
+9	lowering
+6	exit,global,out
+6	round-trip
 5	break,global,out
-4	lowering
+2	break
+2	clear
 1	bound,break,global,out
-1	catch,exit,global
+1	break,defect
 1	catch,global,out
+1	defect
+1	defect,exit,global,loop,out
 1	defect,exit,global,out
+1	defect,exit,loop
+1	exit,global
 1	exit,global,loop,out
 1	global,loop,out
 
 program roots, every exact set
 modules	set
-21	no-root
 16	global
-8	round-trip
+16	round-trip
+9	lowering
 5	clear
-4	lowering
-1	FG8
-1	break
+3	break
+2	defect
+2	no-root
+1	FG8,defect
+1	break,defect
 1	defect,round-trip
+1	exit
 1	global,loop
 1	global,round-trip
 1	loop
 
 modules
-module	whole	roots	global-sites
-01_counter.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Counter: global: g2 is not part of the working context ω holds
-02_hello_main.rce	exit,global,out	global	fn main: global: g2 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds
-03_fib_loop.rce	global,out	round-trip	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-04_bank_account.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Account: global: g2 is not part of the working context ω holds
-05_kind_match.rce	clear	no-root	
-06_option.rce	clear	no-root	
-07_error_union.rce	clear	no-root	
-08_traits.rce	clear	no-root	
-09_generics.rce	clear	no-root	
-10_comptime.rce	catch,global,out	round-trip	entry: global: g6 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds
-11_arena.rce	clear	no-root	
-12_borrow.rce	global,out	clear	observation 1: global: g1 is not part of the working context ω holds
-13_spawn_chan.rce	lowering	lowering	not covered by the lowering: a channel
-14_select.rce	clear	no-root	
-15_actor.rce	lowering	lowering	not covered by the lowering: the type chan i64
-16_multi_region.rce	exit,global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Cart: global: g2 is not part of the working context ω holds | region Stats: global: g2 is not part of the working context ω holds
-17_traffic_light.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | region Signal: global: g2 is not part of the working context ω holds
-18_while_bound.rce	clear	no-root	
-19_floats.rce	break,global,out	no-root	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-20_strings.rce	exit,global,out	clear	observation 1: global: g1 is not part of the working context ω holds
-21_maps.rce	catch,exit,global	FG8	observation 1: global: g1 is not part of the working context ω holds
-22_tuples.rce	global,out	defect,round-trip	observation 1: global: g1 is not part of the working context ω holds
-23_patterns.rce	clear	no-root	
-24_lambda.rce	clear	no-root	
-25_labels.rce	global,out	round-trip	observation 1: global: g1 is not part of the working context ω holds
-27_bitops.rce	clear	no-root	
-28_slices.rce	clear	no-root	
-29_nested_kind.rce	clear	no-root	
-30_state_machine_guarded.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Door: global: g2 is not part of the working context ω holds
-31_inventory.rce	clear	no-root	
-32_comptime_block.rce	global,out	global	fn table_size: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-33_in_operator.rce	clear	no-root	
-34_chan_types.rce	clear	no-root	
-35_nested_if.rce	clear	no-root	
-36_multiline_brackets.rce	global,out	round-trip	observation 1: global: g1 is not part of the working context ω holds
-37_actor_spawn.rce	lowering	lowering	not covered by the lowering: the type chan u64
-38_hex_bin.rce	break,global,out	no-root	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds
-39_structural_recursion.rce	lowering	lowering	not covered by the lowering: a recursive type
-40_extern.rce	global,out	clear	observation 1: global: g1 is not part of the working context ω holds
-41_arena_bound_wrapping.rce	global,out	no-root	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-42_f32.rce	bound,break,global,out	clear	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds
-43_simd_lanes.rce	global,out	round-trip	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-44_device_region.rce	break,global,out	break	observation 1: global: g1 is not part of the working context ω holds
-45_byte_text.rce	exit,global,out	round-trip	check 7: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds
-46_u64.rce	global,out	round-trip	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds
-47_select_fair.rce	clear	no-root	
-48_linear_handle.rce	global,out	clear	observation 1: global: g1 is not part of the working context ω holds
-49_loop_limit.rce	global,out	round-trip	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
-50_iterators.rce	global,loop,out	global,loop	check 27: global: g3 is not part of the working context ω holds | entry: global: g3 is not part of the working context ω holds | gen iter evens(int{u64}[0, 18446744073709551615]): global: g3 is not part of the working context ω holds | gen iter naturals(): global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds
-51_refined_input.rce	defect,exit,global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | region Codes: global: g2 is not part of the working context ω holds | region Profile: global: g2 is not part of the working context ω holds | region Volume: global: g2 is not part of the working context ω holds
-52_context_text.rce	exit,global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Page: global: g2 is not part of the working context ω holds
-53_capability.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Ledger: global: g2 is not part of the working context ω holds | region Policy: global: g2 is not part of the working context ω holds
-54_secret.rce	exit,global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Vault: global: g2 is not part of the working context ω holds
-55_rcedb.rce	exit,global,loop,out	loop	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Db: global: g2 is not part of the working context ω holds
-56_utf8.rce	exit,global,out	global,round-trip	observation 10: global: g1 is not part of the working context ω holds | observation 11: global: g1 is not part of the working context ω holds | observation 12: global: g1 is not part of the working context ω holds | observation 13: global: g1 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds | observation 8: global: g1 is not part of the working context ω holds | observation 9: global: g1 is not part of the working context ω holds | region S: global: g2 is not part of the working context ω holds
-57_float_vectors.rce	break,global,out	global	observation 10: global: g1 is not part of the working context ω holds | observation 11: global: g1 is not part of the working context ω holds | observation 12: global: g1 is not part of the working context ω holds | observation 13: global: g1 is not part of the working context ω holds | observation 14: global: g1 is not part of the working context ω holds | observation 15: global: g1 is not part of the working context ω holds | observation 16: global: g1 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds | observation 8: global: g1 is not part of the working context ω holds | observation 9: global: g1 is not part of the working context ω holds | region Lab: global: g2 is not part of the working context ω holds
-58_float_keys.rce	break,global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Tally: global: g2 is not part of the working context ω holds
-59_dim_redundant_field.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimCounter: global: g2 is not part of the working context ω holds
-60_dim_hidden_period.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimPhase: global: g2 is not part of the working context ω holds
-61_dim_minimal.rce	global,out	global	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimDoor: global: g2 is not part of the working context ω holds
+module	whole	roots	user	global-sites
+01_counter.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Counter: global: g2 is not part of the working context ω holds
+02_hello_main.rce	exit,global,out	global	user	fn main: global: g2 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds
+03_fib_loop.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+04_bank_account.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Account: global: g2 is not part of the working context ω holds
+05_kind_match.rce	break	break	user	
+06_option.rce	break,defect	break,defect	user	
+07_error_union.rce	defect,exit,loop	defect	user	
+08_traits.rce	round-trip	round-trip	user	
+09_generics.rce	clear	no-root	entry-only	
+10_comptime.rce	catch,global,out	round-trip	user	entry: global: g6 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds
+11_arena.rce	round-trip	round-trip	user	
+12_borrow.rce	global,out	clear	user	observation 1: global: g1 is not part of the working context ω holds
+13_spawn_chan.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
+14_select.rce	lowering	lowering	lowering	not covered by the lowering: the type chan text
+15_actor.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
+16_multi_region.rce	exit,global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Cart: global: g2 is not part of the working context ω holds | region Stats: global: g2 is not part of the working context ω holds
+17_traffic_light.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | region Signal: global: g2 is not part of the working context ω holds
+18_while_bound.rce	round-trip	round-trip	user	
+19_floats.rce	break,global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+20_strings.rce	defect,exit,global,loop,out	defect	user	observation 1: global: g1 is not part of the working context ω holds
+21_maps.rce	lowering	lowering	lowering	not covered by the lowering: an integer operation checked against ranges that differ at run time (["lit", "u32"])
+22_tuples.rce	global,out	defect,round-trip	user	observation 1: global: g1 is not part of the working context ω holds
+23_patterns.rce	break	break	user	
+24_lambda.rce	round-trip	round-trip	user	
+25_labels.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds
+27_bitops.rce	round-trip	round-trip	user	
+28_slices.rce	round-trip	round-trip	user	
+29_nested_kind.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
+30_state_machine_guarded.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Door: global: g2 is not part of the working context ω holds
+31_inventory.rce	exit,global	exit	user	region Inventory: global: g2 is not part of the working context ω holds
+32_comptime_block.rce	global,out	global	user	fn table_size: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+33_in_operator.rce	defect	FG8,defect	user	
+34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
+35_nested_if.rce	clear	clear	user	
+36_multiline_brackets.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds
+37_actor_spawn.rce	lowering	lowering	lowering	not covered by the lowering: the type chan u64
+38_hex_bin.rce	break,global,out	no-root	entry-only	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds
+39_structural_recursion.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
+40_extern.rce	global,out	clear	user	observation 1: global: g1 is not part of the working context ω holds
+41_arena_bound_wrapping.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+42_f32.rce	bound,break,global,out	clear	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds
+43_simd_lanes.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+44_device_region.rce	break,global,out	break	user	observation 1: global: g1 is not part of the working context ω holds
+45_byte_text.rce	exit,global,out	round-trip	user	check 7: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds
+46_u64.rce	global,out	round-trip	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds
+47_select_fair.rce	lowering	lowering	lowering	not covered by the lowering: the type chan u64
+48_linear_handle.rce	global,out	clear	user	observation 1: global: g1 is not part of the working context ω holds
+49_loop_limit.rce	global,out	round-trip	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds
+50_iterators.rce	global,loop,out	global,loop	user	check 27: global: g3 is not part of the working context ω holds | entry: global: g3 is not part of the working context ω holds | gen iter evens(int{u64}[0, 18446744073709551615]): global: g3 is not part of the working context ω holds | gen iter naturals(): global: g3 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds
+51_refined_input.rce	defect,exit,global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | region Codes: global: g2 is not part of the working context ω holds | region Profile: global: g2 is not part of the working context ω holds | region Volume: global: g2 is not part of the working context ω holds
+52_context_text.rce	exit,global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Page: global: g2 is not part of the working context ω holds
+53_capability.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Ledger: global: g2 is not part of the working context ω holds | region Policy: global: g2 is not part of the working context ω holds
+54_secret.rce	exit,global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Vault: global: g2 is not part of the working context ω holds
+55_rcedb.rce	exit,global,loop,out	loop	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | region Db: global: g2 is not part of the working context ω holds
+56_utf8.rce	exit,global,out	global,round-trip	user	observation 10: global: g1 is not part of the working context ω holds | observation 11: global: g1 is not part of the working context ω holds | observation 12: global: g1 is not part of the working context ω holds | observation 13: global: g1 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds | observation 8: global: g1 is not part of the working context ω holds | observation 9: global: g1 is not part of the working context ω holds | region S: global: g2 is not part of the working context ω holds
+57_float_vectors.rce	break,global,out	global	user	observation 10: global: g1 is not part of the working context ω holds | observation 11: global: g1 is not part of the working context ω holds | observation 12: global: g1 is not part of the working context ω holds | observation 13: global: g1 is not part of the working context ω holds | observation 14: global: g1 is not part of the working context ω holds | observation 15: global: g1 is not part of the working context ω holds | observation 16: global: g1 is not part of the working context ω holds | observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | observation 3: global: g1 is not part of the working context ω holds | observation 4: global: g1 is not part of the working context ω holds | observation 5: global: g1 is not part of the working context ω holds | observation 6: global: g1 is not part of the working context ω holds | observation 7: global: g1 is not part of the working context ω holds | observation 8: global: g1 is not part of the working context ω holds | observation 9: global: g1 is not part of the working context ω holds | region Lab: global: g2 is not part of the working context ω holds
+58_float_keys.rce	break,global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region Tally: global: g2 is not part of the working context ω holds
+59_dim_redundant_field.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimCounter: global: g2 is not part of the working context ω holds
+60_dim_hidden_period.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimPhase: global: g2 is not part of the working context ω holds
+61_dim_minimal.rce	global,out	global	user	observation 1: global: g1 is not part of the working context ω holds | observation 2: global: g1 is not part of the working context ω holds | region DimDoor: global: g2 is not part of the working context ω holds

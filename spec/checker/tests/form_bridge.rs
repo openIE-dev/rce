@@ -5,10 +5,11 @@
 //! same arguments, the core evaluator and the Form evaluator agree, and so
 //! does the core evaluator on the scheduled module.
 //!
-//! `spec/examples` is the corpus. A whole module whose reachable core only
-//! stores a fresh empty list in `outputs` now constructs: that list is the
-//! output list inside ω. A module that writes `out` or another global still
-//! requires change. An example is
+//! `spec/examples` is the corpus. A store of a fresh empty list into
+//! `outputs` is the empty output list inside ω, so that store is not a node.
+//! A library function and an unobserved δ are in the core (book 4.2) even
+//! though `entry` does not call them. Whole modules that construct are
+//! counted as entry-only or as containing a user function. An example is
 //! counted when every function of the program itself (`fn`, `region`, `delta`,
 //! `initial state`) round-trips through construct(schedule(F)). The reason's
 //! tag says which construct stopped the others. The count is the ratchet.
@@ -1073,7 +1074,7 @@ fn ranked_sets(rows: &[BTreeSet<String>]) -> Vec<(String, usize, usize)> {
 /// does not stop construction of the module. The 924f88e4 counts are the
 /// census recorded on that commit, before the nested-break slice.
 fn whole_census(
-    rows: &[(String, BTreeSet<String>, BTreeSet<String>, String)],
+    rows: &[(String, BTreeSet<String>, BTreeSet<String>, String, bool)],
     programs: usize,
     covered: usize,
     semantic: usize,
@@ -1081,6 +1082,8 @@ fn whole_census(
 ) -> String {
     let whole_rows: Vec<_> = rows.iter().map(|r| r.1.clone()).collect();
     let root_rows: Vec<_> = rows.iter().map(|r| r.2.clone()).collect();
+    let entry_only = rows.iter().filter(|r| r.4 && r.2.iter().any(|t| t == "no-root")).count();
+    let with_user = rows.iter().filter(|r| r.4 && !r.2.iter().any(|t| t == "no-root")).count();
     let whole_ranked = ranked_sets(&whole_rows);
     let root_ranked = ranked_sets(&root_rows);
     let mut lines = vec![
@@ -1098,15 +1101,24 @@ fn whole_census(
         "(`fn`, `region`, `delta`, `initial state`). It is not a refusal of".to_string(),
         "construction, so it is counted with the roots, not as a whole-module tag.".to_string(),
         String::new(),
+        "whole is every module whose core constructs and schedules back.".to_string(),
+        "whole-entry-only is that count restricted to entry-only cores: the".to_string(),
+        "lowered core holds only `entry`, because nothing calls the program".to_string(),
+        "functions, so no user code is constructed. It is not a count of user".to_string(),
+        "programs round-tripping. whole-with-user is the same count for cores".to_string(),
+        "that contain at least one user function.".to_string(),
+        String::new(),
         "On 924f88e4, before the nested-break slice, the whole-module exact".to_string(),
         "sets were: global 18, global+out 12, break+global+out 20, lowering 4,".to_string(),
         "and six sets of one module. no-root and out alone unblocked no whole".to_string(),
-        "module. global alone unblocked 18.".to_string(),
+        "module. global alone unblocked 18, and those 18 were entry-only cores.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
         format!("floor\t{covered}"),
         format!("semantic\t{semantic}"),
         format!("whole\t{whole}"),
+        format!("whole-entry-only\t{entry_only}"),
+        format!("whole-with-user\t{with_user}"),
         String::new(),
         "whole modules, top 10 by modules unblocked (one tag, or a pair)".to_string(),
         "unblocks\tset".to_string(),
@@ -1133,9 +1145,20 @@ fn whole_census(
     }
     lines.push(String::new());
     lines.push("modules".into());
-    lines.push("module\twhole\troots\tglobal-sites".into());
-    for (file, w, r, g) in rows {
-        lines.push(format!("{file}\t{}\t{}\t{g}", set_label(w), set_label(r)));
+    lines.push("module\twhole\troots\tuser\tglobal-sites".into());
+    for (file, w, r, g, _) in rows {
+        let user = if r.iter().any(|t| t == "no-root") {
+            "entry-only"
+        } else if r.iter().any(|t| t == "lowering") {
+            "lowering"
+        } else {
+            "user"
+        };
+        lines.push(format!(
+            "{file}\t{}\t{}\t{user}\t{g}",
+            set_label(w),
+            set_label(r)
+        ));
     }
     lines.push(String::new());
     lines.join("\n")
@@ -1156,7 +1179,7 @@ fn examples_are_covered_or_require_change() {
     let mut semantic = 0usize;
     let mut tags: BTreeMap<String, usize> = BTreeMap::new();
     let mut root_tags: BTreeMap<String, usize> = BTreeMap::new();
-    let mut rows: Vec<(String, BTreeSet<String>, BTreeSet<String>, String)> = vec![];
+    let mut rows: Vec<(String, BTreeSet<String>, BTreeSet<String>, String, bool)> = vec![];
     for p in &files {
         let src = std::fs::read_to_string(p).unwrap();
         if rce_spec_check::program(&src).is_err() {
@@ -1172,23 +1195,46 @@ fn examples_are_covered_or_require_change() {
                 let file = p.file_name().unwrap().to_string_lossy().into_owned();
                 let mut s = BTreeSet::new();
                 s.insert("lowering".into());
-                rows.push((file, s.clone(), s, e));
+                rows.push((file, s.clone(), s, e, false));
                 continue;
             }
         };
-        match bridge::construct(&core_m) {
-            Ok(f) => {
-                let s = bridge::schedule(&f)
-                    .unwrap_or_else(|e| panic!("{}: {}", p.display(), e.line()));
-                let back = bridge::construct(&s)
-                    .unwrap_or_else(|e| panic!("{}: {}", p.display(), e.line()));
-                assert_eq!(fir::encode(&f), fir::encode(&back), "{}", p.display());
-                whole += 1;
-            }
+        // A byte mismatch is round-trip, the same tag a program root gets.
+        // It is not admission: `whole` counts only equal bytes.
+        let mut module_tag = None;
+        let constructed = match bridge::construct(&core_m) {
             Err(e) => {
-                *tags.entry(e.tag().to_string()).or_default() += 1;
+                let tag = e.tag().to_string();
+                *tags.entry(tag.clone()).or_default() += 1;
+                module_tag = Some(tag);
+                false
             }
-        }
+            Ok(f) => match bridge::schedule(&f) {
+                Err(e) => {
+                    let tag = e.tag().to_string();
+                    *tags.entry(tag.clone()).or_default() += 1;
+                    module_tag = Some(tag);
+                    false
+                }
+                Ok(s) => match bridge::construct(&s) {
+                    Err(e) => {
+                        let tag = e.tag().to_string();
+                        *tags.entry(tag.clone()).or_default() += 1;
+                        module_tag = Some(tag);
+                        false
+                    }
+                    Ok(back) if fir::encode(&f) == fir::encode(&back) => {
+                        whole += 1;
+                        true
+                    }
+                    Ok(_) => {
+                        *tags.entry("round-trip".to_string()).or_default() += 1;
+                        module_tag = Some("round-trip".to_string());
+                        false
+                    }
+                },
+            },
+        };
         let file = p.file_name().unwrap().to_string_lossy().into_owned();
         let roots = root_names(&core_m);
         let mut root_set: BTreeSet<String> = BTreeSet::new();
@@ -1236,7 +1282,16 @@ fn examples_are_covered_or_require_change() {
                 where_global.insert(format!("{}: {}", e.at, e.reason));
             }
         }
-        rows.push((file, whole_set, root_set, where_global.into_iter().collect::<Vec<_>>().join(" | ")));
+        if let Some(tag) = module_tag {
+            whole_set.insert(tag);
+        }
+        rows.push((
+            file,
+            whole_set,
+            root_set,
+            where_global.into_iter().collect::<Vec<_>>().join(" | "),
+            constructed,
+        ));
     }
     eprintln!("form bridge: {whole} of {programs} whole examples construct");
     for (k, n) in &tags {
@@ -1262,10 +1317,12 @@ fn examples_are_covered_or_require_change() {
         "form bridge census is stale ({}); set RCE_CENSUS_WRITE to regenerate",
         path.display()
     );
-    // Ratchet. Eighteen whole modules construct: their reachable core only
-    // stored a fresh empty list in `outputs`, and that list is the output
-    // list a fresh ω already holds. The others still meet `out`, a read of
-    // `outputs`, `fuel.limit`, or the lowering. A program function is in
+    // Ratchet. Before each library function and each unobserved δ was kept
+    // in the core, 18 modules constructed and all 18 were entry-only: the
+    // core held only `entry`, so no user code was constructed. With those
+    // definitions in the core, whole is 2: 1 entry-only and 1 whose core
+    // contains a user function. The others still require change. A program
+    // function is in
     // the syntactic slice when its closure
     // round-trips through construct(schedule(F)) and the construction did not
     // restructure a body break. Option B records that a body break was
@@ -1276,10 +1333,18 @@ fn examples_are_covered_or_require_change() {
     // tags are not zero semantic defects. Raise the syntactic floor when that
     // slice grows; do not lower it.
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
+    let entry_only = rows.iter().filter(|r| r.4 && r.2.iter().any(|t| t == "no-root")).count();
+    let with_user = rows.iter().filter(|r| r.4 && !r.2.iter().any(|t| t == "no-root")).count();
+    assert_eq!(entry_only + with_user, whole, "whole split does not add up");
+    // Was 18, all entry-only: the core held only `entry`. Putting each
+    // library function and each unobserved δ into the core drops that to
+    // 2, of which 1 still has no user function and 1 contains user code.
     assert_eq!(
-        whole, 18,
+        whole, 2,
         "the number of whole examples that construct changed; raise this floor and check the trace"
     );
+    assert_eq!(entry_only, 1, "entry-only whole cores");
+    assert_eq!(with_user, 1, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
