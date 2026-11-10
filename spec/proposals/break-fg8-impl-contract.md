@@ -503,3 +503,43 @@ only when a new example round-trips without `body_break_rewrite`.
    break outside a recognised loop". Confirm they are out of this contract.
    Forcing them into a measure would drop the "raised by exactly one"
    requirement.
+
+## 9. Witnesses remeasured on 410bfd40
+
+#157 (`d77075a2`) and #158 (`34c915fd`, merged as `fa2be77d`) landed before
+this contract's witnesses. The witnesses in
+`spec/checker/tests/break_fg8_witness.rs` were pinned to `50294e05` and to
+the bridge at `924f88e4`. They now assert the bridge on `410bfd40`. The
+section 1 table and the "today" column of section 6 stay the measurement
+of `50294e05`. They are not the live rows.
+
+What the witnesses check on `410bfd40`:
+
+- Census `whole` is 2: `09_generics.rce` (entry-only) and `35_nested_if.rce`
+  (a user function). The syntactic floor stays 5. `construct` alone, with
+  no schedule, accepts 18 modules. One of those 18 is entry-only. The
+  other 17 contain a user function, and 16 of them do not schedule back
+  to the same bytes, so they are not `whole`. The 18 entry-only cores
+  named in #158 were the count before library functions were kept in the
+  core. This 18 is a different count.
+- A break that is not inside a count or a measure is still refused:
+  `break: a break outside a recognised loop is an exit this slice does not restructure`.
+  That is the standalone block, the owned list, and `rt.f64.parts`.
+- `break 1` inside a block in a measure constructs. The form returns the
+  core's value (0, 0, and 4; fuel 0, 8, and 0). The schedule is FG8 at
+  node 1, with the same "raised by exactly one" reason.
+- A bare inner `loop { break 1 }` is not a recognised loop. The refusal is
+  the `loop` shape sentence. The core results of that witness are unchanged
+  (markers 2, counter 1, fuel 2 and 3, bound 0 halts with "loop bound").
+- Depth 0 of the block-inside-if witness constructs. The form and the
+  scheduled core return 30 when the break is taken and 31 when it is not.
+  Depth 1 constructs and returns 8; its schedule is FG8 at node 1. Depth 2
+  is still W2. The `if` does not decrement.
+- `21_maps.rce` does not lower (`fn freq` mixes a literal with `u32`).
+  `fn table`, lowered from its own line, is applied, `body_break_rewrite`
+  is set, the value is `(a, 1), (b, 2)`, and `construct` of the schedule
+  is FG8 at node 3.
+- `fn main` in `02_hello_main.rce` is refused at `rt.escaped` with
+  `exit: a loop body does not fall through`. The return is not the loop flag.
+- The flat body `break 0`, the conditional increment, the mutated end, the
+  pure count, and a `return` inside a loop stay refused, as section 6 says.
