@@ -601,7 +601,28 @@ impl Fns {
             }
         }
         let mut t = T { edges: &edges, index: vec![None; n], low: vec![0; n], on: vec![false; n], stack: vec![], next: 0, comps: vec![] };
-        stacker::maybe_grow(256 * 1024, 16 * 1024 * 1024, || visit(&mut t, entry));
+        let names = &self.names;
+        stacker::maybe_grow(256 * 1024, 16 * 1024 * 1024, || {
+            visit(&mut t, entry);
+            // Book 4.2. A library module denotes its functions, and a Form
+            // module denotes its regions and δ, whether or not the
+            // observation driver calls them. The reference trace does not
+            // run a parameterised function, so `entry` does not call it.
+            // The definition is still part of the core.
+            for i in 0..n {
+                if t.index[i].is_some() {
+                    continue;
+                }
+                let name = names[i].as_str();
+                if name.starts_with("fn ")
+                    || name.starts_with("region ")
+                    || name == "delta"
+                    || name == "initial state"
+                {
+                    visit(&mut t, i);
+                }
+            }
+        });
         let comps = t.comps;
         let mut place: HashMap<usize, (String, u32)> = HashMap::new();
         let mut defs = BTreeMap::new();

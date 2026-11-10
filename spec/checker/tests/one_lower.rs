@@ -17,12 +17,12 @@ use std::path::PathBuf;
 /// probes below reach every function body.
 const COVERED: &[&str] = &[
     "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option",
-    "07_error_union", "08_traits", "09_generics", "10_comptime", "11_arena", "12_borrow", "14_select",
-    "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats", "20_strings", "21_maps",
-    "22_tuples", "23_patterns", "24_lambda", "25_labels", "27_bitops", "28_slices", "29_nested_kind",
-    "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types",
+    "07_error_union", "08_traits", "09_generics", "10_comptime", "11_arena", "12_borrow",
+    "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats", "20_strings",
+    "22_tuples", "23_patterns", "24_lambda", "25_labels", "27_bitops", "28_slices",
+    "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator",
     "35_nested_if", "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32",
-    "43_simd_lanes", "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle",
+    "43_simd_lanes", "44_device_region", "45_byte_text", "46_u64", "48_linear_handle",
     "49_loop_limit", "50_iterators", "51_refined_input", "52_context_text", "53_capability", "54_secret",
     "55_rcedb", "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field",
     "60_dim_hidden_period", "61_dim_minimal",
@@ -31,10 +31,15 @@ const COVERED: &[&str] = &[
 /// The programs the lowering does not yet cover, and the construct it
 /// names first. Each is reported with that construct; none prints a trace.
 const NOT_COVERED: &[(&str, &str)] = &[
-    ("13_spawn_chan", "a channel"),
+    ("13_spawn_chan", "the type chan i64"),
+    ("14_select", "the type chan text"),
     ("15_actor", "the type chan i64"),
+    ("21_maps", "an integer operation checked against ranges that differ at run time"),
+    ("29_nested_kind", "a recursive type"),
+    ("34_chan_types", "the type chan (u64, text)"),
     ("37_actor_spawn", "the type chan u64"),
     ("39_structural_recursion", "a recursive type"),
+    ("47_select_fair", "the type chan u64"),
 ];
 
 /// The covered programs whose probes (the extra observations of the
@@ -42,12 +47,12 @@ const NOT_COVERED: &[(&str, &str)] = &[
 /// arguments) also lower with identical traces.
 const COVERED_WITH_PROBES: &[&str] = &[
     "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option",
-    "07_error_union", "08_traits", "09_generics", "10_comptime", "11_arena", "12_borrow", "14_select",
+    "07_error_union", "08_traits", "09_generics", "10_comptime", "11_arena", "12_borrow",
     "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats", "20_strings", "22_tuples",
     "23_patterns", "24_lambda", "25_labels", "27_bitops", "28_slices", "30_state_machine_guarded",
-    "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types", "35_nested_if",
+    "31_inventory", "32_comptime_block", "33_in_operator", "35_nested_if",
     "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32", "43_simd_lanes",
-    "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle", "49_loop_limit",
+    "44_device_region", "45_byte_text", "46_u64", "48_linear_handle", "49_loop_limit",
     "50_iterators", "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb",
     "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period",
     "61_dim_minimal",
@@ -72,6 +77,63 @@ fn first_diff(want: &str, got: &str) -> String {
     let (w, g): (Vec<&str>, Vec<&str>) = (want.lines().collect(), got.lines().collect());
     let k = w.iter().zip(&g).position(|(a, b)| a != b).unwrap_or(w.len().min(g.len()));
     format!("line {}: want {:?}, got {:?}", k + 1, w.get(k), g.get(k))
+}
+
+fn fn_names(c: &rce_spec_check::one::ir::Module) -> Vec<String> {
+    let mut v = vec![];
+    let Some(fns) = c.names.get("fns").and_then(|x| x.as_object()) else {
+        return v;
+    };
+    for arr in fns.values() {
+        let Some(a) = arr.as_array() else { continue };
+        for n in a {
+            if let Some(s) = n.as_str() {
+                v.push(s.to_string());
+            }
+        }
+    }
+    v.sort();
+    v
+}
+
+/// Book 4.2: a library module denotes its functions. The reference trace
+/// does not run a parameterised function, and `entry` does not call it.
+/// The function is still in the core.
+#[test]
+fn a_library_function_is_in_the_core_and_the_trace_does_not_run_it() {
+    let src = "fn inc(x: i64) -> i64 = x + 1\n";
+    let m = module(src);
+    let want = one::trace::reference(&m);
+    let c = one::core_of(&m).unwrap_or_else(|e| panic!("{e}"));
+    let got = one::run_core(&c).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(got, want, "{}", first_diff(&want, &got));
+    assert!(
+        fn_names(&c).iter().any(|n| n.split(" = ").any(|p| p == "fn inc")),
+        "fn inc is not in the core: {:?}",
+        fn_names(&c)
+    );
+    assert!(!got.contains("inc"), "the trace ran inc: {got}");
+}
+
+/// Book 4.2: a module with state and an event is a Form module. δ is part
+/// of that Form when no example runs it.
+#[test]
+fn a_state_without_an_example_still_has_delta() {
+    let src = "state S\n    n: i64 = 0\nevent E\nstep S on E -> n + 1\n";
+    let m = module(src);
+    let want = one::trace::reference(&m);
+    let c = one::core_of(&m).unwrap_or_else(|e| panic!("{e}"));
+    let got = one::run_core(&c).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(got, want, "{}", first_diff(&want, &got));
+    let names = fn_names(&c);
+    assert!(
+        names.iter().any(|n| n.split(" = ").any(|p| p == "delta")),
+        "delta is not in the core: {names:?}"
+    );
+    assert!(
+        names.iter().any(|n| n.split(" = ").any(|p| p.starts_with("region "))),
+        "no region in the core: {names:?}"
+    );
 }
 
 /// The differential test of the lowering on spec/examples.

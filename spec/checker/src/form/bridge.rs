@@ -34,6 +34,13 @@
 //!   union of those captures, ω included when either arm needs it. One arm
 //!   runs, so both arms may use an owned capture. The parent keeps it only
 //!   when every arm that falls through still holds it
+//! - `out` of bytes is `emit[text]` on ω (rce-form.md §13). The function's
+//!   effect class is 2, and a caller of it is class 2. A value that is not
+//!   bytes still requires the per-type show runtime this slice does not link
+//! - the global `outputs` is the output list inside ω (§5). A fresh ω holds
+//!   it empty (`list.new` of bytes). A `list.push` of that list, stored back,
+//!   appends. A store of `list.new` restores the empty list. `fuel` and
+//!   `fuel.limit` are not that list
 //! - `catch`. The core value stays `sum(ret, Halt)`. The schedule packs it
 //!   by the callee's declared outputs into `sum(tup(outputs…), Halt)` and
 //!   rethrows the fuel trap (§13, E1). That rethrow is the schedule's
@@ -55,12 +62,12 @@
 //! syntax tree, and a lowered program whose loops, globals or `out` are not
 //! in the slice requires change here.
 use super::catalogue::{self, Mode};
-use super::ir::{self as form, Attr, BTy, Body, Bound, Func, Node, Ref, Src, TyArg};
+use super::ir::{self as form, Attr, BTy, Body, Bound, FTy, Func, Node, Ref, Src, TyArg};
 use super::types::Tx;
 use crate::one::build::{self, FB};
 use crate::one::ir::{self as core, Atom, FnRef, Lit, Place, Stmt, Ty};
 use crate::one::json::{canonical_group, group_key};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 thread_local! {
@@ -68,6 +75,10 @@ thread_local! {
     /// Option B of break-carried-flag.md: that form is outside syntactic
     /// identity. See `body_break_rewrite`.
     static BODY_BREAK: Cell<bool> = const { Cell::new(false) };
+    /// When set, `construct` records every user function's first refusal
+    /// and still returns the first one. Admission does not use this.
+    static COLLECT: Cell<bool> = const { Cell::new(false) };
+    static FOUND: RefCell<Vec<Change>> = const { RefCell::new(Vec::new()) };
 }
 
 fn note_body_break() {
@@ -362,6 +373,11 @@ fn precompute(
 struct Meta {
     temp: String,
     omega: bool,
+    /// The function emits (`out` is `emit`, effect class 2) or calls one that does.
+    emits: bool,
+    /// The function reads or stores `outputs`, or calls one that does.
+    /// A caller cannot see the list that call returns inside ω.
+    touches: bool,
     params: Vec<BTy>,
     ret: BTy,
 }
@@ -443,6 +459,36 @@ struct Scope {
     /// Raw break depth a frame has not crossed yet. A block or the loop
     /// decrements it once. An `if` does not.
     pending_break: Option<u32>,
+    /// The output list inside ω (rce-form.md §5). `Fresh` is the empty list
+    /// a fresh ω holds. `Lost` means a branch changed the list and this
+    /// scope did not join that change, so a later read requires change.
+    outputs: OutList,
+}
+
+/// The output list this scope can see.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OutList {
+    /// Empty, and no `list.new` node yet.
+    Fresh,
+    /// A `list.new` of bytes. The list is still empty.
+    Empty(Src),
+    /// The list after one or more `list.push` nodes.
+    More(Src),
+    /// A nested region changed the list and the parent cannot see that source.
+    Lost,
+}
+
+fn inherited_outputs(parent: &Scope) -> OutList {
+    match parent.outputs {
+        OutList::Fresh | OutList::Empty(_) => OutList::Fresh,
+        OutList::More(_) | OutList::Lost => OutList::Lost,
+    }
+}
+
+fn lose_outputs(parent: &mut Scope, arm: &Scope) {
+    if matches!(arm.outputs, OutList::More(_) | OutList::Lost) {
+        parent.outputs = OutList::Lost;
+    }
 }
 
 impl Scope {
@@ -467,6 +513,8 @@ struct Built {
     /// (group, index) -> meta, for user functions
     meta: HashMap<(String, u32), Meta>,
     names: HashMap<(String, u32), String>,
+    /// Global names in index order. Empty when the module does not record them.
+    gnames: Vec<String>,
     group: String,
     index: u32,
     phase: &'static str,
@@ -601,10 +649,100 @@ impl Built {
                 .copied()
                 .ok_or_else(|| self.deny(format!("defect: v{i} has no source in this region"))),
             Atom::K(t, l) => self.ensure_lit(sc, t, l),
-            Atom::G(i) => Err(self.deny(format!(
-                "global: g{i} is not part of the working context ω holds"
-            ))),
+            Atom::G(i) => self.read_global(sc, *i),
         }
+    }
+    fn is_outputs(&self, g: u32) -> bool {
+        self.gnames.get(g as usize).map(String::as_str) == Some("outputs")
+    }
+    /// A read of `outputs` is the output list ω holds (rce-form.md §5).
+    /// `fuel` and `fuel.limit` are not that list: fuel is charged only by
+    /// `fuel.tick`, and the fuel limit is not a field of a module.
+    fn read_global(&self, sc: &mut Scope, g: u32) -> Result<Src, Change> {
+        if !self.is_outputs(g) {
+            return Err(self.deny(format!(
+                "global: g{g} is not part of the working context ω holds"
+            )));
+        }
+        match sc.outputs {
+            OutList::Lost => Err(self.deny(format!(
+                "global: g{g} is not part of the working context ω holds"
+            ))),
+            OutList::Empty(s) | OutList::More(s) => Ok(s),
+            OutList::Fresh => {
+                let src = self.dummy_src(sc, &Ty::list(Ty::Bytes))?;
+                sc.outputs = OutList::Empty(src);
+                Ok(src)
+            }
+        }
+    }
+    /// A store into `outputs`. An empty `list.new` restores the fresh list.
+    /// A `list.push` of the current list appends onto it.
+    fn store_outputs(&self, sc: &mut Scope, g: u32, a: &Atom) -> Result<bool, Change> {
+        if !self.is_outputs(g) {
+            return Ok(false);
+        }
+        // `list.new` restores the empty list. It does not read the list a
+        // nested region may have changed.
+        if self.fresh_output_list(sc, g, a) {
+            sc.outputs = OutList::Fresh;
+            return Ok(true);
+        }
+        if matches!(sc.outputs, OutList::Lost) {
+            return Err(self.deny(format!(
+                "global: g{g} is not part of the working context ω holds"
+            )));
+        }
+        let Atom::V(v) = a else { return Ok(false) };
+        let Some(src) = sc.env.get(v).copied() else {
+            return Ok(false);
+        };
+        // Storing the list just read puts that same list back.
+        if matches!(sc.outputs, OutList::Empty(s) | OutList::More(s) if s == src) {
+            return Ok(true);
+        }
+        let Src::Out(n, 0) = src else {
+            return Ok(false);
+        };
+        let Some(node) = sc.nodes.get(n as usize) else {
+            return Ok(false);
+        };
+        let Attr::Prim(p, _, _) = &node.attrs else {
+            return Ok(false);
+        };
+        if p != "list.push" {
+            return Ok(false);
+        }
+        let cur = match sc.outputs {
+            OutList::Empty(s) | OutList::More(s) => s,
+            OutList::Fresh | OutList::Lost => return Ok(false),
+        };
+        if node.ins.first().copied() != Some(cur) {
+            return Ok(false);
+        }
+        sc.outputs = OutList::More(Src::Out(n, 0));
+        Ok(true)
+    }
+    /// The global `outputs` is the output list inside ω (rce-form.md §5).
+    /// A fresh ω holds that list empty. A store of `list.new` of bytes is
+    /// that empty list, so it is not a node. Any other global, and a store
+    /// of any other value, still requires change.
+    fn fresh_output_list(&self, sc: &Scope, g: u32, a: &Atom) -> bool {
+        if self.gnames.get(g as usize).map(String::as_str) != Some("outputs") {
+            return false;
+        }
+        let Atom::V(v) = a else { return false };
+        let Some(Src::Out(n, 0)) = sc.env.get(v).copied() else {
+            return false;
+        };
+        let Some(node) = sc.nodes.get(n as usize) else {
+            return false;
+        };
+        matches!(
+            &node.attrs,
+            Attr::Prim(p, args, _)
+                if p == "list.new" && matches!(args.first(), Some(TyArg::Body(BTy::Bytes)))
+        )
     }
     fn seed_of(&self, arms: &[&[Stmt]], tail: &[&Stmt], parent: &Scope) -> Vec<u32> {
         let mut want = BTreeSet::new();
@@ -626,7 +764,7 @@ impl Built {
 
     fn stmt_needs_order(&self, s: &Stmt) -> bool {
         match s {
-            Stmt::Halt(_) => true,
+            Stmt::Halt(_) | Stmt::Out(_) => true,
             Stmt::Call(r, _) | Stmt::Catch(r, _) => self.ref_needs_order(r),
             Stmt::If(_, t, e) => self.stmts_need_order(t) || self.stmts_need_order(e),
             Stmt::Block(x) | Stmt::Loop(x) => self.stmts_need_order(x),
@@ -878,6 +1016,77 @@ impl Built {
         self.exec_refs(&flat, sc, parent_omega, ret_ty, exposed)
     }
 
+    /// The observation wrapper: set fuel from the run's limit, run one
+    /// observation, then print `fuel N`. The limit is a parameter of the run.
+    /// The print is the runner's count of steps. The middle is the observation.
+    fn fuel_frame<'a>(gnames: &[String], stmts: &[&'a Stmt]) -> Option<Vec<&'a Stmt>> {
+        let lim = gnames.iter().position(|n| n == "fuel.limit")? as u32;
+        let fuel = gnames.iter().position(|n| n == "fuel")? as u32;
+        if stmts.len() < 5 {
+            return None;
+        }
+        let Stmt::Let(Atom::G(g)) = stmts[0] else {
+            return None;
+        };
+        if *g != lim {
+            return None;
+        }
+        let Stmt::Set(Place::G(gf), Atom::V(_)) = stmts[1] else {
+            return None;
+        };
+        if *gf != fuel {
+            return None;
+        }
+        let mut i = 2;
+        while let Some(Stmt::Set(Place::G(g), a)) = stmts.get(i) {
+            let name = gnames.get(*g as usize).map(String::as_str)?;
+            let fresh = (name.ends_with(" evaluated")
+                && matches!(a, Atom::K(_, Lit::Bool(false))))
+                || (name == "cost.spent" && matches!(a, Atom::K(_, Lit::Int(0))))
+                || (name == "cost.deadline"
+                    && matches!(a, Atom::K(_, Lit::Int(n)) if *n == u64::MAX as i128));
+            if !fresh {
+                break;
+            }
+            i += 1;
+        }
+        let Stmt::Call(_, args) = stmts.get(i)? else {
+            return None;
+        };
+        if !args.is_empty() {
+            return None;
+        }
+        let call_at = i;
+        i += 1;
+        let Stmt::Let(Atom::G(g)) = stmts.get(i)? else {
+            return None;
+        };
+        if *g != fuel {
+            return None;
+        }
+        i += 1;
+        let Stmt::Let(Atom::G(g)) = stmts.get(i)? else {
+            return None;
+        };
+        if *g != lim {
+            return None;
+        }
+        let tail = &stmts[i + 1..];
+        if tail.len() < 2 {
+            return None;
+        }
+        let last = tail.len() - 1;
+        if !matches!(tail[last - 1], Stmt::Out(_)) || !matches!(tail[last], Stmt::Ret(_)) {
+            return None;
+        }
+        if tail.iter().any(|s| {
+            matches!(s, Stmt::Let(Atom::G(_)) | Stmt::Set(Place::G(_), _))
+        }) {
+            return None;
+        }
+        Some(vec![stmts[call_at], *tail.last().unwrap()])
+    }
+
     fn exec_refs(
         &self,
         flat: &[&Stmt],
@@ -886,6 +1095,13 @@ impl Built {
         ret_ty: &BTy,
         exposed: &BTreeSet<u32>,
     ) -> Result<End, Change> {
+        // The observation driver's fuel frame is the runner, not the program.
+        // `fuel.limit` is the run's limit (rce-form.md §5), never a field of
+        // the module. A fresh ω already holds that limit as its fuel, and the
+        // `fuel N` line is the runner's `steps_used`. Neither is a node.
+        if let Some(middle) = Self::fuel_frame(&self.gnames, flat) {
+            return self.exec_refs(&middle, sc, parent_omega, ret_ty, exposed);
+        }
         let mut i = 0;
         while i < flat.len() {
             let s = flat[i];
@@ -911,7 +1127,14 @@ impl Built {
                     }
                     i += 1;
                 }
-                Stmt::Set(Place::G(g), _) => return Err(self.deny(format!("global: g{g} is not part of the working context ω holds"))),
+                Stmt::Set(Place::G(g), a) => {
+                    if !self.store_outputs(sc, *g, a)? {
+                        return Err(self.deny(format!(
+                            "global: g{g} is not part of the working context ω holds"
+                        )));
+                    }
+                    i += 1;
+                }
                 Stmt::Prim(p, ts, args) if p == "drop" || p == "io.byte" || p == "mem.get" || p == "mem.set" => {
                     if p == "drop" {
                         i += 1;
@@ -963,6 +1186,11 @@ impl Built {
                         sc.env.insert(local, Src::Out(node, 0));
                         if meta.omega {
                             sc.omega = Some(Src::Out(node, 1));
+                        }
+                        // The list inside ω is not a value the call returns.
+                        // A later read cannot see what the callee appended.
+                        if meta.touches {
+                            sc.outputs = OutList::Lost;
                         }
                     }
                     i += 1;
@@ -1018,6 +1246,8 @@ impl Built {
                         let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
                         let cont_end =
                             self.arm_then(cont, rest, &seed, &lits, sc, here, thread, ret_ty)?;
+                        lose_outputs(sc, &stop_end.1);
+                        lose_outputs(sc, &cont_end.1);
                         let (e0, a0, e1, a1) = if cont_then {
                             (stop_end.0, stop_end.1, cont_end.0, cont_end.1)
                         } else {
@@ -1038,6 +1268,8 @@ impl Built {
                     let seed = self.seed_of(&[t_b, e_b], &[], sc);
                     let (e1, a1) = self.arm(t_b, &seed, &lits, sc, here, thread, ret_ty)?;
                     let (e0, a0) = self.arm(e_b, &seed, &lits, sc, here, thread, ret_ty)?;
+                    lose_outputs(sc, &a1);
+                    lose_outputs(sc, &a0);
                     let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
                     match end {
                         End::Fall => i += 1,
@@ -1078,7 +1310,30 @@ impl Built {
                     return Ok(End::Halt(src));
                 }
                 Stmt::Break(_) => return Err(self.deny("break: a break outside a recognised loop is an exit this slice does not restructure")),
-                Stmt::Out(_) => return Err(self.deny("out: core out is a printed carrier; emit needs the per-type runtime definition this slice does not link")),
+                // `out` is `emit` on ω (rce-form.md §13). The core statement
+                // already holds the byte string it prints. `emit[text]` is
+                // that string. A value that is not bytes still requires change.
+                Stmt::Out(a) => {
+                    let ty = self.atom_ty(a)?;
+                    if ty != Ty::Bytes {
+                        return Err(self.deny(
+                            "out: core out is a printed carrier; emit needs the per-type runtime definition this slice does not link",
+                        ));
+                    }
+                    let src = self.src_atom(sc, a)?;
+                    let w = self.need_omega(sc, parent_omega)?;
+                    let id = sc.push(
+                        Attr::Prim(
+                            "emit".into(),
+                            vec![TyArg::Frame(FTy::Text)],
+                            None,
+                        ),
+                        vec![src, w],
+                        vec![],
+                    );
+                    sc.omega = Some(Src::Out(id, 0));
+                    i += 1;
+                }
                 Stmt::Graph(_, _) => return Err(self.deny("graph: a graph term has no Form node")),
             }
         }
@@ -1239,6 +1494,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
             sc.env.insert(*l, Src::In(j as u32));
@@ -1261,6 +1517,7 @@ impl Built {
         let end = self.exec_refs(&list, &mut sc, live, ret_ty, &BTreeSet::new())?;
         Ok((end, sc))
     }
+
 
     fn prim(
         &self,
@@ -1883,6 +2140,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
             sc.env.insert(*l, Src::In(j as u32));
@@ -2070,6 +2328,8 @@ impl Built {
             &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names, None,
         )?;
         let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty)?;
+        lose_outputs(sc, &fall_sc);
+        lose_outputs(sc, &halt_sc);
         if !matches!(halt_end, End::Halt(_)) {
             return Err(self.deny("exit: a loop body does not fall through"));
         }
@@ -2141,6 +2401,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            outputs: inherited_outputs(sc),
         };
         let mut ix = 0u32;
         if thread {
@@ -2231,6 +2492,8 @@ impl Built {
             out: region_outs(&bod, bflag, &vars, true, None)
                 .map_err(|m| self.deny(format!("loop: {m}")))?,
         };
+        lose_outputs(sc, &test);
+        lose_outputs(sc, &bod);
         let bound = self.src_atom(sc, &count.bound)?;
         let mut ins = vec![
             bound,
@@ -2348,6 +2611,8 @@ impl Built {
             out: region_outs(&bod, bflag, &vars, thread, lit_slot.then_some(j_in))
                 .map_err(|m| self.deny(format!("loop: {m}")))?,
         };
+        lose_outputs(sc, &test);
+        lose_outputs(sc, &bod);
         let mut ins = vec![];
         let mut carried_ty = vec![];
         if thread {
@@ -2423,6 +2688,7 @@ impl Built {
                 exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            outputs: inherited_outputs(sc),
             };
             let mut ix = 0u32;
             // ω is threaded only when the surrounding function has it; the region receives it first
@@ -2497,6 +2763,8 @@ impl Built {
         };
         let mut test = build_region(parts.test, &parts.flag0, &parts.sets0)?;
         let mut bod = build_region(mid_body, &parts.flag1, &parts.sets1)?;
+        lose_outputs(sc, &test);
+        lose_outputs(sc, &bod);
         let thread = test.omega.is_some() || bod.omega.is_some() || sc.omega.is_some();
         if thread {
             for region in [&mut test, &mut bod] {
@@ -3199,13 +3467,47 @@ fn empty_form() -> form::Module {
     }
 }
 
+/// A read or a store of global `g`. A caller of such a function touches it too.
+fn direct_global(f: &core::Fn, g: u32) -> bool {
+    fn go(b: &[Stmt], g: u32) -> bool {
+        b.iter().any(|s| match s {
+            Stmt::Let(Atom::G(i)) | Stmt::Var(_, Atom::G(i)) if *i == g => true,
+            Stmt::Set(Place::G(i), _) if *i == g => true,
+            Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) | Stmt::Graph(_, xs) => {
+                xs.iter().any(|a| matches!(a, Atom::G(i) if *i == g))
+            }
+            Stmt::If(c, t, e) => {
+                matches!(c, Atom::G(i) if *i == g) || go(t, g) || go(e, g)
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => go(x, g),
+            Stmt::Ret(a) | Stmt::Halt(a) | Stmt::Out(a) => matches!(a, Atom::G(i) if *i == g),
+            _ => false,
+        })
+    }
+    go(&f.body, g)
+}
+
+/// `out` is `emit` (effect class 2). A caller of such a function is class 2 too.
+fn direct_emits(f: &core::Fn) -> bool {
+    fn go(b: &[Stmt]) -> bool {
+        b.iter().any(|s| match s {
+            Stmt::Out(_) => true,
+            Stmt::If(_, t, e) => go(t) || go(e),
+            Stmt::Block(x) | Stmt::Loop(x) => go(x),
+            _ => false,
+        })
+    }
+    go(&f.body)
+}
+
 fn direct_omega(f: &core::Fn, names: &HashMap<(String, u32), String>, group: &str) -> bool {
     fn go(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
         b.iter().any(|s| match s {
             // A `catch` rethrows the fuel trap in the Form, so the function may
             // halt even when the core text has no `halt` yet. The schedule
             // writes that halt; both shapes take ω.
-            Stmt::Halt(_) | Stmt::Catch(_, _) => true,
+            // `out` is `emit` on ω (rce-form.md §13).
+            Stmt::Halt(_) | Stmt::Catch(_, _) | Stmt::Out(_) => true,
             Stmt::Call(r, _) => {
                 let id = match r {
                     FnRef::Key(k, i) => (k.clone(), *i),
@@ -3246,10 +3548,24 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
         }
     }
     let mut omega: HashMap<(String, u32), bool> = HashMap::new();
+    let mut emits: HashMap<(String, u32), bool> = HashMap::new();
+    let mut touches: HashMap<(String, u32), bool> = HashMap::new();
+    let gnames = global_names(m);
+    let outputs_g = gnames.iter().position(|n| n == "outputs").map(|i| i as u32);
     for u in &users {
+        let key = (u.group.clone(), u.index);
+        // The fuel frame's `out` is the runner's fuel line, not an emit of
+        // the function. Its effect class follows the observation it calls.
+        let refs: Vec<&Stmt> = u.func.body.iter().collect();
+        let framed = Built::fuel_frame(&gnames, &refs).is_some();
         omega.insert(
-            (u.group.clone(), u.index),
-            direct_omega(&u.func, &names, &u.group),
+            key.clone(),
+            !framed && direct_omega(&u.func, &names, &u.group),
+        );
+        emits.insert(key.clone(), !framed && direct_emits(&u.func));
+        touches.insert(
+            key,
+            outputs_g.is_some_and(|g| direct_global(&u.func, g)),
         );
     }
     // calls of a function that needs ω need ω too
@@ -3273,6 +3589,20 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
                 omega.insert(caller.clone(), true);
                 changed = true;
             }
+            // FG7: a caller's class is at least its callee's. `emit` is class 2.
+            if emits.get(callee).copied().unwrap_or(false)
+                && !emits.get(caller).copied().unwrap_or(false)
+            {
+                emits.insert(caller.clone(), true);
+                omega.insert(caller.clone(), true);
+                changed = true;
+            }
+            if touches.get(callee).copied().unwrap_or(false)
+                && !touches.get(caller).copied().unwrap_or(false)
+            {
+                touches.insert(caller.clone(), true);
+                changed = true;
+            }
         }
         if !changed {
             break;
@@ -3292,6 +3622,8 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
         meta.insert((u.group.clone(), u.index), Meta {
             temp: format!("t{n:04}"),
             omega: omega[&(u.group.clone(), u.index)],
+            emits: emits[&(u.group.clone(), u.index)],
+            touches: touches[&(u.group.clone(), u.index)],
             params,
             ret,
         });
@@ -3299,6 +3631,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
     let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
     let mut defs = BTreeMap::new();
     for u in &users {
+        let outcome = (|| -> Result<(), Change> {
         let at = u.name.clone();
         let callee = |r: &FnRef| -> Option<Ty> {
             match r {
@@ -3314,6 +3647,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             extra_loc: std::cell::RefCell::new(HashMap::new()),
             meta: meta.clone(),
             names: names.clone(),
+            gnames: global_names(m),
             group: u.group.clone(),
             index: u.index,
             phase: "construction",
@@ -3330,6 +3664,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            outputs: OutList::Fresh,
         };
         let mut ins = me.params.clone();
         for (i, _) in me.params.iter().enumerate() {
@@ -3356,7 +3691,8 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
                     out.push(w);
                     outs.push(BTy::Order);
                 }
-                (out, outs, u8::from(me.omega))
+                let eff = if me.emits { 2 } else { u8::from(me.omega) };
+                (out, outs, eff)
             }
             End::Halt(src) => {
                 let w = built.need_omega(&mut sc, None)?;
@@ -3366,7 +3702,9 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
                 if !ins.last().is_some_and(|t| *t == BTy::Order) {
                     ins.push(BTy::Order);
                 }
-                (out, tys, 1)
+                // A halt is class 1. A function that also emits is class 2.
+                let eff = if me.emits { 2 } else { 1 };
+                (out, tys, eff)
             }
             End::Fall => {
                 return Err(deny(
@@ -3394,6 +3732,18 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             },
         };
         defs.insert(me.temp.clone(), form::Group { fns: vec![func] });
+        Ok(())
+        })();
+        match outcome {
+            Ok(()) => {}
+            Err(e) if COLLECT.with(|c| c.get()) => FOUND.with(|f| f.borrow_mut().push(e)),
+            Err(e) => return Err(e),
+        }
+    }
+    if COLLECT.with(|c| c.get()) {
+        if let Some(e) = FOUND.with(|f| f.borrow().first().cloned()) {
+            return Err(e);
+        }
     }
     let module = form::Module {
         catalogue: catalogue::key().into(),
@@ -3423,6 +3773,35 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             format!("{}: {}", k.rule, k.reason),
         )),
     }
+}
+
+/// Each user function's own first refusal, in the order `construct` walks.
+///
+/// The walk goes on to the next function after one refuses. It does not go
+/// on inside a function. `construct` still returns the first refusal, then
+/// the gate when every function builds. `body_break_rewrite` is restored.
+pub fn refusals(m: &core::Module) -> Vec<Change> {
+    let saved = body_break_rewrite();
+    COLLECT.with(|c| c.set(true));
+    FOUND.with(|f| f.borrow_mut().clear());
+    let result = construct(m);
+    COLLECT.with(|c| c.set(false));
+    let mut out = FOUND.with(|f| std::mem::take(&mut *f.borrow_mut()));
+    if out.is_empty() {
+        if let Err(e) = result {
+            out.push(e);
+        }
+    }
+    BODY_BREAK.with(|c| c.set(saved));
+    out
+}
+
+fn global_names(m: &core::Module) -> Vec<String> {
+    m.names
+        .get("globals")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
 }
 
 fn users_of(m: &core::Module) -> Vec<UserFn> {
@@ -3868,8 +4247,12 @@ fn function_halts(b: &Body) -> bool {
 }
 
 fn sig_of(f: &Func) -> Result<(Vec<Ty>, Ty, bool), String> {
-    if f.eff >= 2 {
-        return Err("emit: a function of effect class 2 or 3 is not in this slice".into());
+    // Class 2 is `emit` (rce-form.md §5.2, FG7). Class 3 is the host context.
+    if f.eff > 2 {
+        return Err("emit: a function of effect class 3 is not in this slice".into());
+    }
+    if f.eff == 2 && f.ins.last() != Some(&BTy::Order) {
+        return Err("defect: a function that emits does not take ω".into());
     }
     if f.bound != Bound::None || has_rec_ref(&f.body) {
         return Err("recursion: a recursive function needs a declared bound, and rce-core/1 does not carry one".into());
@@ -4395,9 +4778,21 @@ fn schedule_region(
                     return Err(sch.deny("memo: a memo cell is not in this slice"));
                 }
                 if name == "emit" {
-                    return Err(sch.deny(
-                        "emit: emit needs the per-type runtime definition this slice does not link",
-                    ));
+                    // `emit[text]` is core `out` of the byte string. Any other
+                    // frame type needs the per-type show runtime this slice
+                    // does not link.
+                    let text = matches!(args.first(), Some(TyArg::Frame(FTy::Text)));
+                    if !text {
+                        return Err(sch.deny(
+                            "emit: emit needs the per-type runtime definition this slice does not link",
+                        ));
+                    }
+                    let val = sch.atom(env, n.ins[0])?;
+                    sch.consume(&val)?;
+                    let _ = n.ins.get(1).and_then(|s| sch.atom(env, *s).ok());
+                    sch.stmts.push(Stmt::Out(val));
+                    env.insert(Src::Out(i as u32, 0), Av::Omega);
+                    continue;
                 }
                 if matches!(
                     name.as_str(),
