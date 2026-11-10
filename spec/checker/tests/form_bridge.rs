@@ -1253,8 +1253,16 @@ fn whole_census(
         "limit of the run, not a field of the module, so that frame is not a".to_string(),
         "node. A read of `fuel` outside the frame stays refused. Constant".to_string(),
         "flags are memo cells, not folded constants, and those reads stay".to_string(),
-        "refused. `out` is in no whole-module set. The exact set global is 2.".to_string(),
-        "whole stays 2.".to_string(),
+        "refused. `out` is in no whole-module set.".to_string(),
+        String::new(),
+        "A break outside a loop follows the residual law already used inside".to_string(),
+        "a loop: e = d. `break 0` leaves the innermost block. Each block or".to_string(),
+        "loop decrements once. An `if` does not. A positive residual leaves".to_string(),
+        "before the next counter step or fuel tick. `return` stays a return.".to_string(),
+        "A tag test whose `then` gets that variant is a Branch on `sum.tag`".to_string(),
+        "when the sum has two variants. A wider sum keeps the bool branch,".to_string(),
+        "and the get of a copy sits in arm k of a Branch on `sum.tag` of the".to_string(),
+        "copy. The counts are the table below.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
         format!("floor\t{covered}"),
@@ -2661,4 +2669,150 @@ fn the_observation_fuel_frame_is_the_run_parameter() {
     // original driver. Where that changes a signature, the census counts
     // round-trip rather than a whole module.
     bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+}
+
+fn agree_bool(build: impl FnOnce(&mut FB) -> (), flag: bool, want: i128) {
+    let mut b = FB::new(vec![Ty::Bool], i64ty());
+    build(&mut b);
+    let m = module("exit", b.finish());
+    let f = round_trip(&m);
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    agree(&m, &f, &s, vec![Val::Bool(flag)]);
+    let (k, i) = by_arity(&m, 1);
+    let got = core_apply(&m, &k, i, vec![Val::Bool(flag)]).unwrap();
+    assert_eq!(got, Val::Int(want));
+}
+
+#[test]
+fn break_zero_leaves_only_the_innermost_block() {
+    // `break 0` is the local exit. The statement after the block runs.
+    // The return inside the block does not.
+    agree_bool(
+        |b| {
+            let flag = b.arg(0);
+            b.open();
+            b.if_(flag, |b| { b.brk(0); Ok(()) }, |_| Ok(())).unwrap();
+            b.ret(build::lit(1));
+            let body = b.close();
+            b.push(Stmt::Block(body));
+            b.ret(build::lit(0));
+        },
+        true,
+        0,
+    );
+    agree_bool(
+        |b| {
+            let flag = b.arg(0);
+            b.open();
+            b.if_(flag, |b| { b.brk(0); Ok(()) }, |_| Ok(())).unwrap();
+            b.ret(build::lit(1));
+            let body = b.close();
+            b.push(Stmt::Block(body));
+            b.ret(build::lit(0));
+        },
+        false,
+        1,
+    );
+}
+
+#[test]
+fn break_one_leaves_the_outer_block() {
+    // `break 1` decrements at the inner block and the outer block consumes
+    // the residual. The return between the blocks does not run.
+    agree_bool(
+        |b| {
+            let flag = b.arg(0);
+            b.open();
+            b.open();
+            b.if_(flag, |b| { b.brk(1); Ok(()) }, |b| { b.brk(0); Ok(()) }).unwrap();
+            let inner = b.close();
+            b.push(Stmt::Block(inner));
+            b.ret(build::lit(1));
+            let outer = b.close();
+            b.push(Stmt::Block(outer));
+            b.ret(build::lit(0));
+        },
+        true,
+        0,
+    );
+    agree_bool(
+        |b| {
+            let flag = b.arg(0);
+            b.open();
+            b.open();
+            b.if_(flag, |b| { b.brk(1); Ok(()) }, |b| { b.brk(0); Ok(()) }).unwrap();
+            let inner = b.close();
+            b.push(Stmt::Block(inner));
+            b.ret(build::lit(1));
+            let outer = b.close();
+            b.push(Stmt::Block(outer));
+            b.ret(build::lit(0));
+        },
+        false,
+        1,
+    );
+}
+
+#[test]
+fn an_if_is_not_a_break_level() {
+    // Two `if`s around `break 0` do not add frames. The break still leaves
+    // the one enclosing block.
+    agree_bool(
+        |b| {
+            let flag = b.arg(0);
+            b.open();
+            b.if_(
+                flag,
+                |b| {
+                    b.if_(Atom::bool(true), |b| { b.brk(0); Ok(()) }, |_| Ok(()))?;
+                    Ok(())
+                },
+                |_| Ok(()),
+            )
+            .unwrap();
+            b.ret(build::lit(1));
+            let body = b.close();
+            b.push(Stmt::Block(body));
+            b.ret(build::lit(0));
+        },
+        true,
+        0,
+    );
+}
+
+#[test]
+fn a_residual_with_no_frame_left_requires_change() {
+    let mut b = FB::new(vec![], i64ty());
+    b.open();
+    b.brk(1);
+    let body = b.close();
+    b.push(Stmt::Block(body));
+    b.ret(build::lit(0));
+    let m = module("residual", b.finish());
+    // One block cannot host `break 1`. The bridge refuses the residual
+    // rather than inventing a frame. W2 refuses the same core.
+    let e = bridge::construct(&m).expect_err("residual");
+    assert_eq!(e.tag(), "break", "{}", e.line());
+    assert!(e.reason.contains("nothing to exit"), "{}", e.line());
+}
+
+#[test]
+fn a_match_block_is_not_a_bare_break() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
+    for name in ["01_counter.rce", "05_kind_match.rce"] {
+        let src = std::fs::read_to_string(dir.join(name)).unwrap();
+        let ast = rce_spec_check::program(&src).unwrap();
+        let core_m = rce_spec_check::one::core_of(&ast).unwrap();
+        let root = if name.starts_with("01") { "region Counter" } else { "fn area" };
+        let sub = bridge::closure(&core_m, root).unwrap_or_else(|| panic!("{name} has no {root}"));
+        for e in bridge::refusals(&sub) {
+            assert!(
+                !e.reason.contains("outside a recognised loop"),
+                "{name} {} {}",
+                e.at,
+                e.reason
+            );
+            assert_ne!(e.tag(), "FG8", "{name} {} {}", e.at, e.reason);
+        }
+    }
 }

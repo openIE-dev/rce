@@ -29,8 +29,16 @@ is `emit[text]`. The observation driver's `fuel.limit` read is the
 limit of the run, not a field of the module, so that frame is not a
 node. A read of `fuel` outside the frame stays refused. Constant
 flags are memo cells, not folded constants, and those reads stay
-refused. `out` is in no whole-module set. The exact set global is 2.
-whole stays 2.
+refused. `out` is in no whole-module set.
+
+A break outside a loop follows the residual law already used inside
+a loop: e = d. `break 0` leaves the innermost block. Each block or
+loop decrements once. An `if` does not. A positive residual leaves
+before the next counter step or fuel tick. `return` stays a return.
+A tag test whose `then` gets that variant is a Branch on `sum.tag`
+when the sum has two variants. A wider sum keeps the bool branch,
+and the get of a copy sits in arm k of a Branch on `sum.tag` of the
+copy. The counts are the table below.
 
 programs	60
 floor	5
@@ -41,64 +49,68 @@ whole-with-user	1
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
-14	break
 14	round-trip
+13	break
 9	lowering
-3	break,exit
-2	defect
+3	defect
+3	exit
 2	global
 1	FG8
 1	bound,break
 1	break,catch
-1	break,defect
+1	break,exit
 
 whole modules, every exact set
 modules	set
-14	break
 14	round-trip
+13	break
 9	lowering
-3	break,exit
-2	break,catch,exit
+3	defect
+3	exit
 2	clear
-2	defect
 2	defect,exit,loop
 2	global
 1	FG8
 1	bound,break
 1	break,catch
-1	break,catch,exit,loop
-1	break,defect
 1	break,defect,exit
+1	break,exit
+1	catch,exit
+1	catch,exit,global,loop
+1	catch,exit,loop
 1	catch,global
-1	exit
 1	exit,global
 1	global,loop
+1	selector
 
 program roots, every exact set
 modules	set
-17	break
 16	round-trip
 9	lowering
+6	defect
 5	clear
-2	defect
-2	exit
+5	defect,round-trip
+3	exit
+2	FG8
+2	FG8,defect
+2	break
 2	no-root
-1	FG8,defect
-1	break,defect
-1	break,round-trip
-1	defect,round-trip
+2	selector
+1	FG1,round-trip
 1	global
 1	global,loop
 1	loop
+1	loop,round-trip
+1	round-trip,selector
 
 modules
 module	whole	roots	user	global-sites
-01_counter.rce	break	break	user	
+01_counter.rce	break	defect	user	
 02_hello_main.rce	exit	exit	user	
 03_fib_loop.rce	round-trip	round-trip	user	
-04_bank_account.rce	break	break	user	
-05_kind_match.rce	break	break	user	
-06_option.rce	break,defect	break,defect	user	
+04_bank_account.rce	break	defect	user	
+05_kind_match.rce	selector	selector	user	
+06_option.rce	defect	FG8,defect	user	
 07_error_union.rce	defect,exit,loop	defect	user	
 08_traits.rce	round-trip	round-trip	user	
 09_generics.rce	clear	no-root	entry-only	
@@ -108,8 +120,8 @@ module	whole	roots	user	global-sites
 13_spawn_chan.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
 14_select.rce	lowering	lowering	lowering	not covered by the lowering: the type chan text
 15_actor.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
-16_multi_region.rce	break,catch,exit	break	user	
-17_traffic_light.rce	break	break	user	
+16_multi_region.rce	catch,exit,loop	loop,round-trip	user	
+17_traffic_light.rce	break	defect,round-trip	user	
 18_while_bound.rce	round-trip	round-trip	user	
 19_floats.rce	break	round-trip	user	
 20_strings.rce	defect,exit,loop	defect	user	
@@ -121,8 +133,8 @@ module	whole	roots	user	global-sites
 27_bitops.rce	round-trip	round-trip	user	
 28_slices.rce	round-trip	round-trip	user	
 29_nested_kind.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
-30_state_machine_guarded.rce	break	break	user	
-31_inventory.rce	break,exit	exit	user	
+30_state_machine_guarded.rce	break	defect,round-trip	user	
+31_inventory.rce	exit	exit	user	
 32_comptime_block.rce	global	global	user	fn table_size: global: g3 is not part of the working context ω holds
 33_in_operator.rce	defect	FG8,defect	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
@@ -142,14 +154,14 @@ module	whole	roots	user	global-sites
 48_linear_handle.rce	round-trip	clear	user	
 49_loop_limit.rce	round-trip	round-trip	user	
 50_iterators.rce	global,loop	global,loop	user	check 27: global: g3 is not part of the working context ω holds | entry: global: g3 is not part of the working context ω holds | gen iter evens(int{u64}[0, 18446744073709551615]): global: g3 is not part of the working context ω holds | gen iter naturals(): global: g3 is not part of the working context ω holds
-51_refined_input.rce	break,defect,exit	break	user	
-52_context_text.rce	break,exit	break	user	
-53_capability.rce	break	break	user	
-54_secret.rce	break,exit	break	user	
-55_rcedb.rce	break,catch,exit,loop	loop	user	
-56_utf8.rce	break,catch,exit	break,round-trip	user	
-57_float_vectors.rce	break	break	user	
-58_float_keys.rce	break,catch	break	user	
-59_dim_redundant_field.rce	break	break	user	
-60_dim_hidden_period.rce	break	break	user	
-61_dim_minimal.rce	break	break	user	
+51_refined_input.rce	break,defect,exit	round-trip,selector	user	
+52_context_text.rce	exit	exit	user	
+53_capability.rce	break	defect	user	
+54_secret.rce	break,exit	FG8	user	
+55_rcedb.rce	catch,exit,global,loop	loop	user	region Db: global: g2 is not part of the working context ω holds
+56_utf8.rce	catch,exit	FG1,round-trip	user	
+57_float_vectors.rce	break	selector	user	
+58_float_keys.rce	break,catch	FG8	user	
+59_dim_redundant_field.rce	break	defect	user	
+60_dim_hidden_period.rce	break	defect,round-trip	user	
+61_dim_minimal.rce	break	defect,round-trip	user	
