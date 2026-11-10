@@ -175,9 +175,9 @@ fn host_tensor_f32(data: &[f32], shape: Vec<usize>) -> CpuValue {
 // ── Cost table (calibrated coefficients, M3 Ultra) ────────────────
 
 fn build_table() -> Arc<CostTable> {
-    // Coefficients derived from the real measurement (commit 8f1e69e63:
-    // matmul-2048 = 86 mJ CPU vs ~5 mJ GPU). The OLS fit emitted by
-    // rce-energy-xover on a quiesced host produces these directly.
+    // Illustrative coefficients, not a reading (the 86 mJ and 5 mJ notes
+    // of commit 8f1e69e63 are not a meter record kept here). Basis is
+    // `reported` when a counter calibration is loaded, `est` for a model.
     let mut t = CostTable::new(LinearCoeffs {
         a_pj_per_flop: 1.0,
         b_pj_per_byte: 0.0,
@@ -187,13 +187,13 @@ fn build_table() -> Arc<CostTable> {
         "matmul",
         &BackendId::new("cpu:op-blas"),
         LinearCoeffs { a_pj_per_flop: 5.0, b_pj_per_byte: 0.0, c_pj_overhead: 1_000_000.0 },
-        true,
+        rce_placement::EnergyBasis::Est,
     );
     t.insert(
         "matmul",
         &BackendId::new("gpu:op-mps"),
         LinearCoeffs { a_pj_per_flop: 0.29, b_pj_per_byte: 0.0, c_pj_overhead: 5_000_000_000.0 },
-        true,
+        rce_placement::EnergyBasis::Est,
     );
     Arc::new(t)
 }

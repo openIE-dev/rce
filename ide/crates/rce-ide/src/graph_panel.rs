@@ -313,10 +313,14 @@ impl GraphView {
             None => {}
         }
         if e.joules.is_some() {
-            v.push(format!(
-                "E_meas {:.3} J · E_sim-only {:.3} J",
-                e.measured_j, e.simulated_j
-            ));
+            let sim = match e.simulated_j {
+                Some(s) => format!("E_sim {s:.3} J"),
+                None => "E_sim absent".into(),
+            };
+            v.push(match e.measured_j {
+                Some(m) => format!("reading {m:.3} J · {sim}"),
+                None => format!("reading absent · {sim}"),
+            });
         }
         if e.anomaly {
             v.push(format!("|delta| > {} sigma", self.k_sigma));

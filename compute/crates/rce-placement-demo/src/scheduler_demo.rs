@@ -122,10 +122,10 @@ impl PricedBackend for CpuPriced {
     fn id(&self) -> &str { &self.id }
     fn handles(&self) -> &[&'static str] { &self.handles }
 
-    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, bool) {
+    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, rce_placement::EnergyBasis) {
         let (flops, bytes) = op_flops_bytes(op, shapes);
         let est = self.table.estimate(op, &BackendId::new(self.id.clone()), flops, bytes);
-        (est.picojoules, est.measured)
+        (est.picojoules, est.basis)
     }
 
     fn execute(&self, op: &str, inputs: &[Value]) -> Result<Value, String> {
@@ -197,10 +197,10 @@ impl PricedBackend for GpuPriced {
     fn id(&self) -> &str { &self.id }
     fn handles(&self) -> &[&'static str] { &self.handles }
 
-    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, bool) {
+    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, rce_placement::EnergyBasis) {
         let (flops, bytes) = op_flops_bytes(op, shapes);
         let est = self.table.estimate(op, &BackendId::new(self.id.clone()), flops, bytes);
-        (est.picojoules, est.measured)
+        (est.picojoules, est.basis)
     }
 
     fn execute(&self, op: &str, inputs: &[Value]) -> Result<Value, String> {
@@ -261,32 +261,32 @@ fn build_table() -> Arc<CostTable> {
     });
     t.insert("matmul", &BackendId::new("cpu:op-blas"),
         LinearCoeffs { a_pj_per_flop: 5.0, b_pj_per_byte: 0.0, c_pj_overhead: 1_000_000.0 },
-        true);
+        rce_placement::EnergyBasis::Reported);
     t.insert("matmul", &BackendId::new("gpu:op-mps"),
         LinearCoeffs { a_pj_per_flop: 0.29, b_pj_per_byte: 0.0, c_pj_overhead: 5_000_000_000.0 },
-        true);
+        rce_placement::EnergyBasis::Reported);
     t.insert("silu", &BackendId::new("cpu:op-nn-prims"),
         LinearCoeffs { a_pj_per_flop: 50.0, b_pj_per_byte: 0.2, c_pj_overhead: 100_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     t.insert("silu", &BackendId::new("gpu:op-metal"),
         LinearCoeffs { a_pj_per_flop: 2.0, b_pj_per_byte: 0.02, c_pj_overhead: 500_000_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     // gelu — same FLOPs/elem class as silu; coefficients mirror it.
     t.insert("gelu", &BackendId::new("cpu:op-nn-prims"),
         LinearCoeffs { a_pj_per_flop: 50.0, b_pj_per_byte: 0.2, c_pj_overhead: 100_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     t.insert("gelu", &BackendId::new("gpu:op-metal"),
         LinearCoeffs { a_pj_per_flop: 2.0, b_pj_per_byte: 0.02, c_pj_overhead: 500_000_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     // rms_norm — bandwidth-bound (x + w in, out out → 3× elementwise
     // bytes-touched at moderate FLOPs/elem). GPU wins at large N because
     // the per-byte coefficient dominates.
     t.insert("rms_norm", &BackendId::new("cpu:op-nn-prims"),
         LinearCoeffs { a_pj_per_flop: 30.0, b_pj_per_byte: 0.3, c_pj_overhead: 100_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     t.insert("rms_norm", &BackendId::new("gpu:op-metal"),
         LinearCoeffs { a_pj_per_flop: 1.5, b_pj_per_byte: 0.03, c_pj_overhead: 500_000_000.0 },
-        false);
+        rce_placement::EnergyBasis::Est);
     Arc::new(t)
 }
 

@@ -41,7 +41,7 @@ the same D.
 - **Regime B (time-linear): out-of-order CPUs and GPUs.** `est_j` =
   P_active · t + E_llc · misses, where t is the step's measured or
   modelled time. Replications of language-energy studies at fixed
-  single-core load show power flat to ±0.5 W at ~190 W, so energy is time
+  single-core load show power flat to ±0.5 W at ~190 W (the studies are not named in this file; not verified here), so energy is time
   and the count enters only through time.
 
 A fabric record (E.7) names its regime. A host that has no calibration

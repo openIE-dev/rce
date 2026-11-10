@@ -6,6 +6,7 @@ license.workspace = true
 description = "rce async scheduler — tokio work-stealing dispatcher; parallel node execution across CPU/wgpu/leaf backends"
 
 [dependencies]
+rce-vm-core = { workspace = true }
 rce-vm-backend-cpu = { workspace = true }
 rce-graph = { workspace = true }
 tokio                = { workspace = true, features = ["rt-multi-thread", "sync", "macros"] }

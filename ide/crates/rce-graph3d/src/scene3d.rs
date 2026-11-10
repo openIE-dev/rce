@@ -125,7 +125,7 @@ pub fn build(g: &Graph, pos: &Positions, cam: &Orbit, vp: Viewport, st: &Style) 
             if let Some(j) = n.energy.joules {
                 color = heat(j, max_j);
                 flags[0] = 0.4 + 0.6 * (j / max_j.max(1e-12)) as f32;
-                flags[1] = (n.energy.measured_j == 0.0) as u8 as f32;
+                flags[1] = n.energy.measured_j.is_none() as u8 as f32;
             } else if let Some(w) = n.live.as_ref().and_then(|l| l.watts) {
                 color = heat(w, max_w);
                 flags[0] = 0.4 + 0.6 * (w / max_w.max(1e-12)) as f32;
@@ -181,8 +181,8 @@ pub fn build(g: &Graph, pos: &Positions, cam: &Orbit, vp: Viewport, st: &Style) 
             if st.energy {
                 if let Some(j) = n.energy.joules {
                     let tag = if n.energy.synthetic { "demo " } else { "" };
-                    let src = if n.energy.measured_j > 0.0 {
-                        "E_meas"
+                    let src = if n.energy.measured_j.is_some() {
+                        "reading"
                     } else {
                         "E_sim"
                     };

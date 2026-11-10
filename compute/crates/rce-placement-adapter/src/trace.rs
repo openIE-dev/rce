@@ -8,10 +8,9 @@
 //! digest. A replica that lies about which backend ran a dispatch — or
 //! drops / reorders events — diverges on the digest and is caught.
 //!
-//! Why this matters: it turns RCE's energy receipts from a measurement
-//! ("I spent 1.865 mJ on this forward") into a **verifiable claim**
-//! ("here's the trace digest; re-run and compare"). The "AI metered in
-//! joules, not tokens" thesis becomes provable, not just measurable.
+//! Why this matters: the digest is a function of the dispatch sequence,
+//! so two runs with the same cost table can be compared. The figure
+//! 1.865 mJ in earlier notes on this file is illustrative, not a reading.
 //!
 //! Determinism rules (the same discipline mesh-core enforces):
 //! - Field encoding is canonical (lengths-prefixed strings, little-endian
@@ -22,6 +21,7 @@
 //! - Events are folded in append order; the position is implicit.
 
 use crate::QMM_DTYPE_UNKNOWN;
+use rce_placement::EnergyBasis;
 
 /// One per `PlacementQmmAdapter::qmm_1d` call. Captures every input to
 /// the placement decision plus the chosen backend's cost estimate — what
@@ -47,9 +47,10 @@ pub struct DispatchEvent {
     /// the same number; a replica running on a different cost table
     /// diverges here.
     pub estimated_picojoules: f64,
-    /// True iff the cost coefficients came from measurement, not
-    /// analytical priors. Flows from `CostTable.lookup`'s second slot.
-    pub measured: bool,
+    /// D.11 basis of `estimated_picojoules`. Flows from `CostTable.lookup`.
+    /// The digest byte is [`EnergyBasis::digest_code`]: 0 est, 1 reported
+    /// (the previous `measured = true`), 2 measured.
+    pub basis: EnergyBasis,
 }
 
 /// Ordered log of dispatch events + a folded digest. Single-source-of-
@@ -108,7 +109,7 @@ fn encode_event(d: &mut DigestBuf, ev: &DispatchEvent) {
     d.tag(TAG_EST_PJ);
     d.u64(ev.estimated_picojoules.to_bits());
     d.tag(TAG_MEASURED);
-    d.u8(ev.measured as u8);
+    d.u8(ev.basis.digest_code());
 }
 
 /// FNV-1a fold over a canonical byte buffer. Hand-rolled rather than
@@ -144,7 +145,7 @@ pub fn make_event(
     w_shape: &[usize],
     backend_id: &str,
     estimated_picojoules: f64,
-    measured: bool,
+    basis: EnergyBasis,
 ) -> DispatchEvent {
     DispatchEvent {
         op,
@@ -152,7 +153,7 @@ pub fn make_event(
         w_shape: w_shape.to_vec(),
         backend_id: backend_id.to_string(),
         estimated_picojoules,
-        measured,
+        basis,
     }
 }
 
@@ -169,8 +170,8 @@ pub fn w_shape_has_known_dtype(w_shape: &[usize]) -> bool {
 mod tests {
     use super::*;
 
-    fn ev(op: &'static str, a: &[usize], w: &[usize], be: &str, pj: f64, m: bool) -> DispatchEvent {
-        make_event(op, a, w, be, pj, m)
+    fn ev(op: &'static str, a: &[usize], w: &[usize], be: &str, pj: f64, basis: EnergyBasis) -> DispatchEvent {
+        make_event(op, a, w, be, pj, basis)
     }
 
     #[test]
@@ -187,8 +188,8 @@ mod tests {
         // "honest replicas agree" property mesh-core asserts.
         let build = || {
             let mut t = DispatchTranscript::new();
-            t.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
-            t.append(ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, false));
+            t.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
+            t.append(ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, EnergyBasis::Est));
             t
         };
         let a = build();
@@ -202,10 +203,10 @@ mod tests {
         // A replica that ran the same dispatch but lies about which
         // backend it routed to diverges on the digest.
         let mut honest = DispatchTranscript::new();
-        honest.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "metal:op-qmm", 1.0e6, false));
+        honest.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "metal:op-qmm", 1.0e6, EnergyBasis::Est));
 
         let mut byz = DispatchTranscript::new();
-        byz.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
+        byz.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
 
         assert_ne!(honest.digest(), byz.digest(),
             "byzantine backend-swap should diverge on the trace digest");
@@ -216,11 +217,11 @@ mod tests {
         // A replica that drops one dispatch event from the log
         // diverges from the full log's digest.
         let mut full = DispatchTranscript::new();
-        full.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
-        full.append(ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, false));
+        full.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
+        full.append(ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, EnergyBasis::Est));
 
         let mut dropped = DispatchTranscript::new();
-        dropped.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
+        dropped.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
 
         assert_ne!(full.digest(), dropped.digest(),
             "byzantine drop should diverge on the trace digest");
@@ -233,21 +234,21 @@ mod tests {
         // diverges — exactly the "trace catches calibration drift"
         // property the mesh-core controller pattern needs.
         let mut a = DispatchTranscript::new();
-        a.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
+        a.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
         let mut b = DispatchTranscript::new();
-        b.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.1e6, false));
+        b.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.1e6, EnergyBasis::Est));
         assert_ne!(a.digest(), b.digest());
     }
 
     #[test]
-    fn measured_flag_is_load_bearing_in_digest() {
-        // The measured flag's role: distinguish analytical-prior runs
-        // from calibration-derived ones. Two replicas, same dispatch,
-        // different `measured` flags ⇒ different digests.
+    fn basis_is_load_bearing_in_digest() {
+        // The basis byte distinguishes an analytical prior (`est`, code 0)
+        // from a counter (`reported`, code 1, the previous true flag).
+        // Two replicas, same dispatch, different bases, different digests.
         let mut prior = DispatchTranscript::new();
-        prior.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false));
+        prior.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
         let mut measured = DispatchTranscript::new();
-        measured.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, true));
+        measured.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Reported));
         assert_ne!(prior.digest(), measured.digest());
     }
 
@@ -256,8 +257,8 @@ mod tests {
         // Two transcripts holding the same multiset of events in
         // different orders produce different digests — the bound
         // fraction of the trace.
-        let e1 = ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, false);
-        let e2 = ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, false);
+        let e1 = ev("qmm", &[2048], &[2048, 2048, 32, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est);
+        let e2 = ev("qmm", &[2048], &[5632, 2048, 64, 1], "metal:op-qmm", 5.0e5, EnergyBasis::Est);
 
         let mut ab = DispatchTranscript::new();
         ab.append(e1.clone());
@@ -276,9 +277,9 @@ mod tests {
         // byzantine attack vector since the n_rows/n_cols match. The
         // dtype_id slot in w_shape catches it.
         let mut q8  = DispatchTranscript::new();
-        q8.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "metal:op-qmm", 5.0e5, false));
+        q8.append(ev("qmm", &[2048], &[2048, 2048, 32, 1], "metal:op-qmm", 5.0e5, EnergyBasis::Est));
         let mut q4  = DispatchTranscript::new();
-        q4.append(ev("qmm", &[2048], &[2048, 2048, 32, 2], "metal:op-qmm", 5.0e5, false));
+        q4.append(ev("qmm", &[2048], &[2048, 2048, 32, 2], "metal:op-qmm", 5.0e5, EnergyBasis::Est));
         assert_ne!(q8.digest(), q4.digest());
     }
 }

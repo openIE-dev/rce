@@ -5,7 +5,7 @@
 //! the IDE's `ide-energy`; the IDE names it `ide_energy`.
 //!
 //! - [`sim`]: E_sim from telemetry features, with per-feature coefficients
-//!   fitted by least squares to measured runs. An uncalibrated gear/model
+//!   fitted by least squares to counter readings. An uncalibrated gear/model
 //!   predicts nothing (`None`), never a default number.
 //! - [`meter`]: the `Meter` trait, Linux RAPL (powercap sysfs), NVML behind
 //!   the `nvml` feature. Other sources: [`ioreport`] (macOS rails), [`smc`]
@@ -16,7 +16,7 @@
 //! - [`discover`]: probe every source, list what works and what is tracked.
 //! - [`setup`] and [`cli`]: `rce-ide telemetry probe|setup`, consent per step.
 //!   See docs/TELEMETRY.md.
-//! - [`attrib`]: measured energy over an action's time window, from a meter's
+//! - [`attrib`]: energy over an action's time window, from a meter's
 //!   cumulative samples.
 //! - [`calib`]: run fixed workloads under the discovered meters and fit
 //!   the simulator (`rce-ide telemetry calibrate`).

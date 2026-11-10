@@ -134,6 +134,7 @@ Harness: `e4.py` sha256 `30e21a7dfdaae0e8`, `matrix.json` sha256 `e036bcd4af337b
 | Provenance | Value |
 |---|---|
 | Sampler | macmon macmon 0.10.0 (pipe, no root) |
+| Sampler note | labelling defect of commit 057b6739: the string repeats the name; the sampler is macmon and the version is 0.10.0 |
 | Counter | cpu_power + gpu_power + ane_power (W, the average over each sample) times the sample's span |
 | Interval | 100 ms; each sample spans from the previous sample's timestamp to its own; each window takes the share of every sample that overlaps it |
 | Boundary | cpu + gpu + ane (macmon cpu_power, gpu_power, ane_power) |
@@ -290,6 +291,7 @@ Harness: `e4.py` sha256 `30e21a7dfdaae0e8`, `matrix.json` sha256 `e036bcd4af337b
 | Provenance | Value |
 |---|---|
 | Sampler | macmon macmon 0.10.0 (pipe, no root) |
+| Sampler note | labelling defect of commit 057b6739: the string repeats the name; the sampler is macmon and the version is 0.10.0 |
 | Counter | cpu_power + gpu_power + ane_power (W, the average over each sample) times the sample's span |
 | Interval | 100 ms; each sample spans from the previous sample's timestamp to its own; each window takes the share of every sample that overlaps it |
 | Boundary | cpu + gpu + ane (macmon cpu_power, gpu_power, ane_power) |
