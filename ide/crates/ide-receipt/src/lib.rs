@@ -1,11 +1,14 @@
 //! `ide-receipt`: one receipt per RCE IDE action.
 //!
-//! Every receipt carries the simulated energy (`e_sim_j`), the measured energy
-//! (`e_meas`, only when a real meter produced it, with its source tag), their
+//! Every receipt carries the simulated energy (`e_sim_j`), a hardware reading
+//! (`e_meas`, when a meter produced it, with its source tag), their
 //! difference, the checker verdict, the hash of the policy in force, and the
 //! BLAKE3 hash of the previous receipt. The body is signed with ed25519.
-//! Nothing in this crate invents an energy number: an absent measurement is
-//! `None`, and `delta_j` is only computed from a real meter reading.
+//! Nothing in this crate invents an energy number: an absent reading is
+//! `None`, and `delta_j` is computed when the source is hardware.
+//! The wire field stays `e_meas`. Its basis is the source tag's D.11 basis,
+//! not the field name: counters are `reported`, a shunt is `measured`,
+//! and `EstimatedRemote` is `est`.
 
 pub mod chain;
 pub mod map;
@@ -36,42 +39,73 @@ pub enum ActionKind {
     Other(String),
 }
 
-/// Where a measured energy figure came from.
+/// D.11 basis of a [`MeterSource`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnergyBasis {
+    /// External wall or shunt meter on a named rail.
+    Measured,
+    /// OS or on-chip counter or sensor.
+    Reported,
+    /// Model, table, fallback or remote prior.
+    Est,
+}
+
+/// Where a hardware or tagged-remote energy figure came from.
+/// The serde names are unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MeterSource {
-    /// Linux powercap RAPL counters (`energy_uj`).
+    /// Linux powercap RAPL counters (`energy_uj`). Basis `reported`.
     Rapl,
-    /// NVIDIA NVML total energy counter.
+    /// NVIDIA NVML total energy counter. Basis `reported`.
     Nvml,
-    /// macOS powermetrics / IOKit.
+    /// macOS powermetrics. Basis `reported`.
     Powermetrics,
-    /// macOS IOReport counters read in-process (no root), e.g. the Energy
-    /// Model group.
+    /// macOS IOReport counters read in-process (no root), for example the
+    /// Energy Model group. Basis `reported`.
     Ioreport,
-    /// Apple SMC system power key (PSTR), polled and integrated.
+    /// Apple SMC system power key (PSTR), polled and integrated. Basis `reported`.
     Smc,
-    /// Linux hwmon energy or power attributes (amdgpu, i915/xe, ...).
+    /// Linux hwmon energy or power attributes (amdgpu, i915/xe, and others).
+    /// Basis `reported`.
     Hwmon,
     /// Battery discharge power from the power_supply class (Linux/Android).
+    /// Basis `reported`.
     PowerSupply,
-    /// NVIDIA Jetson INA rails.
+    /// NVIDIA Jetson INA shunt on board rails. Basis `measured`.
     Jetson,
-    /// A remote model whose provider cannot be metered: this is an estimate,
-    /// tagged so it is never mistaken for a measurement.
+    /// A remote model whose provider cannot be metered. Basis `est`.
     EstimatedRemote,
 }
 
 impl MeterSource {
-    /// True for sources that are hardware measurements.
+    /// D.11 basis of this tag.
+    pub fn basis(self) -> EnergyBasis {
+        match self {
+            MeterSource::Jetson => EnergyBasis::Measured,
+            MeterSource::EstimatedRemote => EnergyBasis::Est,
+            MeterSource::Rapl
+            | MeterSource::Nvml
+            | MeterSource::Powermetrics
+            | MeterSource::Ioreport
+            | MeterSource::Smc
+            | MeterSource::Hwmon
+            | MeterSource::PowerSupply => EnergyBasis::Reported,
+        }
+    }
+
+    /// True for a counter or a shunt. False for [`MeterSource::EstimatedRemote`].
     pub fn is_hardware(self) -> bool {
         !matches!(self, MeterSource::EstimatedRemote)
     }
 }
 
-/// A measured (or tagged remote-estimate) energy figure.
+/// An energy figure with the meter tag that names its D.11 basis.
+/// The JSON object is `{joules, source}`, the same bytes as the previous
+/// struct name `Measured`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Measured {
+pub struct Reading {
     pub joules: f64,
     pub source: MeterSource,
 }
@@ -105,7 +139,9 @@ pub struct Draft {
     /// Predicted joules. `None` when the simulator is not calibrated for this
     /// gear and model: no default number is substituted.
     pub e_sim_j: Option<f64>,
-    pub e_meas: Option<Measured>,
+    /// Hardware or tagged-remote figure. Absent is `None`, not 0.
+    /// The JSON name `e_meas` is kept. The basis is `source.basis()`.
+    pub e_meas: Option<Reading>,
     pub verdict: Verdict,
     /// Hex BLAKE3 of the policy in force.
     pub policy_hash: String,
@@ -164,7 +200,7 @@ impl Body {
 }
 
 /// `e_meas - e_sim` when it means something.
-pub fn delta(e_sim: Option<f64>, e_meas: Option<Measured>) -> Option<f64> {
+pub fn delta(e_sim: Option<f64>, e_meas: Option<Reading>) -> Option<f64> {
     match (e_sim, e_meas) {
         (Some(s), Some(m)) if m.source.is_hardware() && s.is_finite() && m.joules.is_finite() => {
             Some(m.joules - s)

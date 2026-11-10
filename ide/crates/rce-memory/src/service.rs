@@ -18,7 +18,7 @@ use crate::vector::VectorIndex;
 use ide_energy::meter::now_ns;
 use ide_energy::shared::SharedMeter;
 use ide_energy::sim::{Features, Simulator};
-use ide_receipt::{ActionKind, Draft, Ledger, Measured, MeterSource, Receipt, Verdict};
+use ide_receipt::{ActionKind, Draft, Ledger, MeterSource, Reading, Receipt, Verdict};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::Path;
@@ -104,7 +104,7 @@ fn finish(
     d.t_end_ns = now_ns();
     d.e_sim_j = ctx.sim.predict(&feats).map(|p| p.joules);
     if let (Some(j), Some(src)) = (j1, ctx.meter.and_then(|m| source_tag(m.source()))) {
-        d.e_meas = Some(Measured {
+        d.e_meas = Some(Reading {
             joules: j,
             source: src,
         });

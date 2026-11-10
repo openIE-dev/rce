@@ -253,6 +253,47 @@ fn serve_under_seatbelt_answers_a_request() {
     assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// One line from the terminal, with a single leading interactive-shell
+/// prompt removed. `/bin/sh` writes PS1 (`$ `, or `# ` as root) and no
+/// newline. When the next command is already buffered, the terminal echoes
+/// it while the previous command is still running, and the shell then
+/// prints the prompt and runs that command, so the command's output shares
+/// the prompt's line (`$ OUT-DENIED`).
+fn pty_line_payload(line: &str) -> &str {
+    let line = line.trim_matches('\r');
+    line.strip_prefix("$ ").or_else(|| line.strip_prefix("# ")).unwrap_or(line)
+}
+
+/// True when some line's payload is exactly `payload`. A longer line that
+/// only contains those bytes, such as the echoed command, does not count.
+fn pty_has_line(out: &str, payload: &str) -> bool {
+    out.lines().any(|line| pty_line_payload(line) == payload)
+}
+
+/// The marker is the whole line after an optional prompt. The echoed
+/// command contains the same bytes and must not count, and a line that
+/// says the write succeeded must still be reported as success.
+#[test]
+fn pty_marker_is_the_line_after_an_optional_prompt() {
+    let raced = "\
+$ touch /tmp/rce-ll/inside && echo IN-OK\r\n\
+touch /tmp/rce-ll-probe 2>/dev/null && echo OUT-WROTE || echo OUT-DENIED\r\n\
+IN-OK\r\n\
+$ OUT-DENIED\r\n\
+$ exit\r\n";
+    assert!(pty_has_line(raced, "IN-OK"));
+    assert!(pty_has_line(raced, "OUT-DENIED"));
+    assert!(!pty_has_line(raced, "OUT-WROTE"));
+    assert!(pty_has_line("OUT-DENIED\n", "OUT-DENIED"));
+    assert!(pty_has_line("# OUT-DENIED\n", "OUT-DENIED"));
+    assert!(!pty_has_line("echo OUT-DENIED\n", "OUT-DENIED"));
+    assert!(!pty_has_line("OUT-DENIED-extra\n", "OUT-DENIED"));
+    assert!(pty_has_line("OUT-WROTE\n", "OUT-WROTE"));
+    assert!(pty_has_line("$ OUT-WROTE\r\n", "OUT-WROTE"));
+    assert!(!pty_has_line("$ OUT-WROTE\r\n", "OUT-DENIED"));
+}
+
 /// Linux: the shell under `pty` inherits Landlock: it can write under the
 /// log directory but not elsewhere, and no TCP connection is allowed.
 #[cfg(target_os = "linux")]
@@ -298,7 +339,12 @@ fn landlock_confines_the_terminal_shell() {
     if err.contains("sandbox,") {
         assert!(err.contains("Linux target"), "{err}");
     }
-    assert!(out.contains("\nIN-OK") && out.contains("\nOUT-DENIED"), "{out}");
+    // The denial is a line whose payload is OUT-DENIED, with or without the
+    // prompt in front of it. OUT-WROTE is the line that says the write
+    // succeeded; the echoed command contains both words and is neither line.
+    assert!(pty_has_line(&out, "IN-OK"), "{out}");
+    assert!(pty_has_line(&out, "OUT-DENIED"), "{out}");
+    assert!(!pty_has_line(&out, "OUT-WROTE"), "{out}");
     assert!(!outside.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }

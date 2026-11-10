@@ -10,9 +10,9 @@
 //! read elsewhere, with its D.11 provenance from the file; a provenance that
 //! is not valid by D.11 rule 1 is refused (status 2) and nothing runs, since
 //! D.11 gives a figure without one no label: it is neither a reading nor an
-//! estimate. With none of the three, the gate uses the static E_sim from
-//! `cost`, labelled simulated; a run with no figure is `no measurement`,
-//! which fails only under `strict`.
+//! estimate. With none of the three, the static E_sim from `cost` is
+//! printed as simulated and does not fail the run. A run with no figure
+//! is `no measurement`, which fails under `strict`.
 //!
 //! `rce-ide telemetry export [perfetto] out OUT.json FILE...`: static
 //! per-function E_sim as a Perfetto trace, flagged synthetic.
@@ -21,7 +21,7 @@
 use crate::cost::{analyze, e_sim, Table};
 use crate::reading::{Basis, Env, Provenance, Sampling, Term};
 use rce_spec_check::args::{Command, Fate, MANY, Parsed, Removed, Word};
-use ide_energy::budget::{check, Verdict};
+use ide_energy::budget::{check, ClaimBasis, Verdict};
 use ide_energy::perfetto::{to_trace, Span};
 use std::io::Write;
 
@@ -143,36 +143,53 @@ fn gate(p: &Parsed, out: &mut dyn Write, env: &Env) -> i32 {
     // readable counter means "unmeasured", never an estimate.
     let sampling = if measure { Some(Sampling::start(env)) } else { None };
     let code = rce_spec_check::cli::main(&a, &mut std::io::empty(), out, &mut std::io::stderr());
-    let (joules, kind) = match sampling.map(|s| s.and_then(Sampling::finish)) {
+    let (joules, kind, claim) = match sampling.map(|s| s.and_then(Sampling::finish)) {
         Some(Ok(r)) => {
             for l in r.lines() {
                 let _ = writeln!(out, "{l}");
             }
-            (Some(r.term.j()), r.kind())
+            (Some(r.term.j()), r.kind(), ClaimBasis::Reported)
         }
         Some(Err(u)) => {
             let _ = writeln!(out, "{}", u.line());
-            (None, "unmeasured")
+            (None, "unmeasured", ClaimBasis::Reported)
         }
         None => match &figure {
             Some(t) => {
                 let _ = writeln!(out, "{}", t.line());
-                (Some(t.j()), match t.basis() {
-                    Basis::Measured => "measured: typed, with its provenance",
-                    Basis::Reported => "reported: typed, with its provenance",
-                })
+                let (kind, claim) = match t.basis() {
+                    Basis::Measured => ("measured: wall or shunt meter, with its provenance", ClaimBasis::Measured),
+                    Basis::Reported => ("reported: typed counter, with its provenance", ClaimBasis::Reported),
+                };
+                (Some(t.j()), kind, claim)
             }
-            None => (sim_joules(&files).ok().map(|m| m.values().sum()), "simulated, synthetic prices"),
+            None => match sim_joules(&files) {
+                Ok(m) => {
+                    let est_j: f64 = m.values().sum();
+                    let _ = writeln!(out, "energy simulated: {est_j:.3e} (synthetic prices; not a reading)");
+                    return code;
+                }
+                Err(_) => (None, "unmeasured", ClaimBasis::Reported),
+            },
         },
     };
     let Some(b) = budget else { return code };
-    let v = check(joules, b);
+    let v = check(joules, b, claim);
     let _ = match &v {
-        Verdict::Pass { joules, budget } => writeln!(out, "energy ok: {joules:.3e} J <= {budget:.3e} J ({kind})"),
-        Verdict::Over { joules, budget } => writeln!(out, "energy OVER budget: {joules:.3e} J > {budget:.3e} J ({kind})"),
+        Verdict::Pass { j, budget, basis } => writeln!(out, "energy ok: {j:.3e} J <= {budget:.3e} J ({kind}; basis {})", basis_word(*basis)),
+        Verdict::Over { j, budget, basis } => writeln!(out, "energy OVER budget: {j:.3e} J > {budget:.3e} J ({kind}; basis {})", basis_word(*basis)),
         Verdict::NoMeasurement => writeln!(out, "energy: no measurement"),
+        Verdict::Simulated { est_j } => writeln!(out, "energy simulated: {est_j:.3e} (synthetic prices; not a reading)"),
     };
     if v.failed(strict) { code.max(1) } else { code }
+}
+
+fn basis_word(b: ClaimBasis) -> &'static str {
+    match b {
+        ClaimBasis::Reported => "reported",
+        ClaimBasis::Measured => "measured",
+        ClaimBasis::Est => "est",
+    }
 }
 
 /// `telemetry export` on its words and FILEs.
@@ -207,11 +224,15 @@ mod tests {
         let p = prog();
         let mut o = Vec::new();
         assert_eq!(test("rce", &["energy-budget".into(), "1".into(), p.clone()], &mut o), 0);
-        assert!(String::from_utf8_lossy(&o).contains("energy ok"));
+        let s = String::from_utf8_lossy(&o);
+        assert!(s.contains("energy simulated") && !s.contains("energy ok") && !s.contains("OVER"), "{s}");
         let mut o = Vec::new();
-        assert_eq!(test("rce", &["energy-budget".into(), "1e-15".into(), p.clone()], &mut o), 1);
+        // A simulated figure does not fail the run, however small the budget.
+        assert_eq!(test("rce", &["energy-budget".into(), "1e-15".into(), p.clone()], &mut o), 0);
+        let s = String::from_utf8_lossy(&o);
+        assert!(s.contains("energy simulated") && !s.contains("OVER"), "{s}");
         let mut o = Vec::new();
-        let pv = provenance_file(&crate::reading::tests::prov().json());
+        let pv = provenance_file(&shunt_provenance());
         assert_eq!(test("rce", &["energy-budget".into(), "1".into(), "measured".into(), "2".into(), pv, p.clone()], &mut o), 1);
         // a removed flag is a usage error and runs nothing (positional-cli.md, decision 2)
         let mut o = Vec::new();
@@ -249,6 +270,13 @@ mod tests {
         let (_, o) = run_at(&["measure", &p], &Env::system());
         assert!(o.contains("energy receipt: {") != o.contains("energy: unmeasured:"), "{o}");
     }
+    fn shunt_provenance() -> String {
+        let mut p = crate::reading::tests::prov();
+        p.sampler = "bench shunt logger".into();
+        p.counter = "shunt meter energy register, rail:VDD".into();
+        p.boundary = "rail:VDD".into();
+        p.json()
+    }
     fn provenance_file(text: &str) -> String {
         let d = tempfile::tempdir().unwrap().keep();
         let f = d.join("provenance.json");
@@ -259,18 +287,24 @@ mod tests {
     fn typed_figure_needs_its_provenance() {
         let p = prog();
         let env = fake(&tempfile::tempdir().unwrap().path().join("no-powercap"));
-        let good = crate::reading::tests::prov().json();
-        let pv = provenance_file(&good);
-        let receipt = |basis: &str| format!(r#"energy receipt: {{"amortization":{{"kind":"per_call"}},"basis":"{basis}","j":2.0,"provenance":{good}}}"#);
-        // with a valid provenance: a reading, under the label given
+        let rapl = crate::reading::tests::prov().json();
+        let shunt = shunt_provenance();
+        let pv = provenance_file(&shunt);
+        let pv_rapl = provenance_file(&rapl);
+        let receipt = |basis: &str, prov: &str| format!(r#"energy receipt: {{"amortization":{{"kind":"per_call"}},"basis":"{basis}","j":2.0,"provenance":{prov}}}"#);
+        // a wall or shunt sampler may be labelled measured
         let (c, o) = run_at(&["energy-budget", "1", "measured", "2", &pv, &p], &env);
         assert_eq!(c, 1, "{o}");
         let lines: Vec<&str> = o.lines().filter(|l| l.starts_with("energy")).collect();
-        assert_eq!(lines, [receipt("measured").as_str(), "energy OVER budget: 2.000e0 J > 1.000e0 J (measured: typed, with its provenance)"]);
-        let (c, o) = run_at(&["energy-budget", "3", "reported", "2", &pv, &p], &env);
+        assert_eq!(lines, [receipt("measured", &shunt).as_str(), "energy OVER budget: 2.000e0 J > 1.000e0 J (measured: wall or shunt meter, with its provenance; basis measured)"]);
+        // RAPL is reported. The measured command refuses that claim.
+        let (c, o) = run_at(&["energy-budget", "1", "measured", "2", &pv_rapl, &p], &env);
+        assert_eq!(c, 2, "{o}");
+        assert!(o.is_empty(), "{o}");
+        let (c, o) = run_at(&["energy-budget", "3", "reported", "2", &pv_rapl, &p], &env);
         assert_eq!(c, 0, "{o}");
         let lines: Vec<&str> = o.lines().filter(|l| l.starts_with("energy")).collect();
-        assert_eq!(lines, [receipt("reported").as_str(), "energy ok: 2.000e0 J <= 3.000e0 J (reported: typed, with its provenance)"]);
+        assert_eq!(lines, [receipt("reported", &rapl).as_str(), "energy ok: 2.000e0 J <= 3.000e0 J (reported: typed counter, with its provenance; basis reported)"]);
         // without a valid one: refused, citing D.11 rule 1, and nothing runs
         let bad = provenance_file(r#"{"samples":4}"#);
         let missing = format!("{pv}.absent");

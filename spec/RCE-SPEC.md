@@ -6735,8 +6735,9 @@ the promoted handler has paid back its build:
 
 Each term is {`j`, `basis`} with basis one of `est` (a model of the
 work, including a model provider's own figure), `reported` (an OS or
-on-chip energy counter: RAPL, NVML, IOReport), `measured` (a wall or
-shunt meter on a named rail) or `unpriced` (no figure; `j` is null,
+on-chip energy counter: RAPL, NVML, IOReport, macmon, powermetrics, SMC,
+hwmon), `measured` (an external wall or shunt meter on a named rail) or
+`unpriced` (no figure; `j` is null,
 never 0). The terms the engine fills today are est or unpriced: a gear
 receipt's `est_j` is an estimate by schema and is never relabeled from
 its free text. A figure
@@ -6747,9 +6748,10 @@ from the other terms or from a default), {`kind`: `never`} when
 J_model_path - J_handler <= 0, and otherwise {`kind`: `value`, `n`,
 `inputs` = ⌈n⌉}; its basis is the weakest of the three
 (unpriced < est < reported < measured). The promotion path's last step
-records the same figures as text. Implemented in
-`src/runtime/break_even.rs`, tested there and in the engine's promotion
-tests.
+records the same figures as text. `src/runtime/break_even.rs` is planned
+and is not in this repository. The reading checks this repository
+implements are `Term` and `Provenance` in
+`compute/crates/rce-energy/src/reading.rs`.
 
 **Readings: provenance, boundary and amortization (normative; P4, P5,
 P6 of the receipt field proposals of 13 Oct 2026).** These rules apply to every
@@ -6760,8 +6762,10 @@ holds), and are checked where a term is built and where a record is read:
 1. A reading carries `provenance` = {`sampler`, `counter`, `interval_s`,
    `idle_baseline_w`, `machine`, `boundary`, `start_unix_ns`,
    `end_unix_ns`, `wraps`}: the four names non-empty, `interval_s` finite
-   and > 0, `idle_baseline_w` finite and >= 0 (0 when no baseline was
-   subtracted), `start_unix_ns` and `end_unix_ns` integers >= 0 with
+   and > 0, `idle_baseline_w` null when no baseline was subtracted, or a
+   finite number >= 0 (watts) when one was (null is absent, not a 0 W
+   baseline; a reading written before this sentence may still carry 0 for
+   that absent case), `start_unix_ns` and `end_unix_ns` integers >= 0 with
    `start_unix_ns` < `end_unix_ns`, and `wraps` an integer >= 0.
    `boundary` says what the joules include (`package`, `package+dram`,
    `rail:VDD_GPU`). `interval_s` is the duration the joules cover;
@@ -6815,9 +6819,11 @@ PROVENANCE.json` and `reported J PROVENANCE.json` (a figure from another
 meter, refused without a valid provenance), and checked there by
 `Provenance` in `compute/crates/rce-energy/src/reading.rs`, RCE's one meter
 library, whose readings the host also records in D as `host.Energy`
-(HC-38). Implemented by `Term`, `Provenance` and `Amortization` in
-`src/runtime/break_even.rs` (no constructor makes a reading without
-provenance and amortization), tested there (`p4_*`, `p6_*`).
+(HC-38). Implemented by `Term` and `Provenance` in
+`compute/crates/rce-energy/src/reading.rs` (no constructor makes a reading
+without provenance; a reading printed here carries amortization
+`per_call`). `src/runtime/break_even.rs` is planned and is not in this
+repository.
 
 The receipt is a measurement record. It is not an input to δ, to any
 check, or to the decision to promote, so it does not change the meaning

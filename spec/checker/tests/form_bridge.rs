@@ -5,8 +5,11 @@
 //! same arguments, the core evaluator and the Form evaluator agree, and so
 //! does the core evaluator on the scheduled module.
 //!
-//! `spec/examples` is the corpus. A whole module still requires change: the
-//! observation driver writes `out` and reads globals outside ω. An example is
+//! `spec/examples` is the corpus. A store of a fresh empty list into
+//! `outputs` is the empty output list inside ω, so that store is not a node.
+//! A library function and an unobserved δ are in the core (book 4.2) even
+//! though `entry` does not call them. Whole modules that construct are
+//! counted as entry-only or as containing a user function. An example is
 //! counted when every function of the program itself (`fn`, `region`, `delta`,
 //! `initial state`) round-trips through construct(schedule(F)). The reason's
 //! tag says which construct stopped the others. The count is the ratchet.
@@ -21,7 +24,7 @@ use rce_spec_check::one::eval::{self, Flow, Val};
 use rce_spec_check::one::ir::{self as core, Atom, FnRef, Lit, Place, Stmt, Ty};
 use rce_spec_check::one::json::{canonical_group, group_key};
 use rce_spec_check::one::wf;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn i64ty() -> Ty {
     Ty::i64()
@@ -810,9 +813,9 @@ fn conditional_increment_is_not_rewritten_into_a_count() {
 }
 
 #[test]
-fn breaks_that_do_not_name_the_loop_still_require_change() {
-    // A break out of a block that is not the loop. A later `exit_if` names the
-    // loop, so the function can return; the block break is still refused.
+fn a_block_break_and_a_nested_loop_break_follow_the_exit_count() {
+    // `break 0` ends the block. The `exit_if` then names the loop, so the
+    // function returns. The block break is not a refusal.
     let (tick, tkey) = tick_parts();
     let key = tkey.clone();
     let ct = build::count_t();
@@ -831,19 +834,26 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
     })
     .unwrap();
     b.ret(build::lit(0));
-    refuse_with(tick, tkey, b.finish());
+    let m = assemble(tick, tkey, "block", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    agree(&m, &f, &s, vec![Val::Int(4)]);
 
-    // A break that leaves the inner loop and the outer loop. Depth 1 from the
-    // inner loop names the outer one. Item 3 does not restructure that.
+    // `break 1` leaves the inner loop and the outer loop. Each loop
+    // decrements once.
     let (tick, tkey) = tick_parts();
     let key = tkey.clone();
     let mut b = FB::new(vec![ct.clone()], ct);
     let bound = b.arg(0);
     let cnt = b.counter();
+    let cnt2 = b.counter();
     b.loop_(|b| {
-        b.count(cnt, bound)?;
+        b.count(cnt, bound.clone())?;
         let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
         b.loop_(|b| {
+            b.count(cnt2, bound.clone())?;
+            let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
             b.brk(1);
             Ok(())
         })?;
@@ -851,10 +861,13 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
     })
     .unwrap();
     b.ret(build::lit(0));
-    refuse_with(tick, tkey, b.finish());
+    let m = assemble(tick, tkey, "two", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    agree(&m, &f, &s, vec![Val::Int(4)]);
 
-    // A depth that names no enclosing loop. The core rejects it, or construction
-    // does, under the break rule.
+    // A depth that names no enclosing block or loop still requires change.
     let mut b = FB::new(vec![build::count_t()], build::count_t());
     b.loop_(|b| {
         b.brk(2);
@@ -870,13 +883,6 @@ fn breaks_that_do_not_name_the_loop_still_require_change() {
             assert_eq!(e.tag(), "break", "{}", e.line());
         }
     }
-}
-
-fn refuse_with(tick: core::Fn, tkey: String, user: core::Fn) {
-    let m = assemble(tick, tkey, "no", user);
-    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
-    let e = bridge::construct(&m).expect_err("break");
-    assert_eq!(e.tag(), "break", "{}", e.line());
 }
 
 #[test]
@@ -897,11 +903,18 @@ fn refused_constructs_name_the_reason() {
             }
         }
     };
-    refuse(
-        vec![Stmt::Out(Atom::bytes(b"x")), Stmt::Ret(build::lit(0))],
-        i64ty(),
-        "out",
+    // Bytes `out` is `emit[text]`. A value that is not bytes is not a
+    // well-formed core (W1). Construction still names it `out`.
+    let odd = module(
+        "odd",
+        core::Fn {
+            params: vec![],
+            ret: i64ty(),
+            body: vec![Stmt::Out(build::lit(1)), Stmt::Ret(build::lit(0))],
+        },
     );
+    let e = bridge::construct(&odd).expect_err("out");
+    assert_eq!(e.tag(), "out", "{}", e.line());
     refuse(
         vec![
             Stmt::Prim("io.byte".into(), vec![], vec![build::lit(1)]),
@@ -996,6 +1009,304 @@ fn closure_round_trip(core_m: &core::Module, name: &str) -> Result<bool, String>
     }
 }
 
+fn outputs_reset(name: &str) -> core::Module {
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::unit(),
+        body: vec![
+            Stmt::Prim("list.new".into(), vec![Ty::Bytes], vec![]),
+            Stmt::Set(Place::G(0), Atom::V(0)),
+            Stmt::Prim("tup.mk".into(), vec![Ty::unit()], vec![]),
+            Stmt::Ret(Atom::V(1)),
+        ],
+    };
+    let (g, _) = canonical_group(std::slice::from_ref(&f));
+    let key = group_key(&g);
+    let mut names = serde_json::Map::new();
+    names.insert(key.clone(), serde_json::json!(["entry"]));
+    core::Module {
+        globals: vec![(Ty::list(Ty::Bytes), None)],
+        defs: BTreeMap::from([(key.clone(), g)]),
+        entry: (key, 0),
+        names: serde_json::json!({"fns": names, "globals": [name]}),
+        graphs: BTreeMap::new(),
+    }
+}
+
+#[test]
+fn resetting_outputs_to_an_empty_list_round_trips() {
+    // `entry` when nothing is observed: store a fresh byte list in `outputs`,
+    // then return unit. That list is the empty output list a fresh ω holds
+    // (rce-form.md §5), so the store is not a node. The schedule builds the
+    // same Form. A store into any other global still requires change.
+    let m = outputs_reset("outputs");
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_eq!(fir::encode(&f), fir::encode(&back));
+    let other = outputs_reset("fuel");
+    wf::check(&other).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&other).expect_err("fuel");
+    assert_eq!(e.tag(), "global", "{}", e.line());
+}
+
+fn one_fn(globals: Vec<(Ty, Option<Lit>)>, gnames: &[&str], f: core::Fn) -> core::Module {
+    let (g, _) = canonical_group(std::slice::from_ref(&f));
+    let key = group_key(&g);
+    let mut names = serde_json::Map::new();
+    names.insert(key.clone(), serde_json::json!(["fn show"]));
+    core::Module {
+        globals,
+        defs: BTreeMap::from([(key.clone(), g)]),
+        entry: (key, 0),
+        names: serde_json::json!({"fns": names, "globals": gnames}),
+        graphs: BTreeMap::new(),
+    }
+}
+
+#[test]
+fn reading_outputs_is_the_empty_list_a_fresh_omega_holds() {
+    // A read of `outputs` is the output list inside ω. A fresh ω holds it
+    // empty, so the read is `list.new` of bytes and the schedule builds the
+    // same Form.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![Stmt::Let(Atom::G(0)), Stmt::Ret(Atom::V(0))],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    // The function is the module entry, so W3 wants the global set before
+    // the read. The bridge is what this test checks; the lowered corpus
+    // sets the global in `entry` and reads it from the other functions.
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("list.new"), "{text}");
+}
+
+#[test]
+fn appending_to_outputs_extends_that_list() {
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![
+            Stmt::Let(Atom::G(0)),
+            Stmt::Prim(
+                "list.push".into(),
+                vec![Ty::Bytes],
+                vec![Atom::V(0), Atom::bytes(b"hi")],
+            ),
+            Stmt::Set(Place::G(0), Atom::V(1)),
+            Stmt::Ret(Atom::V(1)),
+        ],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("list.push"), "{text}");
+}
+
+#[test]
+fn a_read_after_a_branch_that_appended_requires_change() {
+    // One arm appends and the other does not. This scope does not join the
+    // two lists, so a later read is not the list ω holds.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::list(Ty::Bytes),
+        body: vec![
+            Stmt::If(
+                Atom::bool(true),
+                vec![
+                    Stmt::Let(Atom::G(0)),
+                    Stmt::Prim(
+                        "list.push".into(),
+                        vec![Ty::Bytes],
+                        vec![Atom::V(0), Atom::bytes(b"a")],
+                    ),
+                    Stmt::Set(Place::G(0), Atom::V(1)),
+                ],
+                vec![],
+            ),
+            Stmt::Let(Atom::G(0)),
+            Stmt::Ret(Atom::V(2)),
+        ],
+    };
+    let m = one_fn(vec![(Ty::list(Ty::Bytes), None)], &["outputs"], f);
+    let e = bridge::construct(&m).expect_err("unjoined append");
+    assert_eq!(e.tag(), "global", "{}", e.line());
+}
+
+#[test]
+fn core_out_of_bytes_is_emit_text() {
+    // `out` is `emit` on ω (rce-form.md §13). The value is already bytes, so
+    // the frame type is text and the effect class is 2.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::unit(),
+        body: vec![
+            Stmt::Out(Atom::bytes(b"hi")),
+            Stmt::Prim("tup.mk".into(), vec![Ty::unit()], vec![]),
+            Stmt::Ret(Atom::V(0)),
+        ],
+    };
+    let m = one_fn(vec![], &[], f);
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let built = round_trip_unchecked(&m);
+    let text = fir::encode(&built);
+    assert!(text.contains("emit"), "{text}");
+    assert!(text.contains("\"eff\":2") || text.contains("2"), "{text}");
+}
+
+#[test]
+fn a_read_of_fuel_limit_stays_refused() {
+    // The fuel limit is not a field of a module (rce-form.md §5). Fuel is
+    // charged only by `fuel.tick`.
+    let f = core::Fn {
+        params: vec![],
+        ret: Ty::u64(),
+        body: vec![Stmt::Let(Atom::G(1)), Stmt::Ret(Atom::V(0))],
+    };
+    let m = one_fn(
+        vec![
+            (Ty::u64(), Some(Lit::Int(0))),
+            (Ty::u64(), Some(Lit::Int(0))),
+        ],
+        &["fuel", "fuel.limit"],
+        f,
+    );
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("fuel.limit");
+    assert_eq!(e.tag(), "global", "{}", e.line());
+}
+
+fn set_label(tags: &BTreeSet<String>) -> String {
+    if tags.is_empty() {
+        "clear".into()
+    } else {
+        tags.iter().cloned().collect::<Vec<_>>().join(",")
+    }
+}
+
+fn ranked_sets(rows: &[BTreeSet<String>]) -> Vec<(String, usize, usize)> {
+    let mut n: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for tags in rows {
+        let label = set_label(tags);
+        let e = n.entry(label).or_insert((0, tags.len()));
+        e.0 += 1;
+    }
+    let mut v: Vec<_> = n.into_iter().map(|(k, (c, w))| (k, c, w)).collect();
+    v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    v
+}
+
+/// Census of this tip. A whole module is unblocked by a tag when every
+/// user-function refusal is that tag. no-root is a root-selection gap: it
+/// does not stop construction of the module. The 924f88e4 counts are the
+/// census recorded on that commit, before the nested-break slice.
+fn whole_census(
+    rows: &[(String, BTreeSet<String>, BTreeSet<String>, String, bool)],
+    programs: usize,
+    covered: usize,
+    semantic: usize,
+    whole: usize,
+) -> String {
+    let whole_rows: Vec<_> = rows.iter().map(|r| r.1.clone()).collect();
+    let root_rows: Vec<_> = rows.iter().map(|r| r.2.clone()).collect();
+    let entry_only = rows.iter().filter(|r| r.4 && r.2.iter().any(|t| t == "no-root")).count();
+    let with_user = rows.iter().filter(|r| r.4 && !r.2.iter().any(|t| t == "no-root")).count();
+    let whole_ranked = ranked_sets(&whole_rows);
+    let root_ranked = ranked_sets(&root_rows);
+    let mut lines = vec![
+        "Form bridge census on the nested-break tip".to_string(),
+        String::new(),
+        "This file is regenerated by examples_are_covered_or_require_change.".to_string(),
+        "Set RCE_CENSUS_WRITE to rewrite it. The test fails when the bytes differ.".to_string(),
+        String::new(),
+        "A whole module's blocker set is every user function's own first refusal.".to_string(),
+        "The walk continues to the next function. It does not continue inside".to_string(),
+        "a function, and it does not change admission: construct still returns".to_string(),
+        "the first refusal. A tag unblocks a whole module when the set is".to_string(),
+        "exactly that tag. A pair unblocks a module when the set is exactly".to_string(),
+        "those two. no-root means the lowered module has no program root".to_string(),
+        "(`fn`, `region`, `delta`, `initial state`). It is not a refusal of".to_string(),
+        "construction, so it is counted with the roots, not as a whole-module tag.".to_string(),
+        String::new(),
+        "whole is every module whose core constructs and schedules back.".to_string(),
+        "whole-entry-only is that count restricted to entry-only cores: the".to_string(),
+        "lowered core holds only `entry`, because nothing calls the program".to_string(),
+        "functions, so no user code is constructed. It is not a count of user".to_string(),
+        "programs round-tripping. whole-with-user is the same count for cores".to_string(),
+        "that contain at least one user function.".to_string(),
+        String::new(),
+        "On 924f88e4, before the nested-break slice, the whole-module exact".to_string(),
+        "sets were: global 18, global+out 12, break+global+out 20, lowering 4,".to_string(),
+        "and six sets of one module. no-root and out alone unblocked no whole".to_string(),
+        "module. global alone unblocked 18, and those 18 were entry-only cores.".to_string(),
+        String::new(),
+        "A read of `outputs` is the output list inside ω, and `out` of bytes".to_string(),
+        "is `emit[text]`. The observation driver's `fuel.limit` read is the".to_string(),
+        "limit of the run, not a field of the module, so that frame is not a".to_string(),
+        "node. A read of `fuel` outside the frame stays refused. Constant".to_string(),
+        "flags are memo cells, not folded constants, and those reads stay".to_string(),
+        "refused. `out` is in no whole-module set. The exact set global is 2.".to_string(),
+        "whole stays 2.".to_string(),
+        String::new(),
+        format!("programs\t{programs}"),
+        format!("floor\t{covered}"),
+        format!("semantic\t{semantic}"),
+        format!("whole\t{whole}"),
+        format!("whole-entry-only\t{entry_only}"),
+        format!("whole-with-user\t{with_user}"),
+        String::new(),
+        "whole modules, top 10 by modules unblocked (one tag, or a pair)".to_string(),
+        "unblocks\tset".to_string(),
+    ];
+    let mut top: Vec<_> = whole_ranked.iter().filter(|(_, _, w)| *w == 1 || *w == 2).collect();
+    top.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    if top.is_empty() {
+        lines.push("0\t-".into());
+    }
+    for (label, n, _) in top.iter().take(10) {
+        lines.push(format!("{n}\t{label}"));
+    }
+    lines.push(String::new());
+    lines.push("whole modules, every exact set".into());
+    lines.push("modules\tset".into());
+    for (label, n, _) in &whole_ranked {
+        lines.push(format!("{n}\t{label}"));
+    }
+    lines.push(String::new());
+    lines.push("program roots, every exact set".into());
+    lines.push("modules\tset".into());
+    for (label, n, _) in &root_ranked {
+        lines.push(format!("{n}\t{label}"));
+    }
+    lines.push(String::new());
+    lines.push("modules".into());
+    lines.push("module\twhole\troots\tuser\tglobal-sites".into());
+    for (file, w, r, g, _) in rows {
+        let user = if r.iter().any(|t| t == "no-root") {
+            "entry-only"
+        } else if r.iter().any(|t| t == "lowering") {
+            "lowering"
+        } else {
+            "user"
+        };
+        lines.push(format!(
+            "{file}\t{}\t{}\t{user}\t{g}",
+            set_label(w),
+            set_label(r)
+        ));
+    }
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 #[test]
 fn examples_are_covered_or_require_change() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
@@ -1011,6 +1322,7 @@ fn examples_are_covered_or_require_change() {
     let mut semantic = 0usize;
     let mut tags: BTreeMap<String, usize> = BTreeMap::new();
     let mut root_tags: BTreeMap<String, usize> = BTreeMap::new();
+    let mut rows: Vec<(String, BTreeSet<String>, BTreeSet<String>, String, bool)> = vec![];
     for p in &files {
         let src = std::fs::read_to_string(p).unwrap();
         if rce_spec_check::program(&src).is_err() {
@@ -1023,57 +1335,106 @@ fn examples_are_covered_or_require_change() {
             Err(e) => {
                 *tags.entry(format!("lowering: {e}")).or_default() += 1;
                 *root_tags.entry(format!("lowering: {e}")).or_default() += 1;
+                let file = p.file_name().unwrap().to_string_lossy().into_owned();
+                let mut s = BTreeSet::new();
+                s.insert("lowering".into());
+                rows.push((file, s.clone(), s, e, false));
                 continue;
             }
         };
-        match bridge::construct(&core_m) {
-            Ok(f) => {
-                let s = bridge::schedule(&f)
-                    .unwrap_or_else(|e| panic!("{}: {}", p.display(), e.line()));
-                let back = bridge::construct(&s)
-                    .unwrap_or_else(|e| panic!("{}: {}", p.display(), e.line()));
-                assert_eq!(fir::encode(&f), fir::encode(&back), "{}", p.display());
-                whole += 1;
-            }
+        // A byte mismatch is round-trip, the same tag a program root gets.
+        // It is not admission: `whole` counts only equal bytes.
+        let mut module_tag = None;
+        let constructed = match bridge::construct(&core_m) {
             Err(e) => {
-                *tags.entry(e.tag().to_string()).or_default() += 1;
+                let tag = e.tag().to_string();
+                *tags.entry(tag.clone()).or_default() += 1;
+                module_tag = Some(tag);
+                false
             }
-        }
+            Ok(f) => match bridge::schedule(&f) {
+                Err(e) => {
+                    let tag = e.tag().to_string();
+                    *tags.entry(tag.clone()).or_default() += 1;
+                    module_tag = Some(tag);
+                    false
+                }
+                Ok(s) => match bridge::construct(&s) {
+                    Err(e) => {
+                        let tag = e.tag().to_string();
+                        *tags.entry(tag.clone()).or_default() += 1;
+                        module_tag = Some(tag);
+                        false
+                    }
+                    Ok(back) if fir::encode(&f) == fir::encode(&back) => {
+                        whole += 1;
+                        true
+                    }
+                    Ok(_) => {
+                        *tags.entry("round-trip".to_string()).or_default() += 1;
+                        module_tag = Some("round-trip".to_string());
+                        false
+                    }
+                },
+            },
+        };
+        let file = p.file_name().unwrap().to_string_lossy().into_owned();
         let roots = root_names(&core_m);
+        let mut root_set: BTreeSet<String> = BTreeSet::new();
         if roots.is_empty() {
             *root_tags.entry("no program root".into()).or_default() += 1;
-            continue;
-        }
-        let mut bad: Option<String> = None;
-        let mut rewrote = false;
-        for name in &roots {
-            match closure_round_trip(&core_m, name) {
-                Ok(sem) => rewrote |= sem,
-                Err(e) => {
-                    bad = Some(e);
-                    break;
+            root_set.insert("no-root".into());
+        } else {
+            let mut bad: Option<String> = None;
+            let mut rewrote = false;
+            for name in &roots {
+                match closure_round_trip(&core_m, name) {
+                    Ok(sem) => rewrote |= sem,
+                    Err(e) => {
+                        root_set.insert(e.clone());
+                        if bad.is_none() {
+                            bad = Some(e);
+                        }
+                    }
+                }
+            }
+            match &bad {
+                None if !rewrote => {
+                    eprintln!("  covered {file}");
+                    covered += 1;
+                }
+                // Option B. The flag form's bytes match its schedule. That is not
+                // syntactic identity for the break, so it does not raise the floor.
+                None => {
+                    eprintln!("  semantic {file}");
+                    semantic += 1;
+                }
+                Some(tag) => {
+                    if matches!(tag.as_str(), "round-trip" | "defect" | "catch" | "break" | "loop" | "FG8" | "global") {
+                        eprintln!("  {tag} {file}");
+                    }
+                    *root_tags.entry(tag.clone()).or_default() += 1;
                 }
             }
         }
-        match bad {
-            None if !rewrote => {
-                eprintln!("  covered {}", p.file_name().unwrap().to_string_lossy());
-                covered += 1;
-            }
-            // Option B. The flag form's bytes match its schedule. That is not
-            // syntactic identity for the break, so it does not raise the floor.
-            None => {
-                eprintln!("  semantic {}", p.file_name().unwrap().to_string_lossy());
-                semantic += 1;
-            }
-            Some(tag) => {
-                let file = p.file_name().unwrap().to_string_lossy();
-                if matches!(tag.as_str(), "round-trip" | "defect" | "catch" | "break" | "loop" | "FG8" | "global") {
-                    eprintln!("  {tag} {file}");
-                }
-                *root_tags.entry(tag).or_default() += 1;
+        let mut whole_set: BTreeSet<String> = BTreeSet::new();
+        let mut where_global = BTreeSet::new();
+        for e in bridge::refusals(&core_m) {
+            whole_set.insert(e.tag().to_string());
+            if e.tag() == "global" {
+                where_global.insert(format!("{}: {}", e.at, e.reason));
             }
         }
+        if let Some(tag) = module_tag {
+            whole_set.insert(tag);
+        }
+        rows.push((
+            file,
+            whole_set,
+            root_set,
+            where_global.into_iter().collect::<Vec<_>>().join(" | "),
+            constructed,
+        ));
     }
     eprintln!("form bridge: {whole} of {programs} whole examples construct");
     for (k, n) in &tags {
@@ -1088,8 +1449,24 @@ fn examples_are_covered_or_require_change() {
     for (k, n) in &root_tags {
         eprintln!("  {n} {k}");
     }
-    // Ratchet. Whole modules still meet the observation driver (`out`, fuel
-    // globals). A program function is in the syntactic slice when its closure
+    let text = whole_census(&rows, programs, covered, semantic, whole);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/form_bridge_census.txt");
+    if std::env::var_os("RCE_CENSUS_WRITE").is_some() {
+        std::fs::write(&path, &text).unwrap();
+    }
+    let have = std::fs::read_to_string(&path).unwrap_or_default();
+    assert!(
+        have == text,
+        "form bridge census is stale ({}); set RCE_CENSUS_WRITE to regenerate",
+        path.display()
+    );
+    // Ratchet. Before each library function and each unobserved δ was kept
+    // in the core, 18 modules constructed and all 18 were entry-only: the
+    // core held only `entry`, so no user code was constructed. With those
+    // definitions in the core, whole is 2: 1 entry-only and 1 whose core
+    // contains a user function. The others still require change. A program
+    // function is in
+    // the syntactic slice when its closure
     // round-trips through construct(schedule(F)) and the construction did not
     // restructure a body break. Option B records that a body break was
     // rewritten; the flag form's byte match against its own schedule is not
@@ -1099,10 +1476,18 @@ fn examples_are_covered_or_require_change() {
     // tags are not zero semantic defects. Raise the syntactic floor when that
     // slice grows; do not lower it.
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
+    let entry_only = rows.iter().filter(|r| r.4 && r.2.iter().any(|t| t == "no-root")).count();
+    let with_user = rows.iter().filter(|r| r.4 && !r.2.iter().any(|t| t == "no-root")).count();
+    assert_eq!(entry_only + with_user, whole, "whole split does not add up");
+    // Was 18, all entry-only: the core held only `entry`. Putting each
+    // library function and each unobserved δ into the core drops that to
+    // 2, of which 1 still has no user function and 1 contains user code.
     assert_eq!(
-        whole, 0,
-        "a whole example now constructs; raise this floor and check its trace"
+        whole, 2,
+        "the number of whole examples that construct changed; raise this floor and check the trace"
     );
+    assert_eq!(entry_only, 1, "entry-only whole cores");
+    assert_eq!(with_user, 1, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
@@ -2015,4 +2400,265 @@ fn catch_keeps_cost_charged_by_the_callee() {
     );
     assert_eq!(eval_form_catch(&bare).unwrap(), want_sum, "form sum");
     assert_eq!(eval_scheduled_catch(&bare).unwrap(), want_sum, "scheduled sum");
+}
+
+#[test]
+fn exit_class_matches_the_lean_witnesses() {
+    use bridge::ExitClass::*;
+    // `if` is not a block, so these depths are the raw depths Break.lean keeps.
+    assert_eq!(bridge::exit_class(0, 0), Stop);
+    assert_eq!(bridge::exit_class(1, 0), Pending(0));
+    assert_eq!(bridge::exit_class(2, 0), Pending(1));
+    // A block consumes 0. The loop then continues (`.again`), it does not exit.
+    assert_eq!(bridge::exit_class(0, 1), ConsumedHere);
+    // break 1: the block decrements once, and the loop stops.
+    assert_eq!(bridge::exit_class(1, 1), Stop);
+    // if, then block, then loop: 2 stays 2 across the if, then 1, then 0.
+    assert_eq!(bridge::exit_class(2, 1), Pending(0));
+    // break 1 inside a nested block is consumed by the outer block, not here.
+    assert_eq!(bridge::exit_class(1, 2), ConsumedOuter);
+    assert_eq!(bridge::exit_class(2, 2), Stop);
+    assert_ne!(bridge::exit_class(0, 0), bridge::exit_class(1, 0));
+}
+
+/// `break 0` inside a block is consumed there. The assignment after the
+/// block runs, and the loop iterates again. `break 1` leaves the loop and
+/// does not run that assignment.
+fn block_consumes_zero_and_continues() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let seen = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.open();
+        let iv = b.let_(Atom::V(i));
+        let first = b.int_cmp("int.eq", iv, build::lit(0))?;
+        b.if_(
+            first,
+            |b| {
+                let i1 = b.add_in(Atom::V(i), build::lit(1), ct.clone())?;
+                b.set(i, i1);
+                b.brk(0);
+                Ok(())
+            },
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+        )?;
+        let inner = b.close();
+        b.push(Stmt::Block(inner));
+        let s = b.let_(Atom::V(seen));
+        let s1 = b.add_in(s, build::lit(1), ct.clone())?;
+        b.set(seen, s1);
+        Ok(())
+    })
+    .unwrap();
+    let r = b.let_(Atom::V(seen));
+    b.ret(r);
+    assemble(tick, tkey, "again", b.finish())
+}
+
+#[test]
+fn block_in_loop_consumed_zero_continues() {
+    let c = block_consumes_zero_and_continues();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(bridge::body_break_rewrite());
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    // One continue after break 0, then break 1. The later note ran once.
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+/// `break 1` in a loop with no extra block is still raw 1 at the `if`.
+/// The loop decrements it to a pending 0. The block around the loop consumes
+/// that 0, so the return after the loop runs. The assignment after the `if`
+/// does not.
+fn if_keeps_depth_until_the_loop() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let skipped = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    // The `if` does not decrement. `break 1` is still 1 at the loop, so the
+    // loop leaves a residual 0. The block consumes that 0 and the return
+    // runs. A continue would iterate until the bound and halt.
+    b.open();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.set(skipped, build::lit(4));
+        let yes = Atom::bool(true);
+        b.if_(
+            yes,
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+            |b| {
+                b.brk(1);
+                Ok(())
+            },
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let outer = b.close();
+    b.push(Stmt::Block(outer));
+    let r = b.let_(Atom::V(skipped));
+    b.ret(r);
+    assemble(tick, tkey, "depth", b.finish())
+}
+
+/// `break 1` inside an inner block is still 1 there. The inner block
+/// decrements it and does not run its tail. The outer block consumes 0 and
+/// does run its tail. The loop then iterates. `break 2` leaves the loop.
+fn mid_break_raw_until_parent() -> core::Module {
+    let (tick, tkey) = tick_parts();
+    let key = tkey.clone();
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let i = b.var(ct.clone(), build::lit(0));
+    let mid = b.var(ct.clone(), build::lit(0));
+    let outer = b.var(ct.clone(), build::lit(0));
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound.clone())?;
+        let _ = b.call(FnRef::Key(key.clone(), 0), Ty::Bool, vec![build::lit(1)]);
+        b.open();
+        b.open();
+        let iv = b.let_(Atom::V(i));
+        let first = b.int_cmp("int.eq", iv, build::lit(0))?;
+        b.if_(
+            first,
+            |b| {
+                let i1 = b.add_in(Atom::V(i), build::lit(1), ct.clone())?;
+                b.set(i, i1);
+                b.brk(1);
+                Ok(())
+            },
+            |b| {
+                let iv = b.let_(Atom::V(i));
+                let second = b.int_cmp("int.eq", iv, build::lit(1))?;
+                b.if_(
+                    second,
+                    |b| {
+                        b.brk(2);
+                        Ok(())
+                    },
+                    |b| {
+                        b.brk(0);
+                        Ok(())
+                    },
+                )?;
+                Ok(())
+            },
+        )?;
+        let inner = b.close();
+        b.push(Stmt::Block(inner));
+        let m = b.let_(Atom::V(mid));
+        let m1 = b.add_in(m, build::lit(1), ct.clone())?;
+        b.set(mid, m1);
+        let mid_block = b.close();
+        b.push(Stmt::Block(mid_block));
+        let o = b.let_(Atom::V(outer));
+        let o1 = b.add_in(o, build::lit(1), ct.clone())?;
+        b.set(outer, o1);
+        Ok(())
+    })
+    .unwrap();
+    // 10 * mid + outer. The first iteration is break 1: mid stays 0, outer
+    // becomes 1. The second is break 2: neither note runs, and the loop exits.
+    let m = b.let_(Atom::V(mid));
+    let scaled = b.mul_in(m, build::lit(10), ct.clone()).unwrap();
+    let o = b.let_(Atom::V(outer));
+    let sum = b.add_in(scaled, o, ct).unwrap();
+    b.ret(sum);
+    assemble(tick, tkey, "mid", b.finish())
+}
+
+#[test]
+fn if_keeps_raw_depth_and_the_loop_decrements_once() {
+    let c = if_keeps_depth_until_the_loop();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let core_v = {
+        let (k, i) = by_arity(&c, 1);
+        core_apply(&c, &k, i, vec![Val::Int(4)])
+    };
+    assert_eq!(core_v.as_ref().unwrap(), &Val::Int(4), "core {core_v:?}");
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+#[test]
+fn mid_break_is_raw_until_the_parent() {
+    let c = mid_break_raw_until_parent();
+    wf::check(&c).unwrap_or_else(|e| panic!("{e}"));
+    let f = bridge::construct(&c).unwrap_or_else(|e| panic!("{}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule: {e}"));
+    // mid stayed 0, outer ran once: 10 * 0 + 1.
+    agree(&c, &f, &s, vec![Val::Int(4)]);
+}
+
+#[test]
+fn return_in_a_loop_is_not_a_continue() {
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let cnt = b.counter();
+    b.loop_(|b| {
+        b.count(cnt, bound)?;
+        b.ret(build::lit(1));
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    let m = module("ret", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let err = bridge::construct(&m).expect_err("return");
+    assert_eq!(err.tag(), "exit", "{}", err.line());
+}
+
+#[test]
+fn the_observation_fuel_frame_is_the_run_parameter() {
+    // `fuel.limit` is the limit of a run, not a field of the module
+    // (rce-form.md §5). The observation driver reads it to start from full
+    // fuel and to print `fuel N`. That frame is the runner. A fresh ω already
+    // holds the limit, and the fuel line is the runner's step count, so
+    // neither is a node. A read of `fuel` outside that frame stays refused:
+    // fuel moves only by `fuel.tick`.
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/12_borrow.rce"),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let core_m = rce_spec_check::one::core_of(&ast).unwrap();
+    let bad: Vec<_> = bridge::refusals(&core_m)
+        .into_iter()
+        .filter(|e| e.reason.contains("g1") || e.tag() == "global")
+        .map(|e| format!("{} {}", e.at, e.reason))
+        .collect();
+    assert!(bad.is_empty(), "{bad:?}");
+    let f = bridge::construct(&core_m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    // The runner's fuel line is not a node, so the scheduled core is not the
+    // original driver. Where that changes a signature, the census counts
+    // round-trip rather than a whole module.
+    bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
 }

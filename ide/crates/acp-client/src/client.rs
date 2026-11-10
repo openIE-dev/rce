@@ -4,7 +4,7 @@ use crate::rpc::{Conn, Incoming, RpcError};
 use crate::snapshot::Snapshot;
 use ide_energy::meter::now_ns;
 use ide_receipt::{
-    ActionKind, Draft, Ledger, Measured, MeterSource, Receipt, Verdict, chain::read_jsonl,
+    ActionKind, Draft, Ledger, MeterSource, Reading, Receipt, Verdict, chain::read_jsonl,
 };
 use ide_sandbox::net::NetProxy;
 use serde::Serialize;
@@ -760,7 +760,7 @@ impl AcpClient {
                 "jetson" => Some(MeterSource::Jetson),
                 _ => None,
             };
-            d.e_meas = tag.map(|source| Measured {
+            d.e_meas = tag.map(|source| Reading {
                 joules: j,
                 source,
             });

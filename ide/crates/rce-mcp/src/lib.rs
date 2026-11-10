@@ -14,7 +14,7 @@ pub mod ws;
 use ide_energy::meter::{Meter, now_ns};
 pub use ide_energy::shared::SharedMeter;
 use ide_energy::sim::{Features, LinearSim, Simulator};
-use ide_receipt::{ActionKind, Draft, Ledger, Measured, MeterSource, Verdict, policy_hash};
+use ide_receipt::{ActionKind, Draft, Ledger, MeterSource, Reading, Verdict, policy_hash};
 use rce_memory::redb_engine::RedbEngine;
 use rce_memory::service::{Memory, RecallQuery, ReceiptCtx, Remember};
 use rce_spec_check::{check_program, cli};
@@ -240,7 +240,7 @@ impl Server {
                 _ => None,
             };
             if let Some(tag) = tag {
-                d.e_meas = Some(Measured {
+                d.e_meas = Some(Reading {
                     joules: j,
                     source: tag,
                 });

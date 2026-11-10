@@ -3,7 +3,7 @@ use crate::catalog::{Catalog, GearTier, Provider};
 use crate::chart::{self, GEARS};
 use crate::http::{self, SystemOne};
 use ide_energy::sim::{Features, Simulator};
-use ide_receipt::{ActionKind, Draft, Measured, MeterSource, Verdict};
+use ide_receipt::{ActionKind, Draft, EnergyBasis, MeterSource, Reading, Verdict};
 use mei_machine::ChartActor;
 use rce_mcp::Server;
 use rce_mcp::items::Edit;
@@ -45,8 +45,8 @@ pub struct ExternalTurn {
     pub mediated: Vec<String>,
     /// Summary for this agent's receipt detail.
     pub detail: Value,
-    /// Joules measured on this machine during the turn, with source.
-    pub e_meas: Option<Measured>,
+    /// Joules read on this machine during the turn (basis per source tag).
+    pub e_meas: Option<Reading>,
 }
 
 /// An optional G4: an outside agent that edits through rce-mcp itself
@@ -59,8 +59,10 @@ pub trait ExternalG4 {
 
 pub struct AgentConfig {
     pub budget_j: f64,
-    /// Joules a gear must have left to be entered (index = gear). A
-    /// configured floor, used only by the budget guard.
+    /// Amount a gear must have left to be entered (index = gear).
+    /// The guard sums `reported_j`, `measured_j` and `est_j`. An `est`
+    /// charge is a model figure, not a joule reading. The comparison
+    /// itself is the same sum as before.
     pub gear_floor_j: [f64; 5],
     pub systemone: Option<SystemOne>,
     pub catalog: Catalog,
@@ -94,9 +96,12 @@ pub enum Status {
 pub struct Outcome {
     pub status: Status,
     pub gears_tried: Vec<usize>,
-    /// Joules charged against the budget (measured where a meter existed,
-    /// else predicted, else a remote prior; see each receipt).
-    pub charged_j: f64,
+    /// Counter readings charged against the budget (D.11 `reported`).
+    pub reported_j: f64,
+    /// Wall or shunt readings charged against the budget (D.11 `measured`).
+    pub measured_j: f64,
+    /// Model, simulation and remote-prior charges. Not a joule reading.
+    pub est_j: f64,
     /// Steps where nothing could be charged (no meter, no calibration, no prior).
     pub uncharged_steps: usize,
     pub receipts: Vec<String>,
@@ -105,7 +110,9 @@ pub struct Outcome {
 pub struct Agent {
     pub server: Server,
     pub cfg: AgentConfig,
-    charged_j: f64,
+    reported_j: f64,
+    measured_j: f64,
+    est_j: f64,
     uncharged: usize,
     receipts: Vec<String>,
 }
@@ -140,21 +147,32 @@ impl Agent {
         Agent {
             server,
             cfg,
-            charged_j: 0.0,
+            reported_j: 0.0,
+            measured_j: 0.0,
+            est_j: 0.0,
             uncharged: 0,
             receipts: vec![],
         }
     }
 
-    fn remaining(&self) -> f64 {
-        self.cfg.budget_j - self.charged_j
+    fn charged_total(&self) -> f64 {
+        self.reported_j + self.measured_j + self.est_j
     }
 
-    /// Charge a step: the measurement if any, else the prediction.
-    fn charge(&mut self, e_sim: Option<f64>, e_meas: Option<Measured>) {
+    fn remaining(&self) -> f64 {
+        self.cfg.budget_j - self.charged_total()
+    }
+
+    /// Charge a step by the figure's basis. A reading wins over a prediction.
+    /// `EstimatedRemote` and a prediction are `est`, not joule readings.
+    fn charge(&mut self, e_sim: Option<f64>, e_meas: Option<Reading>) {
         match (e_meas, e_sim) {
-            (Some(m), _) => self.charged_j += m.joules,
-            (None, Some(s)) => self.charged_j += s,
+            (Some(m), _) => match m.source.basis() {
+                EnergyBasis::Reported => self.reported_j += m.joules,
+                EnergyBasis::Measured => self.measured_j += m.joules,
+                EnergyBasis::Est => self.est_j += m.joules,
+            },
+            (None, Some(s)) => self.est_j += s,
             (None, None) => self.uncharged += 1,
         }
     }
@@ -189,7 +207,7 @@ impl Agent {
         let r = self.server.call(name, &args).map_err(|(_, m)| m)?;
         let sc = r["structuredContent"].clone();
         let rc = &sc["receipt"];
-        let e_meas: Option<Measured> = serde_json::from_value(rc["e_meas"].clone()).ok().flatten();
+        let e_meas: Option<Reading> = serde_json::from_value(rc["e_meas"].clone()).ok().flatten();
         self.charge(rc["e_sim_j"].as_f64(), e_meas);
         if let Some(h) = rc["hash"].as_str() {
             self.receipts.push(h.to_string());
@@ -488,35 +506,35 @@ impl Agent {
             self.server.meter.as_ref().map(|m| m.source()),
         ) {
             // A local server on this machine: the hardware meter saw it.
-            (true, Some(x), Some("rapl")) => Some(Measured {
+            (true, Some(x), Some("rapl")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Rapl,
             }),
-            (true, Some(x), Some("nvml")) => Some(Measured {
+            (true, Some(x), Some("nvml")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Nvml,
             }),
-            (true, Some(x), Some("powermetrics")) => Some(Measured {
+            (true, Some(x), Some("powermetrics")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Powermetrics,
             }),
-            (true, Some(x), Some("ioreport")) => Some(Measured {
+            (true, Some(x), Some("ioreport")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Ioreport,
             }),
-            (true, Some(x), Some("smc")) => Some(Measured {
+            (true, Some(x), Some("smc")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Smc,
             }),
-            (true, Some(x), Some("hwmon")) => Some(Measured {
+            (true, Some(x), Some("hwmon")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Hwmon,
             }),
-            (true, Some(x), Some("power-supply")) => Some(Measured {
+            (true, Some(x), Some("power-supply")) => Some(Reading {
                 joules: x,
                 source: MeterSource::PowerSupply,
             }),
-            (true, Some(x), Some("jetson")) => Some(Measured {
+            (true, Some(x), Some("jetson")) => Some(Reading {
                 joules: x,
                 source: MeterSource::Jetson,
             }),
@@ -524,7 +542,7 @@ impl Agent {
             (false, ..) => p
                 .energy_prior_j_per_token
                 .filter(|_| chat.usage_reported)
-                .map(|j| Measured {
+                .map(|j| Reading {
                     joules: j * (chat.tokens_in + chat.tokens_out) as f64,
                     source: MeterSource::EstimatedRemote,
                 }),
@@ -686,7 +704,9 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
         Outcome {
             status,
             gears_tried,
-            charged_j: self.charged_j,
+            reported_j: self.reported_j,
+            measured_j: self.measured_j,
+            est_j: self.est_j,
             uncharged_steps: self.uncharged,
             receipts: std::mem::take(&mut self.receipts),
         }

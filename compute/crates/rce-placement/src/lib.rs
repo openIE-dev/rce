@@ -5,8 +5,9 @@
 //!
 //! - **Stage 3 (HAL):** `CostTable` + `LinearCoeffs` (the §4.3 cost model) and
 //!   a concrete `Backend` impl (`MatmulBackend`) that wraps a leaf and prices
-//!   it via the table. The `EnergyEstimate.measured` flag — already in
-//!   `vm-core::cost` — is the seam between calibrated and analytical cells.
+//!   it via the table. `EnergyEstimate.basis` (D.11, in `vm-core::cost`)
+//!   is the seam between an analytical cell (`est`) and a cell whose
+//!   basis is the meter's (`reported` or `measured`).
 //!
 //! - **Stage 4 (placement):** `pick_backend` — the cost-model-driven selector
 //!   that replaces the cost-blind first-claim-wins dispatch chain in the VM
@@ -28,7 +29,7 @@ use std::sync::Arc;
 pub use rce_vm_core::backend::{
     Backend, BackendId, BackendKind, Capabilities, DispatchError, GraphSlice,
 };
-pub use rce_vm_core::cost::{Cost, EnergyEstimate};
+pub use rce_vm_core::cost::{Cost, EnergyBasis, EnergyEstimate};
 pub use rce_vm_core::plan::{Plan, PlanError};
 pub use rce_vm_core::tensor::TensorHandle;
 pub use rce_vm_core::value::Value;
@@ -241,24 +242,29 @@ impl LinearCoeffs {
     }
 }
 
-/// Per-(op, backend) cost-model coefficients with the `measured` provenance
-/// flag (§4.5 of the design doc). Missing cells fall back to the analytical
-/// `fallback` prior — the impedance estimator. `lookup` returns both the
-/// coefficients and whether they came from measurement.
+/// Per-(op, backend) cost-model coefficients with a D.11 basis.
+/// Missing cells fall back to the analytical `fallback` prior (`est`).
+/// `lookup` returns the coefficients and that basis.
+///
+/// `observe` keeps the cell's basis until `observed_after` samples have
+/// landed. The cell then takes the weakest basis among those samples, so
+/// the label is the meter's basis and a fallback sample cannot be stored
+/// as `reported` or `measured`.
 #[derive(Debug, Clone)]
 pub struct CostTable {
-    cells: HashMap<(String, BackendId), (LinearCoeffs, bool)>,
-    /// Per-cell count of `observe()` calls. A cell flips to `measured =
-    /// true` once `observations >= measured_after`.
+    cells: HashMap<(String, BackendId), (LinearCoeffs, EnergyBasis)>,
+    /// Per-cell count of `observe()` calls.
     observations: HashMap<(String, BackendId), u32>,
+    /// Weakest D.11 basis among the samples `observe` has kept.
+    sample_basis: HashMap<(String, BackendId), EnergyBasis>,
     fallback: LinearCoeffs,
     /// EWMA gain on the observed-vs-estimated ratio. Default 0.125
-    /// (Jacobson's SRTT gain — same rationale as mesh-core's LinkStats).
+    /// (Jacobson's SRTT gain, the same gain mesh-core's LinkStats uses).
     alpha: f64,
-    /// After this many observations a cell auto-flips to `measured = true`.
-    /// Sample count alone, not a confidence interval — the EWMA itself is
-    /// the noise filter.
-    measured_after: u32,
+    /// After this many observations a cell takes the meter's basis.
+    /// Sample count alone, not a confidence interval. The EWMA is the
+    /// noise filter.
+    observed_after: u32,
 }
 
 impl CostTable {
@@ -266,9 +272,10 @@ impl CostTable {
         Self {
             cells: HashMap::new(),
             observations: HashMap::new(),
+            sample_basis: HashMap::new(),
             fallback,
             alpha: 0.125,
-            measured_after: 20,
+            observed_after: 20,
         }
     }
 
@@ -280,10 +287,15 @@ impl CostTable {
         self
     }
 
-    /// Tune the sample threshold at which a cell auto-flips to measured.
-    pub fn with_measured_after(mut self, n: u32) -> Self {
-        self.measured_after = n;
+    /// Tune the sample count at which a cell takes the meter's basis.
+    pub fn with_observed_after(mut self, n: u32) -> Self {
+        self.observed_after = n;
         self
+    }
+
+    /// Previous name of [`CostTable::with_observed_after`].
+    pub fn with_measured_after(self, n: u32) -> Self {
+        self.with_observed_after(n)
     }
 
     pub fn insert(
@@ -291,19 +303,19 @@ impl CostTable {
         op: impl Into<String>,
         backend: &BackendId,
         coeffs: LinearCoeffs,
-        measured: bool,
+        basis: EnergyBasis,
     ) {
-        self.cells.insert((op.into(), backend.clone()), (coeffs, measured));
+        self.cells.insert((op.into(), backend.clone()), (coeffs, basis));
     }
-    pub fn lookup(&self, op: &str, backend: &BackendId) -> (LinearCoeffs, bool) {
+    pub fn lookup(&self, op: &str, backend: &BackendId) -> (LinearCoeffs, EnergyBasis) {
         match self.cells.get(&(op.to_string(), backend.clone())) {
-            Some((c, m)) => (*c, *m),
-            None => (self.fallback, false),
+            Some((c, b)) => (*c, *b),
+            None => (self.fallback, EnergyBasis::Est),
         }
     }
     pub fn estimate(&self, op: &str, backend: &BackendId, flops: u64, bytes: u64) -> EnergyEstimate {
-        let (c, measured) = self.lookup(op, backend);
-        EnergyEstimate { picojoules: c.estimate_pj(flops, bytes), measured }
+        let (c, basis) = self.lookup(op, backend);
+        EnergyEstimate { picojoules: c.estimate_pj(flops, bytes), basis }
     }
 
     /// **The self-calibration loop**: an actual dispatch ran on (op,
@@ -316,11 +328,12 @@ impl CostTable {
     /// This is the in-product equivalent of running `rce-energy-xover`
     /// against a quiesced host, but tolerant of noise the way Jacobson's
     /// SRTT estimator is — the EWMA absorbs single-sample outliers, and
-    /// only enough consistent observations flip the cell to measured.
+    /// enough samples for the cell to take `meter_basis` (the weakest
+    /// basis if the samples disagree).
     ///
     /// Non-finite / non-positive observations are silently ignored
-    /// (boundary safety — observe() may be called from a hot loop and
-    /// must not panic).
+    /// (boundary safety: observe() may be called from a hot loop and
+    /// must not panic). A non-positive sample is not stored as 0.
     pub fn observe(
         &mut self,
         op: &str,
@@ -328,11 +341,12 @@ impl CostTable {
         flops: u64,
         bytes: u64,
         observed_pj: f64,
+        meter_basis: EnergyBasis,
     ) {
         if !observed_pj.is_finite() || observed_pj <= 0.0 { return; }
         let key = (op.to_string(), backend.clone());
-        let (coeffs, _measured) = self.cells.get(&key).copied()
-            .unwrap_or((self.fallback, false));
+        let (coeffs, prior) = self.cells.get(&key).copied()
+            .unwrap_or((self.fallback, EnergyBasis::Est));
         let estimated = coeffs.estimate_pj(flops, bytes);
         if !estimated.is_finite() || estimated <= 0.0 { return; }
 
@@ -340,7 +354,7 @@ impl CostTable {
         // Scale a/b/c uniformly: pj = a·flops + b·bytes + c, so
         // multiplying all coefficients by k multiplies the estimate by k.
         // We move the multiplicative factor by α toward the observed
-        // ratio — convergent for any consistent observed_pj sequence.
+        // ratio. The scale converges for a consistent observed_pj sequence.
         let scale = 1.0 + self.alpha * (ratio - 1.0);
         let new_coeffs = LinearCoeffs {
             a_pj_per_flop: coeffs.a_pj_per_flop * scale,
@@ -349,8 +363,12 @@ impl CostTable {
         };
         let count = self.observations.entry(key.clone()).or_insert(0);
         *count = count.saturating_add(1);
-        let measured = *count >= self.measured_after;
-        self.cells.insert(key, (new_coeffs, measured));
+        let weakest = self.sample_basis.get(&key).copied()
+            .map(|b| b.weaker(meter_basis))
+            .unwrap_or(meter_basis);
+        self.sample_basis.insert(key.clone(), weakest);
+        let basis = if *count >= self.observed_after { weakest } else { prior };
+        self.cells.insert(key, (new_coeffs, basis));
     }
 
     /// Observation count for `(op, backend)` — what the cell has seen.
@@ -367,7 +385,7 @@ impl CostTable {
     /// a_pj_per_flop = 5.06
     /// b_pj_per_byte = 0.0
     /// c_pj_overhead = 1024.7
-    /// measured = true
+    /// basis = "reported"
     /// ```
     ///
     /// Hand-rolled parser scoped to this exact dialect (one-line key=value,
@@ -407,12 +425,20 @@ fn flush_cell(table: &mut CostTable, cur: HashMap<String, String>) -> Result<(),
     let a = parse_f64(&cur, "a_pj_per_flop")?;
     let b = parse_f64(&cur, "b_pj_per_byte")?;
     let c = parse_f64(&cur, "c_pj_overhead")?;
-    let measured = cur.get("measured").map(|s| s.trim() == "true").unwrap_or(false);
+    let basis = if let Some(raw) = cur.get("basis") {
+        EnergyBasis::parse(raw).ok_or_else(|| format!("basis `{raw}` is not est, reported or measured"))?
+    } else if let Some(raw) = cur.get("measured") {
+        // Files written before `basis` stored a bool. `true` named a counter
+        // or an observation, which D.11 calls `reported`.
+        EnergyBasis::from_legacy_flag(raw.trim() == "true")
+    } else {
+        EnergyBasis::Est
+    };
     table.insert(
         op,
         &BackendId::new(backend),
         LinearCoeffs { a_pj_per_flop: a, b_pj_per_byte: b, c_pj_overhead: c },
-        measured,
+        basis,
     );
     Ok(())
 }
@@ -583,7 +609,7 @@ impl Backend for OpBackend {
                 let (flops, bytes) = shape_to_flops_bytes(&op, &shapes, self.dtype_bytes)?;
                 Some(self.table.estimate(&op, &plan.backend, flops, bytes))
             })
-            .unwrap_or(EnergyEstimate { picojoules: f64::INFINITY, measured: false });
+            .unwrap_or(EnergyEstimate { picojoules: f64::INFINITY, basis: EnergyBasis::Est });
         Cost { energy: pj, time_ns: 0, peak_bytes: 0 }
     }
 }
@@ -729,8 +755,8 @@ mod tests {
         LinearCoeffs { a_pj_per_flop: 0.29, b_pj_per_byte: 0.0, c_pj_overhead: 5_000_000_000.0 }
     }
     /// Silicon Tier-A unit (silicon-spec target): two orders of magnitude
-    /// cheaper per FLOP than the GPU; tiny overhead. Source: estimated, not
-    /// measured (no tape-out yet) — so cells will be `measured: false`.
+    /// cheaper per FLOP than the GPU; tiny overhead. Design target (modelled),
+    /// not a reading, so the cell basis is `est`.
     fn silicon_coeffs() -> LinearCoeffs {
         LinearCoeffs { a_pj_per_flop: 0.05, b_pj_per_byte: 0.0, c_pj_overhead: 100_000.0 }
     }
@@ -739,9 +765,9 @@ mod tests {
         let mut t = CostTable::new(LinearCoeffs {
             a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0,
         });
-        t.insert("matmul", &BackendId::new("cpu:op-blas"), cpu_coeffs(), true);
-        t.insert("matmul", &BackendId::new("gpu:op-mps"), gpu_coeffs(), true);
-        t.insert("matmul", &BackendId::new("silicon:tier-a:MatMul"), silicon_coeffs(), false);
+        t.insert("matmul", &BackendId::new("cpu:op-blas"), cpu_coeffs(), EnergyBasis::Reported);
+        t.insert("matmul", &BackendId::new("gpu:op-mps"), gpu_coeffs(), EnergyBasis::Reported);
+        t.insert("matmul", &BackendId::new("silicon:tier-a:MatMul"), silicon_coeffs(), EnergyBasis::Est);
         Arc::new(t)
     }
 
@@ -780,7 +806,7 @@ mod tests {
         assert!(gpu_est.picojoules < cpu_pj * 0.5,
             "GPU should be <50% of CPU at 2048: GPU={:.2e} pJ, CPU={:.2e} pJ",
             gpu_est.picojoules, cpu_pj);
-        assert!(gpu_est.measured, "GPU coefficients came from measurement");
+        assert_eq!(gpu_est.basis, EnergyBasis::Reported, "GPU coefficients are a counter basis, not a wall meter");
     }
 
     #[test]
@@ -794,7 +820,7 @@ mod tests {
             let (id, est) = pick_backend(&slice, &backends).unwrap();
             assert_eq!(id.0, "silicon:tier-a:MatMul",
                 "silicon should win at n={n}");
-            assert!(!est.measured, "silicon coefficients are estimated, not measured");
+            assert_eq!(est.basis, EnergyBasis::Est, "silicon coefficients are a design target (est)");
         }
     }
 
@@ -847,12 +873,12 @@ mod tests {
 
     #[test]
     fn fallback_prior_used_for_unknown_op_or_backend() {
-        // A CostTable miss falls back to the analytical prior with measured=false.
+        // A CostTable miss falls back to the analytical prior, basis `est`.
         let t = make_table();
         let est = t.estimate("conv2d", &BackendId::new("unknown"), 1_000_000, 16_384);
         // Fallback coeffs above: a=1.0 pJ/FLOP, b=0, c=0 ⇒ 1_000_000 pJ.
         assert_eq!(est.picojoules, 1_000_000.0);
-        assert!(!est.measured);
+        assert_eq!(est.basis, EnergyBasis::Est);
     }
 
     // ── TOML round-trip ───────────────────────────────────────────────
@@ -869,7 +895,7 @@ backend = "cpu:op-blas"
 a_pj_per_flop = 5.060000
 b_pj_per_byte = 0.000000
 c_pj_overhead = 1024.700
-measured = true
+basis = "reported"
 
 [[cells]]
 op = "matmul"
@@ -877,26 +903,34 @@ backend = "gpu:op-mps"
 a_pj_per_flop = 0.290000
 b_pj_per_byte = 0.000000
 c_pj_overhead = 5000000000.000
-measured = true
+basis = "reported"
 # ----- end cost_table.toml -----
 "#;
         let fb = LinearCoeffs { a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 };
         let t = CostTable::from_toml(s, fb).expect("parse");
 
-        let (cpu, m_cpu) = t.lookup("matmul", &BackendId::new("cpu:op-blas"));
+        let (cpu, b_cpu) = t.lookup("matmul", &BackendId::new("cpu:op-blas"));
         assert!((cpu.a_pj_per_flop - 5.06).abs() < 1e-9);
         assert!((cpu.c_pj_overhead - 1024.7).abs() < 1e-3);
-        assert!(m_cpu);
+        assert_eq!(b_cpu, EnergyBasis::Reported);
 
-        let (gpu, m_gpu) = t.lookup("matmul", &BackendId::new("gpu:op-mps"));
+        let (gpu, b_gpu) = t.lookup("matmul", &BackendId::new("gpu:op-mps"));
         assert!((gpu.a_pj_per_flop - 0.29).abs() < 1e-9);
         assert!((gpu.c_pj_overhead - 5_000_000_000.0).abs() < 1e-3);
-        assert!(m_gpu);
+        assert_eq!(b_gpu, EnergyBasis::Reported);
 
         // Unknown cells fall back.
-        let (fb_c, fb_m) = t.lookup("conv2d", &BackendId::new("nowhere"));
+        let (fb_c, fb_b) = t.lookup("conv2d", &BackendId::new("nowhere"));
         assert_eq!(fb_c, fb);
-        assert!(!fb_m);
+        assert_eq!(fb_b, EnergyBasis::Est);
+
+        // A file from before `basis` stored `measured = true` for a counter.
+        let legacy = "[[cells]]\nop = \"matmul\"\nbackend = \"cpu:op-blas\"\na_pj_per_flop = 1.0\nb_pj_per_byte = 0.0\nc_pj_overhead = 0.0\nmeasured = true\n";
+        let old = CostTable::from_toml(legacy, fb).expect("legacy");
+        assert_eq!(old.lookup("matmul", &BackendId::new("cpu:op-blas")).1, EnergyBasis::Reported);
+        let legacy_est = legacy.replace("measured = true", "measured = false");
+        let old_est = CostTable::from_toml(&legacy_est, fb).expect("legacy est");
+        assert_eq!(old_est.lookup("matmul", &BackendId::new("cpu:op-blas")).1, EnergyBasis::Est);
     }
 
     #[test]
@@ -962,10 +996,10 @@ measured = true
         let mut t = CostTable::new(LinearCoeffs {
             a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0,
         });
-        t.insert("matmul", &BackendId::new("cpu:op-blas"), cpu_coeffs(), true);
-        t.insert("matmul", &BackendId::new("gpu:op-mps"), gpu_coeffs(), true);
-        t.insert("silu", &BackendId::new("cpu:op-nn-prims"), silu_coeffs_cpu(), true);
-        t.insert("silu", &BackendId::new("gpu:op-metal"), silu_coeffs_gpu(), true);
+        t.insert("matmul", &BackendId::new("cpu:op-blas"), cpu_coeffs(), EnergyBasis::Reported);
+        t.insert("matmul", &BackendId::new("gpu:op-mps"), gpu_coeffs(), EnergyBasis::Reported);
+        t.insert("silu", &BackendId::new("cpu:op-nn-prims"), silu_coeffs_cpu(), EnergyBasis::Reported);
+        t.insert("silu", &BackendId::new("gpu:op-metal"), silu_coeffs_gpu(), EnergyBasis::Reported);
         Arc::new(t)
     }
 
@@ -1051,7 +1085,7 @@ measured = true
         // an unambiguous direction to drift toward.
         t.insert("matmul", &BackendId::new("cpu:test"),
             LinearCoeffs { a_pj_per_flop: 10.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 },
-            false);
+            EnergyBasis::Est);
         Arc::new(t)
     }
 
@@ -1062,13 +1096,13 @@ measured = true
         // estimated = 10 * 1000 = 10_000 pj. Observe exactly 10_000 ⇒
         // ratio = 1, scale = 1, no drift.
         for _ in 0..5 {
-            t.observe("matmul", &be, 1000, 0, 10_000.0);
+            t.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Reported);
         }
-        let (c, measured) = t.lookup("matmul", &be);
+        let (c, basis) = t.lookup("matmul", &be);
         assert!((c.a_pj_per_flop - 10.0).abs() < 1e-9,
             "ratio=1 observation must leave coefficients unchanged; got a={}",
             c.a_pj_per_flop);
-        assert!(!measured, "5 observations is below the default threshold (20)");
+        assert_eq!(basis, EnergyBasis::Est, "5 observations is below the default threshold (20), so the prior basis stands");
         assert_eq!(t.observations_for("matmul", &be), 5);
     }
 
@@ -1082,7 +1116,7 @@ measured = true
         for _ in 0..5 {
             // Re-estimate before each observe so the math is dynamic
             // (mirrors what a live dispatch path does).
-            t.observe("matmul", &be, 1000, 0, 20_000.0);
+            t.observe("matmul", &be, 1000, 0, 20_000.0, EnergyBasis::Reported);
         }
         let (c_after, _) = t.lookup("matmul", &be);
         // After 5 EWMA steps at α=0.125, coefficient should be
@@ -1094,24 +1128,46 @@ measured = true
     }
 
     #[test]
-    fn observe_flips_measured_after_threshold() {
+    fn observe_inherits_meter_basis_after_threshold() {
         let mut t = CostTable::new(LinearCoeffs {
             a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0,
-        }).with_measured_after(5);
+        }).with_observed_after(5);
         let be = BackendId::new("cpu:test");
         t.insert("matmul", &be,
             LinearCoeffs { a_pj_per_flop: 10.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 },
-            false);
+            EnergyBasis::Est);
 
-        // 4 observations: still analytical (measured=false).
-        for _ in 0..4 { t.observe("matmul", &be, 1000, 0, 10_000.0); }
-        let (_, m) = t.lookup("matmul", &be);
-        assert!(!m, "4 obs below threshold 5 should stay analytical");
+        // 4 observations: the prior basis still stands.
+        for _ in 0..4 { t.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Reported); }
+        let (_, b) = t.lookup("matmul", &be);
+        assert_eq!(b, EnergyBasis::Est, "4 obs below threshold 5 keeps the prior basis");
 
-        // 5th observation flips it.
-        t.observe("matmul", &be, 1000, 0, 10_000.0);
-        let (_, m2) = t.lookup("matmul", &be);
-        assert!(m2, "5th obs crosses the measured threshold");
+        // 5th observation takes the meter's basis.
+        t.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Reported);
+        let (_, b2) = t.lookup("matmul", &be);
+        assert_eq!(b2, EnergyBasis::Reported, "a counter meter's samples are reported, not measured");
+
+        // A fallback meter cannot be labelled reported or measured.
+        let mut est = CostTable::new(LinearCoeffs {
+            a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0,
+        }).with_observed_after(2);
+        est.insert("matmul", &be,
+            LinearCoeffs { a_pj_per_flop: 10.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 },
+            EnergyBasis::Est);
+        est.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Est);
+        est.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Est);
+        assert_eq!(est.lookup("matmul", &be).1, EnergyBasis::Est);
+
+        // A mix takes the weaker basis.
+        let mut mix = CostTable::new(LinearCoeffs {
+            a_pj_per_flop: 1.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0,
+        }).with_observed_after(2);
+        mix.insert("matmul", &be,
+            LinearCoeffs { a_pj_per_flop: 10.0, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 },
+            EnergyBasis::Est);
+        mix.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Reported);
+        mix.observe("matmul", &be, 1000, 0, 10_000.0, EnergyBasis::Est);
+        assert_eq!(mix.lookup("matmul", &be).1, EnergyBasis::Est, "one est sample keeps the cell at est");
     }
 
     #[test]
@@ -1121,11 +1177,11 @@ measured = true
         let mut t = (*priors()).clone();
         let be = BackendId::new("cpu:test");
         let before = t.lookup("matmul", &be).0.a_pj_per_flop;
-        t.observe("matmul", &be, 1000, 0, f64::NAN);
-        t.observe("matmul", &be, 1000, 0, f64::INFINITY);
-        t.observe("matmul", &be, 1000, 0, -1.0);
-        t.observe("matmul", &be, 1000, 0, 0.0);
-        t.observe("matmul", &be, 0, 0, 100.0); // zero estimate ⇒ ignored
+        t.observe("matmul", &be, 1000, 0, f64::NAN, EnergyBasis::Reported);
+        t.observe("matmul", &be, 1000, 0, f64::INFINITY, EnergyBasis::Reported);
+        t.observe("matmul", &be, 1000, 0, -1.0, EnergyBasis::Reported);
+        t.observe("matmul", &be, 1000, 0, 0.0, EnergyBasis::Reported);
+        t.observe("matmul", &be, 0, 0, 100.0, EnergyBasis::Reported); // zero estimate is ignored
         let after = t.lookup("matmul", &be).0.a_pj_per_flop;
         assert_eq!(before, after, "bad observations must not perturb the cell");
         assert_eq!(t.observations_for("matmul", &be), 0,
@@ -1208,11 +1264,11 @@ measured = true
         let mut t = (*priors()).clone();
         let be = BackendId::new("cpu:test");
         for _ in 0..200 {
-            t.observe("matmul", &be, 1000, 0, 50_000.0); // implies a = 50
+            t.observe("matmul", &be, 1000, 0, 50_000.0, EnergyBasis::Reported); // implies a = 50
         }
-        let (c, m) = t.lookup("matmul", &be);
+        let (c, b) = t.lookup("matmul", &be);
         assert!((c.a_pj_per_flop - 50.0).abs() < 0.5,
             "after 200 observations a should converge to ~50; got {}", c.a_pj_per_flop);
-        assert!(m, "200 observations ≫ threshold ⇒ measured");
+        assert_eq!(b, EnergyBasis::Reported, "200 counter samples take the meter's basis");
     }
 }

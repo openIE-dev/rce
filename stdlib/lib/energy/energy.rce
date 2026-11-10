@@ -18,6 +18,10 @@ use crypto
 error BadReceipt(why: text)
 error BadDid(at: i64)
 
+# D.11 basis of the string the caller passes:
+# HwShunt is `measured` (a wall or shunt meter).
+# ModelBased is `reported` when the caller names an on-chip or OS counter, and `est` when the caller names a model.
+# Estimator is `est`.
 pub const PROV_HW: text = "HwShunt"
 pub const PROV_MODEL: text = "ModelBased"
 pub const PROV_EST: text = "Estimator"

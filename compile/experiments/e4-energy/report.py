@@ -50,6 +50,8 @@ def energy_text(e):
     out.append("| Provenance | Value |")
     out.append("|---|---|")
     out.append("| Sampler | %s |" % esc(e["sampler"]))
+    if "macmon macmon" in str(e.get("sampler", "")):
+        out.append("| Sampler note | labelling defect of commit 057b6739: the string repeats the name; the sampler is macmon and the version is 0.10.0 |")
     out.append("| Counter | %s |" % esc(e["counter"]))
     out.append("| Interval | %s |" % esc(e["interval"]))
     out.append("| Boundary | %s |" % esc(e["boundary"]))

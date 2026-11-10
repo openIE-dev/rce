@@ -113,7 +113,7 @@ CH17-M-67022294, HC-21, HC-38 form).
   delta is never negative), entries `[first, last]` before the entry's seq. On
   a host with no readable counter the run says why and records nothing, so the
   test asserts no joule value. A run on the M5 Max (2026-11-04) recorded 0.0345 J
-  over 0.0176 s with the counter text "IOReport package = cpu + gpu + ane",
+  over 0.0176 s (reported IOReport reading; the reading file is not kept in this repository) with the counter text "IOReport package = cpu + gpu + ane",
   each part in nJ. The payload holds only the package sum, so the conservation
   check cpu + gpu + ane = package can be made only inside `rce-energy`, not
   from D; a value check of that sum needs hardware.
