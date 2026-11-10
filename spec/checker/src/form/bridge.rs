@@ -5939,12 +5939,10 @@ fn capture_is_index(body: &Body, j: u32) -> bool {
         if index_operand(&nd.attrs).is_some_and(|p| nd.ins.get(p) == Some(&src)) {
             return true;
         }
-        let forward = if matches!(nd.attrs, Attr::Branch(_, _)) {
-            nd.ins.iter().skip(1)
-        } else {
-            nd.ins.iter().skip(0)
-        };
-        forward.enumerate().any(|(k, s)| {
+        // A branch's first input is the selector. Every other node's inputs
+        // are the region's inputs, in order.
+        let start = usize::from(matches!(nd.attrs, Attr::Branch(_, _)));
+        nd.ins[start..].iter().enumerate().any(|(k, s)| {
             *s == src && nd.regions.iter().any(|r| capture_is_index(r, k as u32))
         })
     })

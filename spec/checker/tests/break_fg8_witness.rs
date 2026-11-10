@@ -192,7 +192,18 @@ fn load_example(file: &str) -> CoreModule {
 
 #[test]
 fn corpus_baseline_on_50294e05() {
-    // Contract section 1. The numbers are the ones this commit produces.
+    // The name records the commit the contract first measured (section 1).
+    // #161 re-pinned the rows to 410bfd40. That pin stays in section 9 of
+    // `spec/proposals/break-fg8-impl-contract.md`. The collector below is
+    // the one that pin used. The expected lists are this branch, printed
+    // by the collector and copied into the asserts.
+    //
+    // `whole` is the census definition in form_bridge_census.txt: the core
+    // constructs, the schedule constructs, and the bytes are equal.
+    // whole-entry-only is that set restricted to a core with no program
+    // root (`fn`, `region`, `delta`, `initial state`). whole-with-user is
+    // the rest. A program root's first refusal is the file's root tag, as
+    // in examples_are_covered_or_require_change.
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
@@ -201,12 +212,15 @@ fn corpus_baseline_on_50294e05() {
         .collect();
     files.sort();
     let mut programs = 0usize;
-    let mut whole = 0usize;
-    let mut covered = 0usize;
-    let mut semantic = 0usize;
-    let mut defect = 0usize;
+    let mut covered = Vec::new();
+    let mut semantic = Vec::new();
     let mut root_tags: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut module_tags: BTreeMap<String, usize> = BTreeMap::new();
+    let mut construct_tag: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut lowering: BTreeMap<String, String> = BTreeMap::new();
+    let mut whole = Vec::new();
+    let mut entry_only = Vec::new();
+    let mut with_user = Vec::new();
+    let mut construct_ok = Vec::new();
     for p in &files {
         let src = std::fs::read_to_string(p).unwrap();
         if rce_spec_check::program(&src).is_err() {
@@ -218,18 +232,49 @@ fn corpus_baseline_on_50294e05() {
         let core_m = match rce_spec_check::one::core_of(&ast) {
             Ok(c) => c,
             Err(e) => {
-                root_tags
-                    .entry(format!("lowering: {e}"))
-                    .or_default()
-                    .push(file);
+                lowering.insert(file, e);
                 continue;
             }
         };
-        match bridge::construct(&core_m) {
-            Ok(_) => whole += 1,
-            Err(e) => *module_tags.entry(e.tag().to_string()).or_default() += 1,
-        }
         let roots = root_names(&core_m);
+        let entry = roots.is_empty();
+        match bridge::construct(&core_m) {
+            Err(e) => construct_tag
+                .entry(e.tag().to_string())
+                .or_default()
+                .push(file.clone()),
+            Ok(f) => {
+                construct_ok.push(file.clone());
+                match bridge::schedule(&f) {
+                    Err(e) => {
+                        construct_tag
+                            .entry(format!("schedule {}", e.tag()))
+                            .or_default()
+                            .push(file.clone());
+                    }
+                    Ok(s) => match bridge::construct(&s) {
+                        Err(e) => {
+                            construct_tag
+                                .entry(format!("schedule {}", e.tag()))
+                                .or_default()
+                                .push(file.clone());
+                        }
+                        Ok(back) if fir::encode(&f) == fir::encode(&back) => {
+                            whole.push(file.clone());
+                            if entry {
+                                entry_only.push(file.clone());
+                            } else {
+                                with_user.push(file.clone());
+                            }
+                        }
+                        Ok(_) => construct_tag
+                            .entry("round-trip".into())
+                            .or_default()
+                            .push(file.clone()),
+                    },
+                }
+            }
+        }
         if roots.is_empty() {
             root_tags
                 .entry("no program root".into())
@@ -250,112 +295,329 @@ fn corpus_baseline_on_50294e05() {
             }
         }
         match bad {
-            None if !rewrote => {
-                covered += 1;
-            }
-            None => {
-                semantic += 1;
-            }
-            Some(tag) => {
-                if tag == "defect" {
-                    defect += 1;
-                }
-                root_tags.entry(tag).or_default().push(file);
-            }
+            None if !rewrote => covered.push(file),
+            None => semantic.push(file),
+            Some(tag) => root_tags.entry(tag).or_default().push(file),
         }
     }
-    let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
-    let live = format!(
-        "programs {programs} whole {whole} covered {covered} semantic {semantic} defect {defect}\nbreak {:?}\nFG8 {:?}\ncatch {:?}\nglobal {:?}\nloop {:?}\nround {:?}\nno-root {}\nmodules {module_tags:?}\nroot-keys {:?}",
-        names("break"),
-        names("FG8"),
-        names("catch"),
-        names("global"),
-        names("loop"),
-        names("round-trip"),
-        names("no program root").len(),
-        root_tags.keys().collect::<Vec<_>>()
-    );
-    assert_eq!(programs, 60, "spec/examples gained or lost a program\n{live}");
-    // `whole` here is `construct` of the lowered module, not the census
-    // byte-equality count. Nineteen modules construct. Two of them also
-    // schedule back to the same bytes (the census whole).
-    assert_eq!(whole, 19, "the number of modules that construct changed\n{live}");
-    assert_eq!(covered, 5, "the syntactic floor moved");
+    assert_eq!(programs, 60, "spec/examples gained or lost a program");
     assert_eq!(
-        semantic, 14,
-        "an example was admitted only as a body-break rewrite\n{live}"
+        whole,
+        [
+        "08_traits.rce",
+        "09_generics.rce",
+        "11_arena.rce",
+        "18_while_bound.rce",
+        "24_lambda.rce",
+        "27_bitops.rce",
+        "28_slices.rce",
+        "35_nested_if.rce",
+    ],
+        "census whole",
     );
-    assert_eq!(defect, 13, "a program function's first tag is defect\n{live}");
-    // Recorded on 50294e05. This binary's bridge is the merge of 924f88e4,
-    // so these lists are not the live rows. They stay the measurement of
-    // that parent and are not rewritten to match a later main.
-    let break_50294e05 = [
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "54_secret.rce",
-        "57_float_vectors.rce",
-        "60_dim_hidden_period.rce",
-    ];
-    let catch_50294e05 = 10usize;
-    let loop_50294e05 = ["50_iterators.rce"];
-    let module_catch_50294e05 = 11usize;
-    let module_global_50294e05 = 35usize;
-    let module_out_50294e05 = 8usize;
-    assert_eq!(break_50294e05, [
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "54_secret.rce",
-        "57_float_vectors.rce",
-        "60_dim_hidden_period.rce",
-    ]);
-    assert_eq!(catch_50294e05, 10);
-    assert_eq!(loop_50294e05, ["50_iterators.rce"]);
-    assert_eq!(module_catch_50294e05, 11);
-    assert_eq!(module_global_50294e05, 35);
-    assert_eq!(module_out_50294e05, 8);
-    assert_ne!(break_50294e05.len(), names("break").len());
-    // Live rows after merging main at 410bfd40 into the block-break branch.
-    // A block break of at most 200 statements is built, so the old break
-    // list is not the first tag. `21_maps` does not lower. The byte
-    // mismatches are the first tag of these roots.
-    assert_eq!(names("break"), ["23_patterns.rce", "44_device_region.rce"]);
-    assert_eq!(names("FG8"), ["54_secret.rce", "58_float_keys.rce"], "{live}");
-    assert!(
-        names("catch").is_empty(),
-        "a root's first tag is catch: {:?}",
-        names("catch")
+    assert_eq!(
+        entry_only,
+        [
+        "09_generics.rce",
+    ],
+        "whole-entry-only",
     );
-    assert_eq!(names("global"), ["32_comptime_block.rce"]);
-    assert_eq!(names("loop"), [
+    assert_eq!(
+        with_user,
+        [
+        "08_traits.rce",
+        "11_arena.rce",
+        "18_while_bound.rce",
+        "24_lambda.rce",
+        "27_bitops.rce",
+        "28_slices.rce",
+        "35_nested_if.rce",
+    ],
+        "whole-with-user",
+    );
+    assert_eq!(
+        construct_ok,
+        [
+        "03_fib_loop.rce",
+        "05_kind_match.rce",
+        "08_traits.rce",
+        "09_generics.rce",
+        "11_arena.rce",
+        "12_borrow.rce",
+        "18_while_bound.rce",
+        "22_tuples.rce",
+        "24_lambda.rce",
+        "25_labels.rce",
+        "27_bitops.rce",
+        "28_slices.rce",
+        "35_nested_if.rce",
+        "36_multiline_brackets.rce",
+        "40_extern.rce",
+        "41_arena_bound_wrapping.rce",
+        "43_simd_lanes.rce",
+        "48_linear_handle.rce",
+        "49_loop_limit.rce",
+    ],
+        "construct alone, before the schedule; not census whole",
+    );
+    assert_eq!(
+        covered,
+        [
+        "12_borrow.rce",
+        "35_nested_if.rce",
+        "40_extern.rce",
+        "42_f32.rce",
+        "48_linear_handle.rce",
+    ],
+        "the syntactic floor moved",
+    );
+    assert_eq!(
+        semantic,
+        [
+        "03_fib_loop.rce",
+        "08_traits.rce",
+        "11_arena.rce",
+        "18_while_bound.rce",
+        "24_lambda.rce",
+        "25_labels.rce",
+        "27_bitops.rce",
+        "28_slices.rce",
+        "36_multiline_brackets.rce",
+        "41_arena_bound_wrapping.rce",
+        "43_simd_lanes.rce",
+        "45_byte_text.rce",
+        "46_u64.rce",
+        "49_loop_limit.rce",
+    ],
+        "an example was admitted only as a body-break rewrite",
+    );
+    let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
+    assert_eq!(
+        names("FG1"),
+        [
+        "56_utf8.rce",
+    ],
+    );
+    assert_eq!(
+        names("FG8"),
+        [
+        "54_secret.rce",
+        "58_float_keys.rce",
+    ],
+    );
+    assert_eq!(
+        names("break"),
+        [
+        "23_patterns.rce",
+        "44_device_region.rce",
+    ],
+    );
+    assert_eq!(
+        names("defect"),
+        [
+        "01_counter.rce",
+        "04_bank_account.rce",
+        "06_option.rce",
+        "07_error_union.rce",
+        "17_traffic_light.rce",
+        "20_strings.rce",
+        "22_tuples.rce",
+        "30_state_machine_guarded.rce",
+        "33_in_operator.rce",
+        "53_capability.rce",
+        "59_dim_redundant_field.rce",
+        "60_dim_hidden_period.rce",
+        "61_dim_minimal.rce",
+    ],
+    );
+    assert_eq!(
+        names("exit"),
+        [
+        "02_hello_main.rce",
+        "31_inventory.rce",
+        "52_context_text.rce",
+    ],
+    );
+    assert_eq!(
+        names("global"),
+        [
+        "32_comptime_block.rce",
+    ],
+    );
+    assert_eq!(
+        names("loop"),
+        [
         "16_multi_region.rce",
         "50_iterators.rce",
         "55_rcedb.rce",
-    ]);
-    assert_eq!(names("round-trip"), [
+    ],
+    );
+    assert_eq!(
+        names("round-trip"),
+        [
         "10_comptime.rce",
         "19_floats.rce",
-    ]);
-    assert_eq!(names("no program root").len(), 2);
-    let lowering: usize = root_tags
-        .iter()
-        .filter(|(k, _)| k.starts_with("lowering:"))
-        .map(|(_, v)| v.len())
-        .sum();
-    assert_eq!(lowering, 9, "{live}");
-    assert_eq!(module_tags.get("break").copied().unwrap_or(0), 16);
-    assert_eq!(module_tags.get("catch").copied().unwrap_or(0), 3, "{live}");
-    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 5);
-    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 0);
-    assert_eq!(module_tags.get("defect").copied().unwrap_or(0), 4, "{live}");
-    assert_eq!(module_tags.get("exit").copied().unwrap_or(0), 3, "{live}");
-    assert_eq!(module_tags.get("loop").copied().unwrap_or(0), 1, "{live}");
+    ],
+    );
+    assert_eq!(
+        names("selector"),
+        [
+        "05_kind_match.rce",
+        "51_refined_input.rce",
+        "57_float_vectors.rce",
+    ],
+    );
+    assert!(names("catch").is_empty(), "a program root's first tag is catch: {:?}", names("catch"));
+    assert_eq!(
+        names("no program root"),
+        [
+        "09_generics.rce",
+        "38_hex_bin.rce",
+    ],
+    );
+    assert_eq!(
+        lowering,
+        BTreeMap::from([
+            ("13_spawn_chan.rce".into(), "not covered by the lowering: the type chan i64".into()),
+            ("14_select.rce".into(), "not covered by the lowering: the type chan text".into()),
+            ("15_actor.rce".into(), "not covered by the lowering: the type chan i64".into()),
+            ("21_maps.rce".into(), "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])".into()),
+            ("29_nested_kind.rce".into(), "not covered by the lowering: a recursive type".into()),
+            ("34_chan_types.rce".into(), "not covered by the lowering: the type chan (u64, text)".into()),
+            ("37_actor_spawn.rce".into(), "not covered by the lowering: the type chan u64".into()),
+            ("39_structural_recursion.rce".into(), "not covered by the lowering: a recursive type".into()),
+            ("47_select_fair.rce".into(), "not covered by the lowering: the type chan u64".into()),
+        ])
+    );
+    let tagged = |tag: &str| construct_tag.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
+    assert_eq!(
+        tagged("break"),
+        [
+        "01_counter.rce",
+        "04_bank_account.rce",
+        "17_traffic_light.rce",
+        "19_floats.rce",
+        "23_patterns.rce",
+        "30_state_machine_guarded.rce",
+        "38_hex_bin.rce",
+        "42_f32.rce",
+        "44_device_region.rce",
+        "51_refined_input.rce",
+        "53_capability.rce",
+        "54_secret.rce",
+        "57_float_vectors.rce",
+        "59_dim_redundant_field.rce",
+        "60_dim_hidden_period.rce",
+        "61_dim_minimal.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("catch"),
+        [
+        "16_multi_region.rce",
+        "56_utf8.rce",
+        "58_float_keys.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("defect"),
+        [
+        "06_option.rce",
+        "07_error_union.rce",
+        "20_strings.rce",
+        "33_in_operator.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("exit"),
+        [
+        "02_hello_main.rce",
+        "31_inventory.rce",
+        "52_context_text.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("global"),
+        [
+        "10_comptime.rce",
+        "32_comptime_block.rce",
+        "45_byte_text.rce",
+        "46_u64.rce",
+        "50_iterators.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("loop"),
+        [
+        "55_rcedb.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("round-trip"),
+        [
+        "03_fib_loop.rce",
+        "12_borrow.rce",
+        "25_labels.rce",
+        "36_multiline_brackets.rce",
+        "40_extern.rce",
+        "41_arena_bound_wrapping.rce",
+        "43_simd_lanes.rce",
+        "48_linear_handle.rce",
+        "49_loop_limit.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("schedule defect"),
+        [
+        "22_tuples.rce",
+    ],
+    );
+    assert_eq!(
+        tagged("schedule selector"),
+        [
+        "05_kind_match.rce",
+    ],
+    );
+    assert!(
+        !construct_tag.contains_key("out"),
+        "out of bytes is emit, so out is not a whole-module tag: {:?}",
+        construct_tag.get("out")
+    );
+    assert_eq!(
+        root_tags.keys().cloned().collect::<Vec<_>>(),
+        [
+        "FG1",
+        "FG8",
+        "break",
+        "defect",
+        "exit",
+        "global",
+        "loop",
+        "no program root",
+        "round-trip",
+        "selector",
+    ],
+    );
+    assert_eq!(
+        construct_tag.keys().cloned().collect::<Vec<_>>(),
+        [
+        "break",
+        "catch",
+        "defect",
+        "exit",
+        "global",
+        "loop",
+        "round-trip",
+        "schedule defect",
+        "schedule selector",
+    ],
+    );
+    let tagged_files: usize = root_tags.values().map(|v| v.len()).sum();
+    assert_eq!(
+        lowering.len() + covered.len() + semantic.len() + tagged_files,
+        programs,
+        "a program is missing from the root census"
+    );
 }
 
 #[test]
