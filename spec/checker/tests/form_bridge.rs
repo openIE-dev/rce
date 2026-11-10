@@ -1491,11 +1491,11 @@ fn examples_are_covered_or_require_change() {
     // library function and each unobserved δ into the core drops that to
     // 2, of which 1 still has no user function and 1 contains user code.
     assert_eq!(
-        whole, 7,
+        whole, 8,
         "the number of whole examples that construct changed; raise this floor and check the trace"
     );
     assert_eq!(entry_only, 1, "entry-only whole cores");
-    assert_eq!(with_user, 6, "whole cores that contain a user function");
+    assert_eq!(with_user, 7, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
@@ -3092,3 +3092,27 @@ fn an_arm_rebuilds_a_bool_the_parent_already_holds() {
         "the break flag and nz collapsed to one false"
     );
 }
+
+#[test]
+fn a_variable_initial_literal_stays_beside_the_branches() {
+    // `var k = 4` before the tests. One arm leaves k alone, so 4 is the
+    // value from before the branch. Both sides keep that one node beside
+    // the branch. The arm does not build a second 4.
+    let mut b = FB::new(vec![Ty::Bool], Ty::Int(2, 4));
+    let wide = b.arg(0);
+    let k = b.var(Ty::Int(2, 4), build::lit(4));
+    b.open();
+    b.set(k, build::lit(2));
+    let t = b.close();
+    b.push(Stmt::If(wide, t, vec![]));
+    let r = b.let_(Atom::V(k));
+    b.ret(r);
+    let f = round_trip(&module("k4", b.finish()));
+    let func = user_func(&f);
+    assert_eq!(count_lit(&func.body, &Lit::Int(4)), 1, "4 was copied into an arm");
+    let beside = func.body.nodes.iter().any(|n| {
+        matches!(&n.attrs, fir::Attr::Lit(_, Lit::Int(4)))
+    });
+    assert!(beside, "4 is not a node beside the branch");
+}
+

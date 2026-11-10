@@ -42,16 +42,16 @@ copy. The counts are the table below.
 
 programs	60
 floor	5
-semantic	12
-whole	7
+semantic	14
+whole	8
 whole-entry-only	1
-whole-with-user	6
+whole-with-user	7
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
 13	break
-10	round-trip
 9	lowering
+9	round-trip
 3	defect
 3	exit
 2	global
@@ -63,9 +63,9 @@ unblocks	set
 whole modules, every exact set
 modules	set
 13	break
-10	round-trip
 9	lowering
-7	clear
+9	round-trip
+8	clear
 3	defect
 3	exit
 2	defect,exit,loop
@@ -84,15 +84,15 @@ modules	set
 
 program roots, every exact set
 modules	set
-17	clear
+19	clear
 9	defect
 9	lowering
-4	round-trip
 3	defect,round-trip
 3	exit
 2	FG8
 2	break
 2	no-root
+2	round-trip
 2	selector
 1	FG1,round-trip
 1	FG8,defect
@@ -114,7 +114,7 @@ module	whole	roots	user	global-sites
 08_traits.rce	clear	clear	user	
 09_generics.rce	clear	no-root	entry-only	
 10_comptime.rce	catch,global	round-trip	user	entry: global: g6 is not part of the working context ω holds
-11_arena.rce	round-trip	round-trip	user	
+11_arena.rce	clear	clear	user	
 12_borrow.rce	round-trip	clear	user	
 13_spawn_chan.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
 14_select.rce	lowering	lowering	lowering	not covered by the lowering: the type chan text
@@ -143,7 +143,7 @@ module	whole	roots	user	global-sites
 38_hex_bin.rce	break	no-root	entry-only	
 39_structural_recursion.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
 40_extern.rce	round-trip	clear	user	
-41_arena_bound_wrapping.rce	round-trip	round-trip	user	
+41_arena_bound_wrapping.rce	round-trip	clear	user	
 42_f32.rce	bound,break	clear	user	
 43_simd_lanes.rce	round-trip	clear	user	
 44_device_region.rce	break	break	user	

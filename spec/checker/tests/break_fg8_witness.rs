@@ -283,7 +283,7 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(whole, 19, "the number of modules that construct changed\n{live}");
     assert_eq!(covered, 5, "the syntactic floor moved");
     assert_eq!(
-        semantic, 12,
+        semantic, 14,
         "an example was admitted only as a body-break rewrite\n{live}"
     );
     assert_eq!(defect, 13, "a program function's first tag is defect\n{live}");
@@ -340,9 +340,7 @@ fn corpus_baseline_on_50294e05() {
     ]);
     assert_eq!(names("round-trip"), [
         "10_comptime.rce",
-        "11_arena.rce",
         "19_floats.rce",
-        "41_arena_bound_wrapping.rce",
     ]);
     assert_eq!(names("no program root").len(), 2);
     let lowering: usize = root_tags

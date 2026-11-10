@@ -5919,6 +5919,37 @@ fn schedule_catch(
     Ok(())
 }
 
+/// The operand that must be a literal: `sum.mk`'s variant, or the component
+/// index of `sum.get` and `tup.get`. Any other use of a captured literal can
+/// name the one node built before the branch.
+fn index_operand(attrs: &Attr) -> Option<usize> {
+    match attrs {
+        Attr::Prim(name, _, _) => match name.as_str() {
+            "sum.mk" => Some(0),
+            "sum.get" | "tup.get" => Some(1),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn capture_is_index(body: &Body, j: u32) -> bool {
+    let src = Src::In(j);
+    body.nodes.iter().any(|nd| {
+        if index_operand(&nd.attrs).is_some_and(|p| nd.ins.get(p) == Some(&src)) {
+            return true;
+        }
+        let forward = if matches!(nd.attrs, Attr::Branch(_, _)) {
+            nd.ins.iter().skip(1)
+        } else {
+            nd.ins.iter().skip(0)
+        };
+        forward.enumerate().any(|(k, s)| {
+            *s == src && nd.regions.iter().any(|r| capture_is_index(r, k as u32))
+        })
+    })
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -5960,34 +5991,48 @@ fn schedule_branch(
         let id = sch.fresh(ct, true);
         vars.push((p, id));
     }
-    // A literal that exists only so an arm can return it is a node beside
-    // the branch. An atom in the arm's `set` would build that node inside
-    // the arm, so the body would change from two nodes to one.
+    // A literal captured here was built before this branch (`var h = …`
+    // before the loop, `var k = 4` before the tests). One `let` names that
+    // node. An arm uses the local, unless the literal is a variant or
+    // component index: that arm still sees the atom, and construction finds
+    // the same node.
     let mut lifted: HashMap<Src, u32> = HashMap::new();
+    let mut placed: HashSet<Src> = HashSet::new();
     for (j, s) in n.ins.iter().skip(1).enumerate() {
-        if lifted.contains_key(s) {
-            continue;
-        }
-        let returned = n
-            .regions
-            .iter()
-            .any(|r| r.out.contains(&Src::In(j as u32)));
-        if !returned {
-            continue;
-        }
-        let used_elsewhere = body
-            .nodes
-            .iter()
-            .enumerate()
-            .any(|(ni, nd)| ni != i && nd.ins.contains(s));
-        if used_elsewhere {
+        if lifted.contains_key(s) || placed.contains(s) {
             continue;
         }
         let Some(Av::A(Atom::K(t, l))) = env.get(s).cloned() else {
             continue;
         };
+        let used_earlier = body.nodes.iter().take(i).any(|nd| nd.ins.contains(s));
+        if used_earlier {
+            continue;
+        }
+        let index_here = n.regions.iter().any(|r| capture_is_index(r, j as u32));
+        let index_later = body.nodes.iter().skip(i + 1).any(|nd| {
+            nd.ins.iter().enumerate().any(|(k, src)| {
+                if *src != *s {
+                    return false;
+                }
+                if let Attr::Branch(_, _) = &nd.attrs {
+                    k > 0 && nd.regions.iter().any(|r| capture_is_index(r, (k - 1) as u32))
+                } else {
+                    index_operand(&nd.attrs).is_some_and(|p| p == k)
+                        || nd.regions.iter().any(|r| capture_is_index(r, k as u32))
+                }
+            })
+        });
+        if index_here || index_later {
+            // The atom stays in the arm. The `let` is what places the node
+            // in the parent, where construction of the core found it.
+            sch.let_atom(Atom::K(t.clone(), l), t)?;
+            placed.insert(*s);
+            continue;
+        }
         let id = sch.let_atom(Atom::K(t.clone(), l), t)?;
         lifted.insert(*s, id);
+        env.insert(*s, Av::A(Atom::V(id)));
     }
     let dom = dom_from(sch, body, n.ins[0], env);
     // Snapshot after the output vars exist. Each arm restores it, so a capture
