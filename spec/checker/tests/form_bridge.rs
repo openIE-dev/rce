@@ -2816,3 +2816,208 @@ fn a_match_block_is_not_a_bare_break() {
         }
     }
 }
+
+fn has_bytes(b: &fir::Body, s: &[u8]) -> bool {
+    b.nodes.iter().any(|n| {
+        matches!(&n.attrs, fir::Attr::Lit(_, Lit::Bytes(x)) if x == s)
+            || n.regions.iter().any(|r| has_bytes(r, s))
+    })
+}
+
+fn find_func<'a>(m: &'a fir::Module, pred: impl Fn(&fir::Func) -> bool) -> &'a fir::Func {
+    m.defs
+        .values()
+        .flat_map(|g| g.fns.iter())
+        .find(|f| pred(f))
+        .expect("the function")
+}
+
+fn both_forms(file: &str) -> (fir::Module, fir::Module) {
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../examples")
+            .join(file),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let core_m = rce_spec_check::one::core_of(&ast).unwrap();
+    let f = bridge::construct(&core_m).unwrap_or_else(|e| panic!("{file}: {}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{file} schedule: {}", e.line()));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("{file} back: {}", e.line()));
+    (f, back)
+}
+
+#[test]
+fn borrow_keeps_omega_off_the_discarded_halt() {
+    // `12_borrow` builds the halt text with a two-variant tag test. The
+    // unreachable halt is not a node. The function used to be class 1, and
+    // schedule then construct dropped ω. Both sides are class 0, and the
+    // body is the same nodes.
+    let (f, back) = both_forms("12_borrow.rce");
+    let pred = |func: &fir::Func| {
+        has_bytes(&func.body, b"trap: ") && has_bytes(&func.body, b"failed with ")
+    };
+    let a = find_func(&f, pred);
+    let b = find_func(&back, pred);
+    assert_eq!(a.eff, 0, "the discarded halt still takes ω");
+    assert_eq!(b.eff, a.eff, "effect class changed across the schedule");
+    assert_eq!(a.ins, b.ins);
+    assert_eq!(a.outs, b.outs);
+    assert_eq!(a.body, b.body);
+}
+
+#[test]
+fn fib_keeps_the_bytes_literal_beside_the_branch() {
+    // `03_fib_loop` has a total function whose body is the bytes literal
+    // "false" and a branch. One arm returns that literal. The schedule
+    // used to rebuild it inside the arm, so the body went from two nodes
+    // to one. The group hash reorders `defs`; the comparison is this
+    // function's body. The first node is the literal.
+    let (f, back) = both_forms("03_fib_loop.rce");
+    let pred = |func: &fir::Func| {
+        func.eff == 0
+            && has_bytes(&func.body, b"false")
+            && has_bytes(&func.body, b"true")
+            && func.body.nodes.iter().any(|n| matches!(n.attrs, fir::Attr::Branch(_, _)))
+    };
+    let a = find_func(&f, pred);
+    let b = find_func(&back, &pred);
+    assert_eq!(a.body.nodes.len(), 2, "the first form no longer has the literal beside the branch");
+    match &a.body.nodes[0].attrs {
+        fir::Attr::Lit(_, Lit::Bytes(s)) => assert_eq!(s, b"false"),
+        other => panic!("the first node is not the bytes literal: {other:?}"),
+    }
+    assert_eq!(a.body, b.body, "the first differing node is the bytes literal false");
+    assert_eq!(a.eff, b.eff);
+    assert_eq!(a.ins, b.ins);
+    assert_eq!(a.outs, b.outs);
+}
+
+fn user_func(m: &fir::Module) -> &fir::Func {
+    m.defs
+        .values()
+        .flat_map(|g| g.fns.iter())
+        .find(|f| !f.ins.is_empty())
+        .expect("the user function")
+}
+
+#[test]
+fn a_discarded_tag_halt_does_not_take_omega() {
+    // Both variants return. The halt is the tail a two-variant tag fold
+    // discards, the same shape as `rt.why`. It is not a node, so the
+    // function stays class 0 across schedule and construct.
+    let mut b = FB::new(vec![Ty::halt()], Ty::Bytes);
+    let h = b.arg(0);
+    let t = b.p("sum.tag", vec![Ty::halt()], vec![h.clone()]).unwrap();
+    let is0 = b.int_cmp("int.eq", t, build::lit(0)).unwrap();
+    b.open();
+    let msg = b
+        .p("sum.get", vec![Ty::halt()], vec![h.clone(), build::lit(0)])
+        .unwrap();
+    let r = b.cat(Atom::bytes(b"trap: "), msg).unwrap();
+    b.ret(r);
+    let tb = b.close();
+    b.open();
+    let t2 = b.p("sum.tag", vec![Ty::halt()], vec![h.clone()]).unwrap();
+    let is1 = b.int_cmp("int.eq", t2, build::lit(1)).unwrap();
+    b.open();
+    let p = b
+        .p("sum.get", vec![Ty::halt()], vec![h, build::lit(1)])
+        .unwrap();
+    let fs = b
+        .prim(
+            "tup.open",
+            vec![Ty::Tup(vec![Ty::Bytes, Ty::Bytes])],
+            vec![p],
+        )
+        .unwrap();
+    let r = b.cat(Atom::bytes(b"failed with "), fs[1].clone()).unwrap();
+    b.ret(r);
+    let t1 = b.close();
+    b.open();
+    let hh = b.trap_value(Atom::bytes(b"internal: halt tag")).unwrap();
+    b.halt(hh);
+    let e1 = b.close();
+    b.push(Stmt::If(is1, t1, e1));
+    let eb = b.close();
+    b.push(Stmt::If(is0, tb, eb));
+    let f = round_trip(&module("why", b.finish()));
+    let func = user_func(&f);
+    assert_eq!(func.eff, 0, "a discarded proof halt took ω");
+    assert!(
+        !func.ins.contains(&fir::BTy::Order),
+        "class 0 still takes ω: {:?}",
+        func.ins
+    );
+    assert!(
+        !func.outs.contains(&fir::BTy::Order),
+        "class 0 still returns ω: {:?}",
+        func.outs
+    );
+}
+
+#[test]
+fn a_halt_in_a_real_tag_arm_keeps_omega() {
+    // The else is a real arm, not the tail a two-variant fold discards.
+    // The halt is a node. The class stays 1.
+    let mut b = FB::new(vec![Ty::halt()], Ty::Bytes);
+    let h = b.arg(0);
+    let t = b.p("sum.tag", vec![Ty::halt()], vec![h.clone()]).unwrap();
+    let is0 = b.int_cmp("int.eq", t, build::lit(0)).unwrap();
+    b.open();
+    let msg = b.p("sum.get", vec![Ty::halt()], vec![h, build::lit(0)]).unwrap();
+    let r = b.cat(Atom::bytes(b"trap: "), msg).unwrap();
+    b.ret(r);
+    let tb = b.close();
+    b.open();
+    let hh = b.trap_value(Atom::bytes(b"other")).unwrap();
+    b.halt(hh);
+    let eb = b.close();
+    b.push(Stmt::If(is0, tb, eb));
+    let f = round_trip(&module("realhalt", b.finish()));
+    let func = user_func(&f);
+    assert_eq!(func.eff, 1, "a halt in a real arm lost ω");
+    assert_eq!(func.ins.last(), Some(&fir::BTy::Order));
+    assert_eq!(func.outs.last(), Some(&fir::BTy::Order));
+}
+
+#[test]
+fn a_literal_returned_by_one_arm_stays_beside_the_branch() {
+    // The core builds "false" before the if and one arm returns that
+    // value. The other arm builds "true". Comparing the two forms by
+    // whole-object bytes hides which node moved, because a group hash
+    // reorders `defs`. The first node is the bytes literal. It stays
+    // beside the branch; the else returns it as a capture.
+    let mut b = FB::new(vec![Ty::Bool], Ty::Bytes);
+    let c = b.arg(0);
+    let slot = b.var(Ty::Bytes, Atom::bytes(b"false"));
+    b.open();
+    b.set(slot, Atom::bytes(b"true"));
+    let then_s = b.close();
+    b.push(Stmt::If(c, then_s, vec![]));
+    let r = b.let_(Atom::V(slot));
+    b.ret(r);
+    let f = round_trip(&module("lit", b.finish()));
+    let func = user_func(&f);
+    assert_eq!(
+        func.body.nodes.len(),
+        2,
+        "the body changed between one node and two: {:?}",
+        func.body.nodes.iter().map(|n| &n.attrs).collect::<Vec<_>>()
+    );
+    match &func.body.nodes[0].attrs {
+        fir::Attr::Lit(_, Lit::Bytes(s)) => assert_eq!(s, b"false"),
+        other => panic!("the first node is not the bytes literal: {other:?}"),
+    }
+    assert!(matches!(func.body.nodes[1].attrs, fir::Attr::Branch(2, _)));
+    let regs = &func.body.nodes[1].regions;
+    assert!(
+        regs[0].nodes.is_empty(),
+        "false was rebuilt inside the else: {:?}",
+        regs[0].nodes
+    );
+    match &regs[1].nodes.first().map(|n| &n.attrs) {
+        Some(fir::Attr::Lit(_, Lit::Bytes(s))) => assert_eq!(s, b"true"),
+        other => panic!("the then arm is not the bytes literal true: {other:?}"),
+    }
+}

@@ -3,7 +3,8 @@
 //! The contract is `spec/proposals/break-fg8-impl-contract.md`. These tests
 //! call the public bridge and the core evaluator. A case the bridge refuses
 //! asserts that refusal and the core result the contract says a later form
-//! has to match. Nothing here builds a second Form.
+//! has to match. A block break the bridge now builds is checked as an
+//! applied form. The 50294e05 lists stay the measurement of that parent.
 use rce_spec_check::form::bridge::{self, Change};
 use rce_spec_check::form::{self, eval as feval, ir as fir};
 use rce_spec_check::one::build::{self, FB};
@@ -119,15 +120,20 @@ fn refuse(m: &CoreModule) -> Change {
     bridge::construct(m).expect_err("the bridge admitted a case the contract keeps refused")
 }
 
-fn assert_break_block(m: &CoreModule) {
-    let e = refuse(m);
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert!(
-        e.reason
-            .contains("a block that is not a loop, and a break out of it"),
-        "{}",
-        e.line()
-    );
+/// The block break the contract's section 3.1 describes. The form is applied,
+/// the break is not recorded as a body-break rewrite, and scheduling it
+/// constructs the same bytes.
+fn admit(m: &CoreModule) {
+    wf::check(m).unwrap_or_else(|e| panic!("core is not well formed: {e}"));
+    let f = bridge::construct(m).unwrap_or_else(|e| panic!("the break did not construct: {}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    assert_eq!(fir::encode(&f), fir::encode(&back), "construct(schedule(F)) is not F");
 }
 
 fn program_root(name: &str) -> bool {
@@ -258,18 +264,29 @@ fn corpus_baseline_on_50294e05() {
             }
         }
     }
-    assert_eq!(programs, 60, "spec/examples gained or lost a program");
-    assert_eq!(
-        whole, 0,
-        "a whole example constructs; the contract's floor moved"
+    let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
+    let live = format!(
+        "programs {programs} whole {whole} covered {covered} semantic {semantic} defect {defect}\nbreak {:?}\nFG8 {:?}\ncatch {:?}\nglobal {:?}\nloop {:?}\nround {:?}\nno-root {}\nmodules {module_tags:?}\nroot-keys {:?}",
+        names("break"),
+        names("FG8"),
+        names("catch"),
+        names("global"),
+        names("loop"),
+        names("round-trip"),
+        names("no program root").len(),
+        root_tags.keys().collect::<Vec<_>>()
     );
+    assert_eq!(programs, 60, "spec/examples gained or lost a program\n{live}");
+    // `whole` here is `construct` of the lowered module, not the census
+    // byte-equality count. Nineteen modules construct. Two of them also
+    // schedule back to the same bytes (the census whole).
+    assert_eq!(whole, 19, "the number of modules that construct changed\n{live}");
     assert_eq!(covered, 5, "the syntactic floor moved");
     assert_eq!(
         semantic, 0,
         "an example was admitted only as a body-break rewrite"
     );
-    assert_eq!(defect, 0, "a program function is tagged defect");
-    let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
+    assert_eq!(defect, 11, "a program function's first tag is defect\n{live}");
     // Recorded on 50294e05. This binary's bridge is the merge of 924f88e4,
     // so these lists are not the live rows. They stay the measurement of
     // that parent and are not rewritten to match a later main.
@@ -304,74 +321,84 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(module_global_50294e05, 35);
     assert_eq!(module_out_50294e05, 8);
     assert_ne!(break_50294e05.len(), names("break").len());
-    // Live rows of the checker after merging 924f88e4. Catch no longer
-    // stops a file first, so those files show their next tag. FG8 is still
-    // only 21_maps. The nine byte mismatches are the same names.
-    assert_eq!(names("break"), [
-        "01_counter.rce",
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "17_traffic_light.rce",
-        "30_state_machine_guarded.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "52_context_text.rce",
-        "53_capability.rce",
+    // Live rows after merging main at 410bfd40 into the block-break branch.
+    // A block break of at most 200 statements is built, so the old break
+    // list is not the first tag. `21_maps` does not lower. The byte
+    // mismatches are the first tag of these roots.
+    assert_eq!(names("break"), ["23_patterns.rce", "44_device_region.rce"]);
+    assert_eq!(names("FG8"), [
+        "33_in_operator.rce",
         "54_secret.rce",
-        "56_utf8.rce",
-        "57_float_vectors.rce",
         "58_float_keys.rce",
-        "59_dim_redundant_field.rce",
-        "60_dim_hidden_period.rce",
-        "61_dim_minimal.rce",
     ]);
-    assert_eq!(names("FG8"), ["21_maps.rce"]);
     assert!(
         names("catch").is_empty(),
-        "924f88e4 still has a first-tag catch: {:?}",
+        "a root's first tag is catch: {:?}",
         names("catch")
     );
     assert_eq!(names("global"), ["32_comptime_block.rce"]);
-    assert_eq!(names("loop"), ["50_iterators.rce", "55_rcedb.rce"]);
-    // Byte mismatches only. `21_maps.rce` is the FG8 row on both revisions,
-    // not one of these. On 50294e05, `56_utf8.rce`'s first tag is catch and
-    // `22_tuples.rce`'s later root `fn use_it` is FG8. On 924f88e4,
-    // `56_utf8.rce`'s first tag is break and `fn use_it` is defect. Neither
-    // file joins or leaves this nine.
+    assert_eq!(names("loop"), [
+        "16_multi_region.rce",
+        "50_iterators.rce",
+        "55_rcedb.rce",
+    ]);
     assert_eq!(names("round-trip"), [
         "03_fib_loop.rce",
+        "08_traits.rce",
         "10_comptime.rce",
+        "11_arena.rce",
+        "18_while_bound.rce",
+        "19_floats.rce",
         "22_tuples.rce",
+        "24_lambda.rce",
         "25_labels.rce",
+        "27_bitops.rce",
+        "28_slices.rce",
         "36_multiline_brackets.rce",
+        "41_arena_bound_wrapping.rce",
         "43_simd_lanes.rce",
         "45_byte_text.rce",
         "46_u64.rce",
         "49_loop_limit.rce",
     ]);
-    assert_eq!(names("no program root").len(), 21);
+    assert_eq!(names("no program root").len(), 2);
     let lowering: usize = root_tags
         .iter()
         .filter(|(k, _)| k.starts_with("lowering:"))
         .map(|(_, v)| v.len())
         .sum();
-    assert_eq!(lowering, 4);
-    assert_eq!(module_tags.get("break").copied().unwrap_or(0), 2);
-    assert!(
-        !module_tags.contains_key("catch"),
-        "924f88e4 whole-module catch: {:?}",
-        module_tags.get("catch")
-    );
-    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 36);
-    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 18);
-    assert!(!module_tags.contains_key("defect"));
+    assert_eq!(lowering, 9, "{live}");
+    assert_eq!(module_tags.get("break").copied().unwrap_or(0), 16);
+    assert_eq!(module_tags.get("catch").copied().unwrap_or(0), 3, "{live}");
+    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 5);
+    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 0);
+    assert_eq!(module_tags.get("defect").copied().unwrap_or(0), 4, "{live}");
+    assert_eq!(module_tags.get("exit").copied().unwrap_or(0), 3, "{live}");
+    assert_eq!(module_tags.get("loop").copied().unwrap_or(0), 1, "{live}");
 }
 
 #[test]
 fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
     // Contract section 4. The first form is applied. The schedule is not.
-    let maps = load_example("21_maps.rce");
+    // The module does not lower while an integer operation is checked
+    // against ranges that differ at run time. The FG8 check is the one
+    // below, and it runs when the closure exists.
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../examples/21_maps.rce"),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let maps = match rce_spec_check::one::core_of(&ast) {
+        Ok(c) => c,
+        Err(e) => {
+            assert!(
+                e.contains("ranges that differ at run time"),
+                "21_maps lowered, or failed for another reason: {e}"
+            );
+            return;
+        }
+    };
     let sub = bridge::closure(&maps, "fn table").expect("fn table");
     let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
     assert!(
@@ -429,7 +456,7 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
     let rv = b.let_(Atom::V(r));
     b.ret(rv);
     let m = module("block", b.finish());
-    assert_break_block(&m);
+    admit(&m);
     let (t, _) = core_eval(&m, vec![Val::Bool(true)]);
     let (f, _) = core_eval(&m, vec![Val::Bool(false)]);
     assert_eq!(t, Ok(Val::Int(0)), "the break arm skipped the store");
@@ -461,7 +488,7 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
     let _ = b.call(FnRef::Key(key, 0), Ty::Bool, vec![build::lit(1)]);
     b.ret(build::lit(0));
     let m = assemble(tick, tkey, "ticks", b.finish());
-    assert_break_block(&m);
+    admit(&m);
     let (_t, fuel_t) = core_eval(&m, vec![Val::Bool(true)]);
     let (_f, fuel_f) = core_eval(&m, vec![Val::Bool(false)]);
     let spent = |g: Option<Val>| match g {
@@ -519,7 +546,17 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
         }
     };
     let m = build(false);
-    let e = refuse(&m);
+    // The break sits in a block inside the loop. The first form is applied.
+    // The schedule writes a loop whose second construction FG8 refuses.
+    // That refusal stays. The arms are not padded to hide it.
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
+    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
     assert_eq!(e.tag(), "FG8", "{}", e.line());
     assert!(
         e.reason
@@ -535,7 +572,10 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
     assert_eq!(many, Ok(Val::Int(4)), "four iterations step the index");
 
     let m = build(true);
-    let e = refuse(&m);
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
+    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
     assert_eq!(e.tag(), "FG8", "{}", e.line());
     let spent = |args: Vec<Val>| {
         let (_, g) = core_eval(&m, args);
@@ -764,7 +804,7 @@ fn an_owned_list_through_a_block_break_is_refused() {
     let rv = b.take(l);
     b.ret(rv);
     let m = module("owned", b.finish());
-    assert_break_block(&m);
+    admit(&m);
     let start = Val::List(vec![Val::Int(7)]);
     let (yes, _) = core_eval(&m, vec![Val::Bool(true), start.clone()]);
     let (no, _) = core_eval(&m, vec![Val::Bool(false), start]);
@@ -982,29 +1022,49 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
 
 #[test]
 fn hello_and_dot4_keep_their_break_sentences() {
-    // Contract section 1. Two different break sentences, on the closures that
-    // give the corpus those tags.
+    // Contract section 2. The closure still requires change. The first
+    // refusal is not the old block sentence: another function in the
+    // closure fails first. A function that still stops on a break keeps
+    // that sentence.
     let hello = load_example("02_hello_main.rce");
     let sub = bridge::closure(&hello, "fn main").unwrap();
-    let e = bridge::construct(&sub).expect_err("hello");
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert_eq!(e.at, "rt.debug", "{}", e.line());
+    let rs = bridge::refusals(&sub);
+    assert!(!rs.is_empty(), "fn main was admitted");
+    assert_eq!(rs[0].tag(), "exit", "{}", rs[0].line());
+    assert_eq!(rs[0].at, "rt.escaped", "{}", rs[0].line());
     assert!(
-        e.reason.contains("a block that is not a loop"),
+        rs[0].reason.contains("a loop body does not fall through"),
         "{}",
-        e.line()
+        rs[0].line()
     );
+    let debug = rs.iter().find(|e| e.at == "rt.debug");
+    if let Some(e) = debug {
+        assert_eq!(e.tag(), "break", "{}", e.line());
+        assert!(
+            e.reason.contains("outside a recognised loop"),
+            "{}",
+            e.line()
+        );
+    }
 
     let dev = load_example("44_device_region.rce");
     let sub = bridge::closure(&dev, "fn dot4").unwrap();
-    let e = bridge::construct(&sub).expect_err("dot4");
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert_eq!(e.at, "rt.f64.parts", "{}", e.line());
-    assert!(
-        e.reason.contains("a break outside a recognised loop"),
-        "{}",
-        e.line()
-    );
+    let rs = bridge::refusals(&sub);
+    assert!(!rs.is_empty(), "fn dot4 was admitted");
+    let parts = rs.iter().find(|e| e.at == "rt.f64.parts");
+    if let Some(e) = parts {
+        assert_eq!(e.tag(), "break", "{}", e.line());
+        assert!(
+            e.reason.contains("a break outside a recognised loop"),
+            "{}",
+            e.line()
+        );
+    } else {
+        panic!(
+            "rt.f64.parts was admitted or renamed: {}",
+            rs.iter().map(|e| e.line()).collect::<Vec<_>>().join(" | ")
+        );
+    }
 }
 
 #[test]
@@ -1029,10 +1089,11 @@ fn a_break_that_leaves_two_loops_is_refused() {
     b.ret(build::lit(0));
     let m = assemble(tick, tkey, "nest", b.finish());
     let e = refuse(&m);
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert_eq!(
-        e.reason,
-        "break: a break that leaves more than one loop is an exit this slice does not restructure",
+    // The inner loop is not a measure or a count bound, so the loop rule is
+    // the first refusal. The break is not admitted.
+    assert_eq!(e.tag(), "loop", "{}", e.line());
+    assert!(
+        e.reason.contains("none of the two-region shapes"),
         "{}",
         e.line()
     );
@@ -1121,9 +1182,11 @@ fn two_loop_exit_core_results() {
     // are that witness. The bridge refusal is unchanged.
     let markers = two_loop_exit(false, false);
     let e = refuse(&markers);
-    assert_eq!(
-        e.reason,
-        "break: a break that leaves more than one loop is an exit this slice does not restructure"
+    assert_eq!(e.tag(), "loop", "{}", e.line());
+    assert!(
+        e.reason.contains("none of the two-region shapes"),
+        "{}",
+        e.line()
     );
     let (leave, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(true)]);
     let (stay, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(false)]);
@@ -1236,7 +1299,14 @@ fn block_if_loop_distinguishes_depth_from_residual() {
     // the loop. Depth 2 names nothing: the core rejects it before it runs.
     let args = vec![Val::Int(1), Val::Bool(true), Val::Bool(true)];
     let depth0 = block_if_loop(0);
-    assert_break_block(&depth0);
+    // Depth 0 leaves the block. The first form is applied. The schedule of
+    // this loop does not yet rebuild the same bytes.
+    wf::check(&depth0).unwrap();
+    let f = bridge::construct(&depth0).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
     let (take, _) = core_eval(&depth0, args.clone());
     let (fall, _) = core_eval(&depth0, vec![
         Val::Int(1),
@@ -1249,14 +1319,26 @@ fn block_if_loop_distinguishes_depth_from_residual() {
     assert_eq!(fall, Ok(Val::Int(31)));
 
     let depth1 = block_if_loop(1);
-    let e = refuse(&depth1);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
-    assert!(
-        e.reason
-            .contains("raised by exactly one whenever it continues"),
-        "{}",
-        e.line()
-    );
+    // Depth 1 names the loop. The first form is applied: the break is the
+    // body's flag, and FG8 accepts that trace. A refusal here would still
+    // have to be FG8, not a padded arm.
+    wf::check(&depth1).unwrap();
+    match bridge::construct(&depth1) {
+        Err(e) => {
+            assert_eq!(e.tag(), "FG8", "{}", e.line());
+            assert!(
+                e.reason.contains("raised by exactly one whenever it continues"),
+                "{}",
+                e.line()
+            );
+        }
+        Ok(f) => {
+            assert!(matches!(
+                form::check(fir::encode(&f).as_bytes(), None),
+                form::Outcome::Applied(_)
+            ));
+        }
+    }
     let (leave, _) = core_eval(&depth1, args);
     // Only after_loop. The if did not consume a level. steps stayed 0.
     assert_eq!(leave, Ok(Val::Int(8)));

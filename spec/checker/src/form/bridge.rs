@@ -4084,27 +4084,199 @@ fn direct_emits(f: &core::Fn) -> bool {
     go(&f.body)
 }
 
-fn direct_omega(f: &core::Fn, names: &HashMap<(String, u32), String>, group: &str) -> bool {
-    fn go(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
+fn direct_omega(f: &core::Fn, m: &core::Module, names: &HashMap<(String, u32), String>, group: &str) -> bool {
+    fn any_halt(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
         b.iter().any(|s| match s {
             // A `catch` rethrows the fuel trap in the Form, so the function may
             // halt even when the core text has no `halt` yet. The schedule
             // writes that halt; both shapes take ω.
             // `out` is `emit` on ω (rce-form.md §13).
             Stmt::Halt(_) | Stmt::Catch(_, _) | Stmt::Out(_) => true,
-            Stmt::Call(r, _) => {
-                let id = match r {
-                    FnRef::Key(k, i) => (k.clone(), *i),
-                    FnRef::Rec(i) => (group.to_string(), *i),
-                };
-                names.get(&id).is_some_and(|n| shim_of(n).is_some())
-            }
-            Stmt::If(_, t, e) => go(t, names, group) || go(e, names, group),
-            Stmt::Block(x) | Stmt::Loop(x) => go(x, names, group),
+            Stmt::Call(r, _) => call_takes_omega(r, names, group),
+            Stmt::If(_, t, e) => any_halt(t, names, group) || any_halt(e, names, group),
+            Stmt::Block(x) | Stmt::Loop(x) => any_halt(x, names, group),
             _ => false,
         })
     }
-    go(&f.body, names, group)
+    let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
+    let callee = |r: &FnRef| -> Option<Ty> {
+        match r {
+            FnRef::Key(k, i) => m.func(k, *i).map(|f| f.ret.clone()),
+            FnRef::Rec(i) => m.func(group, *i).map(|f| f.ret.clone()),
+        }
+    };
+    // Numbering the statements is how a tag test is told from a halt that
+    // really runs. If the core is not well formed enough to number, every
+    // halt still takes ω.
+    let Ok(info) = precompute(f, &globals, &callee, group) else {
+        return any_halt(&f.body, names, group);
+    };
+    let mut walk = TagOmega {
+        info: &info,
+        names,
+        group,
+        tag_local: HashSet::new(),
+        tag_arg: HashMap::new(),
+        tag_n: HashMap::new(),
+        eq_local: HashMap::new(),
+    };
+    walk.uses(&f.body)
+}
+
+fn call_takes_omega(r: &FnRef, names: &HashMap<(String, u32), String>, group: &str) -> bool {
+    let id = match r {
+        FnRef::Key(k, i) => (k.clone(), *i),
+        FnRef::Rec(i) => (group.to_string(), *i),
+    };
+    names.get(&id).is_some_and(|n| shim_of(n).is_some())
+}
+
+/// The tail `tag_fold` discards: no call, no `sum.get`, no nested test.
+/// A `halt` there is not a node. A halt in a real arm is.
+fn proof_tail(stmts: &[Stmt]) -> bool {
+    stmts.iter().all(|s| match s {
+        Stmt::Prim(p, _, _) if p == "sum.get" => false,
+        Stmt::Call(..)
+        | Stmt::Catch(..)
+        | Stmt::Ret(_)
+        | Stmt::Loop(_)
+        | Stmt::If(..)
+        | Stmt::Out(_) => false,
+        Stmt::Block(x) => proof_tail(x),
+        _ => true,
+    })
+}
+
+fn eq_parts(args: &[Atom]) -> Option<(u32, i128)> {
+    match args {
+        [Atom::V(t), Atom::K(_, Lit::Int(k))] => Some((*t, *k)),
+        [Atom::K(_, Lit::Int(k)), Atom::V(t)] => Some((*t, *k)),
+        _ => None,
+    }
+}
+
+struct TagOmega<'a> {
+    info: &'a Info,
+    names: &'a HashMap<(String, u32), String>,
+    group: &'a str,
+    tag_local: HashSet<u32>,
+    tag_arg: HashMap<u32, Atom>,
+    tag_n: HashMap<u32, usize>,
+    eq_local: HashMap<u32, (i128, u32)>,
+}
+
+impl TagOmega<'_> {
+    fn sid(&self, s: &Stmt) -> Option<u32> {
+        self.info.first.get(&(s as *const Stmt)).copied()
+    }
+
+    /// The real arm of the other variant. The proof tail after it is the
+    /// halt `tag_fold` drops when the sum has two variants. A halt that is
+    /// itself an arm is not this tail, and a wider sum is not this fold.
+    fn real_arm<'b>(&self, stmts: &'b [Stmt], want: i128, operand: &Atom) -> Option<&'b [Stmt]> {
+        let mut i = 0;
+        let mut cond = None;
+        let mut saw_tag = false;
+        while i < stmts.len() {
+            match &stmts[i] {
+                Stmt::Prim(n, _, args) if n == "sum.tag" && args.len() == 1 => {
+                    if &args[0] != operand {
+                        return None;
+                    }
+                    saw_tag = true;
+                    i += 1;
+                }
+                Stmt::Prim(n, _, args) if n == "int.eq" => {
+                    let (local, k) = eq_parts(args)?;
+                    if k != want {
+                        return None;
+                    }
+                    if !saw_tag && !self.tag_local.contains(&local) {
+                        return None;
+                    }
+                    cond = self.sid(&stmts[i]);
+                    i += 1;
+                }
+                Stmt::If(c, body, tail) => {
+                    let Atom::V(v) = c else { return None };
+                    if cond != Some(*v) || i + 1 != stmts.len() || !proof_tail(tail) {
+                        return None;
+                    }
+                    return Some(body.as_slice());
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// `(tag 0 arm, tag 1 arm)` when the unreachable tail is not a region.
+    fn folded<'b>(&self, c: &Atom, t: &'b [Stmt], e: &'b [Stmt]) -> Option<(&'b [Stmt], &'b [Stmt])> {
+        let Atom::V(v) = c else { return None };
+        let (k, tag) = self.eq_local.get(v).copied()?;
+        let n = *self.tag_n.get(&tag)?;
+        if n != 2 || (k != 0 && k != 1) {
+            return None;
+        }
+        let operand = self.tag_arg.get(&tag)?.clone();
+        let want = 1 - k;
+        if let Some(real) = self.real_arm(e, want, &operand) {
+            return Some((t, real));
+        }
+        if let Some(real) = self.real_arm(t, want, &operand) {
+            return Some((real, e));
+        }
+        None
+    }
+
+    fn uses(&mut self, stmts: &[Stmt]) -> bool {
+        for s in stmts {
+            match s {
+                Stmt::Prim(p, ts, args) if p == "sum.tag" => {
+                    if let Some(id) = self.sid(s) {
+                        self.tag_local.insert(id);
+                        if let Some(a) = args.first() {
+                            self.tag_arg.insert(id, a.clone());
+                        }
+                        if let Some(Ty::Sum(v)) = ts.first() {
+                            self.tag_n.insert(id, v.len());
+                        }
+                    }
+                }
+                Stmt::Prim(p, _, args) if p == "int.eq" => {
+                    if let Some(id) = self.sid(s) {
+                        if let Some((local, k)) = eq_parts(args) {
+                            if self.tag_local.contains(&local) {
+                                self.eq_local.insert(id, (k, local));
+                            }
+                        }
+                    }
+                }
+                Stmt::If(c, t, e) => {
+                    if let Some((a, b)) = self.folded(c, t, e) {
+                        if self.uses(a) || self.uses(b) {
+                            return true;
+                        }
+                    } else if self.uses(t) || self.uses(e) {
+                        return true;
+                    }
+                }
+                Stmt::Halt(_) | Stmt::Catch(_, _) | Stmt::Out(_) => return true,
+                Stmt::Call(r, _) => {
+                    if call_takes_omega(r, self.names, self.group) {
+                        return true;
+                    }
+                }
+                Stmt::Block(x) | Stmt::Loop(x) => {
+                    if self.uses(x) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
 }
 
 struct UserFn {
@@ -4144,7 +4316,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
         let framed = Built::fuel_frame(&gnames, &refs).is_some();
         omega.insert(
             key.clone(),
-            !framed && direct_omega(&u.func, &names, &u.group),
+            !framed && direct_omega(&u.func, m, &names, &u.group),
         );
         emits.insert(key.clone(), !framed && direct_emits(&u.func));
         touches.insert(
@@ -5671,6 +5843,35 @@ fn schedule_branch(
         let id = sch.fresh(ct, true);
         vars.push((p, id));
     }
+    // A literal that exists only so an arm can return it is a node beside
+    // the branch. An atom in the arm's `set` would build that node inside
+    // the arm, so the body would change from two nodes to one.
+    let mut lifted: HashMap<Src, u32> = HashMap::new();
+    for (j, s) in n.ins.iter().skip(1).enumerate() {
+        if lifted.contains_key(s) {
+            continue;
+        }
+        let returned = n
+            .regions
+            .iter()
+            .any(|r| r.out.contains(&Src::In(j as u32)));
+        if !returned {
+            continue;
+        }
+        let used_elsewhere = body
+            .nodes
+            .iter()
+            .enumerate()
+            .any(|(ni, nd)| ni != i && nd.ins.contains(s));
+        if used_elsewhere {
+            continue;
+        }
+        let Some(Av::A(Atom::K(t, l))) = env.get(s).cloned() else {
+            continue;
+        };
+        let id = sch.let_atom(Atom::K(t.clone(), l), t)?;
+        lifted.insert(*s, id);
+    }
     let dom = dom_from(sch, body, n.ins[0], env);
     // Snapshot after the output vars exist. Each arm restores it, so a capture
     // the first arm moves is live again for the second arm.
@@ -5685,12 +5886,14 @@ fn schedule_branch(
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
         for (j, s) in n.ins.iter().skip(1).enumerate() {
-            en.insert(
-                Src::In(j as u32),
+            let av = if let Some(id) = lifted.get(s) {
+                Av::A(Atom::V(*id))
+            } else {
                 env.get(s)
                     .cloned()
-                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?,
-            );
+                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?
+            };
+            en.insert(Src::In(j as u32), av);
         }
         let mark = sch.next;
         schedule_region(sch, m, group, region, &mut en, dom)?;
