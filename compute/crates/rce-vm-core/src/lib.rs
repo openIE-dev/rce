@@ -22,7 +22,7 @@ pub mod tensor;
 pub mod value;
 
 pub use backend::{Backend, BackendId, BackendKind, Capabilities};
-pub use cost::{Cost, EnergyEstimate};
+pub use cost::{Cost, EnergyBasis, EnergyEstimate};
 pub use plan::{Plan, PlanError, Placement};
 pub use region::{Region, RegionKind};
 pub use tensor::{DType, Tensor, TensorHandle};

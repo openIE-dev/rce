@@ -296,7 +296,9 @@ fn climbs_to_g4_only_on_reject_or_not_done() {
         .collect();
     assert_eq!(local[0].body.draft.e_meas, None);
     assert_eq!(local[0].body.draft.e_sim_j, None);
-    assert!((o.charged_j - 11.6).abs() < 1e-9);
+    assert!((o.est_j - 11.6).abs() < 1e-9);
+    assert_eq!(o.reported_j, 0.0);
+    assert_eq!(o.measured_j, 0.0);
     // Exactly one "requires change" from the checker (G3) on the way up.
     assert_eq!(
         rs.iter()

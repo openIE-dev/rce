@@ -3,7 +3,7 @@ use ide_receipt::map::{from_mei, from_mol};
 use ide_receipt::*;
 use serde_json::json;
 
-fn draft(sim: Option<f64>, meas: Option<Measured>) -> Draft {
+fn draft(sim: Option<f64>, meas: Option<Reading>) -> Draft {
     let mut d = Draft::new(ActionKind::Check, "checker", policy_hash(&json!({"p": 1})));
     d.e_sim_j = sim;
     d.e_meas = meas;
@@ -17,7 +17,7 @@ fn chain_signs_links_and_verifies() {
     let a = l
         .append(draft(
             Some(1.0),
-            Some(Measured {
+            Some(Reading {
                 joules: 1.5,
                 source: MeterSource::Rapl,
             }),
@@ -38,7 +38,7 @@ fn remote_estimate_has_no_delta() {
     let r = l
         .append(draft(
             Some(2.0),
-            Some(Measured {
+            Some(Reading {
                 joules: 3.0,
                 source: MeterSource::EstimatedRemote,
             }),
@@ -83,7 +83,7 @@ fn file_ledger_roundtrips_and_reopens() {
         let mut l = Ledger::open(&p, key.clone()).unwrap();
         l.append(draft(
             Some(0.25),
-            Some(Measured {
+            Some(Reading {
                 joules: 0.3,
                 source: MeterSource::Nvml,
             }),
@@ -109,7 +109,7 @@ fn delta_must_match_body() {
         seq: 0,
         draft: draft(
             Some(1.0),
-            Some(Measured {
+            Some(Reading {
                 joules: 2.0,
                 source: MeterSource::Rapl,
             }),
@@ -138,7 +138,7 @@ fn maps_mol_receipt() {
     assert_eq!(d.e_sim_j, Some(0.8));
     assert_eq!(
         d.e_meas,
-        Some(Measured {
+        Some(Reading {
             joules: 1.1,
             source: MeterSource::Rapl
         })
@@ -166,7 +166,7 @@ fn maps_mei_receipt() {
     m["substrate"] = json!("linux-rapl");
     assert_eq!(
         from_mei(&m, "p").unwrap().e_meas,
-        Some(Measured {
+        Some(Reading {
             joules: 0.5,
             source: MeterSource::Rapl
         })

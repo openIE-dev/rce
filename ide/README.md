@@ -57,12 +57,12 @@ receipt term of spec Appendix D, D.11, with basis `reported` (an on-chip
 counter; D.11 keeps `measured` for a wall or shunt meter), its
 `provenance` and `amortization` `per_call`:
 
-    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":0.0,"interval_s":2.25,"machine":"HOST; cpu MODEL; kernel Linux RELEASE","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}
+    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":12.5,"provenance":{"boundary":"package","counter":"powercap intel-rapl:0 package-0 (/sys/class/powercap/intel-rapl:0/energy_uj, max_energy_range_uj 262143328850)","end_unix_ns":2250000010,"idle_baseline_w":null,"interval_s":2.25,"machine":"HOST; cpu MODEL; kernel Linux RELEASE","sampler":"rce test measure (IDE build): Linux powercap RAPL energy_uj","start_unix_ns":10,"wraps":0}}
     energy sampling: samples 4 period_s 1.0 (not fields of the D.11 provenance)
 
 The joules are the whole package over the interval, everything the machine
 ran, not the share of the tests; no idle baseline is subtracted
-(`idle_baseline_w` 0). `start_unix_ns` and `end_unix_ns` are the first and
+(`idle_baseline_w` null: no baseline was subtracted). `start_unix_ns` and `end_unix_ns` are the first and
 last reads on the system clock, `interval_s` the time between them on the
 monotonic clock, and `wraps` the wraparounds counted over all zones. Only
 the number of reads and their period have no field in D.11, so they are on
@@ -87,7 +87,7 @@ macOS version, Darwin release), and `wraps` is 0 because the counters give
 with the figures of the unit test `ioreport_receipt_is_deterministic` (not
 a run):
 
-    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":0.0,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}
+    energy receipt: {"amortization":{"kind":"per_call"},"basis":"reported","j":70.19388037,"provenance":{"boundary":"package","counter":"IOReport package = cpu + gpu + ane: cpu: CLPC \"CPU Energy\" nJ; gpu: CLPC \"GPU Energy\" nJ; ane: CLPC \"ANE\" nJ","end_unix_ns":5000000000,"idle_baseline_w":null,"interval_s":4.0,"machine":"HOST; cpu Apple M5 Max; model MODEL; macOS 27.0.1; kernel Darwin RELEASE","sampler":"rce test measure (IDE build): macOS IOReport Energy Model group and AppleCLPC Energy Counters via libIOReport (int64 deltas; a negative delta is refused, so no wraparound)","start_unix_ns":1000000000,"wraps":0}}
 
 To read it on a Mac (Apple silicon), build the IDE `rce` from `ide/` and
 run it on a program, with positional arguments only:
@@ -109,7 +109,7 @@ PROVENANCE.json` (another OS or on-chip counter, such as NVML) give the gate
 a figure read elsewhere. PROVENANCE.json is a JSON object with exactly the
 nine provenance fields of D.11 rule 1, for example
 
-    {"boundary":"rail:VDD","counter":"shunt meter energy register","end_unix_ns":2000000000,"idle_baseline_w":0,"interval_s":1.0,"machine":"bench host","sampler":"bench logger","start_unix_ns":1000000000,"wraps":0}
+    {"boundary":"rail:VDD","counter":"shunt meter energy register","end_unix_ns":2000000000,"idle_baseline_w":null,"interval_s":1.0,"machine":"bench host","sampler":"bench logger","start_unix_ns":1000000000,"wraps":0}
 
 and the gate prints the figure as a receipt term with that label, that
 provenance and `amortization` `per_call`. A provenance that is missing, not

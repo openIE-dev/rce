@@ -4753,6 +4753,7 @@ dependencies = [
  "rce-graph",
  "rce-vm-backend-cpu",
  "rce-vm-backend-wgpu",
+ "rce-vm-core",
  "thiserror 2.0.21",
  "tokio",
 ]

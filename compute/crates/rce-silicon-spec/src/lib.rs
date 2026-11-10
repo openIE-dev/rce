@@ -92,6 +92,7 @@ pub struct UnitSpec {
     /// Cascade tier (0-3) for dispatch routing.
     pub cascade_tier: u8,
     /// Target energy per operation, in picojoules.
+    /// Design target (modelled), not a measurement.
     pub target_pj_per_op: f64,
     /// Die area budget in square micrometers at 5nm.
     pub area_um2_5nm: f64,
@@ -128,13 +129,13 @@ impl UnitSpec {
     pub fn landauer_floor_pj(&self) -> f64 {
         TensorCell::from_notation(self.cell)
             .map(|c| c.landauer_floor_pj())
-            .unwrap_or(0.0)
+            .unwrap_or(f64::NAN)
     }
 
     /// Effective impedance = target_pj / landauer_floor. Lower is better.
     pub fn effective_impedance(&self) -> f64 {
         let floor = self.landauer_floor_pj();
-        if floor <= 0.0 { f64::INFINITY } else { self.target_pj_per_op / floor }
+        if !(floor.is_finite() && floor > 0.0) { f64::INFINITY } else { self.target_pj_per_op / floor }
     }
 }
 
@@ -191,7 +192,7 @@ pub const UNITS: &[UnitSpec] = &[
         cycles_per_op: 1,
         fpga: fpga(4_000, 16, 32, 0),
         phase: Phase::Phase1, status: Status::SpecOnly,
-        notes: "Analog filter bank. 10^-20 J per output channel. Cheapest to build — existing analog SOC IP available.",
+        notes: "Design target (modelled), not a measurement. Analog filter bank. 10^-20 J per output channel. Cheapest to build. Existing analog SOC IP available.",
     },
     UnitSpec {
         code: "A5", name: "SustainedStructuralMemory", attractor_id: 37,
@@ -212,7 +213,7 @@ pub const UNITS: &[UnitSpec] = &[
         cycles_per_op: 4,
         fpga: fpga(600, 2, 4, 0),
         phase: Phase::Phase1, status: Status::SpecOnly,
-        notes: "Analog integrator with exponential decay. <1 nJ per update. Baroreceptor-class primitive.",
+        notes: "Design target (modelled), not a measurement. Analog integrator with exponential decay. <1 nJ per update. Baroreceptor-class primitive.",
     },
     UnitSpec {
         code: "B2", name: "TemporalAdaptation", attractor_id: 3,

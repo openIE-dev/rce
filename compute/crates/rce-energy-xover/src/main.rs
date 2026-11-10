@@ -1,37 +1,31 @@
-//! RCE energy crossover — Stage-A calibration harness.
+//! RCE energy crossover. Stage-A calibration harness.
 //!
-//! Measures whole-SoC *active* energy per square f32 matmul on CPU (op-blas
-//! AMX/Accelerate sgemm) vs GPU (op-mps `MPSMatrixMultiplication`, forced on
-//! for every shape via `with_min_flops(0)`), across a sweep of shapes, using
-//! `rce-energy` (Apple IOReport on this M3 Ultra).
+//! Samples whole-SoC energy per square f32 matmul on CPU (op-blas
+//! AMX/Accelerate sgemm) and GPU (op-mps `MPSMatrixMultiplication`, forced
+//! on for every shape via `with_min_flops(0)`). The meter is
+//! `open_default_backend()`. On macOS that backend is `fallback-tdp`
+//! (`est`) unless a counter backend is wired in. On Linux it is RAPL
+//! (`reported`) when a readable powercap zone exists, and `fallback-tdp`
+//! otherwise. Figures follow the printed meter name. `macos_ioreport.rs`
+//! is not in this repository; that backend is planned. The name
+//! `macos-ioreport` is not returned by `open_default_backend`.
 //!
-//! Goal (docs/rce-unified-ir-and-energy-routing.md §8): show the **energy
-//! crossover** — small matmuls cost less on CPU, large matmuls cost less on
-//! GPU — *measured, not assumed* — and that a min-cost selector flips at the
-//! crossover. This is the concrete proof the whole energy-routing thesis rests
-//! on. It is the seed of `rce-energy-calibrate` (Stage 5 of the plan).
+//! The cost-table lines print `basis`, the meter's D.11 basis. They do
+//! not print `measured = true`.
 //!
-//! Methodology (forced by the meter's limits — see §4 of the design doc):
-//!   * whole-SoC, ~1 mJ resolution → run a BATCH of K matmuls per measurement
-//!     so total energy ≫ 1 mJ; K is auto-sized to a ~250 ms window.
-//!   * background noise → subtract a same-duration idle baseline (µJ/ms rate).
-//!   * variance → take the MEDIAN of M repeats.
-//!   * `Total` channel (not per-engine) → the honest "joules to do this matmul
-//!     on backend X", including dispatch + host↔device transfer for the GPU.
+//! Methodology (the meter's limits, design doc section 4):
+//!   * Run a batch of K matmuls per sample so the window is about 250 ms.
+//!   * Subtract a same-duration idle window.
+//!   * Take the median of M repeats.
+//!   * CPU samples use the Cpu channel. GPU samples use Gpu and Dram.
 //!
-//! Note on the meter API: backends use different snapshot semantics.
-//! On Apple Silicon (`macos-ioreport`) the wrapper calls
-//! `IOReportCreateSamplesDelta` internally, so `snapshot()` returns
-//! the energy *since the previous snapshot* — the reset-snapshot →
-//! work → read-snapshot pattern this file uses reads the second
-//! snapshot's `Total` as the window's energy. On Linux RAPL and the
-//! TDP fallback the counter is cumulative-since-open; for those the
-//! correct interval reading is `s_after.total_uj_since(&s_before)`.
-//! The `rce-energy` trait docstring claims monotonic-cumulative
-//! semantics for every backend, but `macos_ioreport.rs:277-287` is
-//! since-previous. The reusable bridge that handles both paths
-//! correctly is `rce-placement-adapter::SubstrateEnergyMeter`
-//! (switches on `backend.name()`).
+//! On Linux RAPL and the TDP fallback the counter is cumulative since
+//! open, so an interval is `s_after.total_uj_since(&s_before)`. A planned
+//! IOReport backend would return a since-previous delta. This file calls
+//! `snapshot()` and reads the channels of the second snapshot, which is
+//! the interval for a since-previous backend and the cumulative total for
+//! RAPL and the TDP fallback. `rce-placement-adapter::SubstrateEnergyMeter`
+//! switches on `backend.name()` for the interval.
 
 use std::time::{Duration, Instant};
 
@@ -77,7 +71,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 /// Ordinary least squares fit: y = a·x1 + b·x2 + c, by Gauss-eliminating the
 /// normal equations. Returns `None` if singular or fewer than 3 samples.
 /// Used for the cost-model feature fit (§4.4): x1 = FLOPs, x2 = bytes_touched,
-/// y = measured pJ; a = pJ/FLOP, b = pJ/byte, c = fixed overhead pJ.
+/// y = sampled pJ; a = pJ/FLOP, b = pJ/byte, c = fixed overhead pJ.
 fn ols3(samples: &[(f64, f64, f64)]) -> Option<(f64, f64, f64)> {
     if samples.len() < 3 { return None; }
     let (mut s1, mut s2, mut sy) = (0.0, 0.0, 0.0);
@@ -153,11 +147,20 @@ fn f32_tensor(data: &[f32], shape: Vec<usize>) -> Value {
     Value::Tensor(HostTensor::new(shape, DType::F32, bytes).expect("host tensor"))
 }
 
+fn meter_basis(name: &str) -> &'static str {
+    match name {
+        "linux-rapl" | "macos-ioreport" => "reported",
+        _ => "est",
+    }
+}
+
 fn main() {
     let mut meter = open_default_backend();
     let cal = meter.calibration().clone();
-    println!("# RCE energy crossover — CPU(op-blas) vs GPU(op-mps) matmul");
+    let basis = meter_basis(meter.name());
+    println!("# RCE energy crossover: CPU(op-blas) vs GPU(op-mps) matmul");
     println!("# meter: {} on {}", meter.name(), if cal.model.is_empty() { "unknown" } else { &cal.model });
+    println!("# basis: {basis} (D.11). fallback-tdp is est. linux-rapl is reported. measured is a wall or shunt meter, which this program does not open.");
 
     let mps = match MpsMatmul::with_min_flops(0) {
         Some(m) => m, // min_flops=0 ⇒ GPU forced for every shape (no BLAS fallback)
@@ -291,7 +294,7 @@ fn main() {
         println!("a_pj_per_flop = {ca:.6}");
         println!("b_pj_per_byte = {cb:.6}");
         println!("c_pj_overhead = {cc:.3}");
-        println!("measured = true");
+        println!("basis = \"{basis}\"");
         println!();
         println!("[[cells]]");
         println!("op = \"matmul\"");
@@ -299,7 +302,7 @@ fn main() {
         println!("a_pj_per_flop = {ga:.6}");
         println!("b_pj_per_byte = {gb:.6}");
         println!("c_pj_overhead = {gc:.3}");
-        println!("measured = true");
+        println!("basis = \"{basis}\"");
         println!("# ----- end cost_table.toml -----");
     }
 

@@ -2,27 +2,27 @@
 //!
 //! `EnergyMeter` is the small start/end-token shape the placement
 //! adapter brackets each dispatch with. `EnergyTelemetry` is the
-//! production cross-platform measurement trait — macOS IOReport
-//! (~1 mJ resolution), Linux RAPL (1 µJ), universal TDP fallback —
-//! consumed by `rce-energy-xover`, `joule-pipeline`, `graph-ai`,
-//! and `ask-coding-web`. This module ties them together so the
-//! self-calibration loop runs against real hardware on whatever host
-//! the adapter is on.
+//! production cross-platform trait consumed by `rce-energy-xover`.
+//! `open_default_backend` returns Linux RAPL when a readable zone
+//! exists (`reported`) and `fallback-tdp` otherwise (`est`, process
+//! CPU time or elapsed time times a per-core power). On macOS the
+//! same call is `fallback-tdp`. No backend in this repository returns
+//! the name `macos-ioreport`; `macos_ioreport.rs` is not here (planned).
+//! The branch on that name below is therefore unreachable until a
+//! backend reports it. The IOReport resolution claim (~1 mJ) and the
+//! RAPL resolution claim (1 µJ) are not checked by this file.
 //!
-//! Snapshot semantics differ per backend, and the trait docstring is
-//! actually wrong for the macOS backend:
-//!   - **macOS IOReport**: `snapshot()` internally calls
-//!     `IOReportCreateSamplesDelta(prior, current)` and returns the
-//!     **delta since the previous snapshot** (`macos_ioreport.rs`
-//!     line 277-287). The Total field is the interval energy, not a
-//!     running total.
-//!   - **Linux RAPL**: `snapshot()` reads
-//!     `/sys/class/powercap/.../energy_uj` directly — monotonically
-//!     accumulating since the kernel counter was zeroed (typically
-//!     boot). Total grows across snapshots.
-//!   - **Fallback TDP**: `snapshot()` computes
-//!     `process_cpu_time × per_core_TDP` — monotonically
-//!     accumulating since the process started.
+//! Snapshot semantics differ per backend:
+//!   - **macOS IOReport** (planned, name `macos-ioreport`): a snapshot
+//!     would be the delta since the previous snapshot. The Total field
+//!     would be the interval energy, not a running total.
+//!   - **Linux RAPL** (`reported`): `snapshot()` reads
+//!     `/sys/class/powercap/.../energy_uj` directly, accumulating since
+//!     the kernel counter was zeroed (typically boot). Total grows
+//!     across snapshots.
+//!   - **Fallback TDP** (`est`): `snapshot()` computes
+//!     `process_cpu_time × per_core_TDP`, accumulating since the
+//!     process started.
 //!
 //! For interval energy across a `start`/`end` window: macOS reads
 //! `now.channels[Total]` directly; the cumulative backends compute
@@ -37,6 +37,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use rce_energy::{Channel, EnergySnapshot, EnergyTelemetry, open_default_backend};
+use rce_placement::EnergyBasis;
 
 use crate::EnergyMeter;
 
@@ -76,14 +77,30 @@ impl SubstrateEnergyMeter {
         })
     }
 
-    /// Snapshot count of in-flight measurement windows. Useful for
-    /// asserting "all dispatches that started have ended" in tests.
+    /// Snapshot count of in-flight windows. Useful for asserting that
+    /// every dispatch that started has ended.
     pub fn windows_open(&self) -> usize {
         self.windows.lock().unwrap().len()
+    }
+
+    /// D.11 basis of the backend `open_default_backend` returned.
+    pub fn basis(&self) -> EnergyBasis {
+        backend_basis(self.inner.lock().unwrap().name())
+    }
+}
+
+fn backend_basis(name: &str) -> EnergyBasis {
+    match name {
+        "linux-rapl" | "macos-ioreport" => EnergyBasis::Reported,
+        _ => EnergyBasis::Est,
     }
 }
 
 impl EnergyMeter for SubstrateEnergyMeter {
+    fn basis(&self) -> EnergyBasis {
+        backend_basis(self.inner.lock().unwrap().name())
+    }
+
     fn start(&self) -> Option<u64> {
         let snap = self.inner.lock().unwrap().snapshot().ok()?;
         let token = {
@@ -99,11 +116,9 @@ impl EnergyMeter for SubstrateEnergyMeter {
         let prior = self.windows.lock().unwrap().remove(&token)?;
         let mut be = self.inner.lock().unwrap();
         let now = be.snapshot().ok()?;
-        // Branch on backend semantics (see module docstring): macOS
-        // IOReport's snapshot is already a since-previous interval,
-        // so `now.channels[Total]` *is* this window's energy. The
-        // cumulative backends (Linux RAPL, TDP fallback) need a
-        // subtraction.
+        // Branch on backend semantics (see module docstring). The
+        // `macos-ioreport` arm is unreachable with `open_default_backend`.
+        // Cumulative backends (Linux RAPL, TDP fallback) subtract.
         let delta_uj = if be.name() == "macos-ioreport" {
             now.channels.get(&Channel::Total).copied().unwrap_or(0)
         } else {

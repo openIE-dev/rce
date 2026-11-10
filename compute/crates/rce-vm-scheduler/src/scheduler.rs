@@ -466,8 +466,8 @@ mod tests {
         impl PricedBackend for AddRecorder {
             fn id(&self) -> &str { "test:add-recorder" }
             fn handles(&self) -> &[&'static str] { &["add"] }
-            fn cost(&self, _op: &str, _shapes: &[&[usize]]) -> (f64, bool) {
-                (1.0, true)
+            fn cost(&self, _op: &str, _shapes: &[&[usize]]) -> (f64, rce_vm_core::EnergyBasis) {
+                (1.0, rce_vm_core::EnergyBasis::Reported)
             }
             fn execute(&self, op: &str, inputs: &[Value]) -> std::result::Result<Value, String> {
                 self.0.lock().unwrap().push("add");

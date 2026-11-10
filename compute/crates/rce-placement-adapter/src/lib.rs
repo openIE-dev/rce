@@ -39,7 +39,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use rce_ingest_gguf::GgufDtype;
 use rce_op_qmm::{mm_1d, QuantWeight};
 use rce_op_qmm_metal::MetalQmmContext;
-use rce_placement::{BackendId, CostTable, LinearCoeffs};
+use rce_placement::{BackendId, CostTable, EnergyBasis, LinearCoeffs};
 use rce_vm_backend_cpu::Value;
 use rce_vm_scheduler::{pick_priced, PricedBackend};
 
@@ -55,17 +55,24 @@ pub use substrate_meter::SubstrateEnergyMeter;
 /// (op, backend) cell's coefficients toward reality.
 ///
 /// Deliberately decoupled from `rce-energy` so the adapter stays
-/// cross-platform: any meter — IOReport, RAPL, NVML, a simulated
-/// fixture for tests — drops in via this trait.
+/// cross-platform: any meter (IOReport, RAPL, NVML, a simulated
+/// fixture for tests) drops in via this trait.
 pub trait EnergyMeter: Send + Sync {
     /// Begin a measurement window. Returns an opaque start token, or
     /// `None` if measurement is unavailable for this call. The token's
-    /// only requirement is round-trip stability with `end`.
+    /// requirement is round-trip stability with `end`.
     fn start(&self) -> Option<u64>;
 
     /// End the measurement window opened by `start`. Returns observed
     /// energy in picojoules, or `None` if measurement failed.
     fn end(&self, start_token: u64) -> Option<u64>;
+
+    /// D.11 basis of the picojoules `end` returns. The default is `est`
+    /// (a fixture or a model). A counter returns `reported`. A wall or
+    /// shunt meter returns `measured`.
+    fn basis(&self) -> EnergyBasis {
+        EnergyBasis::Est
+    }
 }
 
 /// Stable wire IDs for the dtype slot in the qmm shape encoding. `0` is
@@ -140,7 +147,7 @@ pub fn qmm_1d_flops_bytes(n: u64, k: u64, weight_bytes: u64) -> (u64, u64) {
 
 /// Build the default cost table for qmm dispatch. Analytical priors only —
 /// a real calibration would run `rce-energy-xover` over each (dtype, n, k)
-/// and emit measured cells via `CostTable::from_toml`.
+/// and emit cells with a `basis` line via `CostTable::from_toml`.
 ///
 /// Two backends are priced:
 /// - `cpu:op-qmm` — direct `rce_op_qmm::mm_1d`. Low per-call overhead
@@ -161,13 +168,13 @@ pub fn default_qmm_cost_table() -> Arc<RwLock<CostTable>> {
         "qmm",
         &BackendId::new("cpu:op-qmm"),
         LinearCoeffs { a_pj_per_flop: 10.0, b_pj_per_byte: 0.05, c_pj_overhead: 500_000.0 },
-        false,
+        EnergyBasis::Est,
     );
     t.insert(
         "qmm",
         &BackendId::new("metal:op-qmm"),
         LinearCoeffs { a_pj_per_flop: 0.5, b_pj_per_byte: 0.05, c_pj_overhead: 2_000_000.0 },
-        false,
+        EnergyBasis::Est,
     );
     Arc::new(RwLock::new(t))
 }
@@ -189,8 +196,8 @@ impl PricedBackend for CpuQmm {
     fn id(&self) -> &str { "cpu:op-qmm" }
     fn handles(&self) -> &[&'static str] { &["qmm"] }
 
-    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, bool) {
-        if op != "qmm" || shapes.len() < 2 { return (f64::INFINITY, false); }
+    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, EnergyBasis) {
+        if op != "qmm" || shapes.len() < 2 { return (f64::INFINITY, EnergyBasis::Est); }
         // shapes: [a_shape=[k], w_shape=[n_rows, n_cols, weight_bytes_packed?]]
         // Use a 3-element w_shape so cost has access to the byte count
         // without dragging a side-band — see PlacementQmmAdapter::qmm_1d.
@@ -199,7 +206,7 @@ impl PricedBackend for CpuQmm {
         let weight_bytes = shapes[1].get(2).copied().unwrap_or(0) as u64;
         let (flops, bytes) = qmm_1d_flops_bytes(n_rows, k, weight_bytes);
         let est = self.table.read().unwrap().estimate(op, &BackendId::new(self.id().to_string()), flops, bytes);
-        (est.picojoules, est.measured)
+        (est.picojoules, est.basis)
     }
 
     fn execute(&self, _op: &str, _inputs: &[Value]) -> Result<Value, String> {
@@ -247,19 +254,19 @@ impl PricedBackend for MetalQmm {
     fn id(&self) -> &str { "metal:op-qmm" }
     fn handles(&self) -> &[&'static str] { &["qmm"] }
 
-    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, bool) {
-        if op != "qmm" || shapes.len() < 2 { return (f64::INFINITY, false); }
+    fn cost(&self, op: &str, shapes: &[&[usize]]) -> (f64, EnergyBasis) {
+        if op != "qmm" || shapes.len() < 2 { return (f64::INFINITY, EnergyBasis::Est); }
         // Reject unsupported formats — let pick_priced route them to a
         // generalist backend (CPU).
         let dtype_id = shapes[1].get(3).copied().unwrap_or(QMM_DTYPE_UNKNOWN);
-        if !metal_qmm_supports(dtype_id) { return (f64::INFINITY, false); }
+        if !metal_qmm_supports(dtype_id) { return (f64::INFINITY, EnergyBasis::Est); }
 
         let k = shapes[0][0] as u64;
         let n_rows = shapes[1][0] as u64;
         let weight_bytes = shapes[1].get(2).copied().unwrap_or(0) as u64;
         let (flops, bytes) = qmm_1d_flops_bytes(n_rows, k, weight_bytes);
         let est = self.table.read().unwrap().estimate(op, &BackendId::new(self.id().to_string()), flops, bytes);
-        (est.picojoules, est.measured)
+        (est.picojoules, est.basis)
     }
 
     fn execute(&self, _op: &str, _inputs: &[Value]) -> Result<Value, String> {
@@ -280,15 +287,15 @@ impl QmmDispatch for MetalQmm {
 
 // ── Adapter stats ────────────────────────────────────────────────
 
-/// Per-adapter observability — calls + estimated joules + per-backend
-/// dispatch counts. The `measured` fraction distinguishes analytical
-/// priors (default) from calibration-derived cells (after a
-/// `CostTable::from_toml` load). The per-backend map proves the
-/// shape-routed hybrid is actually flipping between backends.
+/// Per-adapter observability: calls, estimated picojoules and per-backend
+/// dispatch counts. `reading_calls` counts cells whose basis is `reported`
+/// or `measured`. An `est` cell is not counted there. The per-backend map
+/// shows which backend ran.
 #[derive(Default, Debug, Clone)]
 pub struct PlacementAdapterStats {
     pub calls: u64,
-    pub measured_calls: u64,
+    /// Calls whose cost cell basis is `reported` or `measured`.
+    pub reading_calls: u64,
     /// Sum of estimated picojoules across all calls (uses each call's
     /// chosen backend's cost cell — what placement decided to spend).
     pub estimated_picojoules: f64,
@@ -306,10 +313,12 @@ impl PlacementAdapterStats {
     pub fn estimated_microjoules(&self) -> f64 {
         self.estimated_picojoules / 1.0e6
     }
-    pub fn record(&mut self, backend_id: &str, pj: f64, measured: bool) {
+    pub fn record(&mut self, backend_id: &str, pj: f64, basis: EnergyBasis) {
         self.calls += 1;
         self.estimated_picojoules += pj;
-        if measured { self.measured_calls += 1; }
+        if matches!(basis, EnergyBasis::Reported | EnergyBasis::Measured) {
+            self.reading_calls += 1;
+        }
         *self.calls_per_backend.entry(backend_id.to_string()).or_default() += 1;
     }
 }
@@ -428,31 +437,31 @@ impl PlacementQmmAdapter {
         let w_shape = [w.n_rows, w.n_cols, weight_bytes, dtype_id];
 
         // Two-tier dispatch: check the shape cache first; on hit, skip
-        // pick_priced entirely and re-derive the recorded (pj, measured)
+        // pick_priced entirely and re-derive the recorded (pj, basis)
         // from the table directly. Cache key intentionally excludes
         // weight_bytes so different weights of the same shape share an
         // entry (typical for transformer layers — same shape, many
         // weights). Cost-table values are still read live so calibration
         // EWMA on the chosen cell affects the receipt.
         let cache_key = ("qmm", w.n_rows, w.n_cols, dtype_id);
-        let (be_id, pj, measured): (String, f64, bool) =
+        let (be_id, pj, basis): (String, f64, EnergyBasis) =
             if let Some(cached_id) = self.dispatch_cache.get(&cache_key).cloned() {
                 self.stats.dispatch_cache_hits += 1;
                 let (flops, bytes) = qmm_1d_flops_bytes(
                     w.n_rows as u64, w.n_cols as u64, weight_bytes as u64);
                 let est = self.table.read().unwrap().estimate(
                     "qmm", &BackendId::new(cached_id.clone()), flops, bytes);
-                (cached_id, est.picojoules, est.measured)
+                (cached_id, est.picojoules, est.basis)
             } else {
                 self.stats.dispatch_cache_misses += 1;
                 let shapes: Vec<&[usize]> = vec![&a_shape, &w_shape];
-                let (be, pj, measured) = pick_priced(&self.backends, "qmm", &shapes)
+                let (be, pj, basis) = pick_priced(&self.backends, "qmm", &shapes)
                     .expect("rce-placement-adapter: no priced backend handles `qmm`");
                 let id = be.id().to_string();
                 self.dispatch_cache.insert(cache_key, id.clone());
-                (id, pj, measured)
+                (id, pj, basis)
             };
-        self.stats.record(&be_id, pj, measured);
+        self.stats.record(&be_id, pj, basis);
 
         // Record the dispatch as an event in the verifiable trace BEFORE
         // executing. Two honest replicas with the same model + cost
@@ -464,7 +473,7 @@ impl PlacementQmmAdapter {
             &w_shape,
             &be_id,
             pj,
-            measured,
+            basis,
         ));
 
         let dispatcher = self.dispatchers.get(&be_id)
@@ -480,12 +489,14 @@ impl PlacementQmmAdapter {
             if let Some(observed_pj) = self.meter.as_ref().and_then(|m| m.end(token)) {
                 let (flops, bytes) = qmm_1d_flops_bytes(
                     w.n_rows as u64, w.n_cols as u64, weight_bytes as u64);
+                let meter_basis = self.meter.as_ref().map(|m| m.basis()).unwrap_or(EnergyBasis::Est);
                 self.table.write().unwrap().observe(
                     "qmm",
                     &BackendId::new(be_id),
                     flops,
                     bytes,
                     observed_pj as f64,
+                    meter_basis,
                 );
             }
         }
@@ -500,18 +511,21 @@ impl PlacementQmmAdapter {
         self
     }
 
-    /// Install the production rce-energy meter — macOS IOReport
-    /// on Apple Silicon, Linux RAPL on x86 / ARM64 Linux, universal
-    /// TDP fallback elsewhere. This is the **production wire-up of
-    /// the self-calibration loop**: every dispatch is bracketed by a
-    /// real hardware energy snapshot pair; observed pJ feeds
-    /// `CostTable::observe`; after `measured_after` samples per cell
-    /// the `measured` flag flips and downstream consumers see
-    /// calibration-derived coefficients.
+    /// Install the production rce-energy meter. `open_default_backend`
+    /// is Linux RAPL (`reported`) when a readable powercap zone exists,
+    /// and `fallback-tdp` (`est`) otherwise. On macOS that call is
+    /// `fallback-tdp`: no IOReport backend is wired in, and
+    /// `macos_ioreport.rs` is not in this repository (planned). The
+    /// name `macos-ioreport` is therefore not returned here.
     ///
-    /// Falls back to `self` (no meter) if `SubstrateEnergyMeter`
-    /// can't open a backend (in practice this never happens —
-    /// `fallback_tdp` is universal).
+    /// Every dispatch is bracketed by a snapshot pair. Observed
+    /// picojoules feed `CostTable::observe` with this meter's basis.
+    /// After `observed_after` samples the cell takes that basis. A
+    /// fallback sample stays `est`.
+    ///
+    /// Returns `self` with no meter if `SubstrateEnergyMeter` cannot
+    /// open a backend. `fallback-tdp` is what `open_default_backend`
+    /// returns when no counter can be read, so the open succeeds.
     pub fn with_rce_energy_meter(self) -> Self {
         match SubstrateEnergyMeter::open_default() {
             Some(meter) => self.with_meter(Arc::new(meter)),
@@ -568,7 +582,7 @@ impl PlacementQmmAdapter {
     //   2. Check `over_budget(remaining_uj)` after each forward (or each
     //      qmm, for tighter loops) and short-circuit if exceeded.
     //   3. On L3 exit, read `stats.estimated_microjoules()` and
-    //      `stats.measured_calls` to populate the L3 portion of the
+    //      `stats.reading_calls` to populate the L3 portion of the
     //      `CascadeEnergyReceipt`.
     //
     // The cascade-side patch (modifying verity-cascade's L3 layer) is
@@ -671,9 +685,9 @@ mod tests {
         assert!(after_two.estimated_picojoules > after_one.estimated_picojoules,
             "second call should add more pJ to the running total");
 
-        // Analytical priors — `measured` defaults to false.
-        assert_eq!(after_two.measured_calls, 0,
-            "default cost table is analytical (measured=false); calibration via from_toml flips this");
+        // Analytical priors: basis `est`, so reading_calls stays 0.
+        assert_eq!(after_two.reading_calls, 0,
+            "default cost table is est; a counter or meter basis is what reading_calls counts");
     }
 
     #[test]
@@ -686,13 +700,13 @@ mod tests {
         impl PricedBackend for ZeroQmm {
             fn id(&self) -> &str { "test:zero" }
             fn handles(&self) -> &[&'static str] { &["qmm"] }
-            fn cost(&self, _op: &str, shapes: &[&[usize]]) -> (f64, bool) {
+            fn cost(&self, _op: &str, shapes: &[&[usize]]) -> (f64, EnergyBasis) {
                 let est = self.table.read().unwrap().estimate(
                     "qmm", &BackendId::new("test:zero".to_string()),
                     2 * shapes[1][0] as u64 * shapes[0][0] as u64,
                     shapes[1].get(2).copied().unwrap_or(0) as u64,
                 );
-                (est.picojoules, est.measured)
+                (est.picojoules, est.basis)
             }
             fn execute(&self, _op: &str, _inputs: &[Value]) -> Result<Value, String> {
                 Err("unused".into())
@@ -710,7 +724,7 @@ mod tests {
         t.insert(
             "qmm", &BackendId::new("test:zero"),
             LinearCoeffs { a_pj_per_flop: 0.001, b_pj_per_byte: 0.0, c_pj_overhead: 0.0 },
-            true,
+            EnergyBasis::Est,
         );
         let cheap_table = Arc::new(RwLock::new(t));
 
@@ -813,9 +827,9 @@ mod tests {
         // dispatch, its transcript digest would diverge from honest.
         use trace::{make_event, DispatchTranscript};
         let mut honest = DispatchTranscript::new();
-        honest.append(make_event("qmm", &[32], &[16, 32, 544, 1], "metal:op-qmm", 1.0e6, false));
+        honest.append(make_event("qmm", &[32], &[16, 32, 544, 1], "metal:op-qmm", 1.0e6, EnergyBasis::Est));
         let mut byzantine = DispatchTranscript::new();
-        byzantine.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm",   1.0e6, false));
+        byzantine.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm",   1.0e6, EnergyBasis::Est));
         assert_ne!(honest.digest(), byzantine.digest(),
             "swapping the backend on the same dispatch must diverge");
     }
@@ -828,13 +842,20 @@ mod tests {
     struct FakeMeter {
         pj_per_call: u64,
         token_counter: std::sync::Mutex<u64>,
+        basis: EnergyBasis,
     }
     impl FakeMeter {
         fn new(pj_per_call: u64) -> Self {
-            Self { pj_per_call, token_counter: std::sync::Mutex::new(0) }
+            Self::with_basis(pj_per_call, EnergyBasis::Est)
+        }
+        fn with_basis(pj_per_call: u64, basis: EnergyBasis) -> Self {
+            Self { pj_per_call, token_counter: std::sync::Mutex::new(0), basis }
         }
     }
     impl EnergyMeter for FakeMeter {
+        fn basis(&self) -> EnergyBasis {
+            self.basis
+        }
         fn start(&self) -> Option<u64> {
             let mut c = self.token_counter.lock().unwrap();
             *c += 1;
@@ -846,26 +867,33 @@ mod tests {
     }
 
     #[test]
-    fn meter_observations_flip_cost_cell_to_measured() {
-        // The headline self-calibration property: enough metered
-        // observations of a (op, backend) cell flip its `measured` flag
-        // to true. After that, downstream consumers can distinguish
-        // calibration-derived cells from analytical priors.
+    fn meter_observations_inherit_the_meter_basis() {
+        // Enough samples make the cell take the meter's basis. A counter
+        // is `reported`. An estimate stays `est`. Neither becomes `measured`.
         let mut adapter = PlacementQmmAdapter::new()
-            .with_meter(Arc::new(FakeMeter::new(5_000_000))); // 5 µJ per call
+            .with_meter(Arc::new(FakeMeter::with_basis(5_000_000, EnergyBasis::Reported)));
         let w = synthetic_q8(16, 32);
         let a: Vec<f32> = (0..32).map(|i| (i as f32 * 0.01).sin()).collect();
 
-        // Default measured_after = 20. Run that many calls + 1 to cross.
+        // Default observed_after = 20. Run that many calls + 1 to cross.
         for _ in 0..21 { let _ = adapter.qmm_1d(&a, &w); }
         let table = adapter.cost_table();
         let observations = table.read().unwrap()
             .observations_for("qmm", &BackendId::new("cpu:op-qmm"));
         assert_eq!(observations, 21);
 
-        let (_, measured) = table.read().unwrap()
+        let (_, basis) = table.read().unwrap()
             .lookup("qmm", &BackendId::new("cpu:op-qmm"));
-        assert!(measured, "≥20 observations should flip the cost cell to measured");
+        assert_eq!(basis, EnergyBasis::Reported, "a counter meter's samples are reported");
+
+        let mut est = PlacementQmmAdapter::new()
+            .with_meter(Arc::new(FakeMeter::new(5_000_000)));
+        for _ in 0..21 { let _ = est.qmm_1d(&a, &w); }
+        assert_eq!(
+            est.cost_table().read().unwrap().lookup("qmm", &BackendId::new("cpu:op-qmm")).1,
+            EnergyBasis::Est,
+            "a fallback meter stays est"
+        );
     }
 
     #[test]
@@ -880,9 +908,9 @@ mod tests {
         let n = table.read().unwrap()
             .observations_for("qmm", &BackendId::new("cpu:op-qmm"));
         assert_eq!(n, 0, "no meter ⇒ no observations recorded");
-        let (_, measured) = table.read().unwrap()
+        let (_, basis) = table.read().unwrap()
             .lookup("qmm", &BackendId::new("cpu:op-qmm"));
-        assert!(!measured, "without observations the cell stays analytical");
+        assert_eq!(basis, EnergyBasis::Est, "without observations the cell stays est");
     }
 
     #[test]
@@ -1192,12 +1220,13 @@ mod tests {
 
     #[test]
     fn rce_energy_meter_observes_real_qmm_dispatches() {
-        // The end-to-end self-calibration proof: the production
-        // `rce-energy` meter (macOS IOReport / Linux RAPL /
-        // TDP fallback — whichever the host gives us) brackets each
-        // qmm dispatch and feeds observed pJ to CostTable::observe.
-        // After enough calls the (op, backend) cell flips to
-        // measured = true. No fixtures — real hardware reading.
+        // The end-to-end self-calibration path: the production
+        // `rce-energy` meter (Linux RAPL when present, otherwise the
+        // TDP fallback; on macOS the default backend is the TDP
+        // fallback) brackets each qmm dispatch and feeds observed pJ
+        // to CostTable::observe. After enough calls the cell takes
+        // that meter's basis. It does not become `measured` unless
+        // the meter is a wall or shunt, which this backend is not.
         //
         // Workload sizing note: `CostTable::observe` silently drops
         // 0-pJ readings to keep noise out of the EWMA. The TDP
@@ -1212,9 +1241,9 @@ mod tests {
         let w = synthetic_q8(1024, 1024);
         let a: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.01).sin()).collect();
 
-        // Run enough calls to clear the measured_after threshold (20)
-        // even if a few early dispatches read as zero on a fresh
-        // backend subscription.
+        // Run enough calls to clear the observed_after threshold (20)
+        // even if a few early dispatches read as non-positive on a fresh
+        // backend subscription. A non-positive sample is not stored.
         for _ in 0..30 { let _ = adapter.qmm_1d(&a, &w); }
 
         let table = adapter.cost_table();
@@ -1227,10 +1256,13 @@ mod tests {
             "expected ≥20 observations to land from 30 real dispatches; got {observations}. \
              This indicates either the backend isn't producing useful readings or the \
              workload is below noise floor on this host.");
-        let (_, measured) = table.read().unwrap()
+        let (_, basis) = table.read().unwrap()
             .lookup("qmm", &BackendId::new("cpu:op-qmm"));
-        assert!(measured,
-            "after ≥20 real-hardware observations the cell should be measured");
+        let meter_basis = SubstrateEnergyMeter::open_default().expect("backend").basis();
+        assert_eq!(basis, meter_basis,
+            "after enough observations the cell inherits the meter's basis ({})", meter_basis.word());
+        assert_ne!(basis, EnergyBasis::Measured,
+            "the default backend is a counter or a TDP estimate, not a wall or shunt meter");
     }
 
     #[test]
@@ -1242,10 +1274,10 @@ mod tests {
         // than mine" cleanly via the digest.
         use trace::{make_event, DispatchTranscript};
         let mut t_v1 = DispatchTranscript::new();
-        t_v1.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm", 1.0e6, false));
+        t_v1.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm", 1.0e6, EnergyBasis::Est));
         let mut t_v2 = DispatchTranscript::new();
         // Same dispatch, different cost cell → different estimate.
-        t_v2.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm", 9.5e5, false));
+        t_v2.append(make_event("qmm", &[32], &[16, 32, 544, 1], "cpu:op-qmm", 9.5e5, EnergyBasis::Est));
         assert_ne!(t_v1.digest(), t_v2.digest());
     }
 }

@@ -23,7 +23,7 @@ objective O4 "Crash recovery via WAL"
 
 objective O5 "Energy metering on every operation"
   metric operations_with_energy_receipt target 100
-  reason "Every read/write/query produces a picojoule energy receipt — the core differentiator" by "david"
+  reason "Every read/write/query produces an energy receipt in picojoules with its basis (est, reported, measured or unpriced)" by "david"
 
 # ── Constraints ──────────────────────────────────────────────────
 
@@ -59,8 +59,8 @@ acceptance A5 validates O4
   reason "Durability — crash recovery must be lossless" by "david"
 
 acceptance A6 validates O5
-  property "for all operations, energy_pj field is non-zero"
-  reason "Every operation must have energy attribution" by "david"
+  property "for all operations, the energy receipt is in picojoules with its basis (est, reported, measured or unpriced); an absent reading is not 0"
+  reason "Every operation carries an energy receipt with its basis" by "david"
 
 # ── Deliverables ──────────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ deliverable D4 fulfills O4
 
 deliverable D5 fulfills O5
   schema "EnergyReceipt"
-  reason "Per-operation picojoule accounting" by "david"
+  reason "Per-operation energy receipt in picojoules with its basis" by "david"
 
 # ── Roles ──────────────────────────────────────────────────────────
 
