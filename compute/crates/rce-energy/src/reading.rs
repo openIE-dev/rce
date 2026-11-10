@@ -233,10 +233,10 @@ impl Provenance {
         if !(self.interval_s.is_finite() && self.interval_s > 0.0) {
             return Err(format!("`interval_s` {} is not finite and > 0", self.interval_s));
         }
-        if let Some(w) = self.idle_baseline_w {
-            if !(w.is_finite() && w >= 0.0) {
-                return Err(format!("`idle_baseline_w` {w} is not finite and >= 0"));
-            }
+        if let Some(w) = self.idle_baseline_w
+            && !(w.is_finite() && w >= 0.0)
+        {
+            return Err(format!("`idle_baseline_w` {w} is not finite and >= 0"));
         }
         if self.start_unix_ns >= self.end_unix_ns {
             return Err(format!("`start_unix_ns` {} is not before `end_unix_ns` {}", self.start_unix_ns, self.end_unix_ns));
