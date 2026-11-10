@@ -1016,6 +1016,77 @@ impl Built {
         self.exec_refs(&flat, sc, parent_omega, ret_ty, exposed)
     }
 
+    /// The observation wrapper: set fuel from the run's limit, run one
+    /// observation, then print `fuel N`. The limit is a parameter of the run.
+    /// The print is the runner's count of steps. The middle is the observation.
+    fn fuel_frame<'a>(gnames: &[String], stmts: &[&'a Stmt]) -> Option<Vec<&'a Stmt>> {
+        let lim = gnames.iter().position(|n| n == "fuel.limit")? as u32;
+        let fuel = gnames.iter().position(|n| n == "fuel")? as u32;
+        if stmts.len() < 5 {
+            return None;
+        }
+        let Stmt::Let(Atom::G(g)) = stmts[0] else {
+            return None;
+        };
+        if *g != lim {
+            return None;
+        }
+        let Stmt::Set(Place::G(gf), Atom::V(_)) = stmts[1] else {
+            return None;
+        };
+        if *gf != fuel {
+            return None;
+        }
+        let mut i = 2;
+        while let Some(Stmt::Set(Place::G(g), a)) = stmts.get(i) {
+            let name = gnames.get(*g as usize).map(String::as_str)?;
+            let fresh = (name.ends_with(" evaluated")
+                && matches!(a, Atom::K(_, Lit::Bool(false))))
+                || (name == "cost.spent" && matches!(a, Atom::K(_, Lit::Int(0))))
+                || (name == "cost.deadline"
+                    && matches!(a, Atom::K(_, Lit::Int(n)) if *n == u64::MAX as i128));
+            if !fresh {
+                break;
+            }
+            i += 1;
+        }
+        let Stmt::Call(_, args) = stmts.get(i)? else {
+            return None;
+        };
+        if !args.is_empty() {
+            return None;
+        }
+        let call_at = i;
+        i += 1;
+        let Stmt::Let(Atom::G(g)) = stmts.get(i)? else {
+            return None;
+        };
+        if *g != fuel {
+            return None;
+        }
+        i += 1;
+        let Stmt::Let(Atom::G(g)) = stmts.get(i)? else {
+            return None;
+        };
+        if *g != lim {
+            return None;
+        }
+        let tail = &stmts[i + 1..];
+        if tail.len() < 2 {
+            return None;
+        }
+        let last = tail.len() - 1;
+        if !matches!(tail[last - 1], Stmt::Out(_)) || !matches!(tail[last], Stmt::Ret(_)) {
+            return None;
+        }
+        if tail.iter().any(|s| {
+            matches!(s, Stmt::Let(Atom::G(_)) | Stmt::Set(Place::G(_), _))
+        }) {
+            return None;
+        }
+        Some(vec![stmts[call_at], *tail.last().unwrap()])
+    }
+
     fn exec_refs(
         &self,
         flat: &[&Stmt],
@@ -1024,6 +1095,13 @@ impl Built {
         ret_ty: &BTy,
         exposed: &BTreeSet<u32>,
     ) -> Result<End, Change> {
+        // The observation driver's fuel frame is the runner, not the program.
+        // `fuel.limit` is the run's limit (rce-form.md §5), never a field of
+        // the module. A fresh ω already holds that limit as its fuel, and the
+        // `fuel N` line is the runner's `steps_used`. Neither is a node.
+        if let Some(middle) = Self::fuel_frame(&self.gnames, flat) {
+            return self.exec_refs(&middle, sc, parent_omega, ret_ty, exposed);
+        }
         let mut i = 0;
         while i < flat.len() {
             let s = flat[i];
@@ -1439,6 +1517,7 @@ impl Built {
         let end = self.exec_refs(&list, &mut sc, live, ret_ty, &BTreeSet::new())?;
         Ok((end, sc))
     }
+
 
     fn prim(
         &self,
@@ -3471,14 +3550,19 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
     let mut omega: HashMap<(String, u32), bool> = HashMap::new();
     let mut emits: HashMap<(String, u32), bool> = HashMap::new();
     let mut touches: HashMap<(String, u32), bool> = HashMap::new();
-    let outputs_g = global_names(m)
-        .iter()
-        .position(|n| n == "outputs")
-        .map(|i| i as u32);
+    let gnames = global_names(m);
+    let outputs_g = gnames.iter().position(|n| n == "outputs").map(|i| i as u32);
     for u in &users {
         let key = (u.group.clone(), u.index);
-        omega.insert(key.clone(), direct_omega(&u.func, &names, &u.group));
-        emits.insert(key.clone(), direct_emits(&u.func));
+        // The fuel frame's `out` is the runner's fuel line, not an emit of
+        // the function. Its effect class follows the observation it calls.
+        let refs: Vec<&Stmt> = u.func.body.iter().collect();
+        let framed = Built::fuel_frame(&gnames, &refs).is_some();
+        omega.insert(
+            key.clone(),
+            !framed && direct_omega(&u.func, &names, &u.group),
+        );
+        emits.insert(key.clone(), !framed && direct_emits(&u.func));
         touches.insert(
             key,
             outputs_g.is_some_and(|g| direct_global(&u.func, g)),

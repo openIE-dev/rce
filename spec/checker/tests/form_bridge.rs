@@ -1249,10 +1249,12 @@ fn whole_census(
         "module. global alone unblocked 18, and those 18 were entry-only cores.".to_string(),
         String::new(),
         "A read of `outputs` is the output list inside ω, and `out` of bytes".to_string(),
-        "is `emit[text]`. `out` is then in no whole-module set. `fuel` and".to_string(),
-        "`fuel.limit` stay refused. A function that stopped on the output".to_string(),
-        "list now shows its next refusal, so break is in more sets. whole".to_string(),
-        "stays 2, because the observation driver still reads the fuel limit.".to_string(),
+        "is `emit[text]`. The observation driver's `fuel.limit` read is the".to_string(),
+        "limit of the run, not a field of the module, so that frame is not a".to_string(),
+        "node. A read of `fuel` outside the frame stays refused. Constant".to_string(),
+        "flags are memo cells, not folded constants, and those reads stay".to_string(),
+        "refused. `out` is in no whole-module set. The exact set global is 2.".to_string(),
+        "whole stays 2.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
         format!("floor\t{covered}"),
@@ -2628,4 +2630,35 @@ fn return_in_a_loop_is_not_a_continue() {
     wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
     let err = bridge::construct(&m).expect_err("return");
     assert_eq!(err.tag(), "exit", "{}", err.line());
+}
+
+#[test]
+fn the_observation_fuel_frame_is_the_run_parameter() {
+    // `fuel.limit` is the limit of a run, not a field of the module
+    // (rce-form.md §5). The observation driver reads it to start from full
+    // fuel and to print `fuel N`. That frame is the runner. A fresh ω already
+    // holds the limit, and the fuel line is the runner's step count, so
+    // neither is a node. A read of `fuel` outside that frame stays refused:
+    // fuel moves only by `fuel.tick`.
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/12_borrow.rce"),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let core_m = rce_spec_check::one::core_of(&ast).unwrap();
+    let bad: Vec<_> = bridge::refusals(&core_m)
+        .into_iter()
+        .filter(|e| e.reason.contains("g1") || e.tag() == "global")
+        .map(|e| format!("{} {}", e.at, e.reason))
+        .collect();
+    assert!(bad.is_empty(), "{bad:?}");
+    let f = bridge::construct(&core_m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(matches!(
+        form::check(fir::encode(&f).as_bytes(), None),
+        form::Outcome::Applied(_)
+    ));
+    // The runner's fuel line is not a node, so the scheduled core is not the
+    // original driver. Where that changes a signature, the census counts
+    // round-trip rather than a whole module.
+    bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
 }
