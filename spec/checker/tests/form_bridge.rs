@@ -1491,11 +1491,11 @@ fn examples_are_covered_or_require_change() {
     // library function and each unobserved δ into the core drops that to
     // 2, of which 1 still has no user function and 1 contains user code.
     assert_eq!(
-        whole, 2,
+        whole, 3,
         "the number of whole examples that construct changed; raise this floor and check the trace"
     );
     assert_eq!(entry_only, 1, "entry-only whole cores");
-    assert_eq!(with_user, 1, "whole cores that contain a user function");
+    assert_eq!(with_user, 2, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
@@ -3020,4 +3020,37 @@ fn a_literal_returned_by_one_arm_stays_beside_the_branch() {
         Some(fir::Attr::Lit(_, Lit::Bytes(s))) => assert_eq!(s, b"true"),
         other => panic!("the then arm is not the bytes literal true: {other:?}"),
     }
+}
+
+#[test]
+fn an_empty_buffer_stays_inside_the_arm_that_builds_it() {
+    // `rt.dec_sm`: one arm returns "0". The other builds `var acc = ""`
+    // and returns it. That `""` is a node of the arm. The branch output's
+    // placeholder is the same literal, and no path reads the placeholder.
+    let mut b = FB::new(vec![Ty::u64()], Ty::Bytes);
+    let m = b.arg(0);
+    let z = b.int_cmp("int.eq", m, build::lit(0)).unwrap();
+    b.open();
+    b.ret(Atom::bytes(b"0"));
+    let t = b.close();
+    b.push(Stmt::If(z, t, vec![]));
+    let acc = b.var(Ty::Bytes, Atom::bytes(b""));
+    let a = b.let_(Atom::V(acc));
+    b.ret(a);
+    let f = round_trip(&module("buf", b.finish()));
+    let func = user_func(&f);
+    let top_empty = func.body.nodes.iter().any(|n| {
+        matches!(&n.attrs, fir::Attr::Lit(_, Lit::Bytes(s)) if s.is_empty())
+    });
+    assert!(!top_empty, "the empty buffer was built beside the branch: {:?}", func.body.nodes.iter().map(|n| &n.attrs).collect::<Vec<_>>());
+    let branch = func
+        .body
+        .nodes
+        .iter()
+        .find(|n| matches!(n.attrs, fir::Attr::Branch(_, _)))
+        .expect("branch");
+    let inside = branch.regions.iter().any(|r| {
+        r.nodes.iter().any(|n| matches!(&n.attrs, fir::Attr::Lit(_, Lit::Bytes(s)) if s.is_empty()))
+    });
+    assert!(inside, "the empty buffer is not a node of the arm that builds it");
 }

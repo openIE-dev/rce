@@ -42,10 +42,10 @@ copy. The counts are the table below.
 
 programs	60
 floor	5
-semantic	0
-whole	2
+semantic	3
+whole	3
 whole-entry-only	1
-whole-with-user	1
+whole-with-user	2
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
@@ -55,22 +55,21 @@ unblocks	set
 3	defect
 3	exit
 2	global
-1	FG8
 1	bound,break
 1	break,catch
 1	break,exit
+1	catch,exit
 
 whole modules, every exact set
 modules	set
 14	round-trip
 13	break
 9	lowering
+3	clear
 3	defect
 3	exit
-2	clear
 2	defect,exit,loop
 2	global
-1	FG8
 1	bound,break
 1	break,catch
 1	break,defect,exit
@@ -85,18 +84,18 @@ modules	set
 
 program roots, every exact set
 modules	set
-16	round-trip
+13	round-trip
 9	lowering
-6	defect
-5	clear
-5	defect,round-trip
+8	clear
+8	defect
+4	defect,round-trip
 3	exit
 2	FG8
-2	FG8,defect
 2	break
 2	no-root
 2	selector
 1	FG1,round-trip
+1	FG8,defect
 1	global
 1	global,loop
 1	loop
@@ -126,17 +125,17 @@ module	whole	roots	user	global-sites
 19_floats.rce	break	round-trip	user	
 20_strings.rce	defect,exit,loop	defect	user	
 21_maps.rce	lowering	lowering	lowering	not covered by the lowering: an integer operation checked against ranges that differ at run time (["lit", "u32"])
-22_tuples.rce	defect	defect,round-trip	user	
+22_tuples.rce	defect	defect	user	
 23_patterns.rce	break	break	user	
 24_lambda.rce	round-trip	round-trip	user	
 25_labels.rce	round-trip	round-trip	user	
 27_bitops.rce	round-trip	round-trip	user	
-28_slices.rce	round-trip	round-trip	user	
+28_slices.rce	clear	clear	user	
 29_nested_kind.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
 30_state_machine_guarded.rce	break	defect,round-trip	user	
 31_inventory.rce	exit	exit	user	
 32_comptime_block.rce	global	global	user	fn table_size: global: g3 is not part of the working context ω holds
-33_in_operator.rce	defect	FG8,defect	user	
+33_in_operator.rce	defect	defect	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
 35_nested_if.rce	clear	clear	user	
 36_multiline_brackets.rce	round-trip	round-trip	user	
@@ -146,10 +145,10 @@ module	whole	roots	user	global-sites
 40_extern.rce	round-trip	clear	user	
 41_arena_bound_wrapping.rce	round-trip	round-trip	user	
 42_f32.rce	bound,break	clear	user	
-43_simd_lanes.rce	FG8	round-trip	user	
+43_simd_lanes.rce	round-trip	round-trip	user	
 44_device_region.rce	break	break	user	
-45_byte_text.rce	exit,global	round-trip	user	check 7: global: g3 is not part of the working context ω holds
-46_u64.rce	global	round-trip	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds
+45_byte_text.rce	exit,global	clear	user	check 7: global: g3 is not part of the working context ω holds
+46_u64.rce	global	clear	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds
 47_select_fair.rce	lowering	lowering	lowering	not covered by the lowering: the type chan u64
 48_linear_handle.rce	round-trip	clear	user	
 49_loop_limit.rce	round-trip	round-trip	user	

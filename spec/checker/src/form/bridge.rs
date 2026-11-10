@@ -1303,7 +1303,7 @@ impl Built {
                     };
                     // A literal the parent already built is captured, so the
                     // operation and its domain test are the same value (FG8).
-                    let lits = lits_already(sc, &[t_b, e_b], rest);
+                    let lits = lits_already(sc, &self.info, &[t_b, e_b], rest);
                     // A tail of only drops and stores, whose values the parent
                     // already has, is the schedule's join of a branch's outputs.
                     // It stays after this branch. Sinking it into a nested halt
@@ -1857,7 +1857,7 @@ impl Built {
             || self.stmts_need_order(e)
             || followed.iter().any(|s| self.stmt_needs_order(s));
         let thread = if order { here } else { None };
-        let lits = lits_already(sc, &[t, e], &followed);
+        let lits = lits_already(sc, &self.info, &[t, e], &followed);
         let seed = self.seed_of(&[t, e], &followed, sc);
         // A tag test is a Branch on `sum.tag`. The matching arm is region k,
         // so FG8's tag fact still covers `sum.get` there. The break does not
@@ -2751,7 +2751,7 @@ impl Built {
         } else {
             None
         };
-        let lits = lits_already(sc, &[t, e], &tail_refs);
+        let lits = lits_already(sc, &self.info, &[t, e], &tail_refs);
         let seed = self.seed_of(&[t, e], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let false_lit = if !t_arm_falls || !e_arm_falls {
@@ -2838,7 +2838,7 @@ impl Built {
         } else {
             None
         };
-        let lits = lits_already(sc, &[fall_arm, halt_arm], &tail_refs);
+        let lits = lits_already(sc, &self.info, &[fall_arm, halt_arm], &tail_refs);
         let seed = self.seed_of(&[fall_arm, halt_arm], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let (fall_end, fall_sc) = self.body_arm(
@@ -3585,7 +3585,13 @@ fn stmt_lits(b: &[Stmt], out: &mut Vec<(Ty, Lit)>) {
 }
 
 /// Literals mentioned in the arms that this region has already built.
-fn lits_already(sc: &Scope, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
+///
+/// A literal the parent computed is captured, so a domain test and the
+/// operation it guards are the same value. The initial value of a `var`
+/// that no arm reads is not that: it is the placeholder of a branch output.
+/// Sharing it would move the arm's own copy of the same literal out beside
+/// the branch.
+fn lits_already(sc: &Scope, info: &Info, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
     let mut ks = vec![];
     for a in arms {
         stmt_lits(a, &mut ks);
@@ -3598,8 +3604,108 @@ fn lits_already(sc: &Scope, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, S
     let mut seen = HashSet::new();
     ks.into_iter()
         .filter(|k| seen.insert(k.clone()))
-        .filter_map(|(t, l)| find_lit(sc, &t, &l).map(|src| (t, l, src)))
+        .filter_map(|(t, l)| {
+            let src = find_lit(sc, &t, &l)?;
+            if literal_is_unread_var_init(sc, info, src, arms, tail) {
+                return None;
+            }
+            Some((t, l, src))
+        })
         .collect()
+}
+
+fn atom_is(a: &Atom, v: u32) -> bool {
+    matches!(a, Atom::V(i) if *i == v)
+}
+
+fn assigns_somewhere(stmts: &[Stmt], v: u32) -> bool {
+    stmts.iter().any(|s| match s {
+        Stmt::Set(Place::V(i), _) if *i == v => true,
+        Stmt::If(_, t, e) => assigns_somewhere(t, v) || assigns_somewhere(e, v),
+        Stmt::Block(x) | Stmt::Loop(x) => assigns_somewhere(x, v),
+        _ => false,
+    })
+}
+
+/// Every path through `stmts` returns or halts, so the value does not fall out.
+fn always_returns(stmts: &[Stmt]) -> bool {
+    for s in stmts {
+        match s {
+            Stmt::Ret(_) | Stmt::Halt(_) => return true,
+            Stmt::If(_, t, e) if always_returns(t) && always_returns(e) => return true,
+            Stmt::Block(x) if always_returns(x) => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// This path still needs the value `v` held on entry.
+/// A `set` that does not read `v`, or a `ret` that never reads it, does not.
+fn path_uses_old(stmts: &[Stmt], v: u32) -> bool {
+    if reads_before_assign(stmts, v) {
+        return true;
+    }
+    if assigns_somewhere(stmts, v) {
+        return false;
+    }
+    !always_returns(stmts)
+}
+
+/// `v` is read on this path before a `set` replaces it.
+fn reads_before_assign(stmts: &[Stmt], v: u32) -> bool {
+    for s in stmts {
+        match s {
+            Stmt::Set(Place::V(i), a) if *i == v => return atom_is(a, v),
+            Stmt::Set(_, a) if atom_is(a, v) => return true,
+            Stmt::Let(a) | Stmt::Var(_, a) | Stmt::Ret(a) | Stmt::Halt(a) | Stmt::Out(a)
+                if atom_is(a, v) =>
+            {
+                return true;
+            }
+            Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) | Stmt::Graph(_, xs)
+                if xs.iter().any(|a| atom_is(a, v)) =>
+            {
+                return true;
+            }
+            Stmt::If(c, t, e) => {
+                if atom_is(c, v) || reads_before_assign(t, v) || reads_before_assign(e, v) {
+                    return true;
+                }
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => {
+                if reads_before_assign(x, v) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn literal_is_unread_var_init(
+    sc: &Scope,
+    info: &Info,
+    src: Src,
+    arms: &[&[Stmt]],
+    _tail: &[&Stmt],
+) -> bool {
+    if sc.nodes.iter().any(|n| n.ins.contains(&src)) {
+        return false;
+    }
+    let locals: Vec<u32> = sc
+        .env
+        .iter()
+        .filter(|(_, s)| **s == src)
+        .map(|(v, _)| *v)
+        .collect();
+    if locals.is_empty()
+        || locals.iter().any(|v| !info.loc.get(v).is_some_and(|l| l.var))
+    {
+        return false;
+    }
+    !locals.iter().any(|v| arms.iter().any(|a| path_uses_old(a, *v)))
 }
 
 /// The integer a source holds in this region: a literal node, or a literal
@@ -3778,8 +3884,17 @@ fn carried_vars(sc: &Scope, parts: &[&[Stmt]]) -> Vec<u32> {
 }
 
 fn lit_bool(region: &mut Scope, v: bool) -> Src {
-    let i = region.push(Attr::Lit(BTy::Bool, Lit::Bool(v)), vec![], vec![]);
-    Src::Out(i, 0)
+    // The same literal the region already holds, including one captured
+    // from outside, is that source. A second node would not survive the
+    // schedule, which writes the literal as an atom and builds it once.
+    let lit = Lit::Bool(v);
+    if let Some(s) = find_lit(region, &Ty::Bool, &lit) {
+        return s;
+    }
+    let i = region.push(Attr::Lit(BTy::Bool, lit.clone()), vec![], vec![]);
+    let s = Src::Out(i, 0);
+    region.lits.push((Ty::Bool, lit, s));
+    s
 }
 
 fn bool_not(region: &mut Scope, s: Src) -> Src {

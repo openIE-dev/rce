@@ -55,7 +55,7 @@ follows; each is a choice the proposal's text should settle.
   with a cycle, has no canonical form (C5 numbers nodes topologically); FG3
   then leaves the module to FG4.
 - **Naming the canonical rule (FG3).** The canonical form is reached by one
-  pass per rule (C8, C11, C6, C7, C4, C3, C5, C9), repeated until no pass
+  pass per rule (C8, C11, C6, C7, C6, C4, C3, C5, C9), repeated until no pass
   changes the module; the first pass that changes it names the rule. Bytes
   that decode to a canonical module but are not its canonical JSON name 6.1.1.
 - **C11.** "A Halt with the runtime's trap text" names no definition and no
