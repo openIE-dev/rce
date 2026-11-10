@@ -1,9 +1,14 @@
 //! Witnesses for the block-break and `fn table` measure contract.
 //!
 //! The contract is `spec/proposals/break-fg8-impl-contract.md`. These tests
-//! call the public bridge and the core evaluator. A case the bridge refuses
-//! asserts that refusal and the core result the contract says a later form
-//! has to match. Nothing here builds a second Form.
+//! call the public bridge and the core evaluator. A refusal is the reason
+//! the bridge returns on `410bfd40`. A case that now constructs is checked
+//! against the core: the form returns the same value, and so does the
+//! scheduled core when the schedule builds. Nothing here builds a second Form.
+//!
+//! `410bfd40` is main after #157 (`d77075a2`, the residual law inside a
+//! recognised loop) and #158 (`34c915fd`, library functions kept in the
+//! core). The pins name that commit.
 use rce_spec_check::form::bridge::{self, Change};
 use rce_spec_check::form::{self, eval as feval, ir as fir};
 use rce_spec_check::one::build::{self, FB};
@@ -119,12 +124,65 @@ fn refuse(m: &CoreModule) -> Change {
     bridge::construct(m).expect_err("the bridge admitted a case the contract keeps refused")
 }
 
+/// A break that is not inside a count or a measure. `d77075a2` carries a
+/// residual only inside a recognised loop, and this sentence is the refusal
+/// for the rest. Measured on `410bfd40`.
+const BREAK_OUTSIDE: &str =
+    "break: a break outside a recognised loop is an exit this slice does not restructure";
+
+/// An inner loop that is not a count and not a measure. The residual law is
+/// not applied there. Measured on `410bfd40`.
+const UNRECOGNISED_LOOP: &str = "loop: a loop has none of the two-region shapes the schedule writes (a measure, or a count bound). A lowering loop with a different statement order requires change";
+
 fn assert_break_block(m: &CoreModule) {
     let e = refuse(m);
     assert_eq!(e.tag(), "break", "{}", e.line());
+    assert_eq!(e.reason, BREAK_OUTSIDE, "{}", e.line());
+}
+
+fn assert_applied(f: &fir::Module) {
     assert!(
-        e.reason
-            .contains("a block that is not a loop, and a break out of it"),
+        matches!(
+            form::check(fir::encode(f).as_bytes(), None),
+            form::Outcome::Applied(_)
+        ),
+        "the constructed form is not applied"
+    );
+}
+
+fn assert_values(m: &CoreModule, f: &fir::Module, args: Vec<Val>) {
+    let (core_v, _) = core_eval(m, args.clone());
+    let core_v = core_v.expect("core eval");
+    let (k, i) = form_key(f, args.len());
+    let form_v = feval::apply(f, &k, i, args).unwrap_or_else(|e| panic!("form eval: {e}"));
+    assert_eq!(form_v, vec![core_v], "form eval and core eval differ");
+}
+
+fn assert_scheduled_values(origin: &CoreModule, scheduled: &CoreModule, args: Vec<Val>) {
+    let (core_v, _) = core_eval(origin, args.clone());
+    let (k, i) = by_arity(scheduled, args.len());
+    let mut ev = eval::Eval::new(scheduled);
+    let got = match ev.call_key(&k, i, args) {
+        Ok(v) => Ok(v),
+        Err(Flow::Halt(h)) => Err(format!("halt: {h:?}")),
+        Err(Flow::Bad(e)) => Err(e),
+    };
+    assert_eq!(
+        got, core_v,
+        "the scheduled core and the original core differ"
+    );
+}
+
+fn schedule_fg8(f: &fir::Module, at: &str) {
+    let s = bridge::schedule(f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
+    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    assert_eq!(e.at, at, "{}", e.line());
+    assert!(
+        e.reason.contains(
+            "the body region does not return i raised by exactly one whenever it continues"
+        ),
         "{}",
         e.line()
     );
@@ -186,7 +244,24 @@ fn load_example(file: &str) -> CoreModule {
 
 #[test]
 fn corpus_baseline_on_50294e05() {
-    // Contract section 1. The numbers are the ones this commit produces.
+    // The name records the commit the contract first measured (section 1).
+    // The rows below are measured on 410bfd40, main after #157 (d77075a2)
+    // and #158 (34c915fd).
+    //
+    // `whole` is the census definition in form_bridge_census.txt: the core
+    // constructs, the schedule constructs, and the bytes are equal.
+    // whole-entry-only is that set restricted to a core with no program
+    // root (`fn`, `region`, `delta`, `initial state`). whole-with-user is
+    // the rest. A program root's first refusal is the file's root tag, as
+    // in examples_are_covered_or_require_change.
+    //
+    // Counting `construct` alone, with no schedule, accepts 18 modules on
+    // this commit. That is not the census `whole` of 2. One of the 18,
+    // `09_generics.rce`, is entry-only. The other 17 contain a user
+    // function, and 16 of them do not schedule back to the same bytes.
+    // The 18 entry-only cores in the #158 note were the count before
+    // library functions were kept in the core. This 18 is the gate
+    // accepting the Form after that change.
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
@@ -195,12 +270,15 @@ fn corpus_baseline_on_50294e05() {
         .collect();
     files.sort();
     let mut programs = 0usize;
-    let mut whole = 0usize;
-    let mut covered = 0usize;
-    let mut semantic = 0usize;
-    let mut defect = 0usize;
+    let mut covered = Vec::new();
+    let mut semantic = Vec::new();
     let mut root_tags: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut module_tags: BTreeMap<String, usize> = BTreeMap::new();
+    let mut construct_tag: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut lowering: BTreeMap<String, String> = BTreeMap::new();
+    let mut whole = Vec::new();
+    let mut entry_only = Vec::new();
+    let mut with_user = Vec::new();
+    let mut construct_ok = Vec::new();
     for p in &files {
         let src = std::fs::read_to_string(p).unwrap();
         if rce_spec_check::program(&src).is_err() {
@@ -212,18 +290,49 @@ fn corpus_baseline_on_50294e05() {
         let core_m = match rce_spec_check::one::core_of(&ast) {
             Ok(c) => c,
             Err(e) => {
-                root_tags
-                    .entry(format!("lowering: {e}"))
-                    .or_default()
-                    .push(file);
+                lowering.insert(file, e);
                 continue;
             }
         };
-        match bridge::construct(&core_m) {
-            Ok(_) => whole += 1,
-            Err(e) => *module_tags.entry(e.tag().to_string()).or_default() += 1,
-        }
         let roots = root_names(&core_m);
+        let entry = roots.is_empty();
+        match bridge::construct(&core_m) {
+            Err(e) => construct_tag
+                .entry(e.tag().to_string())
+                .or_default()
+                .push(file.clone()),
+            Ok(f) => {
+                construct_ok.push(file.clone());
+                match bridge::schedule(&f) {
+                    Err(e) => {
+                        construct_tag
+                            .entry(format!("schedule {}", e.tag()))
+                            .or_default()
+                            .push(file.clone());
+                    }
+                    Ok(s) => match bridge::construct(&s) {
+                        Err(e) => {
+                            construct_tag
+                                .entry(format!("schedule {}", e.tag()))
+                                .or_default()
+                                .push(file.clone());
+                        }
+                        Ok(back) if fir::encode(&f) == fir::encode(&back) => {
+                            whole.push(file.clone());
+                            if entry {
+                                entry_only.push(file.clone());
+                            } else {
+                                with_user.push(file.clone());
+                            }
+                        }
+                        Ok(_) => construct_tag
+                            .entry("round-trip".into())
+                            .or_default()
+                            .push(file.clone()),
+                    },
+                }
+            }
+        }
         if roots.is_empty() {
             root_tags
                 .entry("no program root".into())
@@ -244,134 +353,273 @@ fn corpus_baseline_on_50294e05() {
             }
         }
         match bad {
-            None if !rewrote => {
-                covered += 1;
-            }
-            None => {
-                semantic += 1;
-            }
-            Some(tag) => {
-                if tag == "defect" {
-                    defect += 1;
-                }
-                root_tags.entry(tag).or_default().push(file);
-            }
+            None if !rewrote => covered.push(file),
+            None => semantic.push(file),
+            Some(tag) => root_tags.entry(tag).or_default().push(file),
         }
     }
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
     assert_eq!(
-        whole, 0,
-        "a whole example constructs; the contract's floor moved"
+        whole,
+        ["09_generics.rce", "35_nested_if.rce"],
+        "census whole, measured on 410bfd40"
     );
-    assert_eq!(covered, 5, "the syntactic floor moved");
+    assert_eq!(entry_only, ["09_generics.rce"], "whole-entry-only");
+    assert_eq!(with_user, ["35_nested_if.rce"], "whole-with-user");
     assert_eq!(
-        semantic, 0,
-        "an example was admitted only as a body-break rewrite"
+        construct_ok,
+        [
+            "03_fib_loop.rce",
+            "08_traits.rce",
+            "09_generics.rce",
+            "11_arena.rce",
+            "12_borrow.rce",
+            "18_while_bound.rce",
+            "22_tuples.rce",
+            "24_lambda.rce",
+            "25_labels.rce",
+            "27_bitops.rce",
+            "28_slices.rce",
+            "35_nested_if.rce",
+            "36_multiline_brackets.rce",
+            "40_extern.rce",
+            "41_arena_bound_wrapping.rce",
+            "43_simd_lanes.rce",
+            "48_linear_handle.rce",
+            "49_loop_limit.rce",
+        ],
+        "construct alone, before the schedule; not census whole"
     );
-    assert_eq!(defect, 0, "a program function is tagged defect");
+    assert_eq!(
+        covered,
+        [
+            "12_borrow.rce",
+            "35_nested_if.rce",
+            "40_extern.rce",
+            "42_f32.rce",
+            "48_linear_handle.rce",
+        ],
+        "the syntactic floor moved"
+    );
+    assert!(
+        semantic.is_empty(),
+        "an example was admitted only as a body-break rewrite: {semantic:?}"
+    );
     let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
-    // Recorded on 50294e05. This binary's bridge is the merge of 924f88e4,
-    // so these lists are not the live rows. They stay the measurement of
-    // that parent and are not rewritten to match a later main.
-    let break_50294e05 = [
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "54_secret.rce",
-        "57_float_vectors.rce",
-        "60_dim_hidden_period.rce",
-    ];
-    let catch_50294e05 = 10usize;
-    let loop_50294e05 = ["50_iterators.rce"];
-    let module_catch_50294e05 = 11usize;
-    let module_global_50294e05 = 35usize;
-    let module_out_50294e05 = 8usize;
-    assert_eq!(break_50294e05, [
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "54_secret.rce",
-        "57_float_vectors.rce",
-        "60_dim_hidden_period.rce",
-    ]);
-    assert_eq!(catch_50294e05, 10);
-    assert_eq!(loop_50294e05, ["50_iterators.rce"]);
-    assert_eq!(module_catch_50294e05, 11);
-    assert_eq!(module_global_50294e05, 35);
-    assert_eq!(module_out_50294e05, 8);
-    assert_ne!(break_50294e05.len(), names("break").len());
-    // Live rows of the checker after merging 924f88e4. Catch no longer
-    // stops a file first, so those files show their next tag. FG8 is still
-    // only 21_maps. The nine byte mismatches are the same names.
-    assert_eq!(names("break"), [
-        "01_counter.rce",
-        "02_hello_main.rce",
-        "04_bank_account.rce",
-        "16_multi_region.rce",
-        "17_traffic_light.rce",
-        "30_state_machine_guarded.rce",
-        "44_device_region.rce",
-        "51_refined_input.rce",
-        "52_context_text.rce",
-        "53_capability.rce",
-        "54_secret.rce",
-        "56_utf8.rce",
-        "57_float_vectors.rce",
-        "58_float_keys.rce",
-        "59_dim_redundant_field.rce",
-        "60_dim_hidden_period.rce",
-        "61_dim_minimal.rce",
-    ]);
-    assert_eq!(names("FG8"), ["21_maps.rce"]);
+    assert_eq!(
+        names("break"),
+        [
+            "01_counter.rce",
+            "04_bank_account.rce",
+            "05_kind_match.rce",
+            "16_multi_region.rce",
+            "17_traffic_light.rce",
+            "23_patterns.rce",
+            "30_state_machine_guarded.rce",
+            "44_device_region.rce",
+            "51_refined_input.rce",
+            "52_context_text.rce",
+            "53_capability.rce",
+            "54_secret.rce",
+            "56_utf8.rce",
+            "57_float_vectors.rce",
+            "58_float_keys.rce",
+            "59_dim_redundant_field.rce",
+            "60_dim_hidden_period.rce",
+            "61_dim_minimal.rce",
+        ]
+    );
+    assert_eq!(names("FG8"), ["33_in_operator.rce"]);
     assert!(
         names("catch").is_empty(),
-        "924f88e4 still has a first-tag catch: {:?}",
+        "a program root's first tag is catch: {:?}",
         names("catch")
     );
     assert_eq!(names("global"), ["32_comptime_block.rce"]);
     assert_eq!(names("loop"), ["50_iterators.rce", "55_rcedb.rce"]);
-    // Byte mismatches only. `21_maps.rce` is the FG8 row on both revisions,
-    // not one of these. On 50294e05, `56_utf8.rce`'s first tag is catch and
-    // `22_tuples.rce`'s later root `fn use_it` is FG8. On 924f88e4,
-    // `56_utf8.rce`'s first tag is break and `fn use_it` is defect. Neither
-    // file joins or leaves this nine.
-    assert_eq!(names("round-trip"), [
-        "03_fib_loop.rce",
-        "10_comptime.rce",
-        "22_tuples.rce",
-        "25_labels.rce",
-        "36_multiline_brackets.rce",
-        "43_simd_lanes.rce",
-        "45_byte_text.rce",
-        "46_u64.rce",
-        "49_loop_limit.rce",
-    ]);
-    assert_eq!(names("no program root").len(), 21);
-    let lowering: usize = root_tags
-        .iter()
-        .filter(|(k, _)| k.starts_with("lowering:"))
-        .map(|(_, v)| v.len())
-        .sum();
-    assert_eq!(lowering, 4);
-    assert_eq!(module_tags.get("break").copied().unwrap_or(0), 2);
-    assert!(
-        !module_tags.contains_key("catch"),
-        "924f88e4 whole-module catch: {:?}",
-        module_tags.get("catch")
+    assert_eq!(names("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
+    assert_eq!(
+        names("defect"),
+        ["06_option.rce", "07_error_union.rce", "20_strings.rce"]
     );
-    assert_eq!(module_tags.get("global").copied().unwrap_or(0), 36);
-    assert_eq!(module_tags.get("out").copied().unwrap_or(0), 18);
-    assert!(!module_tags.contains_key("defect"));
+    assert_eq!(
+        names("round-trip"),
+        [
+            "03_fib_loop.rce",
+            "08_traits.rce",
+            "10_comptime.rce",
+            "11_arena.rce",
+            "18_while_bound.rce",
+            "19_floats.rce",
+            "22_tuples.rce",
+            "24_lambda.rce",
+            "25_labels.rce",
+            "27_bitops.rce",
+            "28_slices.rce",
+            "36_multiline_brackets.rce",
+            "41_arena_bound_wrapping.rce",
+            "43_simd_lanes.rce",
+            "45_byte_text.rce",
+            "46_u64.rce",
+            "49_loop_limit.rce",
+        ]
+    );
+    assert_eq!(
+        names("no program root"),
+        ["09_generics.rce", "38_hex_bin.rce"]
+    );
+    assert_eq!(
+        lowering,
+        BTreeMap::from([
+            ("13_spawn_chan.rce".into(), "not covered by the lowering: the type chan i64".into()),
+            ("14_select.rce".into(), "not covered by the lowering: the type chan text".into()),
+            ("15_actor.rce".into(), "not covered by the lowering: the type chan i64".into()),
+            (
+                "21_maps.rce".into(),
+                "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])".into(),
+            ),
+            ("29_nested_kind.rce".into(), "not covered by the lowering: a recursive type".into()),
+            (
+                "34_chan_types.rce".into(),
+                "not covered by the lowering: the type chan (u64, text)".into(),
+            ),
+            ("37_actor_spawn.rce".into(), "not covered by the lowering: the type chan u64".into()),
+            (
+                "39_structural_recursion.rce".into(),
+                "not covered by the lowering: a recursive type".into(),
+            ),
+            ("47_select_fair.rce".into(), "not covered by the lowering: the type chan u64".into()),
+        ])
+    );
+    let tagged = |tag: &str| construct_tag.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
+    assert_eq!(
+        tagged("break"),
+        [
+            "01_counter.rce",
+            "04_bank_account.rce",
+            "05_kind_match.rce",
+            "06_option.rce",
+            "17_traffic_light.rce",
+            "19_floats.rce",
+            "23_patterns.rce",
+            "30_state_machine_guarded.rce",
+            "38_hex_bin.rce",
+            "42_f32.rce",
+            "44_device_region.rce",
+            "51_refined_input.rce",
+            "52_context_text.rce",
+            "53_capability.rce",
+            "54_secret.rce",
+            "57_float_vectors.rce",
+            "59_dim_redundant_field.rce",
+            "60_dim_hidden_period.rce",
+            "61_dim_minimal.rce",
+        ]
+    );
+    assert_eq!(
+        tagged("catch"),
+        ["16_multi_region.rce", "56_utf8.rce", "58_float_keys.rce"]
+    );
+    assert_eq!(
+        tagged("defect"),
+        ["07_error_union.rce", "20_strings.rce", "33_in_operator.rce"]
+    );
+    assert_eq!(tagged("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
+    assert_eq!(
+        tagged("global"),
+        [
+            "10_comptime.rce",
+            "32_comptime_block.rce",
+            "45_byte_text.rce",
+            "46_u64.rce",
+            "50_iterators.rce",
+        ]
+    );
+    assert_eq!(tagged("loop"), ["55_rcedb.rce"]);
+    assert_eq!(tagged("schedule defect"), ["22_tuples.rce"]);
+    assert_eq!(tagged("schedule FG8"), ["43_simd_lanes.rce"]);
+    assert_eq!(
+        tagged("round-trip"),
+        [
+            "03_fib_loop.rce",
+            "08_traits.rce",
+            "11_arena.rce",
+            "12_borrow.rce",
+            "18_while_bound.rce",
+            "24_lambda.rce",
+            "25_labels.rce",
+            "27_bitops.rce",
+            "28_slices.rce",
+            "36_multiline_brackets.rce",
+            "40_extern.rce",
+            "41_arena_bound_wrapping.rce",
+            "48_linear_handle.rce",
+            "49_loop_limit.rce",
+        ]
+    );
+    assert!(
+        !construct_tag.contains_key("out"),
+        "out of bytes is emit, so out is not a whole-module tag: {:?}",
+        construct_tag.get("out")
+    );
+    assert_eq!(
+        root_tags.keys().cloned().collect::<Vec<_>>(),
+        [
+            "FG8",
+            "break",
+            "defect",
+            "exit",
+            "global",
+            "loop",
+            "no program root",
+            "round-trip",
+        ]
+    );
+    assert_eq!(
+        construct_tag.keys().cloned().collect::<Vec<_>>(),
+        [
+            "break",
+            "catch",
+            "defect",
+            "exit",
+            "global",
+            "loop",
+            "round-trip",
+            "schedule FG8",
+            "schedule defect",
+        ]
+    );
+    let tagged_files: usize = root_tags.values().map(|v| v.len()).sum();
+    assert_eq!(
+        lowering.len() + covered.len() + semantic.len() + tagged_files,
+        programs,
+        "a program is missing from the root census"
+    );
 }
 
 #[test]
 fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
     // Contract section 4. The first form is applied. The schedule is not.
-    let maps = load_example("21_maps.rce");
+    // On 410bfd40 the file does not lower: 34c915fd keeps `fn freq`, and
+    // `(m.get(w) catch 0) + 1` mixes a literal with u32. The census records
+    // that refusal. `fn table` is the measure this test checks, so the
+    // function is lowered from its own line in the same file.
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/21_maps.rce"),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let err = rce_spec_check::one::core_of(&ast).expect_err("21_maps lowered");
+    assert_eq!(
+        err,
+        "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])"
+    );
+    let line = src
+        .lines()
+        .find(|l| l.starts_with("fn table"))
+        .expect("fn table");
+    let ast = rce_spec_check::program(&format!("{line}\n")).unwrap();
+    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("fn table: {e}"));
     let sub = bridge::closure(&maps, "fn table").expect("fn table");
     let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
     assert!(
@@ -477,9 +725,10 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
 #[test]
 fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
     // Contract section 3.2. `break 1` inside the body block names the loop.
-    // The bridge builds a measure and FG8 rejects the trace. The core
-    // results are what the option B flag has to match: the increment does
-    // not run on the break path.
+    // On 410bfd40 the first form is that flag: it is applied, and it
+    // returns the core's value. The schedule is still refused by FG8.
+    // The node is 1, measured on this commit; the reason is unchanged.
+    // The increment does not run on the break path.
     let build = |with_tick: bool| {
         let (tick, tkey) = tick_parts();
         let key = tkey.clone();
@@ -519,24 +768,31 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
         }
     };
     let m = build(false);
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
     assert!(
-        e.reason
-            .contains("raised by exactly one whenever it continues"),
-        "{}",
-        e.line()
+        bridge::body_break_rewrite(),
+        "break 1 was not restructured into the loop flag"
     );
+    assert_applied(&f);
+    assert_values(&m, &f, vec![Val::Int(0), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
     let (z, _) = core_eval(&m, vec![Val::Int(0), Val::Bool(true)]);
     let (one, _) = core_eval(&m, vec![Val::Int(4), Val::Bool(true)]);
     let (many, _) = core_eval(&m, vec![Val::Int(4), Val::Bool(false)]);
     assert_eq!(z, Ok(Val::Int(0)), "zero iterations");
     assert_eq!(one, Ok(Val::Int(0)), "the break skipped the increment");
     assert_eq!(many, Ok(Val::Int(4)), "four iterations step the index");
+    schedule_fg8(&f, "node 1");
 
     let m = build(true);
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
+    assert!(bridge::body_break_rewrite());
+    assert_applied(&f);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
+    assert_values(&m, &f, vec![Val::Int(0), Val::Bool(false)]);
+    schedule_fg8(&f, "node 1");
     let spent = |args: Vec<Val>| {
         let (_, g) = core_eval(&m, args);
         match g {
@@ -664,9 +920,12 @@ fn a_nested_return_outside_a_loop_round_trips() {
         assert_eq!(got, Ok(Val::Int(want)));
         let (k, i) = by_arity(&m, 1);
         let _ = (k, i);
-        let got = feval::apply(&f, &form_key(&f, 1).0, form_key(&f, 1).1, vec![Val::Bool(
-            bit,
-        )])
+        let got = feval::apply(
+            &f,
+            &form_key(&f, 1).0,
+            form_key(&f, 1).1,
+            vec![Val::Bool(bit)],
+        )
         .unwrap();
         assert_eq!(got, vec![Val::Int(want)]);
         let (sg, _) = core_eval(&s, vec![Val::Bool(bit)]);
@@ -906,14 +1165,16 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
     bad(
         vec![
             Stmt::Prim("list.new".into(), vec![e.clone()], vec![]),
-            Stmt::Prim("list.push".into(), vec![e.clone()], vec![
-                Atom::V(0),
-                build::lit(7),
-            ]),
-            Stmt::Prim("list.get".into(), vec![e.clone()], vec![
-                Atom::V(1),
-                build::lit(0),
-            ]),
+            Stmt::Prim(
+                "list.push".into(),
+                vec![e.clone()],
+                vec![Atom::V(0), build::lit(7)],
+            ),
+            Stmt::Prim(
+                "list.get".into(),
+                vec![e.clone()],
+                vec![Atom::V(1), build::lit(0)],
+            ),
             Stmt::Ret(Atom::V(2)),
         ],
         "missing guard",
@@ -982,15 +1243,17 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
 
 #[test]
 fn hello_and_dot4_keep_their_break_sentences() {
-    // Contract section 1. Two different break sentences, on the closures that
-    // give the corpus those tags.
+    // Contract section 1. On 410bfd40 `fn main`'s first refusal is the
+    // return inside `rt.escaped`, not the break in `rt.debug`. A return is
+    // not the loop flag. `fn dot4` still refuses with the break sentence.
     let hello = load_example("02_hello_main.rce");
     let sub = bridge::closure(&hello, "fn main").unwrap();
     let e = bridge::construct(&sub).expect_err("hello");
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert_eq!(e.at, "rt.debug", "{}", e.line());
-    assert!(
-        e.reason.contains("a block that is not a loop"),
+    assert_eq!(e.tag(), "exit", "{}", e.line());
+    assert_eq!(e.at, "rt.escaped", "{}", e.line());
+    assert_eq!(
+        e.reason,
+        "exit: a loop body does not fall through",
         "{}",
         e.line()
     );
@@ -1000,11 +1263,7 @@ fn hello_and_dot4_keep_their_break_sentences() {
     let e = bridge::construct(&sub).expect_err("dot4");
     assert_eq!(e.tag(), "break", "{}", e.line());
     assert_eq!(e.at, "rt.f64.parts", "{}", e.line());
-    assert!(
-        e.reason.contains("a break outside a recognised loop"),
-        "{}",
-        e.line()
-    );
+    assert_eq!(e.reason, BREAK_OUTSIDE, "{}", e.line());
 }
 
 #[test]
@@ -1029,13 +1288,12 @@ fn a_break_that_leaves_two_loops_is_refused() {
     b.ret(build::lit(0));
     let m = assemble(tick, tkey, "nest", b.finish());
     let e = refuse(&m);
-    assert_eq!(e.tag(), "break", "{}", e.line());
-    assert_eq!(
-        e.reason,
-        "break: a break that leaves more than one loop is an exit this slice does not restructure",
-        "{}",
-        e.line()
-    );
+    // The inner loop is not a count or a measure, so it is not a recognised
+    // loop. d77075a2 removed the "leaves more than one loop" sentence when
+    // a recognised loop started carrying the residual. This shape stays
+    // refused. Measured on 410bfd40.
+    assert_eq!(e.tag(), "loop", "{}", e.line());
+    assert_eq!(e.reason, UNRECOGNISED_LOOP, "{}", e.line());
 }
 
 fn loop_bound(r: &Result<Val, String>) -> bool {
@@ -1121,10 +1379,8 @@ fn two_loop_exit_core_results() {
     // are that witness. The bridge refusal is unchanged.
     let markers = two_loop_exit(false, false);
     let e = refuse(&markers);
-    assert_eq!(
-        e.reason,
-        "break: a break that leaves more than one loop is an exit this slice does not restructure"
-    );
+    assert_eq!(e.tag(), "loop", "{}", e.line());
+    assert_eq!(e.reason, UNRECOGNISED_LOOP, "{}", e.line());
     let (leave, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(true)]);
     let (stay, _) = core_eval(&markers, vec![Val::Int(1), Val::Bool(false)]);
     let (early, _) = core_eval(&markers, vec![Val::Int(0), Val::Bool(true)]);
@@ -1234,29 +1490,44 @@ fn block_if_loop(depth: u32) -> CoreModule {
 fn block_if_loop_distinguishes_depth_from_residual() {
     // Source depth 0 names the block. The if is not a level. Depth 1 names
     // the loop. Depth 2 names nothing: the core rejects it before it runs.
+    // On 410bfd40 depth 0 and depth 1 construct. The form and the scheduled
+    // core return the core's value. Depth 1's schedule is still FG8.
     let args = vec![Val::Int(1), Val::Bool(true), Val::Bool(true)];
+    let fall_args = vec![Val::Int(1), Val::Bool(true), Val::Bool(false)];
     let depth0 = block_if_loop(0);
-    assert_break_block(&depth0);
+    let f = bridge::construct(&depth0).unwrap_or_else(|e| panic!("depth 0: {}", e.line()));
+    assert!(
+        bridge::body_break_rewrite(),
+        "break 0 was not the block's local exit"
+    );
+    assert_applied(&f);
+    assert_values(&depth0, &f, args.clone());
+    assert_values(&depth0, &f, fall_args.clone());
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("schedule construct: {}", e.line()));
+    assert_applied(&back);
+    assert_scheduled_values(&depth0, &s, args.clone());
+    assert_scheduled_values(&depth0, &s, fall_args);
     let (take, _) = core_eval(&depth0, args.clone());
-    let (fall, _) = core_eval(&depth0, vec![
-        Val::Int(1),
-        Val::Bool(true),
-        Val::Bool(false),
-    ]);
+    let (fall, _) = core_eval(
+        &depth0,
+        vec![Val::Int(1), Val::Bool(true), Val::Bool(false)],
+    );
     // Break 0: tail skipped, after_block, after_if, after_loop, one step.
     assert_eq!(take, Ok(Val::Int(30)));
     // No break taken: the tail runs as well. Same continuations, different control.
     assert_eq!(fall, Ok(Val::Int(31)));
 
     let depth1 = block_if_loop(1);
-    let e = refuse(&depth1);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    let f = bridge::construct(&depth1).unwrap_or_else(|e| panic!("depth 1: {}", e.line()));
     assert!(
-        e.reason
-            .contains("raised by exactly one whenever it continues"),
-        "{}",
-        e.line()
+        bridge::body_break_rewrite(),
+        "depth 1 was not the loop flag"
     );
+    assert_applied(&f);
+    assert_values(&depth1, &f, args.clone());
+    schedule_fg8(&f, "node 1");
     let (leave, _) = core_eval(&depth1, args);
     // Only after_loop. The if did not consume a level. steps stayed 0.
     assert_eq!(leave, Ok(Val::Int(8)));
