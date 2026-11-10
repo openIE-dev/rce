@@ -283,7 +283,7 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(whole, 19, "the number of modules that construct changed\n{live}");
     assert_eq!(covered, 5, "the syntactic floor moved");
     assert_eq!(
-        semantic, 3,
+        semantic, 12,
         "an example was admitted only as a body-break rewrite\n{live}"
     );
     assert_eq!(defect, 13, "a program function's first tag is defect\n{live}");
@@ -339,19 +339,10 @@ fn corpus_baseline_on_50294e05() {
         "55_rcedb.rce",
     ]);
     assert_eq!(names("round-trip"), [
-        "03_fib_loop.rce",
-        "08_traits.rce",
         "10_comptime.rce",
         "11_arena.rce",
-        "18_while_bound.rce",
         "19_floats.rce",
-        "24_lambda.rce",
-        "25_labels.rce",
-        "27_bitops.rce",
-        "36_multiline_brackets.rce",
         "41_arena_bound_wrapping.rce",
-        "43_simd_lanes.rce",
-        "49_loop_limit.rce",
     ]);
     assert_eq!(names("no program root").len(), 2);
     let lowering: usize = root_tags

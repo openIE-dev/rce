@@ -1491,11 +1491,11 @@ fn examples_are_covered_or_require_change() {
     // library function and each unobserved δ into the core drops that to
     // 2, of which 1 still has no user function and 1 contains user code.
     assert_eq!(
-        whole, 3,
+        whole, 7,
         "the number of whole examples that construct changed; raise this floor and check the trace"
     );
     assert_eq!(entry_only, 1, "entry-only whole cores");
-    assert_eq!(with_user, 2, "whole cores that contain a user function");
+    assert_eq!(with_user, 6, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"
@@ -3053,4 +3053,42 @@ fn an_empty_buffer_stays_inside_the_arm_that_builds_it() {
         r.nodes.iter().any(|n| matches!(&n.attrs, fir::Attr::Lit(_, Lit::Bytes(s)) if s.is_empty()))
     });
     assert!(inside, "the empty buffer is not a node of the arm that builds it");
+}
+
+fn count_lit(body: &fir::Body, lit: &Lit) -> usize {
+    body.nodes
+        .iter()
+        .map(|n| {
+            let here = match &n.attrs {
+                fir::Attr::Lit(_, l) if l == lit => 1,
+                _ => 0,
+            };
+            here + n.regions.iter().map(|r| count_lit(r, lit)).sum::<usize>()
+        })
+        .sum()
+}
+
+#[test]
+fn an_arm_rebuilds_a_bool_the_parent_already_holds() {
+    // `nz` is false before the if. The then-arm returns another false.
+    // That occurrence is a node of the arm. An integer the parent computed
+    // is still captured, so a tag index stays one value.
+    let mut b = FB::new(vec![Ty::Bool], Ty::Bool);
+    let stop = b.arg(0);
+    let nz = b.var(Ty::Bool, Atom::bool(false));
+    b.open();
+    b.ret(Atom::bool(false));
+    let t = b.close();
+    b.open();
+    let v = b.let_(Atom::V(nz));
+    b.ret(v);
+    let e = b.close();
+    b.push(Stmt::If(stop, t, e));
+    let f = round_trip(&module("reuse", b.finish()));
+    let func = user_func(&f);
+    assert_eq!(
+        count_lit(&func.body, &Lit::Bool(false)),
+        2,
+        "the break flag and nz collapsed to one false"
+    );
 }

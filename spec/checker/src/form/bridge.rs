@@ -3587,10 +3587,11 @@ fn stmt_lits(b: &[Stmt], out: &mut Vec<(Ty, Lit)>) {
 /// Literals mentioned in the arms that this region has already built.
 ///
 /// A literal the parent computed is captured, so a domain test and the
-/// operation it guards are the same value. The initial value of a `var`
-/// that no arm reads is not that: it is the placeholder of a branch output.
-/// Sharing it would move the arm's own copy of the same literal out beside
-/// the branch.
+/// operation it guards see the same value (FG8). A bool written in the
+/// arm is a node of that arm, even when the parent already holds false:
+/// `nz = false` and a break flag are two occurrences. The initial value
+/// of a `var` that no arm reads is not shared either: it is the
+/// placeholder of a branch output.
 fn lits_already(sc: &Scope, info: &Info, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
     let mut ks = vec![];
     for a in arms {
@@ -3603,6 +3604,7 @@ fn lits_already(sc: &Scope, info: &Info, arms: &[&[Stmt]], tail: &[&Stmt]) -> Ve
     // keeps the capture list, and the first occurrence's order.
     let mut seen = HashSet::new();
     ks.into_iter()
+        .filter(|(_, l)| !matches!(l, Lit::Bool(_)))
         .filter(|k| seen.insert(k.clone()))
         .filter_map(|(t, l)| {
             let src = find_lit(sc, &t, &l)?;
