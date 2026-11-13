@@ -51,8 +51,9 @@
 //!   the fuel trap is not among them. Zero declared outputs schedule as the
 //!   unit tuple, and several declared outputs as `tup(outputs…)`. The core
 //!   has one return, so reading that schedule back does not restore a
-//!   zero-output or multi-output signature. A list or array singleton has
-//!   no dummy value in this slice
+//!   zero-output or multi-output signature. A list singleton's initial
+//!   value is `list.new` of the element; both arms that run drop it and
+//!   store the real sum. An array singleton has no dummy value in this slice
 //!
 //! A construct outside that fragment requires change. The reason starts with
 //! a tag (`global`, `out`, `carrier`, `graph`, `catch`, `recursion`, `loop`,
@@ -556,18 +557,16 @@ impl Built {
     /// A literal node. A second use of the same literal in this region is the
     /// same source, so a domain test and the operation it guards compare equal.
     ///
-    /// A bool an arm writes is a node of that arm once the arm has computed
-    /// anything. The parent's dummy `false`, captured so a pure `break` arm
-    /// can return it with no node, is not that literal: the break arm of a
-    /// measure stores a fresh `false` (`lit_bool`), and FG8 reads that node.
-    /// A captured bool is not a use of the carried flag (B4).
+    /// A bool an arm returns is a node of that arm, including a pure `break`
+    /// whose only result is the flag. The parent's dummy `false` is not that
+    /// node: FG8 reads a literal false in the same region, and a capture of
+    /// the dummy is a carried bool (B4).
     fn ensure_lit(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
         if let Some(s) = lit_in_region(sc, t, l) {
             return Ok(s);
         }
         if let Some(s) = find_lit(sc, t, l) {
-            let fresh_bool =
-                matches!(l, Lit::Bool(_)) && matches!(s, Src::In(_)) && !sc.nodes.is_empty();
+            let fresh_bool = matches!(l, Lit::Bool(_)) && matches!(s, Src::In(_));
             if !fresh_bool {
                 return Ok(s);
             }
@@ -2140,7 +2139,6 @@ impl Built {
         thread: Option<Src>,
         ret_ty: &BTy,
         names: u32,
-        false_lit: Option<Src>,
     ) -> Result<(End, Scope), Change> {
         let mut sc = Scope {
             nodes: vec![],
@@ -2169,17 +2167,12 @@ impl Built {
             sc.caps.push(p);
             sc.omega = Some(Src::In(j));
         }
-        // A pure break returns the parent's literal false, captured, with no
-        // node in the arm. The schedule's branch dummy is that same literal,
-        // so construct(schedule(F)) rebuilds this capture instead of a second
-        // copy inside the arm (B4: the flag is not a carried input).
+        // A pure break stores a fresh false in this arm. The node has no
+        // inputs. A capture of the parent's dummy is not a node FG8 can
+        // read, and it is a carried bool (B4).
         if fall.is_empty() && stmts.len() == 1 && matches!(stmts[0], Stmt::Break(d) if *d == names)
         {
-            let src =
-                false_lit.ok_or_else(|| self.deny("defect: a break flag has no literal false"))?;
-            let j = sc.caps.len() as u32;
-            sc.caps.push(src);
-            sc.exit_flag = Some(Src::In(j));
+            sc.exit_flag = Some(lit_bool(&mut sc, false));
             return Ok((End::Exit, sc));
         }
         let live = sc.omega.or(parent_omega);
@@ -2250,11 +2243,6 @@ impl Built {
         let lits = lits_already(sc, &[t, e], &tail_refs);
         let seed = self.seed_of(&[t, e], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
-        let false_lit = if !t_arm_falls || !e_arm_falls {
-            Some(self.ensure_lit(sc, &Ty::Bool, &Lit::Bool(false))?)
-        } else {
-            None
-        };
         let (e1, a1) = self.body_arm(
             &t_stmts,
             t_fall,
@@ -2268,7 +2256,6 @@ impl Built {
             thread,
             ret_ty,
             names,
-            if t_arm_falls { None } else { false_lit },
         )?;
         let (e0, a0) = self.body_arm(
             &e_stmts,
@@ -2283,7 +2270,6 @@ impl Built {
             thread,
             ret_ty,
             names,
-            if e_arm_falls { None } else { false_lit },
         )?;
         if let Some(r) = agreed_residual(a1.exit_residual, a0.exit_residual) {
             sc.exit_residual = Some(r);
@@ -2338,7 +2324,7 @@ impl Built {
         let seed = self.seed_of(&[fall_arm, halt_arm], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let (fall_end, fall_sc) = self.body_arm(
-            &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names, None,
+            &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names,
         )?;
         let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty)?;
         lose_outputs(sc, &fall_sc);
@@ -4479,7 +4465,13 @@ fn dummy_atom(b: &mut Bld, ty: &Ty) -> Result<Atom, String> {
             let id = b.prim("tup.mk", vec![ty.clone()], args, ty.clone());
             Ok(Atom::V(id))
         }
-        Ty::List(_) => Err("a list singleton has no dummy in this slice".into()),
+        Ty::List(e) => {
+            // The initial is empty. Both arms that run drop it and store
+            // the real sum, the same way a branch output's list dummy is
+            // `list.new`.
+            let id = b.prim("list.new", vec![(**e).clone()], vec![], ty.clone());
+            Ok(Atom::V(id))
+        }
         Ty::Arr(_) => Err("an array singleton has no dummy in this slice".into()),
         Ty::Sum(xs) => {
             let first = xs.first().ok_or("an empty sum has no dummy")?;
@@ -5122,9 +5114,9 @@ fn schedule_branch(
     let dom = dom_from(sch, body, n.ins[0], env);
     // A literal this branch captures, and that the arms only return, was a
     // node of the parent. One `let` names it, and the arm uses that local,
-    // so construction finds the same node. A bool stays an atom: the break
-    // arm's `false` is a node of that arm once the arm computes anything,
-    // and a pure break returns the output var's own dummy. A literal an arm
+    // so construction finds the same node. A bool stays an atom. Construction
+    // stores a fresh `false` in the break arm, including a pure break, and
+    // does not reuse the output var's dummy (B4, FG8). A literal an arm
     // reads stays an atom, so a domain test and the operation it guards are
     // still the same value (W4, FG8).
     // The parent's env keeps the atom. A later `sum.mk` in this region still
