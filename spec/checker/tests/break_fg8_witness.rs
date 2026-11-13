@@ -744,6 +744,68 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
     assert_eq!(spent(fuel_f), 3, "the fall path did not charge every tick");
 }
 
+fn count_int(body: &fir::Body, n: i128) -> usize {
+    let mut c = 0;
+    for node in &body.nodes {
+        if let fir::Attr::Lit(_, Lit::Int(v)) = &node.attrs {
+            if *v == n {
+                c += 1;
+            }
+        }
+        for region in &node.regions {
+            c += count_int(region, n);
+        }
+    }
+    c
+}
+
+#[test]
+fn a_block_break_builds_the_continuation_once_after_the_branch() {
+    // The store after the break stays on the fall-through arm. The literal
+    // in the continuation after the block is one node, beside the Branch.
+    let mut b = FB::new(vec![Ty::Bool], i64ty());
+    let c = b.arg(0);
+    let r = b.var(i64ty(), build::lit(0));
+    b.open();
+    b.if_(
+        c,
+        |b| {
+            b.brk(0);
+            Ok(())
+        },
+        |_| Ok(()),
+    )
+    .unwrap();
+    b.set(r, build::lit(1));
+    let inner = b.close();
+    b.push(Stmt::Block(inner));
+    let tail = b.let_(build::lit(99));
+    let rv = b.let_(Atom::V(r));
+    let sum = b.add_in(rv, tail, i64ty()).unwrap();
+    b.ret(sum);
+    let m = module("once", b.finish());
+    let f = {
+        wf::check(&m).unwrap();
+        bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()))
+    };
+    admit(&m);
+    let func = f
+        .defs
+        .values()
+        .flat_map(|g| g.fns.iter())
+        .find(|func| count_int(&func.body, 99) > 0)
+        .expect("the continuation literal");
+    assert_eq!(count_int(&func.body, 99), 1, "the continuation was copied");
+    let beside = func.body.nodes.iter().any(|n| {
+        matches!(&n.attrs, fir::Attr::Lit(_, Lit::Int(99)))
+    });
+    assert!(beside, "the continuation is inside the branch");
+    let (brk, _) = core_eval(&m, vec![Val::Bool(true)]);
+    let (fall, _) = core_eval(&m, vec![Val::Bool(false)]);
+    assert_eq!(brk, Ok(Val::Int(99)), "the break skipped the store");
+    assert_eq!(fall, Ok(Val::Int(100)), "the fall arm stored, then the continuation ran");
+}
+
 #[test]
 fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
     // Contract section 3.2. `break 1` inside the body block names the loop.

@@ -242,6 +242,12 @@ fn stmt_count(s: &Stmt) -> usize {
 /// True when every path through `stmts` reaches the statement after the list.
 /// A nested `break` does not, so the tail stays in the arm that can still
 /// run it and the break can skip that tail.
+/// The arm is only `break 0`. Its continuation is the block's, so it is
+/// not built inside the arm.
+fn pure_break0(stmts: &[Stmt]) -> bool {
+    !stmts.is_empty() && stmts.iter().all(|s| matches!(s, Stmt::Break(0)))
+}
+
 fn reaches_end(stmts: &[Stmt]) -> bool {
     for s in stmts {
         match s {
@@ -1761,13 +1767,21 @@ impl Built {
     ) -> Result<End, Change> {
         match mode {
             SeqMode::Tail => Err(self.deny("break: a residual has nothing to exit to")),
-            SeqMode::Arm { after, parent_after, .. } => self.finish_seq(
-                SeqMode::In { after, parent_after },
-                sc,
-                parent_omega,
-                ret_ty,
-                depth,
-            ),
+            // An empty `after` means the block's continuation is outside
+            // this branch. The arm ends, and the parent runs that tail once.
+            SeqMode::Arm { after, parent_after, .. } => {
+                if after.is_empty() {
+                    Ok(End::Fall)
+                } else {
+                    self.finish_seq(
+                        SeqMode::In { after, parent_after },
+                        sc,
+                        parent_omega,
+                        ret_ty,
+                        depth,
+                    )
+                }
+            }
             SeqMode::In { .. } => self.finish_seq(mode, sc, parent_omega, ret_ty, depth),
         }
     }
@@ -1844,8 +1858,25 @@ impl Built {
         } else {
             (no_rest, no_rest, false)
         };
-        let mode_t = SeqMode::Arm { rest: rest_t, after, parent_after };
-        let mode_e = SeqMode::Arm { rest: rest_e, after, parent_after };
+        // A `break 0` leaves the block. The continuation after the block
+        // runs on both paths, so it is one tail after the Branch. The
+        // statements after the break stay on the arm that falls through.
+        let share_after = !after.is_empty() && (pure_break0(t) || pure_break0(e));
+        let (arm_after, arm_parent) = if share_after {
+            (&[][..], None)
+        } else {
+            (after, parent_after)
+        };
+        let mode_t = SeqMode::Arm {
+            rest: rest_t,
+            after: arm_after,
+            parent_after: arm_parent,
+        };
+        let mode_e = SeqMode::Arm {
+            rest: rest_e,
+            after: arm_after,
+            parent_after: arm_parent,
+        };
         let here = sc.omega.or(parent_omega);
         let mut followed: Vec<&Stmt> = rest_t.to_vec();
         followed.extend(rest_e.iter().copied());
@@ -1884,8 +1915,13 @@ impl Built {
             (sc_e, end_e, sc_t, end_t)
         };
         let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
-        if hoist && matches!(end, End::Fall) {
+        if !matches!(end, End::Fall) {
+            return Ok(end);
+        }
+        if hoist {
             self.exec_seq(rest, mode, sc, parent_omega, ret_ty, depth)
+        } else if share_after {
+            self.finish_seq(mode, sc, parent_omega, ret_ty, depth)
         } else {
             Ok(end)
         }
