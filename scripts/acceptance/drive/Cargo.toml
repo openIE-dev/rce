@@ -1,0 +1,16 @@
+[package]
+name = "rce-acceptance-drive"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Corpus evidence for the production acceptance gate"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "rce-acceptance-drive"
+path = "src/main.rs"
+
+[dependencies]
+rce-spec-check = { path = "../../../spec/checker" }
+serde_json = "1"
+sha2 = "0.11"
