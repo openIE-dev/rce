@@ -44,32 +44,31 @@ unblocks	set
 14	break
 14	round-trip
 9	lowering
-3	break,exit
-2	defect
+4	break,exit
+2	FG8
 2	global
-1	FG8
 1	bound,break
 1	break,catch
-1	break,defect
+1	break,loop
+1	catch,global
 
 whole modules, every exact set
 modules	set
 14	break
 14	round-trip
 9	lowering
-3	break,exit
+4	break,exit
+2	FG8
 2	break,catch,exit
 2	clear
-2	defect
 2	defect,exit,loop
 2	global
-1	FG8
 1	bound,break
 1	break,catch
 1	break,catch,exit,loop
-1	break,defect
-1	break,defect,exit
+1	break,loop
 1	catch,global
+1	defect
 1	exit
 1	exit,global
 1	global,loop
@@ -80,12 +79,13 @@ modules	set
 16	round-trip
 9	lowering
 5	clear
-2	defect
 2	exit
 2	no-root
-1	FG8,defect
-1	break,defect
+1	FG8,round-trip
+1	break,loop
 1	break,round-trip
+1	defect
+1	defect,loop
 1	defect,round-trip
 1	global
 1	global,loop
@@ -98,7 +98,7 @@ module	whole	roots	user	global-sites
 03_fib_loop.rce	round-trip	round-trip	user	
 04_bank_account.rce	break	break	user	
 05_kind_match.rce	break	break	user	
-06_option.rce	break,defect	break,defect	user	
+06_option.rce	break,loop	break,loop	user	
 07_error_union.rce	defect,exit,loop	defect	user	
 08_traits.rce	round-trip	round-trip	user	
 09_generics.rce	clear	no-root	entry-only	
@@ -112,7 +112,7 @@ module	whole	roots	user	global-sites
 17_traffic_light.rce	break	break	user	
 18_while_bound.rce	round-trip	round-trip	user	
 19_floats.rce	break	round-trip	user	
-20_strings.rce	defect,exit,loop	defect	user	
+20_strings.rce	defect,exit,loop	defect,loop	user	
 21_maps.rce	lowering	lowering	lowering	not covered by the lowering: an integer operation checked against ranges that differ at run time (["lit", "u32"])
 22_tuples.rce	defect	defect,round-trip	user	
 23_patterns.rce	break	break	user	
@@ -124,7 +124,7 @@ module	whole	roots	user	global-sites
 30_state_machine_guarded.rce	break	break	user	
 31_inventory.rce	break,exit	exit	user	
 32_comptime_block.rce	global	global	user	fn table_size: global: g3 is not part of the working context ω holds
-33_in_operator.rce	defect	FG8,defect	user	
+33_in_operator.rce	FG8	FG8,round-trip	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
 35_nested_if.rce	clear	clear	user	
 36_multiline_brackets.rce	round-trip	round-trip	user	
@@ -142,7 +142,7 @@ module	whole	roots	user	global-sites
 48_linear_handle.rce	round-trip	clear	user	
 49_loop_limit.rce	round-trip	round-trip	user	
 50_iterators.rce	global,loop	global,loop	user	check 27: global: g3 is not part of the working context ω holds | entry: global: g3 is not part of the working context ω holds | gen iter evens(int{u64}[0, 18446744073709551615]): global: g3 is not part of the working context ω holds | gen iter naturals(): global: g3 is not part of the working context ω holds
-51_refined_input.rce	break,defect,exit	break	user	
+51_refined_input.rce	break,exit	break	user	
 52_context_text.rce	break,exit	break	user	
 53_capability.rce	break	break	user	
 54_secret.rce	break,exit	break	user	
