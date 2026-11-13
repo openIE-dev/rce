@@ -81,7 +81,7 @@ modules	set
 5	clear
 2	exit
 2	no-root
-1	FG8,round-trip
+1	FG8
 1	break,loop
 1	break,round-trip
 1	defect
@@ -124,7 +124,7 @@ module	whole	roots	user	global-sites
 30_state_machine_guarded.rce	break	break	user	
 31_inventory.rce	break,exit	exit	user	
 32_comptime_block.rce	global	global	user	fn table_size: global: g3 is not part of the working context ω holds
-33_in_operator.rce	FG8	FG8,round-trip	user	
+33_in_operator.rce	FG8	FG8	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
 35_nested_if.rce	clear	clear	user	
 36_multiline_brackets.rce	round-trip	round-trip	user	

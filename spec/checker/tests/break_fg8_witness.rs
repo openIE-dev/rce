@@ -998,6 +998,7 @@ fn a_return_inside_a_loop_is_the_regions_result() {
     assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
     assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
     assert_values(&m, &f, vec![Val::Int(0), Val::Bool(true)]);
+    assert_schedule(&f);
 }
 
 #[test]
@@ -1063,6 +1064,15 @@ fn a_returning_arm_and_a_falling_arm_keep_their_results() {
     let (no, _) = core_eval(&m, vec![Val::Bool(false)]);
     assert_eq!(yes, Ok(Val::Int(7)));
     assert_eq!(no, Ok(Val::Int(4)));
+    assert_schedule(&f);
+}
+
+/// `construct(schedule(F))` is `F`. Section 13: the schedule of an admitted
+/// form constructs back to the same bytes.
+fn assert_schedule(f: &fir::Module) {
+    let s = bridge::schedule(f).unwrap_or_else(|e| panic!("{}", e.line()));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_eq!(fir::encode(f), fir::encode(&back));
 }
 
 fn runtime_closure(file: &str, name: &str) -> (CoreModule, fir::Module) {
@@ -1085,6 +1095,7 @@ fn rt_text_isdigit_returns_from_the_scan() {
         assert_eq!(core_v, Ok(Val::Bool(bit)), "{text:?}");
         assert_values(&m, &f, args);
     }
+    assert_schedule(&f);
 }
 
 #[test]
@@ -1105,6 +1116,7 @@ fn rt_text_find_returns_from_the_scan() {
         assert_eq!(core_v, Ok(Val::Int(want)), "{text:?} {needle:?} {from}");
         assert_values(&m, &f, args);
     }
+    assert_schedule(&f);
 }
 
 #[test]
@@ -1150,6 +1162,7 @@ fn a_nested_loop_return_stays_distinct_from_continue() {
     assert_eq!(run, Ok(Val::Int(2)));
     assert_values(&m, &f, vec![Val::Bool(true)]);
     assert_values(&m, &f, vec![Val::Bool(false)]);
+    assert_schedule(&f);
 }
 
 #[test]

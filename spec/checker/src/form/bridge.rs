@@ -5273,12 +5273,25 @@ fn schedule_branch(
     };
     let omega_at = ts.iter().position(|t| *t == BTy::Order);
     let mut vars = vec![];
+    // A break flag is the first output, and the branch carries something
+    // beside it. That dummy stays a literal false. A bool that is the whole
+    // result, and a return flag after the carried values, is a literal the
+    // arm builds. Sharing the dummy would make that literal a capture.
+    let carried_beside = ts.iter().filter(|t| **t != BTy::Order).count() > 1;
     for (p, t) in ts.iter().enumerate() {
         if Some(p) == omega_at {
             continue;
         }
         let ct = cty(t).map_err(|_| sch.deny("defect: a branch output the core cannot hold"))?;
-        let init = dummy(sch, t)?;
+        let break_flag = p == 0 && carried_beside;
+        let init = if *t == BTy::Bool
+            && !break_flag
+            && n.regions.iter().any(|r| output_is_lit(r, p, &Lit::Bool(false)))
+        {
+            neutral_bool(sch, &n.regions)?
+        } else {
+            dummy(sch, t)?
+        };
         sch.consume(&init)?;
         sch.stmts.push(Stmt::Var(ct.clone(), init));
         let id = sch.fresh(ct, true);
@@ -5293,6 +5306,35 @@ fn schedule_branch(
     // keeps a capture only when every arm that falls through still holds it.
     let mut arm_live = [saved_live.clone(), saved_live.clone()];
     let mut arm_falls = [false, false];
+    // A capture of a literal the parent built stays a capture. Inlining the
+    // bits would build the literal in the arm, and construct(schedule(F))
+    // would differ. An arm that already builds that literal keeps its own node.
+    let mut hoisted: HashMap<(Ty, Lit), u32> = HashMap::new();
+    let contains_lit = |lit: &Lit| {
+        fn walk(b: &Body, lit: &Lit) -> bool {
+            b.nodes.iter().any(|n| {
+                matches!(&n.attrs, Attr::Lit(_, l) if l == lit)
+                    || n.regions.iter().any(|r| walk(r, lit))
+            })
+        }
+        n.regions.iter().any(|r| walk(r, lit))
+    };
+    for region in &n.regions {
+        for src in &region.out {
+            let Src::In(j) = *src else { continue };
+            let Some(parent) = n.ins.get(1 + j as usize) else { continue };
+            let Some(Av::A(Atom::K(t, l))) = env.get(parent) else { continue };
+            if !matches!(t, Ty::Bool | Ty::Int(..)) || contains_lit(l) {
+                continue;
+            }
+            let key = (t.clone(), l.clone());
+            if hoisted.contains_key(&key) {
+                continue;
+            }
+            let id = sch.let_atom(Atom::K(t.clone(), l.clone()), t.clone())?;
+            hoisted.insert(key, id);
+        }
+    }
     let mut arm = |sch: &mut Sch, region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
         sch.live.clone_from(&saved_live);
         let saved = std::mem::take(&mut sch.stmts);
@@ -5315,7 +5357,12 @@ fn schedule_branch(
             for (p, var) in &vars {
                 let src = region.out[*p];
                 match sch.val(&en, src)? {
-                    Av::A(a) => {
+                    Av::A(mut a) => {
+                        if let (Src::In(_), Atom::K(t, l)) = (src, &a)
+                            && let Some(id) = hoisted.get(&(t.clone(), l.clone()))
+                        {
+                            a = Atom::V(*id);
+                        }
                         if let Atom::V(id) = &a {
                             keep.insert(*id);
                         }
@@ -5434,6 +5481,70 @@ impl Sch {
             }
         }
     }
+}
+
+/// Whether output `port` of `region` is a literal, including one an arm of a
+/// nested branch builds and this region returns as that same port.
+fn output_is_lit(region: &Body, port: usize, lit: &Lit) -> bool {
+    let Some(src) = region.out.get(port).copied() else {
+        return false;
+    };
+    source_is_lit(region, src, lit)
+}
+
+fn source_is_lit(region: &Body, src: Src, lit: &Lit) -> bool {
+    let Src::Out(i, p) = src else {
+        return false;
+    };
+    let Some(n) = region.nodes.get(i as usize) else {
+        return false;
+    };
+    match &n.attrs {
+        Attr::Lit(_, l) if p == 0 && l == lit => true,
+        Attr::Branch(_, _) => n.regions.iter().any(|arm| {
+            arm.out
+                .get(p as usize)
+                .is_some_and(|s| source_is_lit(arm, *s, lit))
+        }),
+        _ => false,
+    }
+}
+
+/// A bool that is not a literal. The arms keep the literals they build.
+/// The two integers are ones no arm already uses, so this test does not
+/// become a capture of an arm's own literal. Nothing reads the result:
+/// every arm stores the output, and the canonical passes drop the test.
+fn neutral_bool(sch: &mut Sch, regions: &[Body]) -> Result<Atom, Change> {
+    let mut used = BTreeSet::new();
+    fn walk(b: &Body, used: &mut BTreeSet<i128>) {
+        for n in &b.nodes {
+            if let Attr::Lit(_, Lit::Int(v)) = &n.attrs {
+                used.insert(*v);
+            }
+            for r in &n.regions {
+                walk(r, used);
+            }
+        }
+    }
+    for r in regions {
+        walk(r, &mut used);
+    }
+    let mut a = 0i128;
+    while used.contains(&a) {
+        a += 1;
+    }
+    let mut b = a + 1;
+    while used.contains(&b) {
+        b += 1;
+    }
+    let ty = Ty::Int(a.min(b), a.max(b));
+    sch.stmts.push(Stmt::Prim(
+        "int.eq".into(),
+        vec![ty],
+        vec![build::lit(a), build::lit(b)],
+    ));
+    let id = sch.fresh(Ty::Bool, false);
+    Ok(Atom::V(id))
 }
 
 fn dummy(sch: &mut Sch, t: &BTy) -> Result<Atom, Change> {
