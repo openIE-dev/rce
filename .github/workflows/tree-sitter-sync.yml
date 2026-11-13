@@ -9,18 +9,18 @@ on:
   push:
   pull_request:
 
-# The whole suite runs in ci.yml; this workflow runs what needs the CLI:
-# tree_sitter_sync for each feature set, and the fast tests with the
-# tree-sitter feature on (the slow vector suites do not use it).
+# ci.yml runs the suite without the tree-sitter feature. This workflow
+# runs tree_sitter_sync for each feature set, the fast tests with the
+# tree-sitter feature on, and form_bridge, break_fg8_witness and emit_run
+# with that feature. The other slow binaries do not use the feature.
 
 jobs:
   checker:
     runs-on: ubuntu-latest
-    # Sync and fuzz take about 3 minutes, then this job runs the same
-    # fast suite. That suite finished in 36 minutes in ci (run
-    # 43449003552). Run 43449017317 cancelled it at 45 minutes during
-    # one_conformance, near the end. 60 minutes is that measured time.
-    # No test is dropped.
+    # Sync and fuzz, then the fast suite with the tree-sitter feature.
+    # form_bridge, break_fg8_witness and emit_run are the slow job
+    # below, so they are not in that suite. No test is dropped.
+    # 60 minutes remains the limit.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -49,3 +49,30 @@ jobs:
         env:
           RCE_FEATURES: ${{ matrix.features }}
         run: bash scripts/ci-tests.sh fast
+
+  # The same three binaries, built with the tree-sitter feature. ci.yml
+  # runs them without that feature. Each binary has its own job so the
+  # feature suite above is not the sum of their times.
+  slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        bin:
+          - break_fg8_witness
+          - emit_run
+          - form_bridge
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: ${{ matrix.bin }} with the tree-sitter feature
+        env:
+          RCE_FEATURES: tree-sitter
+        run: bash scripts/ci-tests.sh bin ${{ matrix.bin }}

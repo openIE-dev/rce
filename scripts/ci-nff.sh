@@ -8,7 +8,7 @@
 # A name in SLOW that has no tests/NAME.rs is an error, so the list cannot drift.
 set -euo pipefail
 cd "$(dirname "$0")/../spec/checker"
-SLOW="dst_chat emit framing_rce fuel golden_apps group_rce hpke_rce mls_rce pq_rce protect_rce treekem_rce welcome_rce"
+SLOW="break_fg8_witness dst_chat emit emit_run form_bridge framing_rce fuel golden_apps group_rce hpke_rce mls_rce pq_rce protect_rce treekem_rce welcome_rce"
 for n in $SLOW; do [ -f "tests/$n.rs" ] || { echo "ci-tests: tests/$n.rs does not exist; update SLOW" >&2; exit 1; }; done
 feat=()
 if [ -n "${RCE_FEATURES:-}" ]; then feat=(--features "$RCE_FEATURES"); fi
