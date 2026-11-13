@@ -41,20 +41,20 @@ whole-with-user	1
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
-14	break
+15	break
 14	round-trip
 9	lowering
 3	break,exit
 2	defect
 2	global
 1	FG8
-1	bound,break
 1	break,catch
 1	break,defect
+1	catch,global
 
 whole modules, every exact set
 modules	set
-14	break
+15	break
 14	round-trip
 9	lowering
 3	break,exit
@@ -64,7 +64,6 @@ modules	set
 2	defect,exit,loop
 2	global
 1	FG8
-1	bound,break
 1	break,catch
 1	break,catch,exit,loop
 1	break,defect
@@ -133,7 +132,7 @@ module	whole	roots	user	global-sites
 39_structural_recursion.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
 40_extern.rce	round-trip	clear	user	
 41_arena_bound_wrapping.rce	round-trip	round-trip	user	
-42_f32.rce	bound,break	clear	user	
+42_f32.rce	break	clear	user	
 43_simd_lanes.rce	FG8	round-trip	user	
 44_device_region.rce	break	break	user	
 45_byte_text.rce	exit,global	round-trip	user	check 7: global: g3 is not part of the working context ω holds

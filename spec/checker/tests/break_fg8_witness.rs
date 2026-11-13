@@ -1098,7 +1098,10 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
     assert_eq!(z, Ok(Val::Int(0)));
     assert_eq!(n4, Ok(Val::Int(1)), "the mutated end stops the next test");
 
-    // A pure count that breaks. The flag is not a use of ω. O8.
+    // A pure count that breaks. Before the erratum of 2026-11-13 the bridge
+    // refused this with tag `bound`, because C7 removed the carried order.
+    // The count now keeps that order. The flag is still not a use of ω.
+    // The value is the core's value.
     let ct = build::count_t();
     let mut b = FB::new(vec![ct.clone()], ct.clone());
     let bound = b.arg(0);
@@ -1115,12 +1118,20 @@ fn shortcuts_that_admit_the_wrong_program_stay_refused() {
     let rv = b.let_(Atom::V(i));
     b.ret(rv);
     let m = module("pure", b.finish());
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "bound", "{}", e.line());
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("pure count: {}", e.line()));
     assert!(
-        !bridge::body_break_rewrite(),
-        "a refused pure count is not an admission"
+        f.defs.values().any(|g| g.fns.iter().any(|func| func.body.nodes.iter().any(|n| {
+            matches!(&n.attrs, fir::Attr::Count(ts) if ts.first() == Some(&fir::BTy::Order))
+        }))),
+        "the pure count dropped its carried order"
     );
+    let (z, _) = core_eval(&m, vec![Val::Int(1)]);
+    assert_eq!(z, Ok(Val::Int(0)));
+    let got = feval::apply(&f, &form_key(&f, 1).0, form_key(&f, 1).1, vec![Val::Int(1)]).unwrap();
+    assert_eq!(got, vec![Val::Int(0)]);
+    let (halt, _) = core_eval(&m, vec![Val::Int(0)]);
+    assert!(halt.is_err(), "bound 0 did not halt: {halt:?}");
 
     // A depth that names nothing. The core rejects it.
     let mut b = FB::new(vec![], i64ty());

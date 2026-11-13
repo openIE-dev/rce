@@ -81,11 +81,13 @@ the first Form.
 
 **Not a gap, and not to be "fixed" by a new reading of FG8.** A continue
 path that does not raise the index is not a measure (§6, constraint B5 in
-the break note). A pure count still has no applied form: FG7 gives every
-count class at least 1, and C7 removes a carried ω that neither region
-uses (O8). A guard on one value does not establish a partial operation on
-another value, or on a later value of the same variable (§7, DF5). The
-tests in section 6 pin these refusals.
+the break note). Until 2026-11-13 a pure count had no applied form: FG7
+gives every count class at least 1, and C7 removed a carried ω that neither
+region uses (O8). The erratum of that date keeps the carried order, so a
+pure count is applied. FG8 is not the rule that changed. A guard on one
+value does not establish a partial operation on another value, or on a
+later value of the same variable (§7, DF5). The tests in section 6 pin
+these refusals, and the pure-count case now pins the kept order.
 
 ## 3. Representation of a break
 
@@ -368,11 +370,12 @@ is the smallest core that shows it. The test asserts the refusal that
    because the flag is false, not because the index moved.
 
 2. **Turn the measure into a count to avoid the check.** A count may halt,
-   so FG7 requires ω. C7 deletes a carried ω that neither region uses. A
-   pure count is `bound`, including one whose body breaks (O8). The flag
-   is a bool and is not a use of ω. Relabeling `mset` as a count either
-   has no applied form or adds a "loop bound" halt the measure does not
-   have. Empty input and a one-entry map must not trap with "loop bound".
+   so FG7 requires ω. Since 2026-11-13 C7 keeps a carried ω that neither
+   region uses, so a pure count is applied, including one whose body breaks.
+   The flag is a bool and is not a use of ω. Relabeling `mset` as a count
+   still adds a "loop bound" halt the measure does not have. Empty input
+   and a one-entry map must not trap with "loop bound". The witness checks
+   the value, not a `bound` tag.
 
 3. **Test the flag after the bound.** For a count that does use ω, the
    schedule tests the flag before raising the counter and before the bound

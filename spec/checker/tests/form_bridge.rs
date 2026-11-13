@@ -709,9 +709,32 @@ fn owned_body_break_is_scheduled_once() {
     assert_eq!(fuel_b, fuel_sb, "O7': fuel differs on the bound path");
 }
 
+fn count_carried(f: &fir::Module) -> Vec<Vec<fir::BTy>> {
+    let mut out = vec![];
+    fn walk(b: &fir::Body, out: &mut Vec<Vec<fir::BTy>>) {
+        for n in &b.nodes {
+            if let fir::Attr::Count(ts) = &n.attrs {
+                out.push(ts.clone());
+            }
+            for r in &n.regions {
+                walk(r, out);
+            }
+        }
+    }
+    for g in f.defs.values() {
+        for func in &g.fns {
+            walk(&func.body, &mut out);
+        }
+    }
+    out
+}
+
 #[test]
-fn pure_count_break_stays_outside_dom() {
-    // O8. A break flag is a bool. It does not put a pure count into Dom.
+fn pure_count_keeps_carried_order() {
+    // Erratum of 2026-11-13. Neither region uses ω. The old bridge refused
+    // with "C7 removes a carried ω that neither region uses". C7 now keeps
+    // that order, and the count has an applied form. The flag is still a
+    // bool, not a use of ω.
     let ct = build::count_t();
     let mut b = FB::new(vec![ct.clone()], ct.clone());
     let bound = b.arg(0);
@@ -720,7 +743,6 @@ fn pure_count_break_stays_outside_dom() {
     b.loop_(|b| {
         b.count(cnt, bound)?;
         let iv = b.let_(Atom::V(i));
-        // `int.eq` does not halt, so neither region uses ω. The flag is not a use of ω.
         let stop = b.int_cmp("int.eq", iv, build::lit(0))?;
         b.exit_if(stop)?;
         Ok(())
@@ -730,12 +752,33 @@ fn pure_count_break_stays_outside_dom() {
     b.ret(r);
     let m = module("pure", b.finish());
     wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
-    let e = bridge::construct(&m).expect_err("pure count");
-    assert_eq!(e.tag(), "bound", "{}", e.line());
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
     assert!(
-        !bridge::body_break_rewrite(),
-        "a refused pure count is not an admitted break rewrite"
+        bridge::body_break_rewrite(),
+        "the body break was not restructured into a flag"
     );
+    let carried = count_carried(&f);
+    assert!(
+        carried.iter().any(|ts| ts.first() == Some(&fir::BTy::Order)),
+        "a count-bounded Iterate dropped its carried order: {carried:?}"
+    );
+    assert!(
+        flag_is_fresh_false(&f),
+        "the break path must return a literal false, not a carried bool"
+    );
+    let bytes = fir::encode(&f);
+    assert!(
+        matches!(form::check(bytes.as_bytes(), None), form::Outcome::Applied(_)),
+        "the pure count is not applied"
+    );
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    assert_eq!(fir::encode(&f), fir::encode(&back), "construct(schedule(F)) is not F");
+    // Bound 1: the body breaks on the first iteration, before the next bound check.
+    agree(&m, &f, &s, vec![Val::Int(1)]);
+    // Bound 0: the count halts before the body. The flag is not that halt.
+    agree(&m, &f, &s, vec![Val::Int(0)]);
 }
 
 #[test]

@@ -591,6 +591,66 @@ def loops_module():
 
 # ---- a region with a cycle, which FG4 keeps before FG9 is reached
 
+def count_order_module():
+    """A count whose test and body only pass order through.
+
+    C7 keeps that carried order (erratum of 2026-11-13). The integer input
+    is not carried: the loop does not mention it, and the function returns it
+    beside the order the count returns.
+    """
+    i100 = ["int", "0", "100"]
+
+    def counted(r, ins):
+        i, om = ins
+        bound = r.lit(lit_int(2), "2")
+
+        def test(t, k):
+            (tom,) = k
+            return [t.lit(BOOL, True), tom]
+
+        def body(b, k):
+            (bom,) = k
+            return [b.lit(BOOL, True), bom]
+
+        out = r.iterate(["count", [ORDER]], [bound, om], test, body, 1)
+        return [i, out[0]]
+
+    k, g = group(fn([i100, ORDER], [i100, ORDER], 1, counted))
+    return module([(k, g)])
+
+
+def count_order_stripped_module():
+    """A reachable count that does not carry order, which the old C7 left.
+
+    The body returns the integer raised by one, so the count stays reachable
+    and C7 does not remove that integer. The function is class 1 and takes
+    order, and the count does not consume it. FG7 keeps that module. C7 does
+    not put the order back.
+    """
+    i100 = ["int", "0", "100"]
+    wide = ["int", "0", "101"]
+
+    def counted(r, ins):
+        i, om = ins
+        bound = r.lit(lit_int(2), "2")
+
+        def test(t, k):
+            (ti,) = k
+            return [t.lit(BOOL, True), ti]
+
+        def body(b, k):
+            (bi,) = k
+            one = b.lit(lit_int(1), "1")
+            stepped = b.prim("int.add", [wide], [bi, one])[0]
+            return [b.lit(BOOL, True), stepped]
+
+        out = r.iterate(["count", [wide]], [bound, i], test, body, 1)
+        return [out[0], om]
+
+    k, g = group(fn([i100, ORDER], [wide, ORDER], 1, counted))
+    return module([(k, g)])
+
+
 def cycle_module():
     m = counter()
     k_pos = m["steps"][1][2][0]
@@ -637,6 +697,8 @@ def fixtures():
     yield "group", g, None
     yield "group.vectors", g, vectors(g, [([(0, [])], [True], "done", [[4]])])
     yield "loops", loops_module(), None
+    yield "count-order", count_order_module(), None
+    yield "count-order-stripped", count_order_stripped_module(), None
     for v in ["c3", "c4", "c5", "c6", "c7", "c11", "fg1", "fg2", "fg4", "fg5", "fg6", "fg7", "fg8", "fg10", "fg11", "fg13"]:
         yield f"counter-{v}", counter(v), None
     yield "types-c8", types_module("c8"), None
@@ -668,6 +730,10 @@ EXPECT = {
     "group": ("applied", None, None),
     "group.vectors": ("applied", None, None),
     "loops": ("applied", None, None),
+    # Erratum 2026-11-13: the regions only pass order through, and the count keeps it.
+    "count-order": ("applied", None, None),
+    # The bytes the old rule produced: the count no longer carries order, so FG7 keeps it.
+    "count-order-stripped": ("requires change", "FG7", "does not consume and return"),
     "counter-c1": ("requires change", "FG1", "C1"),
     "counter-c10": ("requires change", "FG1", "C10"),
     "counter-c3": ("requires change", "FG3", "C3"),
