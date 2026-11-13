@@ -255,13 +255,14 @@ fn corpus_baseline_on_50294e05() {
     // the rest. A program root's first refusal is the file's root tag, as
     // in examples_are_covered_or_require_change.
     //
-    // Counting `construct` alone, with no schedule, accepts 18 modules on
-    // this commit. That is not the census `whole` of 2. One of the 18,
-    // `09_generics.rce`, is entry-only. The other 17 contain a user
-    // function, and 16 of them do not schedule back to the same bytes.
+    // Counting `construct` alone, with no schedule, accepts 19 modules on
+    // this commit. That is not the census `whole` of 2. One of the 19,
+    // `09_generics.rce`, is entry-only. The other 18 contain a user
+    // function, and 17 of them do not schedule back to the same bytes.
     // The 18 entry-only cores in the #158 note were the count before
-    // library functions were kept in the core. This 18 is the gate
-    // accepting the Form after that change.
+    // library functions were kept in the core. This 19 is the gate
+    // accepting the Form after a returning arm stopped adding its value
+    // to the join. `33_in_operator.rce` constructs, and its schedule is FG8.
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
@@ -380,6 +381,7 @@ fn corpus_baseline_on_50294e05() {
             "25_labels.rce",
             "27_bitops.rce",
             "28_slices.rce",
+            "33_in_operator.rce",
             "35_nested_if.rce",
             "36_multiline_brackets.rce",
             "40_extern.rce",
@@ -436,12 +438,17 @@ fn corpus_baseline_on_50294e05() {
         names("catch")
     );
     assert_eq!(names("global"), ["32_comptime_block.rce"]);
-    assert_eq!(names("loop"), ["50_iterators.rce", "55_rcedb.rce"]);
-    assert_eq!(names("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
     assert_eq!(
-        names("defect"),
-        ["06_option.rce", "07_error_union.rce", "20_strings.rce"]
+        names("loop"),
+        [
+            "06_option.rce",
+            "20_strings.rce",
+            "50_iterators.rce",
+            "55_rcedb.rce",
+        ]
     );
+    assert_eq!(names("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
+    assert_eq!(names("defect"), ["07_error_union.rce"]);
     assert_eq!(
         names("round-trip"),
         [
@@ -522,7 +529,7 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(
         tagged("defect"),
-        ["07_error_union.rce", "20_strings.rce", "33_in_operator.rce"]
+        ["07_error_union.rce", "20_strings.rce"]
     );
     assert_eq!(tagged("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
     assert_eq!(
@@ -537,7 +544,10 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(tagged("loop"), ["55_rcedb.rce"]);
     assert_eq!(tagged("schedule defect"), ["22_tuples.rce"]);
-    assert_eq!(tagged("schedule FG8"), ["43_simd_lanes.rce"]);
+    assert_eq!(
+        tagged("schedule FG8"),
+        ["33_in_operator.rce", "43_simd_lanes.rce"]
+    );
     assert_eq!(
         tagged("round-trip"),
         [
@@ -951,9 +961,9 @@ fn form_key(m: &fir::Module, nargs: usize) -> (String, u32) {
 }
 
 #[test]
-fn a_return_inside_a_loop_is_a_defect_of_the_arm_widths() {
-    // Contract section 3.3. The bridge reports a defect of the arm widths.
-    // A return is not the loop flag, and the core results stay the contract.
+fn a_return_inside_a_loop_is_the_regions_result() {
+    // Contract section 3.3. A return inside the loop is the region's
+    // result. It is not the continue flag. The core results stay 7, 4, and 0.
     let t = Ty::u64();
     let mut b = FB::new(vec![t.clone(), Ty::Bool], t.clone());
     let n = b.arg(0);
@@ -975,20 +985,184 @@ fn a_return_inside_a_loop_is_a_defect_of_the_arm_widths() {
     let rv = b.let_(Atom::V(i));
     b.ret(rv);
     let m = module("retloop", b.finish());
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "defect", "{}", e.line());
-    assert_eq!(
-        e.reason,
-        "defect: branch arms return 1, 2 values for 1 outputs",
-        "{}",
-        e.line()
-    );
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(!bridge::body_break_rewrite(), "a return was restructured as a break");
+    assert_applied(&f);
     let (stop_v, _) = core_eval(&m, vec![Val::Int(4), Val::Bool(true)]);
     let (run, _) = core_eval(&m, vec![Val::Int(4), Val::Bool(false)]);
     let (z, _) = core_eval(&m, vec![Val::Int(0), Val::Bool(true)]);
     assert_eq!(stop_v, Ok(Val::Int(7)));
     assert_eq!(run, Ok(Val::Int(4)));
     assert_eq!(z, Ok(Val::Int(0)));
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
+    assert_values(&m, &f, vec![Val::Int(0), Val::Bool(true)]);
+    assert_schedule(&f);
+}
+
+#[test]
+fn every_arm_of_a_join_may_return() {
+    // Both arms return. The join's result is the return. There is no
+    // fall-through carried state.
+    let mut b = FB::new(vec![Ty::Bool], i64ty());
+    let c = b.arg(0);
+    b.if_(
+        c,
+        |b| {
+            b.ret(build::lit(1));
+            Ok(())
+        },
+        |b| {
+            b.ret(build::lit(0));
+            Ok(())
+        },
+    )
+    .unwrap();
+    let m = module("both", b.finish());
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(!bridge::body_break_rewrite());
+    assert_applied(&f);
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_eq!(fir::encode(&f), fir::encode(&back));
+    assert_values(&m, &f, vec![Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Bool(false)]);
+}
+
+#[test]
+fn a_returning_arm_and_a_falling_arm_keep_their_results() {
+    // One arm returns. The other falls through and stores. The join's
+    // carried state is the store. The return is not that store.
+    let t = Ty::u64();
+    let mut b = FB::new(vec![Ty::Bool], t.clone());
+    let stop = b.arg(0);
+    let i = b.var(t.clone(), build::lit(1));
+    b.if_(
+        stop,
+        |b| {
+            b.ret(build::lit(7));
+            Ok(())
+        },
+        |b| {
+            b.set(i, build::lit(4));
+            Ok(())
+        },
+    )
+    .unwrap();
+    let rv = b.let_(Atom::V(i));
+    b.ret(rv);
+    let m = module("mix", b.finish());
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(!bridge::body_break_rewrite());
+    assert_applied(&f);
+    assert_values(&m, &f, vec![Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Bool(false)]);
+    let (yes, _) = core_eval(&m, vec![Val::Bool(true)]);
+    let (no, _) = core_eval(&m, vec![Val::Bool(false)]);
+    assert_eq!(yes, Ok(Val::Int(7)));
+    assert_eq!(no, Ok(Val::Int(4)));
+    assert_schedule(&f);
+}
+
+/// `construct(schedule(F))` is `F`. Section 13: the schedule of an admitted
+/// form constructs back to the same bytes.
+fn assert_schedule(f: &fir::Module) {
+    let s = bridge::schedule(f).unwrap_or_else(|e| panic!("{}", e.line()));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_eq!(fir::encode(f), fir::encode(&back));
+}
+
+fn runtime_closure(file: &str, name: &str) -> (CoreModule, fir::Module) {
+    let core_m = load_example(file);
+    let sub = bridge::closure(&core_m, name).unwrap_or_else(|| panic!("{file} has no {name}"));
+    let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("{name}: {}", e.line()));
+    assert_applied(&f);
+    (sub, f)
+}
+
+#[test]
+fn rt_text_isdigit_returns_from_the_scan() {
+    // The shape in `07_error_union.rce`: `rt.text.isdigit` returns false
+    // from the arm that sees a non-digit, and true when the scan falls
+    // through. The returning arm adds nothing to the scan's carried index.
+    let (m, f) = runtime_closure("07_error_union.rce", "rt.text.isdigit");
+    for (text, bit) in [(b"" as &[u8], false), (b"12", true), (b"12a", false), (b"0", true)] {
+        let args = vec![Val::bytes(text)];
+        let (core_v, _) = core_eval(&m, args.clone());
+        assert_eq!(core_v, Ok(Val::Bool(bit)), "{text:?}");
+        assert_values(&m, &f, args);
+    }
+    assert_schedule(&f);
+}
+
+#[test]
+fn rt_text_find_returns_from_the_scan() {
+    // The shape in `33_in_operator.rce`: `rt.text.find` returns the index
+    // from the arm that matches, and -1 when the scan falls through.
+    let (m, f) = runtime_closure("33_in_operator.rce", "rt.text.find");
+    let cases = [
+        (b"abc".as_slice(), b"b".as_slice(), 0, 1),
+        (b"abc", b"z", 0, -1),
+        (b"abc", b"abc", 0, 0),
+        (b"abc", b"bc", 1, 1),
+        (b"", b"a", 0, -1),
+    ];
+    for (text, needle, from, want) in cases {
+        let args = vec![Val::bytes(text), Val::bytes(needle), Val::Int(from)];
+        let (core_v, _) = core_eval(&m, args.clone());
+        assert_eq!(core_v, Ok(Val::Int(want)), "{text:?} {needle:?} {from}");
+        assert_values(&m, &f, args);
+    }
+    assert_schedule(&f);
+}
+
+#[test]
+fn a_nested_loop_return_stays_distinct_from_continue() {
+    // The inner loop continues by raising its index, and one arm returns.
+    // The outer loop continues on the path that does not return. The
+    // return is not that continue.
+    let t = Ty::u64();
+    let mut b = FB::new(vec![Ty::Bool], t.clone());
+    let stop = b.arg(0);
+    let j = b.var(t.clone(), build::lit(0));
+    b.loop_(|b| {
+        let jv = b.let_(Atom::V(j));
+        let more = b.int_cmp("int.lt", jv.clone(), build::lit(2))?;
+        b.exit_unless(more)?;
+        let i = b.var(t.clone(), build::lit(0));
+        b.loop_(|b| {
+            let iv = b.let_(Atom::V(i));
+            let more = b.int_cmp("int.lt", iv.clone(), build::lit(3))?;
+            b.exit_unless(more)?;
+            b.when(stop.clone(), |b| {
+                b.ret(build::lit(7));
+                Ok(())
+            })?;
+            let i1 = b.add_in(iv, build::lit(1), t.clone())?;
+            b.set(i, i1);
+            Ok(())
+        })?;
+        let j1 = b.add_in(jv, build::lit(1), t.clone())?;
+        b.set(j, j1);
+        Ok(())
+    })
+    .unwrap();
+    let rv = b.let_(Atom::V(j));
+    b.ret(rv);
+    let m = module("nest", b.finish());
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_applied(&f);
+    let (stop_v, _) = core_eval(&m, vec![Val::Bool(true)]);
+    let (run, _) = core_eval(&m, vec![Val::Bool(false)]);
+    assert_eq!(stop_v, Ok(Val::Int(7)));
+    assert_eq!(run, Ok(Val::Int(2)));
+    assert_values(&m, &f, vec![Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Bool(false)]);
+    assert_schedule(&f);
 }
 
 #[test]

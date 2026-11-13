@@ -459,6 +459,10 @@ struct Scope {
     /// Raw break depth a frame has not crossed yet. A block or the loop
     /// decrements it once. An `if` does not.
     pending_break: Option<u32>,
+    /// A return that left one arm of a join in this region.
+    /// The flag is true when that path continues, and false when it returns.
+    /// The value is the return. This is not the loop flag of a break.
+    early: Option<(Src, Src)>,
     /// The output list inside ω (rce-form.md §5). `Fresh` is the empty list
     /// a fresh ω holds. `Lost` means a branch changed the list and this
     /// scope did not join that change, so a later read requires change.
@@ -476,6 +480,23 @@ enum OutList {
     More(Src),
     /// A nested region changed the list and the parent cannot see that source.
     Lost,
+}
+
+fn blank_scope() -> Scope {
+    Scope {
+        nodes: vec![],
+        env: HashMap::new(),
+        omega: None,
+        caps: vec![],
+        assigned: BTreeSet::new(),
+        set_at: vec![],
+        lits: vec![],
+        exit_flag: None,
+        exit_residual: None,
+        pending_break: None,
+        early: None,
+        outputs: OutList::Fresh,
+    }
 }
 
 fn inherited_outputs(parent: &Scope) -> OutList {
@@ -609,6 +630,49 @@ impl Built {
             Ty::Arr(_) => Err(self.deny(
                 "defect: a value defined in a loop test and used in its body is an array, and this slice has no initial value for it",
             )),
+        }
+    }
+
+    /// A value of the body's return type. The arm that falls through holds
+    /// it so the return channel has a source. The continue flag selects the
+    /// other arm's return, so this value is not the function result.
+    fn lit_bty(&self, sc: &mut Scope, t: &BTy) -> Result<Src, Change> {
+        let ty = cty(t).map_err(|e| self.deny(format!("defect: {e}")))?;
+        self.dummy_src(sc, &ty)
+    }
+
+    /// The loop continues on this path. A join that returned yields the
+    /// flag of that join, which is false on the returning arm. A path with
+    /// no return yields true. A break does not use this flag.
+    fn continue_flag(&self, sc: &mut Scope) -> Src {
+        if let Some((cont, _)) = sc.early {
+            return cont;
+        }
+        lit_bool(sc, true)
+    }
+
+    /// `flag` true yields `yes`, and false yields `no`. Both arms return,
+    /// so the branch result is the selected return.
+    fn select_return(
+        &self,
+        sc: &mut Scope,
+        flag: Src,
+        yes: Src,
+        no: Src,
+        ret_ty: &BTy,
+    ) -> Result<Src, Change> {
+        let caps = if yes == no { vec![yes] } else { vec![yes, no] };
+        let arm = |which: Src| {
+            let mut a = blank_scope();
+            a.caps = caps.clone();
+            let j = caps.iter().position(|s| *s == which).expect("a captured return") as u32;
+            (End::Ret(Src::In(j)), a)
+        };
+        let (e1, a1) = arm(yes);
+        let (e0, a0) = arm(no);
+        match self.finish_if(sc, flag, a0, e0, a1, e1, None, ret_ty, false)? {
+            End::Ret(s) => Ok(s),
+            _ => Err(self.deny("defect: a return was not the branch result")),
         }
     }
 
@@ -1302,7 +1366,10 @@ impl Built {
                     i += 1;
                 }
                 Stmt::Ret(a) => {
-                    let src = self.src_atom(sc, a)?;
+                    let mut src = self.src_atom(sc, a)?;
+                    if let Some((cont, val)) = sc.early.take() {
+                        src = self.select_return(sc, cont, src, val, ret_ty)?;
+                    }
                     return Ok(End::Ret(src));
                 }
                 Stmt::Halt(a) => {
@@ -1494,6 +1561,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            early: None,
             outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
@@ -1642,9 +1710,13 @@ impl Built {
                 "branch: the arms capture different values, and this slice does not reconcile them",
             ));
         }
-        // outputs: vars assigned in either arm, then ω
+        // Carried vars come from arms that fall through. A returning arm
+        // contributes none of them: its return is a separate channel.
         let mut vars: BTreeSet<u32> = BTreeSet::new();
-        for arm in [&a0, &a1] {
+        for (arm, e) in [(&a0, &e0), (&a1, &e1)] {
+            if matches!(e, End::Ret(_)) {
+                continue;
+            }
             for v in &arm.assigned {
                 if sc.env.contains_key(v)
                     || self.info.loc.get(v).is_some_and(|l| l.var) && sc.env.contains_key(v)
@@ -1679,6 +1751,12 @@ impl Built {
                 a0.env.contains_key(&v)
             } else if yields(&e1) && matches!(e0, End::Halt(_)) {
                 a1.env.contains_key(&v)
+            } else if yields(&e0) && matches!(e1, End::Ret(_)) {
+                // The returning arm passes the value through. It does not
+                // define a new one, and it must already hold the capture.
+                a0.env.contains_key(&v) && a1.env.contains_key(&v)
+            } else if yields(&e1) && matches!(e0, End::Ret(_)) {
+                a1.env.contains_key(&v) && a0.env.contains_key(&v)
             } else {
                 false
             };
@@ -1739,6 +1817,23 @@ impl Built {
             // in the arm, not a carried input, so C7 does not drop it (B4).
             ts.insert(0, BTy::Bool);
         }
+        // One arm returns and the other falls through. The return is two
+        // outputs after the carried vars: a continue flag that is false on
+        // the returning arm, and the return value. The returning arm does
+        // not put that value into the carried vars. A break's flag is the
+        // join_flag output, and that path stays refused above.
+        let mixed = matches!((&e0, &e1), (End::Ret(_), End::Fall | End::Exit))
+            || matches!((&e0, &e1), (End::Fall | End::Exit, End::Ret(_)));
+        // A return nested in an arm that itself falls through. The channel
+        // leaves this join too. A halt arm does not continue, so it does not
+        // define the channel; the Halt node still has a slot of each output.
+        let nested = !mixed
+            && (matches!(e0, End::Fall | End::Exit) && a0.early.is_some()
+                || matches!(e1, End::Fall | End::Exit) && a1.early.is_some());
+        if mixed || nested {
+            ts.push(BTy::Bool);
+            ts.push(ret_ty.clone());
+        }
         if needs_w {
             ts.push(BTy::Order);
         }
@@ -1791,7 +1886,20 @@ impl Built {
                     )));
                 }
                 End::Ret(src) => {
-                    let mut o = vec![src];
+                    let mut o = vec![];
+                    if mixed {
+                        for v in &vars {
+                            o.push(arm.env.get(v).copied().ok_or_else(|| {
+                                self.deny("defect: a joined var is not in the arm")
+                            })?);
+                        }
+                        // False: this arm does not continue. The return value
+                        // follows the flag. Neither is a carried var.
+                        o.push(lit_bool(arm, false));
+                        o.push(src);
+                    } else {
+                        o.push(src);
+                    }
                     if needs_w {
                         o.push(
                             arm.omega
@@ -1805,7 +1913,7 @@ impl Built {
                     if join_flag {
                         o.push(arm.exit_flag.ok_or_else(|| self.deny("defect: a break arm has no flag"))?);
                     }
-                    if vars.is_empty() && ts.first() == Some(ret_ty) && !join_flag {
+                    if vars.is_empty() && ts.first() == Some(ret_ty) && !join_flag && !mixed {
                         return Err(
                             self.deny("exit: a branch arm falls through where the other returns")
                         );
@@ -1819,6 +1927,15 @@ impl Built {
                         o.push(
                             s.ok_or_else(|| self.deny("defect: a joined var is not in the arm"))?,
                         );
+                    }
+                    if mixed || nested {
+                        if let Some((c, v)) = arm.early.take() {
+                            o.push(c);
+                            o.push(v);
+                        } else {
+                            o.push(lit_bool(arm, true));
+                            o.push(self.lit_bty(arm, ret_ty)?);
+                        }
                     }
                     if needs_w {
                         o.push(arm.omega.ok_or_else(|| {
@@ -1888,6 +2005,10 @@ impl Built {
         if join_flag {
             sc.exit_flag = Some(Src::Out(id, 0));
         }
+        if mixed || nested {
+            let at = u32::from(join_flag) + vars.len() as u32;
+            sc.early = Some((Src::Out(id, at), Src::Out(id, at + 1)));
+        }
         if both_term {
             return Ok(End::Ret(Src::Out(id, 0)));
         }
@@ -1937,7 +2058,7 @@ impl Built {
                 sc.exit_residual = Some(d - 1);
                 Ok(lit_bool(sc, false))
             }
-            None if virtual_consumed => Ok(lit_bool(sc, true)),
+            None if virtual_consumed => Ok(self.continue_flag(sc)),
             None => Ok(flag),
         }
     }
@@ -1967,7 +2088,7 @@ impl Built {
             }
             if fall.is_empty() {
                 if far.is_empty() {
-                    return Ok(lit_bool(sc, true));
+                    return Ok(self.continue_flag(sc));
                 }
                 return self.exec_body_seq(far, sc, parent_omega, ret_ty, far_names, &[], 0, &[], 0);
             }
@@ -2019,7 +2140,7 @@ impl Built {
                 let run = |sc: &mut Scope, tail: &[&Stmt], nm: u32, next: &[&Stmt], nn: u32| {
                     if tail.is_empty() {
                         if next.is_empty() {
-                            Ok(lit_bool(sc, true))
+                            Ok(self.continue_flag(sc))
                         } else {
                             self.exec_body_seq(next, sc, parent_omega, ret_ty, nn, &[], 0, &[], 0)
                         }
@@ -2077,7 +2198,7 @@ impl Built {
                                 return Ok(mid);
                             }
                         } else if fall.is_empty() {
-                            return Ok(lit_bool(sc, true));
+                            return Ok(self.continue_flag(sc));
                         }
                         return self.exec_body_seq(
                             fall, sc, parent_omega, ret_ty, fall_names, &[], 0, &[], 0,
@@ -2140,6 +2261,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            early: None,
             outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
@@ -2401,6 +2523,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            early: None,
             outputs: inherited_outputs(sc),
         };
         let mut ix = 0u32;
@@ -2482,16 +2605,10 @@ impl Built {
                 "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
             ));
         }
-        let test_b = Body {
-            nodes: std::mem::take(&mut test.nodes),
-            out: region_outs(&test, flag, &vars, true, None)
-                .map_err(|m| self.deny(format!("loop: {m}")))?,
-        };
-        let body_b = Body {
-            nodes: std::mem::take(&mut bod.nodes),
-            out: region_outs(&bod, bflag, &vars, true, None)
-                .map_err(|m| self.deny(format!("loop: {m}")))?,
-        };
+        let mut test_out = region_outs(&test, flag, &vars, true, None)
+            .map_err(|m| self.deny(format!("loop: {m}")))?;
+        let mut body_out = region_outs(&bod, bflag, &vars, true, None)
+            .map_err(|m| self.deny(format!("loop: {m}")))?;
         lose_outputs(sc, &test);
         lose_outputs(sc, &bod);
         let bound = self.src_atom(sc, &count.bound)?;
@@ -2506,10 +2623,32 @@ impl Built {
             ins.push(sc.env[v]);
             carried_ty.push(bty(&self.loc_ty(*v)?).map_err(|e| self.deny(format!("defect: {e}")))?);
         }
-        let id = sc.push(Attr::Count(carried_ty), ins, vec![test_b, body_b]);
+        let carried_return = if let Some(early) = bod.early.take() {
+            let init_flag = lit_bool(sc, true);
+            let init_val = self.lit_bty(sc, ret_ty)?;
+            append_early(
+                Some(early), &mut test_out, &mut body_out, &mut ins, &mut carried_ty, init_flag,
+                init_val, ret_ty,
+            )
+        } else {
+            false
+        };
+        let test_b = Body {
+            nodes: std::mem::take(&mut test.nodes),
+            out: test_out,
+        };
+        let body_b = Body {
+            nodes: std::mem::take(&mut bod.nodes),
+            out: body_out,
+        };
+        let id = sc.push(Attr::Count(carried_ty.clone()), ins, vec![test_b, body_b]);
         sc.omega = Some(Src::Out(id, 0));
         for (k, v) in vars.iter().enumerate() {
             sc.env.insert(*v, Src::Out(id, 1 + k as u32));
+        }
+        if carried_return {
+            let n = carried_ty.len() as u32;
+            sc.early = Some((Src::Out(id, n - 2), Src::Out(id, n - 1)));
         }
         Ok(())
     }
@@ -2601,16 +2740,10 @@ impl Built {
             sc.exit_residual = Some(r);
         }
         let lit_slot = matches!(spec.end, Atom::K(_, _));
-        let test_b = Body {
-            nodes: std::mem::take(&mut test.nodes),
-            out: region_outs(&test, flag, &vars, thread, lit_slot.then_some(j_in))
-                .map_err(|m| self.deny(format!("loop: {m}")))?,
-        };
-        let body_b = Body {
-            nodes: std::mem::take(&mut bod.nodes),
-            out: region_outs(&bod, bflag, &vars, thread, lit_slot.then_some(j_in))
-                .map_err(|m| self.deny(format!("loop: {m}")))?,
-        };
+        let mut test_out = region_outs(&test, flag, &vars, thread, lit_slot.then_some(j_in))
+            .map_err(|m| self.deny(format!("loop: {m}")))?;
+        let mut body_out = region_outs(&bod, bflag, &vars, thread, lit_slot.then_some(j_in))
+            .map_err(|m| self.deny(format!("loop: {m}")))?;
         lose_outputs(sc, &test);
         lose_outputs(sc, &bod);
         let mut ins = vec![];
@@ -2631,7 +2764,25 @@ impl Built {
             ins.push(self.lit_node(sc, t, l)?);
             carried_ty.push(bty(t).map_err(|e| self.deny(format!("defect: {e}")))?);
         }
-        let id = sc.push(Attr::Measure(i_in, j_in, carried_ty), ins, vec![
+        let carried_return = if let Some(early) = bod.early.take() {
+            let init_flag = lit_bool(sc, true);
+            let init_val = self.lit_bty(sc, ret_ty)?;
+            append_early(
+                Some(early), &mut test_out, &mut body_out, &mut ins, &mut carried_ty, init_flag,
+                init_val, ret_ty,
+            )
+        } else {
+            false
+        };
+        let test_b = Body {
+            nodes: std::mem::take(&mut test.nodes),
+            out: test_out,
+        };
+        let body_b = Body {
+            nodes: std::mem::take(&mut bod.nodes),
+            out: body_out,
+        };
+        let id = sc.push(Attr::Measure(i_in, j_in, carried_ty.clone()), ins, vec![
             test_b, body_b,
         ]);
         let base = u32::from(thread);
@@ -2640,6 +2791,10 @@ impl Built {
         }
         if thread {
             sc.omega = Some(Src::Out(id, 0));
+        }
+        if carried_return {
+            let n = carried_ty.len() as u32;
+            sc.early = Some((Src::Out(id, n - 2), Src::Out(id, n - 1)));
         }
         Ok(())
     }
@@ -2688,6 +2843,7 @@ impl Built {
                 exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            early: None,
             outputs: inherited_outputs(sc),
             };
             let mut ix = 0u32;
@@ -2895,40 +3051,53 @@ impl Built {
                 })
             };
         let _ = finish;
-        let test_b = body_of(&mut test, &parts.sets0)?;
-        let body_b = body_of(&mut bod, &parts.sets1)?;
-        let (attrs, mut ins) = if let Some(c) = count {
+        let early = bod.early.take();
+        let mut test_b = body_of(&mut test, &parts.sets0)?;
+        let mut body_b = body_of(&mut bod, &parts.sets1)?;
+        let mut ins_tail = vec![];
+        if use_w {
+            let w = if count.is_some() {
+                sc.omega
+                    .or(parent_omega)
+                    .ok_or_else(|| self.deny("defect: count has no ω"))?
+            } else {
+                sc.omega.unwrap()
+            };
+            ins_tail.push(w);
+        }
+        for v in &carried {
+            ins_tail.push(*sc.env.get(v).ok_or_else(|| self.deny("defect: carried"))?);
+        }
+        let carried_return = if let Some(pair) = early {
+            let init_flag = lit_bool(sc, true);
+            let init_val = self.lit_bty(sc, ret_ty)?;
+            append_early(
+                Some(pair), &mut test_b.out, &mut body_b.out, &mut ins_tail, &mut carried_ty,
+                init_flag, init_val, ret_ty,
+            )
+        } else {
+            false
+        };
+        let (attrs, ins) = if let Some(c) = count {
             let bound = self.src_atom(sc, &c.bound)?;
             let mut ins = vec![bound];
-            if use_w {
-                ins.push(
-                    sc.omega
-                        .or(parent_omega)
-                        .ok_or_else(|| self.deny("defect: count has no ω"))?,
-                );
-            }
-            for v in &carried {
-                ins.push(*sc.env.get(v).ok_or_else(|| self.deny("defect: carried"))?);
-            }
+            ins.extend(ins_tail);
             (Attr::Count(carried_ty.clone()), ins)
         } else {
-            let mut ins = vec![];
-            if use_w {
-                ins.push(sc.omega.unwrap());
-            }
-            for v in &carried {
-                ins.push(sc.env[v]);
-            }
             let (i, j) = measure_ij(&test_b).map_err(|m| self.deny(m))?;
-            (Attr::Measure(i, j, carried_ty.clone()), ins)
+            (Attr::Measure(i, j, carried_ty.clone()), ins_tail)
         };
-        let id = sc.push(attrs, std::mem::take(&mut ins), vec![test_b, body_b]);
+        let id = sc.push(attrs, ins, vec![test_b, body_b]);
         let base = u32::from(use_w);
         for (k, v) in carried.iter().enumerate() {
             sc.env.insert(*v, Src::Out(id, base + k as u32));
         }
         if use_w {
             sc.omega = Some(Src::Out(id, 0));
+        }
+        if carried_return {
+            let n = carried_ty.len() as u32;
+            sc.early = Some((Src::Out(id, n - 2), Src::Out(id, n - 1)));
         }
         Ok(())
     }
@@ -3206,6 +3375,34 @@ fn bool_not(region: &mut Scope, s: Src) -> Src {
 fn region_uses_order(region: &Scope) -> bool {
     matches!(region.omega, Some(Src::Out(..)))
         || region.nodes.iter().any(|n| n.ins.contains(&Src::In(0)))
+}
+
+/// Carry a return out of an Iterate. The test passes the flag and the value
+/// through. The body returns the join's flag and value. The flag starts
+/// true, so a loop that never returns keeps the caller's own return.
+fn append_early(
+    early: Option<(Src, Src)>,
+    test_out: &mut Vec<Src>,
+    body_out: &mut Vec<Src>,
+    ins: &mut Vec<Src>,
+    carried_ty: &mut Vec<BTy>,
+    init_flag: Src,
+    init_val: Src,
+    ret_ty: &BTy,
+) -> bool {
+    let Some((flag, val)) = early else {
+        return false;
+    };
+    let k = carried_ty.len() as u32;
+    test_out.push(Src::In(k));
+    test_out.push(Src::In(k + 1));
+    body_out.push(flag);
+    body_out.push(val);
+    ins.push(init_flag);
+    ins.push(init_val);
+    carried_ty.push(BTy::Bool);
+    carried_ty.push(ret_ty.clone());
+    true
 }
 
 fn region_outs(
@@ -3664,6 +3861,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            early: None,
             outputs: OutList::Fresh,
         };
         let mut ins = me.params.clone();
@@ -5075,12 +5273,25 @@ fn schedule_branch(
     };
     let omega_at = ts.iter().position(|t| *t == BTy::Order);
     let mut vars = vec![];
+    // A break flag is the first output, and the branch carries something
+    // beside it. That dummy stays a literal false. A bool that is the whole
+    // result, and a return flag after the carried values, is a literal the
+    // arm builds. Sharing the dummy would make that literal a capture.
+    let carried_beside = ts.iter().filter(|t| **t != BTy::Order).count() > 1;
     for (p, t) in ts.iter().enumerate() {
         if Some(p) == omega_at {
             continue;
         }
         let ct = cty(t).map_err(|_| sch.deny("defect: a branch output the core cannot hold"))?;
-        let init = dummy(sch, t)?;
+        let break_flag = p == 0 && carried_beside;
+        let init = if *t == BTy::Bool
+            && !break_flag
+            && n.regions.iter().any(|r| output_is_lit(r, p, &Lit::Bool(false)))
+        {
+            neutral_bool(sch, &n.regions)?
+        } else {
+            dummy(sch, t)?
+        };
         sch.consume(&init)?;
         sch.stmts.push(Stmt::Var(ct.clone(), init));
         let id = sch.fresh(ct, true);
@@ -5095,6 +5306,35 @@ fn schedule_branch(
     // keeps a capture only when every arm that falls through still holds it.
     let mut arm_live = [saved_live.clone(), saved_live.clone()];
     let mut arm_falls = [false, false];
+    // A capture of a literal the parent built stays a capture. Inlining the
+    // bits would build the literal in the arm, and construct(schedule(F))
+    // would differ. An arm that already builds that literal keeps its own node.
+    let mut hoisted: HashMap<(Ty, Lit), u32> = HashMap::new();
+    let contains_lit = |lit: &Lit| {
+        fn walk(b: &Body, lit: &Lit) -> bool {
+            b.nodes.iter().any(|n| {
+                matches!(&n.attrs, Attr::Lit(_, l) if l == lit)
+                    || n.regions.iter().any(|r| walk(r, lit))
+            })
+        }
+        n.regions.iter().any(|r| walk(r, lit))
+    };
+    for region in &n.regions {
+        for src in &region.out {
+            let Src::In(j) = *src else { continue };
+            let Some(parent) = n.ins.get(1 + j as usize) else { continue };
+            let Some(Av::A(Atom::K(t, l))) = env.get(parent) else { continue };
+            if !matches!(t, Ty::Bool | Ty::Int(..)) || contains_lit(l) {
+                continue;
+            }
+            let key = (t.clone(), l.clone());
+            if hoisted.contains_key(&key) {
+                continue;
+            }
+            let id = sch.let_atom(Atom::K(t.clone(), l.clone()), t.clone())?;
+            hoisted.insert(key, id);
+        }
+    }
     let mut arm = |sch: &mut Sch, region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
         sch.live.clone_from(&saved_live);
         let saved = std::mem::take(&mut sch.stmts);
@@ -5117,7 +5357,12 @@ fn schedule_branch(
             for (p, var) in &vars {
                 let src = region.out[*p];
                 match sch.val(&en, src)? {
-                    Av::A(a) => {
+                    Av::A(mut a) => {
+                        if let (Src::In(_), Atom::K(t, l)) = (src, &a)
+                            && let Some(id) = hoisted.get(&(t.clone(), l.clone()))
+                        {
+                            a = Atom::V(*id);
+                        }
                         if let Atom::V(id) = &a {
                             keep.insert(*id);
                         }
@@ -5236,6 +5481,70 @@ impl Sch {
             }
         }
     }
+}
+
+/// Whether output `port` of `region` is a literal, including one an arm of a
+/// nested branch builds and this region returns as that same port.
+fn output_is_lit(region: &Body, port: usize, lit: &Lit) -> bool {
+    let Some(src) = region.out.get(port).copied() else {
+        return false;
+    };
+    source_is_lit(region, src, lit)
+}
+
+fn source_is_lit(region: &Body, src: Src, lit: &Lit) -> bool {
+    let Src::Out(i, p) = src else {
+        return false;
+    };
+    let Some(n) = region.nodes.get(i as usize) else {
+        return false;
+    };
+    match &n.attrs {
+        Attr::Lit(_, l) if p == 0 && l == lit => true,
+        Attr::Branch(_, _) => n.regions.iter().any(|arm| {
+            arm.out
+                .get(p as usize)
+                .is_some_and(|s| source_is_lit(arm, *s, lit))
+        }),
+        _ => false,
+    }
+}
+
+/// A bool that is not a literal. The arms keep the literals they build.
+/// The two integers are ones no arm already uses, so this test does not
+/// become a capture of an arm's own literal. Nothing reads the result:
+/// every arm stores the output, and the canonical passes drop the test.
+fn neutral_bool(sch: &mut Sch, regions: &[Body]) -> Result<Atom, Change> {
+    let mut used = BTreeSet::new();
+    fn walk(b: &Body, used: &mut BTreeSet<i128>) {
+        for n in &b.nodes {
+            if let Attr::Lit(_, Lit::Int(v)) = &n.attrs {
+                used.insert(*v);
+            }
+            for r in &n.regions {
+                walk(r, used);
+            }
+        }
+    }
+    for r in regions {
+        walk(r, &mut used);
+    }
+    let mut a = 0i128;
+    while used.contains(&a) {
+        a += 1;
+    }
+    let mut b = a + 1;
+    while used.contains(&b) {
+        b += 1;
+    }
+    let ty = Ty::Int(a.min(b), a.max(b));
+    sch.stmts.push(Stmt::Prim(
+        "int.eq".into(),
+        vec![ty],
+        vec![build::lit(a), build::lit(b)],
+    ));
+    let id = sch.fresh(Ty::Bool, false);
+    Ok(Atom::V(id))
 }
 
 fn dummy(sch: &mut Sch, t: &BTy) -> Result<Atom, Change> {
