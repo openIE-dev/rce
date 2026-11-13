@@ -1254,7 +1254,7 @@ fn whole_census(
         "node. A read of `fuel` outside the frame stays refused. Constant".to_string(),
         "flags are memo cells, not folded constants, and those reads stay".to_string(),
         "refused. `out` is in no whole-module set. The exact set global is 3.".to_string(),
-        "whole stays 2.".to_string(),
+        "whole is 6: 1 entry-only and 5 whose core contains a user function.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
         format!("floor\t{covered}"),
@@ -1481,13 +1481,15 @@ fn examples_are_covered_or_require_change() {
     assert_eq!(entry_only + with_user, whole, "whole split does not add up");
     // Was 18, all entry-only: the core held only `entry`. Putting each
     // library function and each unobserved δ into the core drops that to
-    // 2, of which 1 still has no user function and 1 contains user code.
+    // 2. A `var` or `let` of a literal is now its own node, not a capture
+    // of a dummy with the same bits, so four more modules schedule back:
+    // 08_traits, 18_while_bound, 24_lambda, 27_bitops. whole is 6.
     assert_eq!(
-        whole, 2,
+        whole, 6,
         "the number of whole examples that construct changed; raise this floor and check the trace"
     );
     assert_eq!(entry_only, 1, "entry-only whole cores");
-    assert_eq!(with_user, 1, "whole cores that contain a user function");
+    assert_eq!(with_user, 5, "whole cores that contain a user function");
     assert_eq!(
         covered, 5,
         "the number of examples whose program functions round-trip changed; raise the ratchet, do not lower it"

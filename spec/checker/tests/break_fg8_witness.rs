@@ -370,11 +370,28 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(programs, 60, "spec/examples gained or lost a program");
     assert_eq!(
         whole,
-        ["09_generics.rce", "35_nested_if.rce"],
-        "census whole, measured on 410bfd40"
+        [
+            "08_traits.rce",
+            "09_generics.rce",
+            "18_while_bound.rce",
+            "24_lambda.rce",
+            "27_bitops.rce",
+            "35_nested_if.rce",
+        ],
+        "census whole"
     );
     assert_eq!(entry_only, ["09_generics.rce"], "whole-entry-only");
-    assert_eq!(with_user, ["35_nested_if.rce"], "whole-with-user");
+    assert_eq!(
+        with_user,
+        [
+            "08_traits.rce",
+            "18_while_bound.rce",
+            "24_lambda.rce",
+            "27_bitops.rce",
+            "35_nested_if.rce",
+        ],
+        "whole-with-user"
+    );
     assert_eq!(
         construct_ok,
         [
@@ -410,9 +427,23 @@ fn corpus_baseline_on_50294e05() {
         ],
         "the syntactic floor moved"
     );
-    assert!(
-        semantic.is_empty(),
-        "an example was admitted only as a body-break rewrite: {semantic:?}"
+    assert_eq!(
+        semantic,
+        [
+            "03_fib_loop.rce",
+            "08_traits.rce",
+            "18_while_bound.rce",
+            "21_maps.rce",
+            "24_lambda.rce",
+            "25_labels.rce",
+            "27_bitops.rce",
+            "36_multiline_brackets.rce",
+            "43_simd_lanes.rce",
+            "45_byte_text.rce",
+            "46_u64.rce",
+            "49_loop_limit.rce",
+        ],
+        "option B: the flag form matches its schedule"
     );
     let names = |tag: &str| root_tags.get(tag).map(|v| v.as_slice()).unwrap_or(&[]);
     assert_eq!(
@@ -453,30 +484,22 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(names("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
     assert_eq!(
         names("defect"),
-        ["06_option.rce", "07_error_union.rce", "20_strings.rce"]
+        [
+            "06_option.rce",
+            "07_error_union.rce",
+            "20_strings.rce",
+            "22_tuples.rce",
+        ]
     );
     assert_eq!(
         names("round-trip"),
         [
-            "03_fib_loop.rce",
-            "08_traits.rce",
             "10_comptime.rce",
             "11_arena.rce",
-            "18_while_bound.rce",
             "19_floats.rce",
-            "21_maps.rce",
-            "22_tuples.rce",
-            "24_lambda.rce",
-            "25_labels.rce",
-            "27_bitops.rce",
             "28_slices.rce",
             "33_in_operator.rce",
-            "36_multiline_brackets.rce",
             "41_arena_bound_wrapping.rce",
-            "43_simd_lanes.rce",
-            "45_byte_text.rce",
-            "46_u64.rce",
-            "49_loop_limit.rce",
         ]
     );
     assert_eq!(
@@ -564,13 +587,9 @@ fn corpus_baseline_on_50294e05() {
         tagged("round-trip"),
         [
             "03_fib_loop.rce",
-            "08_traits.rce",
             "11_arena.rce",
             "12_borrow.rce",
-            "18_while_bound.rce",
-            "24_lambda.rce",
             "25_labels.rce",
-            "27_bitops.rce",
             "28_slices.rce",
             "36_multiline_brackets.rce",
             "40_extern.rce",
@@ -637,13 +656,14 @@ fn freq_search_break_stores_a_fresh_false() {
     let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("mfind schedule: {}", e.line()));
     let back = bridge::construct(&s).unwrap_or_else(|e| panic!("mfind schedule construct: {}", e.line()));
     assert_eq!(fir::encode(&f), fir::encode(&back), "mfind construct(schedule(F)) is not F");
-    // `fn freq` calls `mfind`. Its closure constructs, and the schedule
-    // constructs, so the file is not FG8. Byte identity of that whole
-    // closure is a separate spelling of the decimal helpers' empty text.
+    // `fn freq` calls `mfind` and the decimal helpers. The helpers' empty
+    // text is a `var` in the arm. It is not the branch output's dummy,
+    // which has the same bits. The closure round-trips.
     let freq = bridge::closure(&maps, "fn freq").expect("fn freq");
     let ff = bridge::construct(&freq).unwrap_or_else(|e| panic!("fn freq: {}", e.line()));
     let fs = bridge::schedule(&ff).unwrap_or_else(|e| panic!("fn freq schedule: {}", e.line()));
-    bridge::construct(&fs).unwrap_or_else(|e| panic!("fn freq schedule construct: {}", e.line()));
+    let back = bridge::construct(&fs).unwrap_or_else(|e| panic!("fn freq schedule construct: {}", e.line()));
+    assert_eq!(fir::encode(&ff), fir::encode(&back), "fn freq construct(schedule(F)) is not F");
 }
 
 #[test]
