@@ -429,7 +429,7 @@ fn corpus_baseline_on_50294e05() {
             "61_dim_minimal.rce",
         ]
     );
-    assert_eq!(names("FG8"), ["33_in_operator.rce"]);
+    assert_eq!(names("FG8"), ["21_maps.rce", "33_in_operator.rce"]);
     assert!(
         names("catch").is_empty(),
         "a program root's first tag is catch: {:?}",
@@ -474,10 +474,6 @@ fn corpus_baseline_on_50294e05() {
             ("13_spawn_chan.rce".into(), "not covered by the lowering: the type chan i64".into()),
             ("14_select.rce".into(), "not covered by the lowering: the type chan text".into()),
             ("15_actor.rce".into(), "not covered by the lowering: the type chan i64".into()),
-            (
-                "21_maps.rce".into(),
-                "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])".into(),
-            ),
             ("29_nested_kind.rce".into(), "not covered by the lowering: a recursive type".into()),
             (
                 "34_chan_types.rce".into(),
@@ -518,7 +514,7 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(
         tagged("catch"),
-        ["16_multi_region.rce", "56_utf8.rce", "58_float_keys.rce"]
+        ["16_multi_region.rce", "21_maps.rce", "56_utf8.rce", "58_float_keys.rce"]
     );
     assert_eq!(
         tagged("defect"),
@@ -601,25 +597,14 @@ fn corpus_baseline_on_50294e05() {
 fn fn_table_schedule_keeps_the_measure_and_matches_the_list() {
     // Contract section 4. The search loop's flag and index stay two outputs
     // of one Branch through the schedule, so `construct(schedule(F))` is F.
-    // The file does not lower: `fn freq` mixes a literal with `u32`. The
-    // census records that refusal. `fn table` is the measure this test
-    // checks, so the function is lowered from its own line in the same file.
+    // `fn freq` counts in `u32`. The catch literal takes that success type,
+    // so the file lowers. `fn table` is the measure this test checks.
     let src = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/21_maps.rce"),
     )
     .unwrap();
     let ast = rce_spec_check::program(&src).unwrap();
-    let err = rce_spec_check::one::core_of(&ast).expect_err("21_maps lowered");
-    assert_eq!(
-        err,
-        "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])"
-    );
-    let line = src
-        .lines()
-        .find(|l| l.starts_with("fn table"))
-        .expect("fn table");
-    let ast = rce_spec_check::program(&format!("{line}\n")).unwrap();
-    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("fn table: {e}"));
+    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("21_maps: {e}"));
     let sub = bridge::closure(&maps, "fn table").expect("fn table");
     let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
     assert!(

@@ -100,3 +100,19 @@ fn types_follow_assignments_and_loops() {
     assert!(i.ty.show().starts_with("int{u32}"), "{}", i.ty.show());
     assert!(!zs.is_empty());
 }
+
+/// `(m.get(w) catch 0) + 1` with `m: Map[text, u32]`. The handler literal
+/// takes the success type, so the sum is checked against u32.
+#[test]
+fn a_catch_literal_takes_the_success_integer_type() {
+    use rce_spec_check::typed;
+    let src = "fn freq(words: &[text]) -> Map[text, u32]\n    var m: Map[text, u32] = {}\n    for w in words\n        m[w] = (m.get(w) catch 0) + 1\n    return m\n";
+    let m = module(src);
+    let t = typed::build(&m);
+    let rce_spec_check::ast::Item::Fn(f) = &m.items[0] else { panic!() };
+    let rce_spec_check::ast::Body::Block(b) = &f.body else { panic!() };
+    let rce_spec_check::ast::Stmt::For(_, _, body, _) = &b[1] else { panic!() };
+    let rce_spec_check::ast::Stmt::Assign(_, _, e) = &body[0] else { panic!() };
+    let shown = t.ty(e).show();
+    assert!(shown.starts_with("int{u32}"), "{shown}");
+}
