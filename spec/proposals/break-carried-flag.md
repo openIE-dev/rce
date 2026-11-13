@@ -26,7 +26,9 @@ constrains: `spec/lean/RCE/Form.lean`, `spec/lean/RCE/Iter.lean`,
 ## 1. Terms
 
 **Dom** is the set of canonical Forms for which the bridge slice claims
-identity. A pure count loop is not in Dom (obligation O8, §3).
+identity. A pure count loop is in Dom: the erratum of 2026-11-13 keeps
+its carried order (§4.2). The earlier obligation O8 put that loop outside
+Dom, because C7 then removed the order.
 
 **Syntactic identity** on Dom is `construct(schedule(F)) = F` as canonical
 bytes. Canonical bytes already apply C7 (capture order by digest, and
@@ -53,9 +55,14 @@ node.
 
 **A pure count** is a count-bounded Iterate whose test and body do not use
 ω except by carrying it. FG7 gives every count effect class at least 1, so
-the node must consume and return ω. C7 then removes a carried ω that
-neither region uses. The slice has no applied form for that loop
-(`bound` in the bridge). That is O8: a pure count is outside Dom.
+the node must consume and return ω. Until 2026-11-13, C7 then removed that
+carried ω, and the slice had no applied form for that loop (`bound` in the
+bridge). That was O8.
+
+**Erratum, 2026-11-13.** C7 now keeps the carried order of a count-bounded
+Iterate. A pure count has an applied form: the count carries order, and the
+regions may only pass it through. A pass-through bool is still removed.
+FG7 is unchanged. See rce-form.md §10.
 
 **An exit sum** is a result with one constructor per way a loop ends. The
 iterator model already has three: `.done`, `.stopped` and `.bound`
@@ -115,8 +122,10 @@ region. schedule ∘ construct is already not the identity on the core (§13).
 
 The mathground sketch states that identity as obligations O1 to O10. This
 note does not restate O1 to O7, O9 or O10; their wording is the sketch's.
-The obligation this design has to keep visible is O8: a pure count is
-outside Dom, because FG7 demands a carried ω and C7 removes it.
+The obligation this design kept visible was O8: a pure count was outside
+Dom, because FG7 demands a carried ω and, until 2026-11-13, C7 removed it.
+The erratum of that date keeps the carried order, so O8 does not hold
+after it.
 
 The obligations are a plan for a proof. They are not a proof, and this
 note does not mark them proved.
@@ -164,14 +173,17 @@ does not by itself make the measure take ω.
 
 A count may halt, so it always takes ω (§6). FG7 checks that a node of
 class at least 1 consumes and returns ω. The flag is a plain `bool`. It is
-not a use of ω. Carrying `go` does not put a pure count into Dom.
+not a use of ω. Carrying `go` is not what admits a pure count. The erratum
+of 2026-11-13 keeps the carried order, and that is what admits it.
 
 C7 keeps a carried value when either region uses it or either region
-returns something other than that same input. The break path must return
-the literal false, not the incoming `go`. If both regions return `go`
-unchanged and neither uses it, C7 removes it and the early exit disappears.
-That removal is the same one O8 records for an unused carried ω (constraint
-B4, §5).
+returns something other than that same input, and it keeps the order of a
+count even when both regions only pass that order through. The break path
+must return the literal false, not the incoming `go`. If both regions
+return `go` unchanged and neither uses it, C7 removes the bool and the
+early exit disappears. That removal is the rule for an unused carried
+value other than a count's order. It is not O8. O8 recorded a carried
+order that C7 used to remove (constraint B4, §5).
 
 ω stays linear. Every path of a region that took ω returns it exactly once,
 including the break path. The flag's own nodes do not read or write ω. If
@@ -179,8 +191,8 @@ they did, fuel and the order of effects would change (constraint B3, §5).
 
 A count whose regions use ω for a reason other than the unused carrier,
 and whose body break is the flag above, is the count item 3 can describe.
-A pure count stays `bound`, outside Dom, until FG7 or C7 changes. This note
-does not propose that change.
+A pure count stayed `bound`, outside Dom, until C7 changed. The erratum of
+2026-11-13 is that change. This note did not propose it.
 
 ## 5. A silent flag rewrite breaks syntactic identity
 
@@ -212,9 +224,10 @@ fuel and the order of operations change. ω orders effects and halts. A flag
 that touches ω is a different computation, not a spelling of the same one.
 
 **B4.** C7 drops `go` when it is only passed through, by the same rule that
-drops an unused carried ω. The result is a loop that cannot stop early, the
-same way a pure count has no applied form (O8). A pass-through bool is not
-an encoding of break.
+drops an unused carried value other than the order of a count. The result
+is a loop that cannot stop early. A pass-through bool is not an encoding
+of break. The erratum of 2026-11-13 keeps a count's carried order and does
+not keep a pass-through bool.
 
 **B5.** A conditional increment leaves the measure shape. `find_measure`
 requires `int.lt` (or the `int.le` spelling) of an unchanged index and end,

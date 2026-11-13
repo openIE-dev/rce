@@ -313,7 +313,9 @@ fn c7_hook(node: &mut Node, md: &dyn Fn(&Src) -> String) {
 }
 
 /// Remove the carried values of an Iterate that neither region uses and
-/// both return unchanged; the Iterate's output for one becomes its initial value.
+/// both return unchanged; the Iterate's output for one becomes its initial
+/// value. A count-bounded Iterate keeps its carried order (erratum of
+/// 2026-11-13): a count may halt, so that order is not an unused carrier.
 fn c7_carried(b: &Body) -> Body {
     let mut b = b.clone();
     loop {
@@ -334,6 +336,11 @@ fn c7_carried(b: &Body) -> Body {
                 if let Attr::Measure(x, y, _) = n.attrs
                     && (x as usize == k || y as usize == k)
                 {
+                    continue;
+                }
+                // Erratum 2026-11-13: a count may halt, so its carried order
+                // stays even when both regions only pass it through.
+                if matches!(&n.attrs, Attr::Count(ts) if ts.get(k) == Some(&BTy::Order)) {
                     continue;
                 }
                 let keep = n.regions.iter().any(|r| r.out.get(1 + k) != Some(&Src::In(k as u32)) || uses_input(r, k as u32, Some(1 + k)));
