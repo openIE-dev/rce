@@ -29,7 +29,7 @@ is `emit[text]`. The observation driver's `fuel.limit` read is the
 limit of the run, not a field of the module, so that frame is not a
 node. A read of `fuel` outside the frame stays refused. Constant
 flags are memo cells, not folded constants, and those reads stay
-refused. `out` is in no whole-module set. The exact set global is 2.
+refused. `out` is in no whole-module set. The exact set global is 3.
 whole stays 2.
 
 programs	60
@@ -41,52 +41,47 @@ whole-with-user	1
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
-14	break
-14	round-trip
-9	lowering
-3	break,exit
+15	break
+15	round-trip
+8	lowering
+5	break,exit
+3	global
 2	defect
-2	global
-1	FG8
+2	exit
 1	bound,break
-1	break,catch
 1	break,defect
+1	exit,global
 
 whole modules, every exact set
 modules	set
-14	break
-14	round-trip
-9	lowering
-3	break,exit
-2	break,catch,exit
+15	break
+15	round-trip
+8	lowering
+5	break,exit
+3	global
 2	clear
 2	defect
 2	defect,exit,loop
-2	global
-1	FG8
+2	exit
 1	bound,break
-1	break,catch
-1	break,catch,exit,loop
 1	break,defect
 1	break,defect,exit
-1	catch,global
-1	exit
+1	break,exit,loop
 1	exit,global
 1	global,loop
 
 program roots, every exact set
 modules	set
 17	break
-16	round-trip
-9	lowering
+17	round-trip
+8	lowering
 5	clear
 2	defect
+2	defect,round-trip
 2	exit
 2	no-root
-1	FG8,defect
 1	break,defect
 1	break,round-trip
-1	defect,round-trip
 1	global
 1	global,loop
 1	loop
@@ -102,18 +97,18 @@ module	whole	roots	user	global-sites
 07_error_union.rce	defect,exit,loop	defect	user	
 08_traits.rce	round-trip	round-trip	user	
 09_generics.rce	clear	no-root	entry-only	
-10_comptime.rce	catch,global	round-trip	user	entry: global: g6 is not part of the working context ω holds
+10_comptime.rce	global	round-trip	user	entry: global: g6 is not part of the working context ω holds
 11_arena.rce	round-trip	round-trip	user	
 12_borrow.rce	round-trip	clear	user	
 13_spawn_chan.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
 14_select.rce	lowering	lowering	lowering	not covered by the lowering: the type chan text
 15_actor.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
-16_multi_region.rce	break,catch,exit	break	user	
+16_multi_region.rce	break,exit	break	user	
 17_traffic_light.rce	break	break	user	
 18_while_bound.rce	round-trip	round-trip	user	
 19_floats.rce	break	round-trip	user	
 20_strings.rce	defect,exit,loop	defect	user	
-21_maps.rce	lowering	lowering	lowering	not covered by the lowering: an integer operation checked against ranges that differ at run time (["lit", "u32"])
+21_maps.rce	exit	round-trip	user	
 22_tuples.rce	defect	defect,round-trip	user	
 23_patterns.rce	break	break	user	
 24_lambda.rce	round-trip	round-trip	user	
@@ -124,7 +119,7 @@ module	whole	roots	user	global-sites
 30_state_machine_guarded.rce	break	break	user	
 31_inventory.rce	break,exit	exit	user	
 32_comptime_block.rce	global	global	user	fn table_size: global: g3 is not part of the working context ω holds
-33_in_operator.rce	defect	FG8,defect	user	
+33_in_operator.rce	defect	defect,round-trip	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
 35_nested_if.rce	clear	clear	user	
 36_multiline_brackets.rce	round-trip	round-trip	user	
@@ -134,7 +129,7 @@ module	whole	roots	user	global-sites
 40_extern.rce	round-trip	clear	user	
 41_arena_bound_wrapping.rce	round-trip	round-trip	user	
 42_f32.rce	bound,break	clear	user	
-43_simd_lanes.rce	FG8	round-trip	user	
+43_simd_lanes.rce	round-trip	round-trip	user	
 44_device_region.rce	break	break	user	
 45_byte_text.rce	exit,global	round-trip	user	check 7: global: g3 is not part of the working context ω holds
 46_u64.rce	global	round-trip	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds
@@ -146,10 +141,10 @@ module	whole	roots	user	global-sites
 52_context_text.rce	break,exit	break	user	
 53_capability.rce	break	break	user	
 54_secret.rce	break,exit	break	user	
-55_rcedb.rce	break,catch,exit,loop	loop	user	
-56_utf8.rce	break,catch,exit	break,round-trip	user	
+55_rcedb.rce	break,exit,loop	loop	user	
+56_utf8.rce	break,exit	break,round-trip	user	
 57_float_vectors.rce	break	break	user	
-58_float_keys.rce	break,catch	break	user	
+58_float_keys.rce	break	break	user	
 59_dim_redundant_field.rce	break	break	user	
 60_dim_hidden_period.rce	break	break	user	
 61_dim_minimal.rce	break	break	user	

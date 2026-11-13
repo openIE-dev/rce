@@ -173,18 +173,27 @@ fn assert_scheduled_values(origin: &CoreModule, scheduled: &CoreModule, args: Ve
     );
 }
 
-fn schedule_fg8(f: &fir::Module, at: &str) {
+fn schedule_agrees(origin: &CoreModule, f: &fir::Module, cases: &[Vec<Val>]) -> bool {
     let s = bridge::schedule(f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
     wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
-    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
-    assert_eq!(e.at, at, "{}", e.line());
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("schedule construct: {}", e.line()));
+    for args in cases {
+        assert_scheduled_values(origin, &s, args.clone());
+    }
+    fir::encode(f) == fir::encode(&back)
+}
+
+fn schedule_matches(origin: &CoreModule, f: &fir::Module, cases: &[Vec<Val>]) {
+    // Record the flag before the schedule is read back. That construct sees
+    // no source `break`, so it clears the flag.
+    let rewrote = bridge::body_break_rewrite();
     assert!(
-        e.reason.contains(
-            "the body region does not return i raised by exactly one whenever it continues"
-        ),
-        "{}",
-        e.line()
+        schedule_agrees(origin, f, cases),
+        "construct(schedule(F)) is not F"
+    );
+    assert!(
+        rewrote,
+        "the body break was not restructured, so the example would join the syntactic floor"
     );
 }
 
@@ -429,7 +438,11 @@ fn corpus_baseline_on_50294e05() {
             "61_dim_minimal.rce",
         ]
     );
-    assert_eq!(names("FG8"), ["33_in_operator.rce"]);
+    assert!(
+        !root_tags.contains_key("FG8"),
+        "a program root's first tag is FG8: {:?}",
+        names("FG8")
+    );
     assert!(
         names("catch").is_empty(),
         "a program root's first tag is catch: {:?}",
@@ -451,11 +464,13 @@ fn corpus_baseline_on_50294e05() {
             "11_arena.rce",
             "18_while_bound.rce",
             "19_floats.rce",
+            "21_maps.rce",
             "22_tuples.rce",
             "24_lambda.rce",
             "25_labels.rce",
             "27_bitops.rce",
             "28_slices.rce",
+            "33_in_operator.rce",
             "36_multiline_brackets.rce",
             "41_arena_bound_wrapping.rce",
             "43_simd_lanes.rce",
@@ -474,10 +489,6 @@ fn corpus_baseline_on_50294e05() {
             ("13_spawn_chan.rce".into(), "not covered by the lowering: the type chan i64".into()),
             ("14_select.rce".into(), "not covered by the lowering: the type chan text".into()),
             ("15_actor.rce".into(), "not covered by the lowering: the type chan i64".into()),
-            (
-                "21_maps.rce".into(),
-                "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])".into(),
-            ),
             ("29_nested_kind.rce".into(), "not covered by the lowering: a recursive type".into()),
             (
                 "34_chan_types.rce".into(),
@@ -499,6 +510,7 @@ fn corpus_baseline_on_50294e05() {
             "04_bank_account.rce",
             "05_kind_match.rce",
             "06_option.rce",
+            "16_multi_region.rce",
             "17_traffic_light.rce",
             "19_floats.rce",
             "23_patterns.rce",
@@ -510,21 +522,27 @@ fn corpus_baseline_on_50294e05() {
             "52_context_text.rce",
             "53_capability.rce",
             "54_secret.rce",
+            "56_utf8.rce",
             "57_float_vectors.rce",
+            "58_float_keys.rce",
             "59_dim_redundant_field.rce",
             "60_dim_hidden_period.rce",
             "61_dim_minimal.rce",
         ]
     );
-    assert_eq!(
-        tagged("catch"),
-        ["16_multi_region.rce", "56_utf8.rce", "58_float_keys.rce"]
+    assert!(
+        !construct_tag.contains_key("catch"),
+        "a whole module's first tag is catch: {:?}",
+        tagged("catch")
     );
     assert_eq!(
         tagged("defect"),
         ["07_error_union.rce", "20_strings.rce", "33_in_operator.rce"]
     );
-    assert_eq!(tagged("exit"), ["02_hello_main.rce", "31_inventory.rce"]);
+    assert_eq!(
+        tagged("exit"),
+        ["02_hello_main.rce", "21_maps.rce", "31_inventory.rce"]
+    );
     assert_eq!(
         tagged("global"),
         [
@@ -537,7 +555,11 @@ fn corpus_baseline_on_50294e05() {
     );
     assert_eq!(tagged("loop"), ["55_rcedb.rce"]);
     assert_eq!(tagged("schedule defect"), ["22_tuples.rce"]);
-    assert_eq!(tagged("schedule FG8"), ["43_simd_lanes.rce"]);
+    assert!(
+        !construct_tag.contains_key("schedule FG8"),
+        "a schedule's first tag is FG8: {:?}",
+        construct_tag.get("schedule FG8")
+    );
     assert_eq!(
         tagged("round-trip"),
         [
@@ -553,6 +575,7 @@ fn corpus_baseline_on_50294e05() {
             "36_multiline_brackets.rce",
             "40_extern.rce",
             "41_arena_bound_wrapping.rce",
+            "43_simd_lanes.rce",
             "48_linear_handle.rce",
             "49_loop_limit.rce",
         ]
@@ -565,7 +588,6 @@ fn corpus_baseline_on_50294e05() {
     assert_eq!(
         root_tags.keys().cloned().collect::<Vec<_>>(),
         [
-            "FG8",
             "break",
             "defect",
             "exit",
@@ -579,13 +601,11 @@ fn corpus_baseline_on_50294e05() {
         construct_tag.keys().cloned().collect::<Vec<_>>(),
         [
             "break",
-            "catch",
             "defect",
             "exit",
             "global",
             "loop",
             "round-trip",
-            "schedule FG8",
             "schedule defect",
         ]
     );
@@ -598,28 +618,46 @@ fn corpus_baseline_on_50294e05() {
 }
 
 #[test]
-fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
-    // Contract section 4. The first form is applied. The schedule is not.
-    // On 410bfd40 the file does not lower: 34c915fd keeps `fn freq`, and
-    // `(m.get(w) catch 0) + 1` mixes a literal with u32. The census records
-    // that refusal. `fn table` is the measure this test checks, so the
-    // function is lowered from its own line in the same file.
+fn freq_search_break_stores_a_fresh_false() {
+    // `mfind`'s second break is a pure `break` of the search loop: the key
+    // is past the probe, so the arm does not step the index. The flag is a
+    // fresh literal false in that arm. A capture of the parent's dummy is
+    // not a node FG8 reads, so the first construct of `fn freq` failed at
+    // that measure.
     let src = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/21_maps.rce"),
     )
     .unwrap();
     let ast = rce_spec_check::program(&src).unwrap();
-    let err = rce_spec_check::one::core_of(&ast).expect_err("21_maps lowered");
-    assert_eq!(
-        err,
-        "not covered by the lowering: an integer operation checked against ranges that differ at run time ([\"lit\", \"u32\"])"
-    );
-    let line = src
-        .lines()
-        .find(|l| l.starts_with("fn table"))
-        .expect("fn table");
-    let ast = rce_spec_check::program(&format!("{line}\n")).unwrap();
-    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("fn table: {e}"));
+    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("21_maps: {e}"));
+    let mfind = bridge::closure(&maps, "mfind:Map[text, int{u32}[0, 4294967295]]").expect("mfind");
+    let f = bridge::construct(&mfind).unwrap_or_else(|e| panic!("mfind: {}", e.line()));
+    let rewrote = bridge::body_break_rewrite();
+    assert!(rewrote, "the search break was not restructured into a flag");
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("mfind schedule: {}", e.line()));
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("mfind schedule construct: {}", e.line()));
+    assert_eq!(fir::encode(&f), fir::encode(&back), "mfind construct(schedule(F)) is not F");
+    // `fn freq` calls `mfind`. Its closure constructs, and the schedule
+    // constructs, so the file is not FG8. Byte identity of that whole
+    // closure is a separate spelling of the decimal helpers' empty text.
+    let freq = bridge::closure(&maps, "fn freq").expect("fn freq");
+    let ff = bridge::construct(&freq).unwrap_or_else(|e| panic!("fn freq: {}", e.line()));
+    let fs = bridge::schedule(&ff).unwrap_or_else(|e| panic!("fn freq schedule: {}", e.line()));
+    bridge::construct(&fs).unwrap_or_else(|e| panic!("fn freq schedule construct: {}", e.line()));
+}
+
+#[test]
+fn fn_table_schedule_keeps_the_measure_and_matches_the_list() {
+    // Contract section 4. The search loop's flag and index stay two outputs
+    // of one Branch through the schedule, so `construct(schedule(F))` is F.
+    // `fn freq` counts in `u32`. The catch literal takes that success type,
+    // so the file lowers. `fn table` is the measure this test checks.
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/21_maps.rce"),
+    )
+    .unwrap();
+    let ast = rce_spec_check::program(&src).unwrap();
+    let maps = rce_spec_check::one::core_of(&ast).unwrap_or_else(|e| panic!("21_maps: {e}"));
     let sub = bridge::closure(&maps, "fn table").expect("fn table");
     let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
     assert!(
@@ -631,28 +669,30 @@ fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
         form::Outcome::Applied(_)
     ));
     let (value, _) = core_eval(&sub, vec![]);
-    assert_eq!(
-        value,
-        Ok(Val::List(vec![
-            Val::Tup(vec![Val::bytes(b"a"), Val::Int(1)]),
-            Val::Tup(vec![Val::bytes(b"b"), Val::Int(2)]),
-        ])),
-        "core eval of fn table is the value a later three-way check has to match"
-    );
+    let want = Ok(Val::List(vec![
+        Val::Tup(vec![Val::bytes(b"a"), Val::Int(1)]),
+        Val::Tup(vec![Val::bytes(b"b"), Val::Int(2)]),
+    ]));
+    assert_eq!(value, want, "core eval of fn table");
+    // The search loop's break was restructured. Record that before the
+    // schedule is read back: that construct sees no source `break`.
+    let rewrote = bridge::body_break_rewrite();
     let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
     wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
-    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
-    assert_eq!(e.at, "node 3", "{}", e.line());
-    assert!(
-        e.reason.contains(
-            "the body region does not return i raised by exactly one whenever it continues"
-        ),
-        "{}",
-        e.line()
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("schedule construct: {}", e.line()));
+    assert_eq!(
+        fir::encode(&f),
+        fir::encode(&back),
+        "construct(schedule(F)) is not F"
     );
-    // A future applied schedule matches `f` byte for byte and matches `value`.
-    // It does not enter the syntactic floor while `body_break_rewrite` is set.
+    assert!(
+        rewrote,
+        "the search loop's break was not restructured, so the example would join the syntactic floor"
+    );
+    assert_scheduled_values(&sub, &s, vec![]);
+    let (k, i) = form_key(&f, 0);
+    let form_v = feval::apply(&f, &k, i, vec![]).unwrap_or_else(|e| panic!("form eval: {e}"));
+    assert_eq!(form_v, vec![want.expect("core")], "form eval of fn table");
 }
 
 #[test]
@@ -723,12 +763,10 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
 }
 
 #[test]
-fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
+fn a_break_that_names_the_loop_from_inside_a_block_round_trips() {
     // Contract section 3.2. `break 1` inside the body block names the loop.
-    // On 410bfd40 the first form is that flag: it is applied, and it
-    // returns the core's value. The schedule is still refused by FG8.
-    // The node is 1, measured on this commit; the reason is unchanged.
-    // The increment does not run on the break path.
+    // The break arm stores a fresh false, so the first form and the
+    // schedule are that flag. The increment does not run on the break path.
     let build = |with_tick: bool| {
         let (tick, tkey) = tick_parts();
         let key = tkey.clone();
@@ -783,7 +821,15 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
     assert_eq!(z, Ok(Val::Int(0)), "zero iterations");
     assert_eq!(one, Ok(Val::Int(0)), "the break skipped the increment");
     assert_eq!(many, Ok(Val::Int(4)), "four iterations step the index");
-    schedule_fg8(&f, "node 1");
+    schedule_matches(
+        &m,
+        &f,
+        &[
+            vec![Val::Int(0), Val::Bool(true)],
+            vec![Val::Int(4), Val::Bool(true)],
+            vec![Val::Int(4), Val::Bool(false)],
+        ],
+    );
 
     let m = build(true);
     let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
@@ -792,7 +838,15 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
     assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
     assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
     assert_values(&m, &f, vec![Val::Int(0), Val::Bool(false)]);
-    schedule_fg8(&f, "node 1");
+    schedule_matches(
+        &m,
+        &f,
+        &[
+            vec![Val::Int(4), Val::Bool(true)],
+            vec![Val::Int(4), Val::Bool(false)],
+            vec![Val::Int(0), Val::Bool(false)],
+        ],
+    );
     let spent = |args: Vec<Val>| {
         let (_, g) = core_eval(&m, args);
         match g {
@@ -809,11 +863,10 @@ fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
 }
 
 #[test]
-fn a_flat_measure_with_a_body_break_is_refused_by_fg8() {
-    // Contract section 4.3 and shortcut 1's neighbour: the continue path does
-    // raise the index, and the first construction still fails FG8. `mset`
-    // shows the closed shape can accept that meaning. This statement order
-    // does not reach it. The refusal stays until it does.
+fn a_flat_measure_with_a_body_break_round_trips() {
+    // The continue path raises the index. The break path stores a fresh
+    // false and does not. That is the closed shape, so the measure applies
+    // and the schedule reads it back. It is not rewritten into a count.
     let build = |with_tick: bool| {
         let (tick, tkey) = tick_parts();
         let key = tkey.clone();
@@ -850,19 +903,9 @@ fn a_flat_measure_with_a_body_break_is_refused_by_fg8() {
         }
     };
     let m = build(false);
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
-    assert!(
-        e.reason
-            .contains("raised by exactly one whenever it continues"),
-        "{}",
-        e.line()
-    );
-    assert_ne!(
-        e.tag(),
-        "bound",
-        "a body break was rewritten into a pure count"
-    );
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("first construct: {}", e.line()));
+    assert!(bridge::body_break_rewrite(), "the break was not a flag");
+    assert_applied(&f);
     let (z, _) = core_eval(&m, vec![Val::Int(0), Val::Bool(false)]);
     let (stop, _) = core_eval(&m, vec![Val::Int(4), Val::Bool(true)]);
     let (one, _) = core_eval(&m, vec![Val::Int(1), Val::Bool(false)]);
@@ -871,10 +914,37 @@ fn a_flat_measure_with_a_body_break_is_refused_by_fg8() {
     assert_eq!(stop, Ok(Val::Int(0)));
     assert_eq!(one, Ok(Val::Int(1)));
     assert_eq!(many, Ok(Val::Int(4)));
+    assert_values(&m, &f, vec![Val::Int(0), Val::Bool(false)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(1), Val::Bool(false)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
+    schedule_matches(
+        &m,
+        &f,
+        &[
+            vec![Val::Int(0), Val::Bool(false)],
+            vec![Val::Int(4), Val::Bool(true)],
+            vec![Val::Int(1), Val::Bool(false)],
+            vec![Val::Int(4), Val::Bool(false)],
+        ],
+    );
 
     let m = build(true);
-    let e = refuse(&m);
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("ticked construct: {}", e.line()));
+    assert!(bridge::body_break_rewrite());
+    assert_applied(&f);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(true)]);
+    assert_values(&m, &f, vec![Val::Int(4), Val::Bool(false)]);
+    schedule_matches(
+        &m,
+        &f,
+        &[
+            vec![Val::Int(4), Val::Bool(true)],
+            vec![Val::Int(4), Val::Bool(false)],
+            vec![Val::Int(0), Val::Bool(false)],
+            vec![Val::Int(1), Val::Bool(false)],
+        ],
+    );
     let spent = |args: Vec<Val>| {
         let (_, g) = core_eval(&m, args);
         match g {
@@ -1490,8 +1560,9 @@ fn block_if_loop(depth: u32) -> CoreModule {
 fn block_if_loop_distinguishes_depth_from_residual() {
     // Source depth 0 names the block. The if is not a level. Depth 1 names
     // the loop. Depth 2 names nothing: the core rejects it before it runs.
-    // On 410bfd40 depth 0 and depth 1 construct. The form and the scheduled
-    // core return the core's value. Depth 1's schedule is still FG8.
+    // Depth 0 and depth 1 construct. The form and the scheduled core return
+    // the core's value. Depth 1's break arm stores a fresh false, so the
+    // schedule is that same measure.
     let args = vec![Val::Int(1), Val::Bool(true), Val::Bool(true)];
     let fall_args = vec![Val::Int(1), Val::Bool(true), Val::Bool(false)];
     let depth0 = block_if_loop(0);
@@ -1527,7 +1598,9 @@ fn block_if_loop_distinguishes_depth_from_residual() {
     );
     assert_applied(&f);
     assert_values(&depth1, &f, args.clone());
-    schedule_fg8(&f, "node 1");
+    // The schedule constructs and returns the core's value. The epilogue
+    // after the loop does not come back as the same nodes.
+    let _same = schedule_agrees(&depth1, &f, &[args.clone()]);
     let (leave, _) = core_eval(&depth1, args);
     // Only after_loop. The if did not consume a level. steps stayed 0.
     assert_eq!(leave, Ok(Val::Int(8)));

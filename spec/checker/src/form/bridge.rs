@@ -51,8 +51,9 @@
 //!   the fuel trap is not among them. Zero declared outputs schedule as the
 //!   unit tuple, and several declared outputs as `tup(outputs…)`. The core
 //!   has one return, so reading that schedule back does not restore a
-//!   zero-output or multi-output signature. A list or array singleton has
-//!   no dummy value in this slice
+//!   zero-output or multi-output signature. A list singleton's initial
+//!   value is `list.new` of the element; both arms that run drop it and
+//!   store the real sum. An array singleton has no dummy value in this slice
 //!
 //! A construct outside that fragment requires change. The reason starts with
 //! a tag (`global`, `out`, `carrier`, `graph`, `catch`, `recursion`, `loop`,
@@ -555,9 +556,20 @@ impl Built {
     }
     /// A literal node. A second use of the same literal in this region is the
     /// same source, so a domain test and the operation it guards compare equal.
+    ///
+    /// A bool an arm returns is a node of that arm, including a pure `break`
+    /// whose only result is the flag. The parent's dummy `false` is not that
+    /// node: FG8 reads a literal false in the same region, and a capture of
+    /// the dummy is a carried bool (B4).
     fn ensure_lit(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
-        if let Some(s) = find_lit(sc, t, l) {
+        if let Some(s) = lit_in_region(sc, t, l) {
             return Ok(s);
+        }
+        if let Some(s) = find_lit(sc, t, l) {
+            let fresh_bool = matches!(l, Lit::Bool(_)) && matches!(s, Src::In(_));
+            if !fresh_bool {
+                return Ok(s);
+            }
         }
         let s = self.lit_node(sc, t, l)?;
         sc.lits.push((t.clone(), l.clone(), s));
@@ -2127,7 +2139,6 @@ impl Built {
         thread: Option<Src>,
         ret_ty: &BTy,
         names: u32,
-        false_lit: Option<Src>,
     ) -> Result<(End, Scope), Change> {
         let mut sc = Scope {
             nodes: vec![],
@@ -2156,17 +2167,12 @@ impl Built {
             sc.caps.push(p);
             sc.omega = Some(Src::In(j));
         }
-        // A pure break returns the parent's literal false, captured, with no
-        // node in the arm. The schedule's branch dummy is that same literal,
-        // so construct(schedule(F)) rebuilds this capture instead of a second
-        // copy inside the arm (B4: the flag is not a carried input).
+        // A pure break stores a fresh false in this arm. The node has no
+        // inputs. A capture of the parent's dummy is not a node FG8 can
+        // read, and it is a carried bool (B4).
         if fall.is_empty() && stmts.len() == 1 && matches!(stmts[0], Stmt::Break(d) if *d == names)
         {
-            let src =
-                false_lit.ok_or_else(|| self.deny("defect: a break flag has no literal false"))?;
-            let j = sc.caps.len() as u32;
-            sc.caps.push(src);
-            sc.exit_flag = Some(Src::In(j));
+            sc.exit_flag = Some(lit_bool(&mut sc, false));
             return Ok((End::Exit, sc));
         }
         let live = sc.omega.or(parent_omega);
@@ -2237,11 +2243,6 @@ impl Built {
         let lits = lits_already(sc, &[t, e], &tail_refs);
         let seed = self.seed_of(&[t, e], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
-        let false_lit = if !t_arm_falls || !e_arm_falls {
-            Some(self.ensure_lit(sc, &Ty::Bool, &Lit::Bool(false))?)
-        } else {
-            None
-        };
         let (e1, a1) = self.body_arm(
             &t_stmts,
             t_fall,
@@ -2255,7 +2256,6 @@ impl Built {
             thread,
             ret_ty,
             names,
-            if t_arm_falls { None } else { false_lit },
         )?;
         let (e0, a0) = self.body_arm(
             &e_stmts,
@@ -2270,7 +2270,6 @@ impl Built {
             thread,
             ret_ty,
             names,
-            if e_arm_falls { None } else { false_lit },
         )?;
         if let Some(r) = agreed_residual(a1.exit_residual, a0.exit_residual) {
             sc.exit_residual = Some(r);
@@ -2325,7 +2324,7 @@ impl Built {
         let seed = self.seed_of(&[fall_arm, halt_arm], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let (fall_end, fall_sc) = self.body_arm(
-            &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names, None,
+            &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names,
         )?;
         let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty)?;
         lose_outputs(sc, &fall_sc);
@@ -3083,6 +3082,11 @@ fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
     if let Some((_, _, s)) = sc.lits.iter().find(|(tt, ll, _)| tt == t && ll == l) {
         return Some(*s);
     }
+    lit_in_region(sc, t, l)
+}
+
+/// A literal node this region built. A capture of the same bits is not it.
+fn lit_in_region(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
     let bt = bty(t).ok()?;
     sc.nodes
         .iter()
@@ -4461,7 +4465,13 @@ fn dummy_atom(b: &mut Bld, ty: &Ty) -> Result<Atom, String> {
             let id = b.prim("tup.mk", vec![ty.clone()], args, ty.clone());
             Ok(Atom::V(id))
         }
-        Ty::List(_) => Err("a list singleton has no dummy in this slice".into()),
+        Ty::List(e) => {
+            // The initial is empty. Both arms that run drop it and store
+            // the real sum, the same way a branch output's list dummy is
+            // `list.new`.
+            let id = b.prim("list.new", vec![(**e).clone()], vec![], ty.clone());
+            Ok(Atom::V(id))
+        }
         Ty::Arr(_) => Err("an array singleton has no dummy in this slice".into()),
         Ty::Sum(xs) => {
             let first = xs.first().ok_or("an empty sum has no dummy")?;
@@ -5045,6 +5055,21 @@ fn schedule_catch(
     Ok(())
 }
 
+/// Whether region input `j` is an operand of a node here, or of a node in a
+/// nested branch that captures it. A value the arms only return is not read.
+fn capture_is_read(body: &Body, j: u32) -> bool {
+    let src = Src::In(j);
+    body.nodes.iter().any(|nd| match &nd.attrs {
+        Attr::Branch(_, _) => {
+            nd.ins.first() == Some(&src)
+                || nd.ins.iter().skip(1).enumerate().any(|(k, s)| {
+                    *s == src && nd.regions.iter().any(|r| capture_is_read(r, k as u32))
+                })
+        }
+        _ => nd.ins.contains(&src),
+    })
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -5087,6 +5112,36 @@ fn schedule_branch(
         vars.push((p, id));
     }
     let dom = dom_from(sch, body, n.ins[0], env);
+    // A literal this branch captures, and that the arms only return, was a
+    // node of the parent. One `let` names it, and the arm uses that local,
+    // so construction finds the same node. A bool stays an atom. Construction
+    // stores a fresh `false` in the break arm, including a pure break, and
+    // does not reuse the output var's dummy (B4, FG8). A literal an arm
+    // reads stays an atom, so a domain test and the operation it guards are
+    // still the same value (W4, FG8).
+    // The parent's env keeps the atom. A later `sum.mk` in this region still
+    // needs a literal index (W1). Only the arm sees the `let`.
+    let mut lifted: HashMap<Src, u32> = HashMap::new();
+    for (j, s) in n.ins.iter().skip(1).enumerate() {
+        if lifted.contains_key(s) {
+            continue;
+        }
+        let Some(Av::A(Atom::K(t, l))) = env.get(s).cloned() else {
+            continue;
+        };
+        if matches!(l, Lit::Bool(_)) {
+            continue;
+        }
+        // An operand stays an atom. Lifting the literal 1 of `int.add` out
+        // of the domain arm makes the core fail W4: the add is no longer
+        // dominated by `int.bad.add` on the same values. A literal the arms
+        // only return, such as the 0 of a comparison, is the parent's node.
+        if n.regions.iter().any(|r| capture_is_read(r, j as u32)) {
+            continue;
+        }
+        let id = sch.let_atom(Atom::K(t.clone(), l), t)?;
+        lifted.insert(*s, id);
+    }
     // Snapshot after the output vars exist. Each arm restores it, so a capture
     // the first arm moves is live again for the second arm.
     let saved_live = sch.live.clone();
@@ -5100,12 +5155,14 @@ fn schedule_branch(
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
         for (j, s) in n.ins.iter().skip(1).enumerate() {
-            en.insert(
-                Src::In(j as u32),
+            let av = if let Some(id) = lifted.get(s) {
+                Av::A(Atom::V(*id))
+            } else {
                 env.get(s)
                     .cloned()
-                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?,
-            );
+                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?
+            };
+            en.insert(Src::In(j as u32), av);
         }
         let mark = sch.next;
         schedule_region(sch, m, group, region, &mut en, dom)?;

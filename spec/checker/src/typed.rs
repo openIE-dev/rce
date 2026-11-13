@@ -628,6 +628,22 @@ fn env_join(a: &Option<Env>, b: &Option<Env>) -> Option<Env> {
     }
 }
 
+/// The type of `e catch h` when both sides are integers.
+///
+/// The handler has type τ ([Catch] in 5.1). A handler whose names are only
+/// `lit` is that untyped literal: it takes τ's name when τ has one check
+/// range, and the values are those of either side. A handler that already
+/// carries another name keeps the joined names.
+pub fn catch_int(ok: IntT, h: IntT) -> IntT {
+    let joined = ok.join(h);
+    let literal = h.tags.names().iter().all(|n| *n == "lit");
+    if literal && !ok.tags.has_lit() && ok.check_range().is_some() {
+        IntT { tags: ok.tags, lo: joined.lo, hi: joined.hi }
+    } else {
+        joined
+    }
+}
+
 /// The re-typing of an assignment (interp `exec` of `=`): a place holding an
 /// integer with a declared name keeps that name, and the stored value is
 /// checked against it; a place holding an untyped literal takes the stored
@@ -954,7 +970,14 @@ impl<'a, 'm> Cx<'a, 'm> {
                 let ht = self.expr(h);
                 self.scopes.pop();
                 self.env = env_join(&before, &self.env);
-                plain(ok.join(&ht))
+                // [Catch] gives the handler type τ, the success type. A
+                // literal handler is untyped until that type is given to it
+                // (6.3): it takes τ's name, and the sum is checked against
+                // that one range (N2).
+                plain(match (&ok, &ht) {
+                    (RType::Int(o), RType::Int(h)) => RType::Int(catch_int(*o, *h)),
+                    _ => ok.join(&ht),
+                })
             }
             E::Try(x, els, _) => {
                 let xt = self.expr(x);
