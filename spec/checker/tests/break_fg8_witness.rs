@@ -763,7 +763,7 @@ fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
 }
 
 #[test]
-fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
+fn a_break_that_names_the_loop_from_inside_a_block_round_trips() {
     // Contract section 3.2. `break 1` inside the body block names the loop.
     // The break arm stores a fresh false, so the first form and the
     // schedule are that flag. The increment does not run on the break path.
