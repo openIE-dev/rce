@@ -555,9 +555,22 @@ impl Built {
     }
     /// A literal node. A second use of the same literal in this region is the
     /// same source, so a domain test and the operation it guards compare equal.
+    ///
+    /// A bool an arm writes is a node of that arm once the arm has computed
+    /// anything. The parent's dummy `false`, captured so a pure `break` arm
+    /// can return it with no node, is not that literal: the break arm of a
+    /// measure stores a fresh `false` (`lit_bool`), and FG8 reads that node.
+    /// A captured bool is not a use of the carried flag (B4).
     fn ensure_lit(&self, sc: &mut Scope, t: &Ty, l: &Lit) -> Result<Src, Change> {
-        if let Some(s) = find_lit(sc, t, l) {
+        if let Some(s) = lit_in_region(sc, t, l) {
             return Ok(s);
+        }
+        if let Some(s) = find_lit(sc, t, l) {
+            let fresh_bool =
+                matches!(l, Lit::Bool(_)) && matches!(s, Src::In(_)) && !sc.nodes.is_empty();
+            if !fresh_bool {
+                return Ok(s);
+            }
         }
         let s = self.lit_node(sc, t, l)?;
         sc.lits.push((t.clone(), l.clone(), s));
@@ -3083,6 +3096,11 @@ fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
     if let Some((_, _, s)) = sc.lits.iter().find(|(tt, ll, _)| tt == t && ll == l) {
         return Some(*s);
     }
+    lit_in_region(sc, t, l)
+}
+
+/// A literal node this region built. A capture of the same bits is not it.
+fn lit_in_region(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
     let bt = bty(t).ok()?;
     sc.nodes
         .iter()
@@ -5045,6 +5063,21 @@ fn schedule_catch(
     Ok(())
 }
 
+/// Whether region input `j` is an operand of a node here, or of a node in a
+/// nested branch that captures it. A value the arms only return is not read.
+fn capture_is_read(body: &Body, j: u32) -> bool {
+    let src = Src::In(j);
+    body.nodes.iter().any(|nd| match &nd.attrs {
+        Attr::Branch(_, _) => {
+            nd.ins.first() == Some(&src)
+                || nd.ins.iter().skip(1).enumerate().any(|(k, s)| {
+                    *s == src && nd.regions.iter().any(|r| capture_is_read(r, k as u32))
+                })
+        }
+        _ => nd.ins.contains(&src),
+    })
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -5087,6 +5120,36 @@ fn schedule_branch(
         vars.push((p, id));
     }
     let dom = dom_from(sch, body, n.ins[0], env);
+    // A literal this branch captures, and that the arms only return, was a
+    // node of the parent. One `let` names it, and the arm uses that local,
+    // so construction finds the same node. A bool stays an atom: the break
+    // arm's `false` is a node of that arm once the arm computes anything,
+    // and a pure break returns the output var's own dummy. A literal an arm
+    // reads stays an atom, so a domain test and the operation it guards are
+    // still the same value (W4, FG8).
+    // The parent's env keeps the atom. A later `sum.mk` in this region still
+    // needs a literal index (W1). Only the arm sees the `let`.
+    let mut lifted: HashMap<Src, u32> = HashMap::new();
+    for (j, s) in n.ins.iter().skip(1).enumerate() {
+        if lifted.contains_key(s) {
+            continue;
+        }
+        let Some(Av::A(Atom::K(t, l))) = env.get(s).cloned() else {
+            continue;
+        };
+        if matches!(l, Lit::Bool(_)) {
+            continue;
+        }
+        // An operand stays an atom. Lifting the literal 1 of `int.add` out
+        // of the domain arm makes the core fail W4: the add is no longer
+        // dominated by `int.bad.add` on the same values. A literal the arms
+        // only return, such as the 0 of a comparison, is the parent's node.
+        if n.regions.iter().any(|r| capture_is_read(r, j as u32)) {
+            continue;
+        }
+        let id = sch.let_atom(Atom::K(t.clone(), l), t)?;
+        lifted.insert(*s, id);
+    }
     // Snapshot after the output vars exist. Each arm restores it, so a capture
     // the first arm moves is live again for the second arm.
     let saved_live = sch.live.clone();
@@ -5100,12 +5163,14 @@ fn schedule_branch(
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
         for (j, s) in n.ins.iter().skip(1).enumerate() {
-            en.insert(
-                Src::In(j as u32),
+            let av = if let Some(id) = lifted.get(s) {
+                Av::A(Atom::V(*id))
+            } else {
                 env.get(s)
                     .cloned()
-                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?,
-            );
+                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?
+            };
+            en.insert(Src::In(j as u32), av);
         }
         let mark = sch.next;
         schedule_region(sch, m, group, region, &mut en, dom)?;

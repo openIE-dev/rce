@@ -598,12 +598,12 @@ fn corpus_baseline_on_50294e05() {
 }
 
 #[test]
-fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
-    // Contract section 4. The first form is applied. The schedule is not.
-    // On 410bfd40 the file does not lower: 34c915fd keeps `fn freq`, and
-    // `(m.get(w) catch 0) + 1` mixes a literal with u32. The census records
-    // that refusal. `fn table` is the measure this test checks, so the
-    // function is lowered from its own line in the same file.
+fn fn_table_schedule_keeps_the_measure_and_matches_the_list() {
+    // Contract section 4. The search loop's flag and index stay two outputs
+    // of one Branch through the schedule, so `construct(schedule(F))` is F.
+    // The file does not lower: `fn freq` mixes a literal with `u32`. The
+    // census records that refusal. `fn table` is the measure this test
+    // checks, so the function is lowered from its own line in the same file.
     let src = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/21_maps.rce"),
     )
@@ -631,28 +631,30 @@ fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
         form::Outcome::Applied(_)
     ));
     let (value, _) = core_eval(&sub, vec![]);
-    assert_eq!(
-        value,
-        Ok(Val::List(vec![
-            Val::Tup(vec![Val::bytes(b"a"), Val::Int(1)]),
-            Val::Tup(vec![Val::bytes(b"b"), Val::Int(2)]),
-        ])),
-        "core eval of fn table is the value a later three-way check has to match"
-    );
+    let want = Ok(Val::List(vec![
+        Val::Tup(vec![Val::bytes(b"a"), Val::Int(1)]),
+        Val::Tup(vec![Val::bytes(b"b"), Val::Int(2)]),
+    ]));
+    assert_eq!(value, want, "core eval of fn table");
+    // The search loop's break was restructured. Record that before the
+    // schedule is read back: that construct sees no source `break`.
+    let rewrote = bridge::body_break_rewrite();
     let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("schedule: {}", e.line()));
     wf::check(&s).unwrap_or_else(|e| panic!("schedule is not well formed: {e}"));
-    let e = bridge::construct(&s).expect_err("the scheduled measure was applied");
-    assert_eq!(e.tag(), "FG8", "{}", e.line());
-    assert_eq!(e.at, "node 3", "{}", e.line());
-    assert!(
-        e.reason.contains(
-            "the body region does not return i raised by exactly one whenever it continues"
-        ),
-        "{}",
-        e.line()
+    let back = bridge::construct(&s).unwrap_or_else(|e| panic!("schedule construct: {}", e.line()));
+    assert_eq!(
+        fir::encode(&f),
+        fir::encode(&back),
+        "construct(schedule(F)) is not F"
     );
-    // A future applied schedule matches `f` byte for byte and matches `value`.
-    // It does not enter the syntactic floor while `body_break_rewrite` is set.
+    assert!(
+        rewrote,
+        "the search loop's break was not restructured, so the example would join the syntactic floor"
+    );
+    assert_scheduled_values(&sub, &s, vec![]);
+    let (k, i) = form_key(&f, 0);
+    let form_v = feval::apply(&f, &k, i, vec![]).unwrap_or_else(|e| panic!("form eval: {e}"));
+    assert_eq!(form_v, vec![want.expect("core")], "form eval of fn table");
 }
 
 #[test]
