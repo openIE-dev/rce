@@ -56,7 +56,13 @@ jobs:
 
   tests-fast:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # On 8c251d26 the Fast tests step finished in 41 minutes (run
+    # 43449008466) and was cancelled at 45 minutes while
+    # examples_are_covered_or_require_change was still running (run
+    # 43449020156). That test completes; a finished run spends about 13
+    # minutes in it, then the rest of the suite. 60 minutes is that
+    # measured time. No test is dropped.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
