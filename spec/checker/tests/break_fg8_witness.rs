@@ -536,7 +536,11 @@ fn corpus_baseline_on_50294e05() {
         ]
     );
     assert_eq!(tagged("loop"), ["55_rcedb.rce"]);
-    assert_eq!(tagged("schedule defect"), ["22_tuples.rce"]);
+    assert!(
+        tagged("schedule defect").is_empty(),
+        "a schedule is still refused as a defect: {:?}",
+        tagged("schedule defect")
+    );
     assert_eq!(tagged("schedule FG8"), ["43_simd_lanes.rce"]);
     assert_eq!(
         tagged("round-trip"),
@@ -546,6 +550,7 @@ fn corpus_baseline_on_50294e05() {
             "11_arena.rce",
             "12_borrow.rce",
             "18_while_bound.rce",
+            "22_tuples.rce",
             "24_lambda.rce",
             "25_labels.rce",
             "27_bitops.rce",
@@ -586,7 +591,6 @@ fn corpus_baseline_on_50294e05() {
             "loop",
             "round-trip",
             "schedule FG8",
-            "schedule defect",
         ]
     );
     let tagged_files: usize = root_tags.values().map(|v| v.len()).sum();
@@ -1565,4 +1569,54 @@ fn block_if_loop_distinguishes_depth_from_residual() {
         err.contains("W2: break 1 names no enclosing block or loop"),
         "{err}"
     );
+}
+
+/// `catch` packs an owned sum. The handler builds its own value and does not
+/// read that sum; the success arm does. Both paths have to finish with the
+/// sum dead, and `construct(schedule(F))` stays `F`.
+#[test]
+fn a_catch_handler_that_does_not_read_the_sum_round_trips() {
+    let src = r#"
+error DivByZero
+
+fn boom(b: i64) -> i64 ! DivByZero
+    if b == 0
+        fail DivByZero
+    return b
+
+fn take() -> i64
+    let q = boom(5) catch 0
+    return q
+"#;
+    let ast = rce_spec_check::program(src).unwrap();
+    let core = rce_spec_check::one::core_of(&ast).expect("lower");
+    let sub = bridge::closure(&core, "fn take").expect("closure");
+    // A closure is not an entry: W3 would require it to reset globals the
+    // observation driver owns. The schedule builds its own entry.
+    let f = bridge::construct(&sub).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_applied(&f);
+    let s = bridge::schedule(&f).unwrap_or_else(|e| panic!("{}", e.line()));
+    let back =
+        bridge::construct(&s).unwrap_or_else(|e| panic!("construct of the schedule: {}", e.line()));
+    assert_eq!(
+        fir::encode(&f),
+        fir::encode(&back),
+        "construct(schedule(F)) is not F"
+    );
+    assert_scheduled_values(&sub, &s, vec![]);
+    let (got, _) = core_eval(&s, vec![]);
+    assert_eq!(got, Ok(Val::Int(5)));
+
+    // `22_tuples.rce`'s `fn use_it` is this shape: `(q, r) = divmod(17, 5) catch (0, 0)`.
+    // The schedule used to fail W3 because the handler left the sum live and the
+    // unreachable tag arm dropped it. It now schedules. The bytes still differ
+    // because `fn divmod`, which the closure calls, already did.
+    let m = load_example("22_tuples.rce");
+    let use_it = bridge::closure(&m, "fn use_it").expect("fn use_it");
+    let form = bridge::construct(&use_it).unwrap_or_else(|e| panic!("{}", e.line()));
+    let scheduled = bridge::schedule(&form).unwrap_or_else(|e| panic!("{}", e.line()));
+    bridge::construct(&scheduled).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert_scheduled_values(&use_it, &scheduled, vec![]);
+    let (got, _) = core_eval(&scheduled, vec![]);
+    assert_eq!(got, Ok(Val::Int(5)));
 }
