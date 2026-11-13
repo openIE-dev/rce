@@ -51,10 +51,20 @@ def pRes : SRes → String
   | .ok fs os => s!"Ok(({pList fs}, {pList os}))"
   | .ref r => s!"Err({pReason r})"
 
+/-- One fixed case: `name` emits `i64.MIN op -1`. The expected outcome is
+    `exec`, so the printed prelude is checked against the Lean operator. -/
+def edgeCase (name : String) (op : BinOp) : String × String :=
+  let s : Stmt := .emit (.bin op RCE.i64 (.lit (.int (-9223372036854775808))) (.lit (.int (-1))))
+  let exp := exec [] s [] []
+  let call := s!"  \{ let mut fs: Vec<Val> = vec![]; let mut os: Vec<Val> = vec![]; let r = {name}(&mut fs, &mut os, &vec![]).map(|_| (fs, os)); let e: Result<(Vec<Val>, Vec<Val>), Reason> = {pRes exp}; if r != e \{ bad += 1; eprintln!(\"{name}: \{:?} vs \{:?}\", r, e); } n += 1; if e.is_err() \{ kept += 1; } }\n"
+  (emitFn name s, call)
+
 def build (nprog ninp : Nat) : String := Id.run do
   let mut g : G := ⟨20261012⟩
-  let mut fns := ""
-  let mut tests := ""
+  let (fDiv, tDiv) := edgeCase "i64_min_div" .div
+  let (fRem, tRem) := edgeCase "i64_min_rem" .rem
+  let mut fns := fDiv ++ fRem
+  let mut tests := tDiv ++ tRem
   for p in List.range nprog do
     let (s, g1) := genS g 4; g := g1
     fns := fns ++ emitFn s!"p{p}" s
