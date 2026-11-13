@@ -56,7 +56,11 @@ jobs:
 
   tests-fast:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # On 429b1bba both Fast tests steps were cancelled at 45 minutes
+    # during one_conformance, near the end of the suite. On 84efac9f the
+    # same step finished in 36 minutes (run 43449003552). 60 minutes
+    # covers the slow run. No test is dropped.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
