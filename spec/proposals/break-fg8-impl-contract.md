@@ -471,10 +471,12 @@ One change, in the bridge only, after this contract:
    so `construct(schedule(F))` equals F for `fn table`. That file then
    sits on the option B row. It is not one of the nine byte mismatches,
    and it is not covered. `measure_shape` stays.
-4. Leave FG8, C7, FG6, FG7, and the pure-count `bound` refusal as they are.
-   Leave catch, `out`, globals, and a loop that is not a measure or a
-   count (`rt.f64.parts` in the `fn dot4` closure is "a break outside a
-   recognised loop") for their own changes.
+4. Leave FG8, FG6, and FG7 as they are. The C7 erratum of 2026-11-13 is
+   already adopted: a pure count keeps its carried order and is not refused
+   with `bound`. Do not restore that refusal. Leave catch, `out`, globals,
+   and a loop that is not a measure or a count (`rt.f64.parts` in the
+   `fn dot4` closure is "a break outside a recognised loop") for their own
+   changes.
 
 `spec/checker/tests/form_bridge.rs` is the other run's file. Extend
 `break_fg8_witness.rs` rather than editing it. Raise the syntactic floor
@@ -544,5 +546,7 @@ What the witnesses check on `410bfd40`:
   is FG8 at node 3.
 - `fn main` in `02_hello_main.rce` is refused at `rt.escaped` with
   `exit: a loop body does not fall through`. The return is not the loop flag.
-- The flat body `break 0`, the conditional increment, the mutated end, the
-  pure count, and a `return` inside a loop stay refused, as section 6 says.
+- The flat body `break 0`, the conditional increment, the mutated end, and
+  a `return` inside a loop stay refused, as section 6 says. A pure count is
+  applied: C7 keeps its carried order (erratum of 2026-11-13). The flag is
+  still not a use of ω.

@@ -107,6 +107,36 @@ fn a_count_keeps_unused_carried_order_and_drops_another_unused_value() {
 }
 
 #[test]
+fn a_count_keeps_unused_carried_order_and_drops_an_unused_bool() {
+    // The same rule as the integer above, for a carried bool. C7 still
+    // removes a pass-through bool. It keeps the count's order.
+    let carried = vec![BTy::Order, BTy::Bool];
+    let count = Node {
+        attrs: Attr::Count(carried),
+        ins: vec![Src::Out(0, 0), Src::In(1), Src::In(0)],
+        regions: vec![pass(2), pass(2)],
+    };
+    let f = Func {
+        ins: vec![BTy::Bool, BTy::Order],
+        outs: vec![BTy::Bool, BTy::Order],
+        eff: 1,
+        bound: Bound::None,
+        body: Body {
+            nodes: vec![lit(BTy::u64(), Lit::Int(2)), count],
+            out: vec![Src::Out(1, 1), Src::Out(1, 0)],
+        },
+    };
+    let (c, first) = canonical(&module_of(f)).unwrap_or_else(|e| panic!("{}", e.0));
+    assert_eq!(first, Some("C7"), "the unused bool was not removed");
+    assert_eq!(counts(&c), vec![vec![BTy::Order]], "the count dropped its order: {:?}", counts(&c));
+    let bytes = rce_spec_check::form::ir::encode(&c);
+    match form::check(bytes.as_bytes(), None) {
+        Outcome::Applied(_) => {}
+        Outcome::RequiresChange(k) => panic!("the count that keeps order is not applied: {}", k.line()),
+    }
+}
+
+#[test]
 fn the_old_count_without_carried_order_requires_change() {
     // The bytes the old C7 produced for a count whose only job for order
     // was to carry it: the order is gone, the integer is still carried

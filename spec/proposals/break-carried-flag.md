@@ -26,7 +26,9 @@ constrains: `spec/lean/RCE/Form.lean`, `spec/lean/RCE/Iter.lean`,
 ## 1. Terms
 
 **Dom** is the set of canonical Forms for which the bridge slice claims
-identity. A pure count loop is not in Dom (obligation O8, §3).
+identity. A pure count loop is in Dom: the erratum of 2026-11-13 keeps
+its carried order (§4.2). The earlier obligation O8 put that loop outside
+Dom, because C7 then removed the order.
 
 **Syntactic identity** on Dom is `construct(schedule(F)) = F` as canonical
 bytes. Canonical bytes already apply C7 (capture order by digest, and
@@ -171,14 +173,17 @@ does not by itself make the measure take ω.
 
 A count may halt, so it always takes ω (§6). FG7 checks that a node of
 class at least 1 consumes and returns ω. The flag is a plain `bool`. It is
-not a use of ω. Carrying `go` does not put a pure count into Dom.
+not a use of ω. Carrying `go` is not what admits a pure count. The erratum
+of 2026-11-13 keeps the carried order, and that is what admits it.
 
 C7 keeps a carried value when either region uses it or either region
-returns something other than that same input. The break path must return
-the literal false, not the incoming `go`. If both regions return `go`
-unchanged and neither uses it, C7 removes it and the early exit disappears.
-That removal is the same one O8 records for an unused carried ω (constraint
-B4, §5).
+returns something other than that same input, and it keeps the order of a
+count even when both regions only pass that order through. The break path
+must return the literal false, not the incoming `go`. If both regions
+return `go` unchanged and neither uses it, C7 removes the bool and the
+early exit disappears. That removal is the rule for an unused carried
+value other than a count's order. It is not O8. O8 recorded a carried
+order that C7 used to remove (constraint B4, §5).
 
 ω stays linear. Every path of a region that took ω returns it exactly once,
 including the break path. The flag's own nodes do not read or write ω. If

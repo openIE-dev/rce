@@ -2757,23 +2757,10 @@ impl Built {
         let mut bod = build_region(mid_body, &parts.flag1, &parts.sets1)?;
         lose_outputs(sc, &test);
         lose_outputs(sc, &bod);
+        // Both regions are given order together when the enclosing region
+        // has one, so a count does not reach a state where only one region
+        // carries it. The refusal for a count with no order at all is below.
         let thread = test.omega.is_some() || bod.omega.is_some() || sc.omega.is_some();
-        if thread {
-            for region in [&mut test, &mut bod] {
-                if region.omega.is_none() {
-                    let p = sc
-                        .omega
-                        .or(parent_omega)
-                        .ok_or_else(|| self.deny("defect: a loop region has no ω"))?;
-                    // inputs were built without ω; refuse rather than renumber
-                    if !region.caps.is_empty() || !region.nodes.is_empty() {
-                        return Err(self.deny("bound: a count-bounded Iterate must carry ω, and this loop's regions do not both receive it"));
-                    }
-                    region.caps.insert(0, p);
-                    region.omega = Some(Src::In(0));
-                }
-            }
-        }
         let omega_used = |region: &Scope| -> bool {
             let Some(Src::In(0)) = region.omega else {
                 return region.omega.is_some();
@@ -2841,19 +2828,12 @@ impl Built {
                 out,
             })
         };
-        // Recompute outs with a consistent ω bit.
+        // A count whose regions were given order carries it even when
+        // neither region uses it (erratum 2026-11-13). A count with no
+        // order was already refused above.
         let use_w = test.omega.is_some()
             && bod.omega.is_some()
             && (count.is_some() || omega_used(&test) || omega_used(&bod));
-        // A count with an order on both regions carries it even when
-        // neither region uses it, so `use_w` is true for every such count.
-        // What remains is a count that still does not carry order. The old
-        // sentence blamed C7 for removing it. C7 no longer does that.
-        if count.is_some() && !use_w {
-            return Err(self.deny(
-                "omega: a count-bounded Iterate may halt, and this loop's regions do not both carry ω",
-            ));
-        }
         let mut carried_ty = vec![];
         if use_w {
             carried_ty.push(BTy::Order);

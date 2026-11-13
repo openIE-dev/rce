@@ -781,6 +781,81 @@ fn pure_count_keeps_carried_order() {
     agree(&m, &f, &s, vec![Val::Int(0)]);
 }
 
+const NO_ORDER: &str = "omega: a count-bounded Iterate may halt, and this region has no ω to carry";
+
+/// A count bound whose trap is the bytes `loop bound` and a `break`, not a
+/// `halt`, so the function is not given order.
+fn count_without_halt(b: &mut FB, counter: u32, bound: Atom) {
+    let ct = build::count_t();
+    let nv = b.let_(Atom::V(counter));
+    let n1 = b.p("int.sadd", vec![ct.clone()], vec![nv, build::lit(1)]).unwrap();
+    b.set(counter, n1.clone());
+    let over = b.p("int.lt", vec![ct], vec![bound, n1]).unwrap();
+    b.open();
+    let _ = b.p("bytes.len", vec![], vec![Atom::bytes(b"loop bound")]).unwrap();
+    b.brk(0);
+    let arm = b.close();
+    b.push(Stmt::If(over, arm, vec![]));
+}
+
+#[test]
+fn a_lowering_count_with_no_order_names_that_refusal() {
+    // `build_count`. The loop is the lowering's count shape, and nothing in
+    // the function takes order, so the count cannot carry it.
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let bound = b.arg(0);
+    let cnt = b.var(ct.clone(), build::lit(0));
+    b.loop_(|b| {
+        count_without_halt(b, cnt, bound);
+        Ok(())
+    })
+    .unwrap();
+    b.ret(build::lit(0));
+    let m = module("bare", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("a count with no order");
+    assert_eq!(e.reason, NO_ORDER, "{}", e.line());
+}
+
+#[test]
+fn a_schedule_count_with_no_order_names_that_refusal() {
+    // `loop_stmt`. Two breaks with the same carried store, and a count
+    // between them. The count's own statements are the bound, not part of
+    // either region. Nothing takes order.
+    let ct = build::count_t();
+    let mut b = FB::new(vec![ct.clone()], ct.clone());
+    let cnt = b.var(ct.clone(), build::lit(0));
+    let acc = b.var(ct.clone(), build::lit(0));
+    let cmp = |b: &mut FB| -> Atom {
+        b.p("int.eq", vec![ct.clone()], vec![build::lit(0), build::lit(0)]).unwrap()
+    };
+    let leave = |b: &mut FB, c: Atom| {
+        b.open();
+        let th = b.close();
+        b.open();
+        b.brk(0);
+        let el = b.close();
+        b.push(Stmt::If(c, th, el));
+    };
+    b.loop_(|b| {
+        let c = cmp(b);
+        b.set(acc, build::lit(0));
+        leave(b, c);
+        count_without_halt(b, cnt, build::lit(2));
+        let c = cmp(b);
+        b.set(acc, build::lit(1));
+        leave(b, c);
+        Ok(())
+    })
+    .unwrap();
+    b.ret(Atom::V(acc));
+    let m = module("sched", b.finish());
+    wf::check(&m).unwrap_or_else(|e| panic!("{e}"));
+    let e = bridge::construct(&m).expect_err("a scheduled count with no order");
+    assert_eq!(e.reason, NO_ORDER, "{}", e.line());
+}
+
 #[test]
 fn conditional_increment_is_not_rewritten_into_a_count() {
     // B5. The continue path does not always raise the index. The refusal is
