@@ -5045,6 +5045,53 @@ fn schedule_catch(
     Ok(())
 }
 
+/// An owned value that one falling arm moves has to be dropped by the other.
+/// The Form records that drop by ending the region; the core has to write it,
+/// or W3 sees one path still holding the value. A value both falling arms
+/// still hold stays, because the parent uses it after the branch.
+fn balance_owned(
+    tys: &HashMap<u32, Ty>,
+    saved: &BTreeSet<u32>,
+    live: &mut [BTreeSet<u32>; 2],
+    falls: &[bool; 2],
+    bodies: [&mut Vec<Stmt>; 2],
+) {
+    if !(falls[0] && falls[1]) {
+        return;
+    }
+    let must_die: Vec<u32> = saved
+        .iter()
+        .copied()
+        .filter(|id| !live[0].contains(id) || !live[1].contains(id))
+        .collect();
+    for id in must_die {
+        for slot in 0..2 {
+            if !live[slot].contains(&id) {
+                continue;
+            }
+            let t = tys[&id].clone();
+            bodies[slot].push(Stmt::Prim("drop".into(), vec![t], vec![Atom::V(id)]));
+            live[slot].remove(&id);
+        }
+    }
+}
+
+/// Drops for the proof arm of a tag branch. That arm is not a Form arm. It
+/// drops the owned values the falling real arm has already moved, so the two
+/// paths meet with the same ownership. A value that arm still holds is left
+/// alone.
+fn proof_drops(tys: &HashMap<u32, Ty>, saved: &BTreeSet<u32>, live: &BTreeSet<u32>) -> Vec<Stmt> {
+    let mut proof = vec![];
+    for id in saved {
+        if live.contains(id) {
+            continue;
+        }
+        let t = tys[id].clone();
+        proof.push(Stmt::Prim("drop".into(), vec![t], vec![Atom::V(*id)]));
+    }
+    proof
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -5164,34 +5211,29 @@ fn schedule_branch(
             vec![sel.clone(), build::lit(0)],
         ));
         let is0 = sch.fresh(Ty::Bool, false);
-        let arm0 = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
+        let mut arm0 = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
         let eq1 = Stmt::Prim(
             "int.eq".into(),
             vec![tag_ty],
             vec![sel.clone(), build::lit(1)],
         );
         let is1 = sch.fresh(Ty::Bool, false);
-        let arm1 = arm(sch, &n.regions[1], None, 1)?;
-        // The remaining tag is not a value the branch returns. Drop what the
-        // arm still holds. A halt here would make a pure function take ω.
-        let mut proof = vec![];
-        for s in n.ins.iter().skip(1) {
-            let Some(Av::A(Atom::V(id))) = env.get(s).cloned() else {
-                continue;
-            };
-            if sch.tys.get(&id).is_some_and(|t| t.owned()) {
-                proof.push(Stmt::Prim(
-                    "drop".into(),
-                    vec![sch.tys[&id].clone()],
-                    vec![Atom::V(id)],
-                ));
-            }
-        }
+        let mut arm1 = arm(sch, &n.regions[1], None, 1)?;
+        balance_owned(&sch.tys, &saved_live, &mut arm_live, &arm_falls, [&mut arm0, &mut arm1]);
+        let matched = if arm_falls[1] {
+            &arm_live[1]
+        } else if arm_falls[0] {
+            &arm_live[0]
+        } else {
+            &saved_live
+        };
+        let proof = proof_drops(&sch.tys, &saved_live, matched);
         let else_body = vec![eq1, Stmt::If(Atom::V(is1), arm1, proof)];
         (Atom::V(is0), arm0, else_body)
     } else {
-        let then_s = arm(sch, &n.regions[1], None, 1)?;
-        let else_s = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
+        let mut then_s = arm(sch, &n.regions[1], None, 1)?;
+        let mut else_s = arm(sch, &n.regions[0], dom.as_ref(), 0)?;
+        balance_owned(&sch.tys, &saved_live, &mut arm_live, &arm_falls, [&mut else_s, &mut then_s]);
         (sel, then_s, else_s)
     };
     sch.live = match (arm_falls[1], arm_falls[0]) {

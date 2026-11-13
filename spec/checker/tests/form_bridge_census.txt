@@ -41,26 +41,25 @@ whole-with-user	1
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
+15	round-trip
 14	break
-14	round-trip
 9	lowering
 3	break,exit
-2	defect
 2	global
 1	FG8
 1	bound,break
 1	break,catch
 1	break,defect
+1	catch,global
 
 whole modules, every exact set
 modules	set
+15	round-trip
 14	break
-14	round-trip
 9	lowering
 3	break,exit
 2	break,catch,exit
 2	clear
-2	defect
 2	defect,exit,loop
 2	global
 1	FG8
@@ -70,6 +69,7 @@ modules	set
 1	break,defect
 1	break,defect,exit
 1	catch,global
+1	defect
 1	exit
 1	exit,global
 1	global,loop
@@ -77,7 +77,7 @@ modules	set
 program roots, every exact set
 modules	set
 17	break
-16	round-trip
+17	round-trip
 9	lowering
 5	clear
 2	defect
@@ -86,7 +86,6 @@ modules	set
 1	FG8,defect
 1	break,defect
 1	break,round-trip
-1	defect,round-trip
 1	global
 1	global,loop
 1	loop
@@ -114,7 +113,7 @@ module	whole	roots	user	global-sites
 19_floats.rce	break	round-trip	user	
 20_strings.rce	defect,exit,loop	defect	user	
 21_maps.rce	lowering	lowering	lowering	not covered by the lowering: an integer operation checked against ranges that differ at run time (["lit", "u32"])
-22_tuples.rce	defect	defect,round-trip	user	
+22_tuples.rce	round-trip	round-trip	user	
 23_patterns.rce	break	break	user	
 24_lambda.rce	round-trip	round-trip	user	
 25_labels.rce	round-trip	round-trip	user	
