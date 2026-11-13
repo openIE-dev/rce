@@ -18,7 +18,7 @@ fn binop(op: Op, t: Option<(i128, i128)>, a: Val, b: Val) -> Result<Val, Trap> {
     (Op::Sub, Some((lo, hi)), Val::Int(x), Val::Int(y)) => chk(lo, hi, x.checked_sub(y)),
     (Op::Mul, Some((lo, hi)), Val::Int(x), Val::Int(y)) => chk(lo, hi, x.checked_mul(y)),
     (Op::Div, Some((lo, hi)), Val::Int(x), Val::Int(y)) => if y == 0 { Err(Trap::DivZero) } else { chk(lo, hi, x.checked_div(y)) },
-    (Op::Rem, Some((lo, hi)), Val::Int(x), Val::Int(y)) => if y == 0 { Err(Trap::DivZero) } else { chk(lo, hi, x.checked_rem(y)) },
+    (Op::Rem, Some((lo, hi)), Val::Int(x), Val::Int(y)) => if y == 0 { Err(Trap::DivZero) } else { chk(lo, hi, x.checked_div(y))?; chk(lo, hi, x.checked_rem(y)) },
     (Op::Lt, _, Val::Int(x), Val::Int(y)) => Ok(Val::Bool(x < y)),
     (Op::Eq, _, x, y) => Ok(Val::Bool(x == y)),
     _ => Err(Trap::BadIndex),
