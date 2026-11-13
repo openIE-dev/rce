@@ -56,10 +56,11 @@ jobs:
 
   tests-fast:
     runs-on: ubuntu-latest
-    # On 429b1bba both Fast tests steps were cancelled at 45 minutes
-    # during one_conformance, near the end of the suite. On 84efac9f the
-    # same step finished in 36 minutes (run 43449003552). 60 minutes
-    # covers the slow run. No test is dropped.
+    # form_bridge, break_fg8_witness and emit_run each have a tests-slow
+    # job. cargo test runs one binary at a time, and on main 9ef5c387
+    # (run 42818858124) those three took 519 s, 425 s and 305 s inside
+    # this step. The step still runs every other binary. No test is
+    # dropped. 60 minutes remains the limit.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -87,8 +88,11 @@ jobs:
       matrix:
         features: [""]
         bin:
+          - break_fg8_witness
           - dst_chat
           - emit
+          - emit_run
+          - form_bridge
           - framing_rce
           - fuel
           - golden_apps
