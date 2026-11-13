@@ -199,6 +199,18 @@ fn has_break(b: &[Stmt], depth: u32) -> bool {
     })
 }
 
+/// A break this block must restructure. A break inside a nested loop belongs
+/// to that loop.
+fn break_outside_loop(s: &Stmt) -> bool {
+    match s {
+        Stmt::Break(_) => true,
+        Stmt::If(_, t, e) => t.iter().any(break_outside_loop) || e.iter().any(break_outside_loop),
+        Stmt::Block(x) => x.iter().any(break_outside_loop),
+        Stmt::Loop(_) => false,
+        _ => false,
+    }
+}
+
 fn stmt_has_break(s: &Stmt) -> bool {
     match s {
         Stmt::Break(_) => true,
@@ -216,6 +228,40 @@ fn refs_fall(stmts: &[&Stmt]) -> bool {
 /// An `if` whose arms do not both fall through. The ordinary construction
 /// sinks the statements after it into the arm that falls. A loop-body break
 /// in that tail has to stay with the values the tail computes.
+/// Whether a path through `stmts` reaches the statement after the list.
+/// `break 0` does not. `build::falls` does, because a block that breaks 0
+/// still continues the enclosing list.
+fn stmt_count(s: &Stmt) -> usize {
+    match s {
+        Stmt::If(_, t, e) => 1 + t.iter().map(stmt_count).sum::<usize>() + e.iter().map(stmt_count).sum::<usize>(),
+        Stmt::Block(b) | Stmt::Loop(b) => 1 + b.iter().map(stmt_count).sum::<usize>(),
+        _ => 1,
+    }
+}
+
+/// True when every path through `stmts` reaches the statement after the list.
+/// A nested `break` does not, so the tail stays in the arm that can still
+/// run it and the break can skip that tail.
+fn reaches_end(stmts: &[Stmt]) -> bool {
+    for s in stmts {
+        match s {
+            Stmt::Break(_) | Stmt::Ret(_) | Stmt::Halt(_) => return false,
+            Stmt::If(_, t, e) => {
+                if !reaches_end(t) || !reaches_end(e) {
+                    return false;
+                }
+            }
+            Stmt::Block(b) => {
+                if !reaches_end(b) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
 fn sinking_if(s: &Stmt) -> bool {
     let Stmt::If(_, t, e) = s else {
         return false;
@@ -424,6 +470,26 @@ fn agreed_residual(then_r: Option<u32>, else_r: Option<u32>) -> Option<u32> {
     }
 }
 
+/// Where a sequence inside a block goes when it finishes or breaks.
+///
+/// `In` is a block. Finishing it, and `break 0`, run `after`. `break 1`
+/// runs `parent_after` when there is a frame outside this one. An `if` is
+/// not a frame: `Arm` finishes into `rest`, and its `break 0` still leaves
+/// the enclosing block.
+#[derive(Clone, Copy)]
+enum SeqMode<'a> {
+    Tail,
+    In {
+        after: &'a [&'a Stmt],
+        parent_after: Option<&'a [&'a Stmt]>,
+    },
+    Arm {
+        rest: &'a [&'a Stmt],
+        after: &'a [&'a Stmt],
+        parent_after: Option<&'a [&'a Stmt]>,
+    },
+}
+
 pub fn exit_class(depth: u32, blocks: u32) -> ExitClass {
     if blocks == 0 {
         return if depth == 0 {
@@ -459,6 +525,11 @@ struct Scope {
     /// Raw break depth a frame has not crossed yet. A block or the loop
     /// decrements it once. An `if` does not.
     pending_break: Option<u32>,
+    /// A source in this region is variant `k` of an `n`-variant sum. The
+    /// fact is the tag test that selected this arm. A `copy` of that source
+    /// keeps it, because a copy has the same tag, and `sum.get` of it needs
+    /// the fact on the copy itself (DF4).
+    carrying: Vec<(Src, i128, u32)>,
     /// The output list inside ω (rce-form.md §5). `Fresh` is the empty list
     /// a fresh ω holds. `Lost` means a branch changed the list and this
     /// scope did not join that change, so a later read requires change.
@@ -1208,6 +1279,17 @@ impl Built {
                         Some(f) => (f.arm1, f.arm0),
                         None => (t.as_slice(), e.as_slice()),
                     };
+                    // `tag_fold` keeps the proof arm. A tag test whose other arm
+                    // is ordinary code, or a `break`, is still a Branch on
+                    // `sum.tag`: region k holds the `then`, which is where
+                    // `sum.get` of tag k sits. A bool selector does not give
+                    // FG8 that fact.
+                    let bare_tag = if fold.is_none() { self.tag_eq(sc, c) } else { None };
+                    // Two variants: the Branch selector is the tag, and region k
+                    // is the `then`. A wider sum stays a bool branch; the `then`
+                    // still carries the tag, and `sum.get` builds the n-arm fact.
+                    let two = matches!(bare_tag, Some((_, k, _, n)) if n == 2 && (k == 0 || k == 1));
+                    let fact = tag_fact(sc, bare_tag);
                     let t_falls = build::falls(t_b);
                     let e_falls = build::falls(e_b);
                     // The ω this region already holds. A source from outside the
@@ -1221,7 +1303,7 @@ impl Built {
                     };
                     // A literal the parent already built is captured, so the
                     // operation and its domain test are the same value (FG8).
-                    let lits = lits_already(sc, &[t_b, e_b], rest);
+                    let lits = lits_already(sc, &self.info, &[t_b, e_b], rest);
                     // A tail of only drops and stores, whose values the parent
                     // already has, is the schedule's join of a branch's outputs.
                     // It stays after this branch. Sinking it into a nested halt
@@ -1243,9 +1325,10 @@ impl Built {
                             (e_b, t_b, false)
                         };
                         let seed = self.seed_of(&[cont, stop], rest, sc);
-                        let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty)?;
+                        let (fact_stop, fact_cont) = if cont_then { (None, fact) } else { (fact, None) };
+                        let stop_end = self.arm(stop, &seed, &lits, sc, here, thread, ret_ty, fact_stop)?;
                         let cont_end =
-                            self.arm_then(cont, rest, &seed, &lits, sc, here, thread, ret_ty)?;
+                            self.arm_then(cont, rest, &seed, &lits, sc, here, thread, ret_ty, fact_cont)?;
                         lose_outputs(sc, &stop_end.1);
                         lose_outputs(sc, &cont_end.1);
                         let (e0, a0, e1, a1) = if cont_then {
@@ -1253,21 +1336,38 @@ impl Built {
                         } else {
                             (cont_end.0, cont_end.1, stop_end.0, stop_end.1)
                         };
+                        // Region 1 is the `then`. Tag 0's `sum.get` has to sit
+                        // in region 0, so those two regions exchange.
+                        let (e0, a0, e1, a1) = if two && bare_tag.is_some_and(|(_, k, _, _)| k == 0) {
+                            (e1, a1, e0, a0)
+                        } else {
+                            (e0, a0, e1, a1)
+                        };
                         let sel = if let Some(f) = &fold {
                             f.selector
+                        } else if two {
+                            bare_tag.map(|(src, _, _, _)| src).unwrap()
                         } else {
                             self.src_atom(sc, c)?
                         };
                         return self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false);
                     }
+                    let swap_tag = two && bare_tag.is_some_and(|(_, k, _, _)| k == 0);
                     let sel = if let Some(f) = &fold {
                         f.selector
+                    } else if two {
+                        bare_tag.map(|(src, _, _, _)| src).unwrap()
                     } else {
                         self.src_atom(sc, c)?
                     };
                     let seed = self.seed_of(&[t_b, e_b], &[], sc);
-                    let (e1, a1) = self.arm(t_b, &seed, &lits, sc, here, thread, ret_ty)?;
-                    let (e0, a0) = self.arm(e_b, &seed, &lits, sc, here, thread, ret_ty)?;
+                    let (e1, a1) = self.arm(t_b, &seed, &lits, sc, here, thread, ret_ty, fact)?;
+                    let (e0, a0) = self.arm(e_b, &seed, &lits, sc, here, thread, ret_ty, None)?;
+                    let (e0, a0, e1, a1) = if swap_tag {
+                        (e1, a1, e0, a0)
+                    } else {
+                        (e0, a0, e1, a1)
+                    };
                     lose_outputs(sc, &a1);
                     lose_outputs(sc, &a0);
                     let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
@@ -1277,13 +1377,35 @@ impl Built {
                     }
                 }
                 Stmt::Block(b) => {
+                    // A large block stays on the linear walker. Restructuring
+                    // every test in it copies the remainder at each test.
+                    let nstmt = b.iter().map(stmt_count).sum::<usize>();
+                    let small = nstmt <= 200;
+                    if small && b.iter().any(break_outside_loop) {
+                        // e = d. This block is a frame. `break 0` and falling
+                        // off the block run the statements after it. `break 1`
+                        // needs a frame outside this one. An `if` is not a frame.
+                        let inner: Vec<&Stmt> = b.iter().collect();
+                        let after: Vec<&Stmt> = flat[i + 1..].to_vec();
+                        return self.exec_seq(
+                            &inner,
+                            SeqMode::In {
+                                after: &after,
+                                parent_after: None,
+                            },
+                            sc,
+                            sc.omega.or(parent_omega),
+                            ret_ty,
+                            0,
+                        );
+                    }
                     if !b.iter().any(stmt_has_break) {
                         let mut nlist: Vec<&Stmt> = b.iter().collect();
                         nlist.extend(&flat[i + 1..]);
                         return self.exec_refs(&nlist, sc, sc.omega.or(parent_omega), ret_ty, exposed);
                     }
-                    // A break names blocks and loops only. This block decrements
-                    // a pending count once. Depth 0 is consumed and the tail runs.
+                    // The breaks sit in a nested loop. A residual 0 is this
+                    // block's exit: the statements after the block run.
                     let refs: Vec<&Stmt> = b.iter().collect();
                     let end = self.exec_refs(&refs, sc, sc.omega.or(parent_omega), ret_ty, exposed)?;
                     match end {
@@ -1350,8 +1472,10 @@ impl Built {
         then: &'a [Stmt],
         else_s: &'a [Stmt],
     ) -> Option<TagFold<'a>> {
-        let (selector, k, tag_node) = self.tag_eq(sc, cond)?;
-        if k != 0 && k != 1 {
+        let (selector, k, tag_node, n) = self.tag_eq(sc, cond)?;
+        // A two-arm Branch on the tag is the test only when the sum has two
+        // variants. A wider tag does not fit in two regions.
+        if n != 2 || (k != 0 && k != 1) {
             return None;
         }
         let tag_local = sc
@@ -1364,8 +1488,10 @@ impl Built {
         Some(TagFold { selector, arm0, arm1 })
     }
 
-    /// `(selector, literal, sum.tag node)`. The selector is output 0 of that node.
-    fn tag_eq(&self, sc: &Scope, cond: &Atom) -> Option<(Src, i128, u32)> {
+    /// `(selector, literal, sum.tag node, variant count)`. The selector is
+    /// output 0 of that node. A literal captured from an outer region is
+    /// still the literal: the arm seeded it, and `sc.lits` holds its value.
+    fn tag_eq(&self, sc: &Scope, cond: &Atom) -> Option<(Src, i128, u32, u32)> {
         let Atom::V(v) = cond else { return None };
         let Src::Out(n, 0) = sc.env.get(v).copied()? else { return None };
         let node = sc.nodes.get(n as usize)?;
@@ -1373,25 +1499,25 @@ impl Built {
         if name != "int.eq" || node.ins.len() != 2 {
             return None;
         }
-        let lit = |s: &Src| -> Option<i128> {
-            let Src::Out(i, 0) = *s else { return None };
-            match &sc.nodes.get(i as usize)?.attrs {
-                Attr::Lit(_, Lit::Int(v)) => Some(*v),
-                _ => None,
-            }
-        };
-        let (tag_src, k) = if let Some(k) = lit(&node.ins[1]) {
+        let (tag_src, k) = if let Some(k) = int_lit(sc, &node.ins[1]) {
             (node.ins[0], k)
         } else {
-            (node.ins[1], lit(&node.ins[0])?)
+            (node.ins[1], int_lit(sc, &node.ins[0])?)
         };
         let Src::Out(tn, 0) = tag_src else { return None };
         let tnode = sc.nodes.get(tn as usize)?;
-        let Attr::Prim(tnm, _, _) = &tnode.attrs else { return None };
+        let Attr::Prim(tnm, args, _) = &tnode.attrs else { return None };
         if tnm != "sum.tag" {
             return None;
         }
-        Some((tag_src, k, tn))
+        let nvar = match args.first() {
+            Some(TyArg::Body(BTy::Sum(v))) if !v.is_empty() => v.len() as u32,
+            _ => return None,
+        };
+        if k < 0 || k as u32 >= nvar {
+            return None;
+        }
+        Some((tag_src, k, tn, nvar))
     }
 
     fn other_tag_arm<'a>(
@@ -1467,8 +1593,9 @@ impl Built {
         parent_omega: Option<Src>,
         thread: Option<Src>,
         ret_ty: &BTy,
+        fact: Option<(u32, i128, u32)>,
     ) -> Result<(End, Scope), Change> {
-        self.arm_then(stmts, &[], seed, lits, parent, parent_omega, thread, ret_ty)
+        self.arm_then(stmts, &[], seed, lits, parent, parent_omega, thread, ret_ty, fact)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1482,6 +1609,7 @@ impl Built {
         parent_omega: Option<Src>,
         thread: Option<Src>,
         ret_ty: &BTy,
+        fact: Option<(u32, i128, u32)>,
     ) -> Result<(End, Scope), Change> {
         let mut sc = Scope {
             nodes: vec![],
@@ -1494,12 +1622,16 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            carrying: vec![],
             outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
-            sc.env.insert(*l, Src::In(j as u32));
+            let src = Src::In(j as u32);
+            sc.env.insert(*l, src);
             sc.caps.push(parent.env[l]);
+            carry_seed(parent, *l, &mut sc, src);
         }
+        plant_fact(seed, fact, &mut sc);
         for (t, l, src) in lits {
             let j = sc.caps.len() as u32;
             sc.caps.push(*src);
@@ -1518,6 +1650,297 @@ impl Built {
         Ok((end, sc))
     }
 
+    /// A block that is not a loop, under the residual law (e = d).
+    ///
+    /// `break 0` leaves the innermost block. Each enclosing block decrements
+    /// once. An `if` does not. `return` ends the function from the arm that
+    /// runs it. A residual with no frame left requires change.
+    fn exec_seq(
+        &self,
+        stmts: &[&Stmt],
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        if depth > 64 {
+            return Err(self.deny("break: a residual has nothing to exit to"));
+        }
+        let Some(k) = stmts.iter().position(|s| break_outside_loop(s)) else {
+            if !stmts.is_empty() {
+                let end = self.exec_refs(stmts, sc, parent_omega, ret_ty, &BTreeSet::new())?;
+                if !matches!(end, End::Fall) {
+                    return self.residual_end(end, mode, sc, parent_omega, ret_ty, depth);
+                }
+            }
+            return self.finish_seq(mode, sc, parent_omega, ret_ty, depth);
+        };
+        if k > 0 {
+            let end = self.exec_refs(&stmts[..k], sc, parent_omega, ret_ty, &BTreeSet::new())?;
+            if !matches!(end, End::Fall) {
+                return self.residual_end(end, mode, sc, parent_omega, ret_ty, depth);
+            }
+        }
+        let rest = &stmts[k + 1..];
+        match stmts[k] {
+            Stmt::Break(0) => self.break0(mode, sc, parent_omega, ret_ty, depth),
+            Stmt::Break(1) => self.break1(mode, sc, parent_omega, ret_ty, depth),
+            Stmt::Break(_) => Err(self.deny("break: a residual has nothing to exit to")),
+            Stmt::Block(b) => {
+                let inner: Vec<&Stmt> = b.iter().collect();
+                let (after, parent_after) = match mode {
+                    SeqMode::Tail => (rest, None),
+                    SeqMode::In { after, .. } | SeqMode::Arm { after, .. } => (rest, Some(after)),
+                };
+                self.exec_seq(
+                    &inner,
+                    SeqMode::In { after, parent_after },
+                    sc,
+                    parent_omega,
+                    ret_ty,
+                    depth + 1,
+                )
+            }
+            Stmt::Loop(body) => {
+                self.loop_stmt(body, stmts[k], sc, parent_omega, ret_ty)?;
+                if let Some(r) = sc.exit_residual.take() {
+                    return match r {
+                        0 => self.break0(mode, sc, parent_omega, ret_ty, depth),
+                        1 => self.break1(mode, sc, parent_omega, ret_ty, depth),
+                        _ => Err(self.deny("break: a residual has nothing to exit to")),
+                    };
+                }
+                self.exec_seq(rest, mode, sc, parent_omega, ret_ty, depth + 1)
+            }
+            Stmt::If(c, t, e) => self.seq_if(c, t, e, rest, mode, sc, parent_omega, ret_ty, depth),
+            _ => Err(self.deny(
+                "break: a break outside a recognised loop is an exit this slice does not restructure",
+            )),
+        }
+    }
+
+    fn finish_seq(
+        &self,
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        match mode {
+            SeqMode::Tail => Ok(End::Fall),
+            SeqMode::In { after, parent_after } => {
+                let next = match parent_after {
+                    None => SeqMode::Tail,
+                    Some(p) => SeqMode::In {
+                        after: p,
+                        parent_after: None,
+                    },
+                };
+                self.exec_seq(after, next, sc, parent_omega, ret_ty, depth + 1)
+            }
+            SeqMode::Arm { rest, after, parent_after } => self.exec_seq(
+                rest,
+                SeqMode::In { after, parent_after },
+                sc,
+                parent_omega,
+                ret_ty,
+                depth + 1,
+            ),
+        }
+    }
+
+    fn break0(
+        &self,
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        match mode {
+            SeqMode::Tail => Err(self.deny("break: a residual has nothing to exit to")),
+            SeqMode::Arm { after, parent_after, .. } => self.finish_seq(
+                SeqMode::In { after, parent_after },
+                sc,
+                parent_omega,
+                ret_ty,
+                depth,
+            ),
+            SeqMode::In { .. } => self.finish_seq(mode, sc, parent_omega, ret_ty, depth),
+        }
+    }
+
+    fn break1(
+        &self,
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        let parent = match mode {
+            SeqMode::Tail => None,
+            SeqMode::In { parent_after, .. } | SeqMode::Arm { parent_after, .. } => parent_after,
+        };
+        match parent {
+            None => Err(self.deny("break: a residual has nothing to exit to")),
+            Some(p) => self.exec_seq(p, SeqMode::Tail, sc, parent_omega, ret_ty, depth + 1),
+        }
+    }
+
+    fn residual_end(
+        &self,
+        end: End,
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        match end {
+            End::Break(0) => self.break0(mode, sc, parent_omega, ret_ty, depth),
+            End::Break(1) => self.break1(mode, sc, parent_omega, ret_ty, depth),
+            End::Break(_) => Err(self.deny("break: a residual has nothing to exit to")),
+            other => Ok(other),
+        }
+    }
+
+    fn seq_if(
+        &self,
+        c: &Atom,
+        t: &[Stmt],
+        e: &[Stmt],
+        rest: &[&Stmt],
+        mode: SeqMode<'_>,
+        sc: &mut Scope,
+        parent_omega: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+    ) -> Result<End, Change> {
+        if self.atom_ty(c)? != Ty::Bool {
+            return Err(self.deny(
+                "selector: the core if is not on a bool, and this slice schedules only a bool selector",
+            ));
+        }
+        let (after, parent_after) = match mode {
+            SeqMode::Tail => (&[][..], None),
+            SeqMode::In { after, parent_after } | SeqMode::Arm { after, parent_after, .. } => {
+                (after, parent_after)
+            }
+        };
+        // A tail that both arms would fall into runs once, after the branch.
+        // Putting it in both arms copies every later test.
+        let t_end = reaches_end(t);
+        let e_end = reaches_end(e);
+        let no_rest: &[&Stmt] = &[];
+        let (rest_t, rest_e, hoist) = if t_end && e_end {
+            (no_rest, no_rest, true)
+        } else if t_end {
+            (rest, no_rest, false)
+        } else if e_end {
+            (no_rest, rest, false)
+        } else {
+            (no_rest, no_rest, false)
+        };
+        let mode_t = SeqMode::Arm { rest: rest_t, after, parent_after };
+        let mode_e = SeqMode::Arm { rest: rest_e, after, parent_after };
+        let here = sc.omega.or(parent_omega);
+        let mut followed: Vec<&Stmt> = rest_t.to_vec();
+        followed.extend(rest_e.iter().copied());
+        followed.extend(after.iter().copied());
+        if let Some(p) = parent_after {
+            followed.extend(p.iter().copied());
+        }
+        let order = self.stmts_need_order(t)
+            || self.stmts_need_order(e)
+            || followed.iter().any(|s| self.stmt_needs_order(s));
+        let thread = if order { here } else { None };
+        let lits = lits_already(sc, &self.info, &[t, e], &followed);
+        let seed = self.seed_of(&[t, e], &followed, sc);
+        // A tag test is a Branch on `sum.tag`. The matching arm is region k,
+        // so FG8's tag fact still covers `sum.get` there. The break does not
+        // move the tag.
+        let tagged = self.tag_eq(sc, c);
+        let two = matches!(tagged, Some((_, k, _, n)) if n == 2 && (k == 0 || k == 1));
+        let fact = tag_fact(sc, tagged);
+        let sel = if two {
+            tagged.map(|(src, _, _, _)| src).unwrap()
+        } else {
+            self.src_atom(sc, c)?
+        };
+        let (end_t, sc_t) =
+            self.arm_seq(t, mode_t, &seed, &lits, sc, here, thread, ret_ty, depth, fact)?;
+        let (end_e, sc_e) =
+            self.arm_seq(e, mode_e, &seed, &lits, sc, here, thread, ret_ty, depth, None)?;
+        lose_outputs(sc, &sc_t);
+        lose_outputs(sc, &sc_e);
+        let (a0, e0, a1, e1) = if two && tagged.is_some_and(|(_, k, _, _)| k == 0) {
+            (sc_t, end_t, sc_e, end_e)
+        } else if two {
+            (sc_e, end_e, sc_t, end_t)
+        } else {
+            (sc_e, end_e, sc_t, end_t)
+        };
+        let end = self.finish_if(sc, sel, a0, e0, a1, e1, here, ret_ty, false)?;
+        if hoist && matches!(end, End::Fall) {
+            self.exec_seq(rest, mode, sc, parent_omega, ret_ty, depth)
+        } else {
+            Ok(end)
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn arm_seq(
+        &self,
+        stmts: &[Stmt],
+        mode: SeqMode<'_>,
+        seed: &[u32],
+        lits: &[(Ty, Lit, Src)],
+        parent: &Scope,
+        parent_omega: Option<Src>,
+        thread: Option<Src>,
+        ret_ty: &BTy,
+        depth: u32,
+        fact: Option<(u32, i128, u32)>,
+    ) -> Result<(End, Scope), Change> {
+        let mut sc = Scope {
+            nodes: vec![],
+            env: HashMap::new(),
+            omega: None,
+            caps: vec![],
+            assigned: BTreeSet::new(),
+            set_at: vec![],
+            lits: vec![],
+            exit_flag: None,
+            exit_residual: None,
+            pending_break: None,
+            carrying: vec![],
+            outputs: inherited_outputs(parent),
+        };
+        for (j, l) in seed.iter().enumerate() {
+            let src = Src::In(j as u32);
+            sc.env.insert(*l, src);
+            sc.caps.push(parent.env[l]);
+            carry_seed(parent, *l, &mut sc, src);
+        }
+        plant_fact(seed, fact, &mut sc);
+        for (t, l, src) in lits {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(*src);
+            sc.lits.push((t.clone(), l.clone(), Src::In(j)));
+        }
+        if let Some(p) = thread {
+            let j = sc.caps.len() as u32;
+            sc.caps.push(p);
+            sc.omega = Some(Src::In(j));
+        }
+        let list: Vec<&Stmt> = stmts.iter().collect();
+        let live = sc.omega.or(parent_omega);
+        let end = self.exec_seq(&list, mode, &mut sc, live, ret_ty, depth + 1)?;
+        Ok((end, sc))
+    }
 
     fn prim(
         &self,
@@ -1560,6 +1983,10 @@ impl Built {
         for a in args {
             ins.push(self.src_atom(sc, a)?);
         }
+        if p == "sum.get" && self.guard_sum_get(sc, ts, &ins, &lits, local0)? {
+            return Ok(());
+        }
+        let copied = (p == "copy").then(|| ins.first().copied()).flatten();
         let id = sc.push(Attr::Prim(p.to_string(), args_ty, None), ins, vec![]);
         let mut k = 0u32;
         for (oi, (of, _)) in results.iter().enumerate() {
@@ -1582,8 +2009,95 @@ impl Built {
                 }
             }
         }
+        if let Some(src) = copied {
+            if let Some((_, k, n)) = sc.carrying.iter().copied().find(|(s, _, _)| *s == src) {
+                sc.carrying.push((Src::Out(id, 0), k, n));
+            }
+        }
         let _ = parent_omega;
         Ok(())
+    }
+
+    /// `sum.get` of a value this arm already knows is variant k.
+    ///
+    /// The core tests `sum.tag` of the original and then gets a `copy`. Those
+    /// are different values, so DF4 does not see the test. The copy has the
+    /// same tag. A Branch on `sum.tag` of the value `sum.get` consumes, with
+    /// that get in arm k and a dummy payload in every other arm, is the fact.
+    /// The other arms do not run: the arm was entered because the tag is k.
+    fn guard_sum_get(
+        &self,
+        sc: &mut Scope,
+        ts: &[Ty],
+        ins: &[Src],
+        lits: &[Option<i128>],
+        local0: u32,
+    ) -> Result<bool, Change> {
+        let (Some(val), Some(k)) = (ins.first().copied(), lits.get(1).copied().flatten()) else {
+            return Ok(false);
+        };
+        let Some((_, _, n)) = sc.carrying.iter().copied().find(|(s, fk, _)| *s == val && *fk == k) else {
+            return Ok(false);
+        };
+        if k < 0 || n == 0 || k as u32 >= n {
+            return Ok(false);
+        }
+        let fresh = matches!(
+            val,
+            Src::Out(i, 0) if matches!(
+                sc.nodes.get(i as usize).map(|nd| &nd.attrs),
+                Some(Attr::Prim(name, _, _)) if name == "copy"
+            )
+        );
+        // A two-variant sum's own tag Branch already covers a get of that value.
+        if n == 2 && !fresh {
+            return Ok(false);
+        }
+        let Some(Ty::Sum(parts)) = ts.first() else { return Ok(false) };
+        let Some(pay) = parts.get(k as usize) else { return Ok(false) };
+        {
+            let mut probe = fresh_scope();
+            if self.dummy_src(&mut probe, pay).is_err() {
+                return Ok(false);
+            }
+        }
+        let arg = ty_arg(&ts[0]).map_err(|e| self.deny(format!("defect: {e}")))?;
+        let tag = sc.push(
+            Attr::Prim("sum.tag".into(), vec![arg.clone()], None),
+            vec![val],
+            vec![],
+        );
+        for src in sc.env.values_mut() {
+            if *src == val {
+                *src = Src::Out(tag, 1);
+            }
+        }
+        let returned = Src::Out(tag, 1);
+        let sel = Src::Out(tag, 0);
+        let pay_b = bty(pay).map_err(|e| self.deny(format!("defect: {e}")))?;
+        let mut regions = vec![];
+        for i in 0..n {
+            let mut arm = fresh_scope();
+            arm.caps.push(returned);
+            let out = if i == k as u32 {
+                let lit = self.lit_node(&mut arm, &Ty::Int(k, k), &Lit::Int(k))?;
+                let id = arm.push(
+                    Attr::Prim("sum.get".into(), vec![arg.clone()], None),
+                    vec![Src::In(0), lit],
+                    vec![],
+                );
+                Src::Out(id, 0)
+            } else {
+                self.dummy_src(&mut arm, pay)?
+            };
+            regions.push(Body {
+                nodes: arm.nodes,
+                out: vec![out],
+            });
+        }
+        let id = sc.push(Attr::Branch(n, vec![pay_b]), vec![sel, returned], regions);
+        sc.env.insert(local0, Src::Out(id, 0));
+        Ok(true)
     }
 
     fn finish_if(
@@ -2140,11 +2654,14 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            carrying: vec![],
             outputs: inherited_outputs(parent),
         };
         for (j, l) in seed.iter().enumerate() {
-            sc.env.insert(*l, Src::In(j as u32));
+            let src = Src::In(j as u32);
+            sc.env.insert(*l, src);
             sc.caps.push(parent.env[l]);
+            carry_seed(parent, *l, &mut sc, src);
         }
         for (t, l, src) in lits {
             let j = sc.caps.len() as u32;
@@ -2234,7 +2751,7 @@ impl Built {
         } else {
             None
         };
-        let lits = lits_already(sc, &[t, e], &tail_refs);
+        let lits = lits_already(sc, &self.info, &[t, e], &tail_refs);
         let seed = self.seed_of(&[t, e], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let false_lit = if !t_arm_falls || !e_arm_falls {
@@ -2321,13 +2838,13 @@ impl Built {
         } else {
             None
         };
-        let lits = lits_already(sc, &[fall_arm, halt_arm], &tail_refs);
+        let lits = lits_already(sc, &self.info, &[fall_arm, halt_arm], &tail_refs);
         let seed = self.seed_of(&[fall_arm, halt_arm], &tail_refs, sc);
         let sel = self.src_atom(sc, c)?;
         let (fall_end, fall_sc) = self.body_arm(
             &cont, fall, fall_names, far, far_names, &seed, &lits, sc, here, thread, ret_ty, names, None,
         )?;
-        let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty)?;
+        let (halt_end, halt_sc) = self.arm(halt_arm, &seed, &lits, sc, here, thread, ret_ty, None)?;
         lose_outputs(sc, &fall_sc);
         lose_outputs(sc, &halt_sc);
         if !matches!(halt_end, End::Halt(_)) {
@@ -2401,6 +2918,7 @@ impl Built {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            carrying: vec![],
             outputs: inherited_outputs(sc),
         };
         let mut ix = 0u32;
@@ -2688,6 +3206,7 @@ impl Built {
                 exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            carrying: vec![],
             outputs: inherited_outputs(sc),
             };
             let mut ix = 0u32;
@@ -3066,7 +3585,14 @@ fn stmt_lits(b: &[Stmt], out: &mut Vec<(Ty, Lit)>) {
 }
 
 /// Literals mentioned in the arms that this region has already built.
-fn lits_already(sc: &Scope, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
+///
+/// A literal the parent computed is captured, so a domain test and the
+/// operation it guards see the same value (FG8). A bool written in the
+/// arm is a node of that arm, even when the parent already holds false:
+/// `nz = false` and a break flag are two occurrences. The initial value
+/// of a `var` that no arm reads is not shared either: it is the
+/// placeholder of a branch output.
+fn lits_already(sc: &Scope, info: &Info, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, Src)> {
     let mut ks = vec![];
     for a in arms {
         stmt_lits(a, &mut ks);
@@ -3074,9 +3600,175 @@ fn lits_already(sc: &Scope, arms: &[&[Stmt]], tail: &[&Stmt]) -> Vec<(Ty, Lit, S
     for s in tail {
         stmt_lits(std::slice::from_ref(s), &mut ks);
     }
+    // The same literal is named many times in a long tail. Searching it once
+    // keeps the capture list, and the first occurrence's order.
+    let mut seen = HashSet::new();
     ks.into_iter()
-        .filter_map(|(t, l)| find_lit(sc, &t, &l).map(|src| (t, l, src)))
+        .filter(|(_, l)| !matches!(l, Lit::Bool(_)))
+        .filter(|k| seen.insert(k.clone()))
+        .filter_map(|(t, l)| {
+            let src = find_lit(sc, &t, &l)?;
+            if literal_is_unread_var_init(sc, info, src, arms, tail) {
+                return None;
+            }
+            Some((t, l, src))
+        })
         .collect()
+}
+
+fn atom_is(a: &Atom, v: u32) -> bool {
+    matches!(a, Atom::V(i) if *i == v)
+}
+
+fn assigns_somewhere(stmts: &[Stmt], v: u32) -> bool {
+    stmts.iter().any(|s| match s {
+        Stmt::Set(Place::V(i), _) if *i == v => true,
+        Stmt::If(_, t, e) => assigns_somewhere(t, v) || assigns_somewhere(e, v),
+        Stmt::Block(x) | Stmt::Loop(x) => assigns_somewhere(x, v),
+        _ => false,
+    })
+}
+
+/// Every path through `stmts` returns or halts, so the value does not fall out.
+fn always_returns(stmts: &[Stmt]) -> bool {
+    for s in stmts {
+        match s {
+            Stmt::Ret(_) | Stmt::Halt(_) => return true,
+            Stmt::If(_, t, e) if always_returns(t) && always_returns(e) => return true,
+            Stmt::Block(x) if always_returns(x) => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// This path still needs the value `v` held on entry.
+/// A `set` that does not read `v`, or a `ret` that never reads it, does not.
+fn path_uses_old(stmts: &[Stmt], v: u32) -> bool {
+    if reads_before_assign(stmts, v) {
+        return true;
+    }
+    if assigns_somewhere(stmts, v) {
+        return false;
+    }
+    !always_returns(stmts)
+}
+
+/// `v` is read on this path before a `set` replaces it.
+fn reads_before_assign(stmts: &[Stmt], v: u32) -> bool {
+    for s in stmts {
+        match s {
+            Stmt::Set(Place::V(i), a) if *i == v => return atom_is(a, v),
+            Stmt::Set(_, a) if atom_is(a, v) => return true,
+            Stmt::Let(a) | Stmt::Var(_, a) | Stmt::Ret(a) | Stmt::Halt(a) | Stmt::Out(a)
+                if atom_is(a, v) =>
+            {
+                return true;
+            }
+            Stmt::Prim(_, _, xs) | Stmt::Call(_, xs) | Stmt::Catch(_, xs) | Stmt::Graph(_, xs)
+                if xs.iter().any(|a| atom_is(a, v)) =>
+            {
+                return true;
+            }
+            Stmt::If(c, t, e) => {
+                if atom_is(c, v) || reads_before_assign(t, v) || reads_before_assign(e, v) {
+                    return true;
+                }
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => {
+                if reads_before_assign(x, v) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn literal_is_unread_var_init(
+    sc: &Scope,
+    info: &Info,
+    src: Src,
+    arms: &[&[Stmt]],
+    _tail: &[&Stmt],
+) -> bool {
+    if sc.nodes.iter().any(|n| n.ins.contains(&src)) {
+        return false;
+    }
+    let locals: Vec<u32> = sc
+        .env
+        .iter()
+        .filter(|(_, s)| **s == src)
+        .map(|(v, _)| *v)
+        .collect();
+    if locals.is_empty()
+        || locals.iter().any(|v| !info.loc.get(v).is_some_and(|l| l.var))
+    {
+        return false;
+    }
+    !locals.iter().any(|v| arms.iter().any(|a| path_uses_old(a, *v)))
+}
+
+/// The integer a source holds in this region: a literal node, or a literal
+/// seeded into the region from outside it.
+fn int_lit(sc: &Scope, s: &Src) -> Option<i128> {
+    if let Src::Out(i, 0) = *s {
+        if let Some(Attr::Lit(_, Lit::Int(v))) = sc.nodes.get(i as usize).map(|n| &n.attrs) {
+            return Some(*v);
+        }
+    }
+    sc.lits.iter().find_map(|(_, lit, src)| match lit {
+        Lit::Int(v) if src == s => Some(*v),
+        _ => None,
+    })
+}
+
+/// The local `sum.tag` gave back. That output is the same value as the operand.
+fn tagged_local(sc: &Scope, tag_node: u32) -> Option<u32> {
+    let back = Src::Out(tag_node, 1);
+    sc.env.iter().find(|(_, s)| **s == back).map(|(v, _)| *v)
+}
+
+/// `(local, tag, variant count)` for the arm the tag test selects.
+fn tag_fact(sc: &Scope, info: Option<(Src, i128, u32, u32)>) -> Option<(u32, i128, u32)> {
+    let (_, k, node, n) = info?;
+    Some((tagged_local(sc, node)?, k, n))
+}
+
+fn plant_fact(seed: &[u32], fact: Option<(u32, i128, u32)>, child: &mut Scope) {
+    let Some((local, k, n)) = fact else { return };
+    let Some(j) = seed.iter().position(|l| *l == local) else { return };
+    let src = Src::In(j as u32);
+    if !child.carrying.iter().any(|(s, ck, _)| *s == src && *ck == k) {
+        child.carrying.push((src, k, n));
+    }
+}
+
+fn fresh_scope() -> Scope {
+    Scope {
+        nodes: vec![],
+        env: HashMap::new(),
+        omega: None,
+        caps: vec![],
+        assigned: BTreeSet::new(),
+        set_at: vec![],
+        lits: vec![],
+        exit_flag: None,
+        exit_residual: None,
+        pending_break: None,
+        carrying: vec![],
+        outputs: OutList::Fresh,
+    }
+}
+
+fn carry_seed(parent: &Scope, local: u32, child: &mut Scope, src: Src) {
+    let Some(ps) = parent.env.get(&local).copied() else { return };
+    for (s, k, n) in &parent.carrying {
+        if *s == ps && !child.carrying.iter().any(|(cs, ck, _)| *cs == src && *ck == *k) {
+            child.carrying.push((src, *k, *n));
+        }
+    }
 }
 
 fn find_lit(sc: &Scope, t: &Ty, l: &Lit) -> Option<Src> {
@@ -3194,8 +3886,17 @@ fn carried_vars(sc: &Scope, parts: &[&[Stmt]]) -> Vec<u32> {
 }
 
 fn lit_bool(region: &mut Scope, v: bool) -> Src {
-    let i = region.push(Attr::Lit(BTy::Bool, Lit::Bool(v)), vec![], vec![]);
-    Src::Out(i, 0)
+    // The same literal the region already holds, including one captured
+    // from outside, is that source. A second node would not survive the
+    // schedule, which writes the literal as an atom and builds it once.
+    let lit = Lit::Bool(v);
+    if let Some(s) = find_lit(region, &Ty::Bool, &lit) {
+        return s;
+    }
+    let i = region.push(Attr::Lit(BTy::Bool, lit.clone()), vec![], vec![]);
+    let s = Src::Out(i, 0);
+    region.lits.push((Ty::Bool, lit, s));
+    s
 }
 
 fn bool_not(region: &mut Scope, s: Src) -> Src {
@@ -3500,27 +4201,199 @@ fn direct_emits(f: &core::Fn) -> bool {
     go(&f.body)
 }
 
-fn direct_omega(f: &core::Fn, names: &HashMap<(String, u32), String>, group: &str) -> bool {
-    fn go(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
+fn direct_omega(f: &core::Fn, m: &core::Module, names: &HashMap<(String, u32), String>, group: &str) -> bool {
+    fn any_halt(b: &[Stmt], names: &HashMap<(String, u32), String>, group: &str) -> bool {
         b.iter().any(|s| match s {
             // A `catch` rethrows the fuel trap in the Form, so the function may
             // halt even when the core text has no `halt` yet. The schedule
             // writes that halt; both shapes take ω.
             // `out` is `emit` on ω (rce-form.md §13).
             Stmt::Halt(_) | Stmt::Catch(_, _) | Stmt::Out(_) => true,
-            Stmt::Call(r, _) => {
-                let id = match r {
-                    FnRef::Key(k, i) => (k.clone(), *i),
-                    FnRef::Rec(i) => (group.to_string(), *i),
-                };
-                names.get(&id).is_some_and(|n| shim_of(n).is_some())
-            }
-            Stmt::If(_, t, e) => go(t, names, group) || go(e, names, group),
-            Stmt::Block(x) | Stmt::Loop(x) => go(x, names, group),
+            Stmt::Call(r, _) => call_takes_omega(r, names, group),
+            Stmt::If(_, t, e) => any_halt(t, names, group) || any_halt(e, names, group),
+            Stmt::Block(x) | Stmt::Loop(x) => any_halt(x, names, group),
             _ => false,
         })
     }
-    go(&f.body, names, group)
+    let globals: Vec<Ty> = m.globals.iter().map(|g| g.0.clone()).collect();
+    let callee = |r: &FnRef| -> Option<Ty> {
+        match r {
+            FnRef::Key(k, i) => m.func(k, *i).map(|f| f.ret.clone()),
+            FnRef::Rec(i) => m.func(group, *i).map(|f| f.ret.clone()),
+        }
+    };
+    // Numbering the statements is how a tag test is told from a halt that
+    // really runs. If the core is not well formed enough to number, every
+    // halt still takes ω.
+    let Ok(info) = precompute(f, &globals, &callee, group) else {
+        return any_halt(&f.body, names, group);
+    };
+    let mut walk = TagOmega {
+        info: &info,
+        names,
+        group,
+        tag_local: HashSet::new(),
+        tag_arg: HashMap::new(),
+        tag_n: HashMap::new(),
+        eq_local: HashMap::new(),
+    };
+    walk.uses(&f.body)
+}
+
+fn call_takes_omega(r: &FnRef, names: &HashMap<(String, u32), String>, group: &str) -> bool {
+    let id = match r {
+        FnRef::Key(k, i) => (k.clone(), *i),
+        FnRef::Rec(i) => (group.to_string(), *i),
+    };
+    names.get(&id).is_some_and(|n| shim_of(n).is_some())
+}
+
+/// The tail `tag_fold` discards: no call, no `sum.get`, no nested test.
+/// A `halt` there is not a node. A halt in a real arm is.
+fn proof_tail(stmts: &[Stmt]) -> bool {
+    stmts.iter().all(|s| match s {
+        Stmt::Prim(p, _, _) if p == "sum.get" => false,
+        Stmt::Call(..)
+        | Stmt::Catch(..)
+        | Stmt::Ret(_)
+        | Stmt::Loop(_)
+        | Stmt::If(..)
+        | Stmt::Out(_) => false,
+        Stmt::Block(x) => proof_tail(x),
+        _ => true,
+    })
+}
+
+fn eq_parts(args: &[Atom]) -> Option<(u32, i128)> {
+    match args {
+        [Atom::V(t), Atom::K(_, Lit::Int(k))] => Some((*t, *k)),
+        [Atom::K(_, Lit::Int(k)), Atom::V(t)] => Some((*t, *k)),
+        _ => None,
+    }
+}
+
+struct TagOmega<'a> {
+    info: &'a Info,
+    names: &'a HashMap<(String, u32), String>,
+    group: &'a str,
+    tag_local: HashSet<u32>,
+    tag_arg: HashMap<u32, Atom>,
+    tag_n: HashMap<u32, usize>,
+    eq_local: HashMap<u32, (i128, u32)>,
+}
+
+impl TagOmega<'_> {
+    fn sid(&self, s: &Stmt) -> Option<u32> {
+        self.info.first.get(&(s as *const Stmt)).copied()
+    }
+
+    /// The real arm of the other variant. The proof tail after it is the
+    /// halt `tag_fold` drops when the sum has two variants. A halt that is
+    /// itself an arm is not this tail, and a wider sum is not this fold.
+    fn real_arm<'b>(&self, stmts: &'b [Stmt], want: i128, operand: &Atom) -> Option<&'b [Stmt]> {
+        let mut i = 0;
+        let mut cond = None;
+        let mut saw_tag = false;
+        while i < stmts.len() {
+            match &stmts[i] {
+                Stmt::Prim(n, _, args) if n == "sum.tag" && args.len() == 1 => {
+                    if &args[0] != operand {
+                        return None;
+                    }
+                    saw_tag = true;
+                    i += 1;
+                }
+                Stmt::Prim(n, _, args) if n == "int.eq" => {
+                    let (local, k) = eq_parts(args)?;
+                    if k != want {
+                        return None;
+                    }
+                    if !saw_tag && !self.tag_local.contains(&local) {
+                        return None;
+                    }
+                    cond = self.sid(&stmts[i]);
+                    i += 1;
+                }
+                Stmt::If(c, body, tail) => {
+                    let Atom::V(v) = c else { return None };
+                    if cond != Some(*v) || i + 1 != stmts.len() || !proof_tail(tail) {
+                        return None;
+                    }
+                    return Some(body.as_slice());
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// `(tag 0 arm, tag 1 arm)` when the unreachable tail is not a region.
+    fn folded<'b>(&self, c: &Atom, t: &'b [Stmt], e: &'b [Stmt]) -> Option<(&'b [Stmt], &'b [Stmt])> {
+        let Atom::V(v) = c else { return None };
+        let (k, tag) = self.eq_local.get(v).copied()?;
+        let n = *self.tag_n.get(&tag)?;
+        if n != 2 || (k != 0 && k != 1) {
+            return None;
+        }
+        let operand = self.tag_arg.get(&tag)?.clone();
+        let want = 1 - k;
+        if let Some(real) = self.real_arm(e, want, &operand) {
+            return Some((t, real));
+        }
+        if let Some(real) = self.real_arm(t, want, &operand) {
+            return Some((real, e));
+        }
+        None
+    }
+
+    fn uses(&mut self, stmts: &[Stmt]) -> bool {
+        for s in stmts {
+            match s {
+                Stmt::Prim(p, ts, args) if p == "sum.tag" => {
+                    if let Some(id) = self.sid(s) {
+                        self.tag_local.insert(id);
+                        if let Some(a) = args.first() {
+                            self.tag_arg.insert(id, a.clone());
+                        }
+                        if let Some(Ty::Sum(v)) = ts.first() {
+                            self.tag_n.insert(id, v.len());
+                        }
+                    }
+                }
+                Stmt::Prim(p, _, args) if p == "int.eq" => {
+                    if let Some(id) = self.sid(s) {
+                        if let Some((local, k)) = eq_parts(args) {
+                            if self.tag_local.contains(&local) {
+                                self.eq_local.insert(id, (k, local));
+                            }
+                        }
+                    }
+                }
+                Stmt::If(c, t, e) => {
+                    if let Some((a, b)) = self.folded(c, t, e) {
+                        if self.uses(a) || self.uses(b) {
+                            return true;
+                        }
+                    } else if self.uses(t) || self.uses(e) {
+                        return true;
+                    }
+                }
+                Stmt::Halt(_) | Stmt::Catch(_, _) | Stmt::Out(_) => return true,
+                Stmt::Call(r, _) => {
+                    if call_takes_omega(r, self.names, self.group) {
+                        return true;
+                    }
+                }
+                Stmt::Block(x) | Stmt::Loop(x) => {
+                    if self.uses(x) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
 }
 
 struct UserFn {
@@ -3560,7 +4433,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
         let framed = Built::fuel_frame(&gnames, &refs).is_some();
         omega.insert(
             key.clone(),
-            !framed && direct_omega(&u.func, &names, &u.group),
+            !framed && direct_omega(&u.func, m, &names, &u.group),
         );
         emits.insert(key.clone(), !framed && direct_emits(&u.func));
         touches.insert(
@@ -3664,6 +4537,7 @@ pub fn construct(m: &core::Module) -> Result<form::Module, Change> {
             exit_flag: None,
             exit_residual: None,
             pending_break: None,
+            carrying: vec![],
             outputs: OutList::Fresh,
         };
         let mut ins = me.params.clone();
@@ -5045,6 +5919,35 @@ fn schedule_catch(
     Ok(())
 }
 
+/// The operand that must be a literal: `sum.mk`'s variant, or the component
+/// index of `sum.get` and `tup.get`. Any other use of a captured literal can
+/// name the one node built before the branch.
+fn index_operand(attrs: &Attr) -> Option<usize> {
+    match attrs {
+        Attr::Prim(name, _, _) => match name.as_str() {
+            "sum.mk" => Some(0),
+            "sum.get" | "tup.get" => Some(1),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn capture_is_index(body: &Body, j: u32) -> bool {
+    let src = Src::In(j);
+    body.nodes.iter().any(|nd| {
+        if index_operand(&nd.attrs).is_some_and(|p| nd.ins.get(p) == Some(&src)) {
+            return true;
+        }
+        // A branch's first input is the selector. Every other node's inputs
+        // are the region's inputs, in order.
+        let start = usize::from(matches!(nd.attrs, Attr::Branch(_, _)));
+        nd.ins[start..].iter().enumerate().any(|(k, s)| {
+            *s == src && nd.regions.iter().any(|r| capture_is_index(r, k as u32))
+        })
+    })
+}
+
 fn schedule_branch(
     sch: &mut Sch,
     m: &form::Module,
@@ -5086,6 +5989,49 @@ fn schedule_branch(
         let id = sch.fresh(ct, true);
         vars.push((p, id));
     }
+    // A literal captured here was built before this branch (`var h = …`
+    // before the loop, `var k = 4` before the tests). One `let` names that
+    // node. An arm uses the local, unless the literal is a variant or
+    // component index: that arm still sees the atom, and construction finds
+    // the same node.
+    let mut lifted: HashMap<Src, u32> = HashMap::new();
+    let mut placed: HashSet<Src> = HashSet::new();
+    for (j, s) in n.ins.iter().skip(1).enumerate() {
+        if lifted.contains_key(s) || placed.contains(s) {
+            continue;
+        }
+        let Some(Av::A(Atom::K(t, l))) = env.get(s).cloned() else {
+            continue;
+        };
+        let used_earlier = body.nodes.iter().take(i).any(|nd| nd.ins.contains(s));
+        if used_earlier {
+            continue;
+        }
+        let index_here = n.regions.iter().any(|r| capture_is_index(r, j as u32));
+        let index_later = body.nodes.iter().skip(i + 1).any(|nd| {
+            nd.ins.iter().enumerate().any(|(k, src)| {
+                if *src != *s {
+                    return false;
+                }
+                if let Attr::Branch(_, _) = &nd.attrs {
+                    k > 0 && nd.regions.iter().any(|r| capture_is_index(r, (k - 1) as u32))
+                } else {
+                    index_operand(&nd.attrs).is_some_and(|p| p == k)
+                        || nd.regions.iter().any(|r| capture_is_index(r, k as u32))
+                }
+            })
+        });
+        if index_here || index_later {
+            // The atom stays in the arm. The `let` is what places the node
+            // in the parent, where construction of the core found it.
+            sch.let_atom(Atom::K(t.clone(), l), t)?;
+            placed.insert(*s);
+            continue;
+        }
+        let id = sch.let_atom(Atom::K(t.clone(), l), t)?;
+        lifted.insert(*s, id);
+        env.insert(*s, Av::A(Atom::V(id)));
+    }
     let dom = dom_from(sch, body, n.ins[0], env);
     // Snapshot after the output vars exist. Each arm restores it, so a capture
     // the first arm moves is live again for the second arm.
@@ -5100,12 +6046,14 @@ fn schedule_branch(
         let saved = std::mem::take(&mut sch.stmts);
         let mut en = env.clone();
         for (j, s) in n.ins.iter().skip(1).enumerate() {
-            en.insert(
-                Src::In(j as u32),
+            let av = if let Some(id) = lifted.get(s) {
+                Av::A(Atom::V(*id))
+            } else {
                 env.get(s)
                     .cloned()
-                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?,
-            );
+                    .ok_or_else(|| sch.deny("defect: a capture has no value"))?
+            };
+            en.insert(Src::In(j as u32), av);
         }
         let mark = sch.next;
         schedule_region(sch, m, group, region, &mut en, dom)?;

@@ -16,7 +16,12 @@ on:
 jobs:
   checker:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Sync and fuzz run first, then the same fast suite as ci.yml. On
+    # 8c251d26 that suite finished in 41 minutes, and both tree-sitter
+    # jobs were cancelled at 45 minutes with the suite still running
+    # (runs 43449009135 and 43449020123). 70 minutes is the suite plus
+    # those earlier steps. No test is dropped.
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:

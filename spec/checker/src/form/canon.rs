@@ -890,8 +890,11 @@ pub fn module_key(m: &Module) -> String {
 /// The passes, in the order they run, each named by its rule.
 type Pass = fn(&Module) -> R<Module>;
 
-const PASSES: [(&str, Pass); 8] =
-    [("C8", c8), ("C11", c11), ("C6", c6), ("C7", c7), ("C4", c4), ("C3", c3), ("C5", c5), ("C9", c9)];
+const PASSES: [(&str, Pass); 9] =
+    // C7 drops a capture neither arm reads. The literal it captured can
+    // then be unreachable: the branch output's placeholder. C6 runs again
+    // so that node is not part of the body.
+    [("C8", c8), ("C11", c11), ("C6", c6), ("C7", c7), ("C6", c6), ("C4", c4), ("C3", c3), ("C5", c5), ("C9", c9)];
 
 /// The canonical form of a module, and the rule of the first pass that changed it.
 pub fn canonical(m: &Module) -> R<(Module, Option<&'static str>)> {
