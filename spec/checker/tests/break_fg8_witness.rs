@@ -678,7 +678,7 @@ fn fn_table_constructs_and_the_schedule_is_refused_by_fg8() {
 }
 
 #[test]
-fn a_break_out_of_a_block_is_refused_and_the_continuation_runs() {
+fn a_break_out_of_a_block_is_admitted_and_the_continuation_runs() {
     // Contract section 3.1. Depth 0 leaves the block. The return after it runs.
     let mut b = FB::new(vec![Ty::Bool], i64ty());
     let c = b.arg(0);
@@ -807,11 +807,10 @@ fn a_block_break_builds_the_continuation_once_after_the_branch() {
 }
 
 #[test]
-fn a_break_that_names_the_loop_from_inside_a_block_is_refused() {
+fn a_break_that_names_the_loop_from_inside_a_block_is_admitted() {
     // Contract section 3.2. `break 1` inside the body block names the loop.
-    // The bridge builds a measure and FG8 rejects the trace. The core
-    // results are what the option B flag has to match: the increment does
-    // not run on the break path.
+    // The form is applied, and the schedule constructs the same bytes.
+    // The increment does not run on the break path.
     let build = |with_tick: bool| {
         let (tick, tkey) = tick_parts();
         let key = tkey.clone();
@@ -1059,9 +1058,9 @@ fn a_return_inside_a_loop_is_a_defect_of_the_arm_widths() {
 }
 
 #[test]
-fn an_owned_list_through_a_block_break_is_refused() {
+fn an_owned_list_through_a_block_break_is_admitted() {
     // Contract section 3.1 and shortcut 8. Both arms move the list. The
-    // continuation returns the arm's list. The bridge refuses the break.
+    // continuation returns the arm's list. The form is applied.
     let e = i64ty();
     let lt = Ty::list(e.clone());
     let mut b = FB::new(vec![Ty::Bool, lt.clone()], lt.clone());
