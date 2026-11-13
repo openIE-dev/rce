@@ -16,7 +16,12 @@ on:
 jobs:
   checker:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Sync and fuzz take about 3 minutes, then this job runs the same
+    # fast suite. That suite finished in 36 minutes in ci (run
+    # 43449003552). Run 43449017317 cancelled it at 45 minutes during
+    # one_conformance, near the end. 60 minutes is that measured time.
+    # No test is dropped.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
