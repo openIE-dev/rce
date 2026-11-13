@@ -29,6 +29,7 @@ pub mod one;
 pub mod form;
 pub mod graph;
 pub mod wasm_term;
+pub mod wasm_break;
 pub mod frame;
 pub mod emit;
 pub mod host;
