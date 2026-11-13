@@ -30,19 +30,19 @@ limit of the run, not a field of the module, so that frame is not a
 node. A read of `fuel` outside the frame stays refused. Constant
 flags are memo cells, not folded constants, and those reads stay
 refused. `out` is in no whole-module set. The exact set global is 3.
-whole stays 2.
+whole is 6: 1 entry-only and 5 whose core contains a user function.
 
 programs	60
 floor	5
-semantic	0
-whole	2
+semantic	12
+whole	6
 whole-entry-only	1
-whole-with-user	1
+whole-with-user	5
 
 whole modules, top 10 by modules unblocked (one tag, or a pair)
 unblocks	set
 15	break
-15	round-trip
+11	round-trip
 8	lowering
 5	break,exit
 3	global
@@ -55,11 +55,11 @@ unblocks	set
 whole modules, every exact set
 modules	set
 15	break
-15	round-trip
+11	round-trip
 8	lowering
+6	clear
 5	break,exit
 3	global
-2	clear
 2	defect
 2	defect,exit,loop
 2	exit
@@ -73,15 +73,15 @@ modules	set
 program roots, every exact set
 modules	set
 17	break
-17	round-trip
+17	clear
 8	lowering
-5	clear
-2	defect
-2	defect,round-trip
+5	round-trip
+3	defect
 2	exit
 2	no-root
 1	break,defect
 1	break,round-trip
+1	defect,round-trip
 1	global
 1	global,loop
 1	loop
@@ -90,12 +90,12 @@ modules
 module	whole	roots	user	global-sites
 01_counter.rce	break	break	user	
 02_hello_main.rce	exit	exit	user	
-03_fib_loop.rce	round-trip	round-trip	user	
+03_fib_loop.rce	round-trip	clear	user	
 04_bank_account.rce	break	break	user	
 05_kind_match.rce	break	break	user	
 06_option.rce	break,defect	break,defect	user	
 07_error_union.rce	defect,exit,loop	defect	user	
-08_traits.rce	round-trip	round-trip	user	
+08_traits.rce	clear	clear	user	
 09_generics.rce	clear	no-root	entry-only	
 10_comptime.rce	global	round-trip	user	entry: global: g6 is not part of the working context ω holds
 11_arena.rce	round-trip	round-trip	user	
@@ -105,15 +105,15 @@ module	whole	roots	user	global-sites
 15_actor.rce	lowering	lowering	lowering	not covered by the lowering: the type chan i64
 16_multi_region.rce	break,exit	break	user	
 17_traffic_light.rce	break	break	user	
-18_while_bound.rce	round-trip	round-trip	user	
+18_while_bound.rce	clear	clear	user	
 19_floats.rce	break	round-trip	user	
 20_strings.rce	defect,exit,loop	defect	user	
-21_maps.rce	exit	round-trip	user	
-22_tuples.rce	defect	defect,round-trip	user	
+21_maps.rce	exit	clear	user	
+22_tuples.rce	defect	defect	user	
 23_patterns.rce	break	break	user	
-24_lambda.rce	round-trip	round-trip	user	
-25_labels.rce	round-trip	round-trip	user	
-27_bitops.rce	round-trip	round-trip	user	
+24_lambda.rce	clear	clear	user	
+25_labels.rce	round-trip	clear	user	
+27_bitops.rce	clear	clear	user	
 28_slices.rce	round-trip	round-trip	user	
 29_nested_kind.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
 30_state_machine_guarded.rce	break	break	user	
@@ -122,20 +122,20 @@ module	whole	roots	user	global-sites
 33_in_operator.rce	defect	defect,round-trip	user	
 34_chan_types.rce	lowering	lowering	lowering	not covered by the lowering: the type chan (u64, text)
 35_nested_if.rce	clear	clear	user	
-36_multiline_brackets.rce	round-trip	round-trip	user	
+36_multiline_brackets.rce	round-trip	clear	user	
 37_actor_spawn.rce	lowering	lowering	lowering	not covered by the lowering: the type chan u64
 38_hex_bin.rce	break	no-root	entry-only	
 39_structural_recursion.rce	lowering	lowering	lowering	not covered by the lowering: a recursive type
 40_extern.rce	round-trip	clear	user	
 41_arena_bound_wrapping.rce	round-trip	round-trip	user	
 42_f32.rce	bound,break	clear	user	
-43_simd_lanes.rce	round-trip	round-trip	user	
+43_simd_lanes.rce	round-trip	clear	user	
 44_device_region.rce	break	break	user	
-45_byte_text.rce	exit,global	round-trip	user	check 7: global: g3 is not part of the working context ω holds
-46_u64.rce	global	round-trip	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds
+45_byte_text.rce	exit,global	clear	user	check 7: global: g3 is not part of the working context ω holds
+46_u64.rce	global	clear	user	check 10: global: g3 is not part of the working context ω holds | check 14: global: g3 is not part of the working context ω holds | check 7: global: g3 is not part of the working context ω holds | check 8: global: g3 is not part of the working context ω holds | check 9: global: g3 is not part of the working context ω holds
 47_select_fair.rce	lowering	lowering	lowering	not covered by the lowering: the type chan u64
 48_linear_handle.rce	round-trip	clear	user	
-49_loop_limit.rce	round-trip	round-trip	user	
+49_loop_limit.rce	round-trip	clear	user	
 50_iterators.rce	global,loop	global,loop	user	check 27: global: g3 is not part of the working context ω holds | entry: global: g3 is not part of the working context ω holds | gen iter evens(int{u64}[0, 18446744073709551615]): global: g3 is not part of the working context ω holds | gen iter naturals(): global: g3 is not part of the working context ω holds
 51_refined_input.rce	break,defect,exit	break	user	
 52_context_text.rce	break,exit	break	user	

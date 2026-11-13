@@ -576,6 +576,26 @@ impl Built {
         Ok(s)
     }
 
+    /// The source of a `let` or `var` initial.
+    ///
+    /// A literal already built in this region is that node. A capture of the
+    /// same bits is not: it is the parent's value, often the dummy initial of
+    /// a branch output. This binding is a different value. Sharing them would
+    /// move the arm's empty text onto the parent's dummy, and the schedule
+    /// would not read back as the same form. An operand still shares a
+    /// capture, so a domain test and the operation it guards stay one value.
+    fn bind_atom(&self, sc: &mut Scope, a: &Atom) -> Result<Src, Change> {
+        let Atom::K(t, l) = a else {
+            return self.src_atom(sc, a);
+        };
+        if let Some(s) = lit_in_region(sc, t, l) {
+            return Ok(s);
+        }
+        let s = self.lit_node(sc, t, l)?;
+        sc.lits.push((t.clone(), l.clone(), s));
+        Ok(s)
+    }
+
     /// A value of `t` the test of a loop overwrites before the body reads it.
     /// The body receives the test's output, so this initial is not an operand
     /// of the computation. An owned initial is dropped when the test's result
@@ -1121,13 +1141,13 @@ impl Built {
             match s {
                 Stmt::Let(a) => {
                     let local = self.stmt_local(s);
-                    let src = self.src_atom(sc, a)?;
+                    let src = self.bind_atom(sc, a)?;
                     sc.env.insert(local, src);
                     i += 1;
                 }
                 Stmt::Var(_, a) => {
                     let local = self.stmt_local(s);
-                    let src = self.src_atom(sc, a)?;
+                    let src = self.bind_atom(sc, a)?;
                     sc.env.insert(local, src);
                     i += 1;
                 }
