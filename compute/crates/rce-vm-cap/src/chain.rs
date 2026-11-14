@@ -213,11 +213,12 @@ mod serde_bytes_64 {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand_core::OsRng;
+    use getrandom::SysRng;
+    use rand_core::UnwrapErr;
 
     #[test]
     fn round_trip_single_link_chain() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let issuer = SigningKey::generate(&mut rng);
         let subject = SigningKey::generate(&mut rng);
         let d = Delegation::sign_new(
@@ -235,7 +236,7 @@ mod tests {
 
     #[test]
     fn detects_chain_break() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let issuer = SigningKey::generate(&mut rng);
         let alice = SigningKey::generate(&mut rng);
         let _bob = SigningKey::generate(&mut rng);
@@ -264,7 +265,7 @@ mod tests {
 
     #[test]
     fn detects_effect_escalation() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let issuer = SigningKey::generate(&mut rng);
         let alice = SigningKey::generate(&mut rng);
         let bob = SigningKey::generate(&mut rng);
@@ -291,7 +292,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_root() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let real_issuer = SigningKey::generate(&mut rng);
         let attacker = SigningKey::generate(&mut rng);
         let alice = SigningKey::generate(&mut rng);
@@ -310,7 +311,7 @@ mod tests {
 
     #[test]
     fn rejects_expired() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let issuer = SigningKey::generate(&mut rng);
         let alice = SigningKey::generate(&mut rng);
         let d = Delegation::sign_new(

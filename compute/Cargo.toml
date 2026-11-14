@@ -108,7 +108,7 @@ exclude = ["crates/rce-vjepa"]
 [workspace.package]
 version      = "0.1.0"
 edition      = "2024"
-rust-version = "1.96"
+rust-version = "1.97"
 license      = "MIT OR Apache-2.0"
 repository   = "https://github.com/openIE-dev/rce"
 
@@ -213,12 +213,12 @@ rce-zaya1                    = { version = "0.1.0", path = "crates/rce-zaya1" }
 rce-graph                      = { version = "0.1.0", path = "crates/rce-graph" }
 anyhow    = "1"
 axum        = { version = "0.8", features = ["macros", "ws", "multipart"] }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-server = { version = "0.9", features = ["tls-rustls"] }
 blake3  = "1"
 bytemuck = { version = "1.25", features = ["derive"] }
 ciborium   = "0.2"
 clap = { version = "4", features = ["derive"] }
-ed25519-dalek   = { version = "2", features = ["serde", "rand_core"] }
+ed25519-dalek   = { version = "3", features = ["serde", "rand_core"] }
 futures           = "0.3"
 half     = { version = "2", features = ["serde"] }
 image = "0.25"
@@ -226,7 +226,7 @@ matrixmultiply = "0.3"
 memmap2 = "0.9"
 metal   = "0.33"
 ort          = { version = "=2.0.0-rc.11", default-features = false }
-pollster = "0.4"
+pollster = "1.0"
 prost       = "0.14"
 rayon       = "1"
 rcgen   = "0.14"
@@ -240,7 +240,7 @@ serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile  = "3"
 thiserror = "2"
-tokenizers              = { version = "0.22", default-features = false, features = ["onig"] }
+tokenizers              = { version = "0.23", default-features = false, features = ["onig"] }
 tokio = { version = "1", features = [
     "rt-multi-thread", "macros", "sync", "io-util",
     "fs", "signal", "time", "net", "process",
@@ -250,7 +250,10 @@ tonic-prost-build = "0.14"
 tower       = { version = "0.5", features = ["full"] }
 tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-wasmtime        = "43"
+wasmtime        = "50"
+# Held at 29 (2026-11-13): with wgpu 30, rce-vm-backend-wgpu's debug tests crash
+# (SIGSEGV in libvulkan) in 8 of 30 runs on lavapipe when the Khronos validation
+# layer is loaded; 0 of 25 on 29, 0 of 30 on 30 with the layer disabled.
 wgpu     = "29.0"
 regex = "1"
 proptest = "1"

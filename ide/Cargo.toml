@@ -38,8 +38,8 @@ ide-energy = { path = "../compute/crates/rce-energy", package = "rce-energy" }
 rce-mcp = { path = "crates/rce-mcp" }
 mei-machine = { path = "crates/mei-machine" }
 # Pure-Rust TLS: rustls with the RustCrypto provider (no ring, no aws-lc, no cc).
-ureq = { version = "3.4.2", default-features = false, features = ["json", "rustls-no-provider", "rustls-webpki-roots"] }
-rustls-rustcrypto = "0.0.2-alpha"
+ureq = { version = "3.5.2", default-features = false, features = ["json", "rustls-no-provider", "rustls-webpki-roots"] }
+rustls-rustcrypto = "0.1.0-pre.0"
 wasmi = "2.0.0"
 wasmi_wasi = "2.0.0"
 wiggle = { version = "=36.0.17", default-features = false }

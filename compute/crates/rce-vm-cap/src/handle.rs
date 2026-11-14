@@ -4,7 +4,8 @@
 //! binding or via delegation. Passed across wires (as `Value::Capability(_)`)
 //! to flow authority through a graph without re-resolving the cap table.
 
-use rand_core::{OsRng, RngCore};
+use getrandom::SysRng;
+use rand_core::{Rng, UnwrapErr};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -13,7 +14,7 @@ pub struct CapabilityHandle(pub [u8; 16]);
 impl CapabilityHandle {
     pub fn new_random() -> Self {
         let mut bytes = [0u8; 16];
-        OsRng.fill_bytes(&mut bytes);
+        UnwrapErr(SysRng).fill_bytes(&mut bytes);
         Self(bytes)
     }
 

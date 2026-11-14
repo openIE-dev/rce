@@ -1,6 +1,6 @@
 # rce-ide: the RCE IDE agent layer (steps 1 to 3)
 
-Rust only, toolchain 1.98.1. The checker, language server and receipt and energy crates make no model call and no network call. Three crates can: `mei-agent` has HTTP clients for System-One and OpenAI-compatible chat endpoints, `rce-mcp` has a loopback HTTP transport, and `ide-sandbox` has a network proxy behind permission prompts. `acp-client` runs outside coding agents under a jail. Whether any model is called depends on what the user configures, and every proposal still goes through `rce check` before it is accepted.
+Rust only, toolchain 1.100.0. The checker, language server and receipt and energy crates make no model call and no network call. Three crates can: `mei-agent` has HTTP clients for System-One and OpenAI-compatible chat endpoints, `rce-mcp` has a loopback HTTP transport, and `ide-sandbox` has a network proxy behind permission prompts. `acp-client` runs outside coding agents under a jail. Whether any model is called depends on what the user configures, and every proposal still goes through `rce check` before it is accepted.
 
 ## At a glance
 
@@ -119,7 +119,7 @@ the rule cited, and no test runs: D.11 gives a figure without a provenance
 no label, since it is not a reading and not a model of the work either.
 `measured`, `reported` and `measure` are exclusive.
 
-Build from source (Rust 1.98.1, read from `rust-toolchain.toml`):
+Build from source (Rust 1.100.0, read from `rust-toolchain.toml`):
 
 ```sh
 git clone https://github.com/openIE-dev/rce
