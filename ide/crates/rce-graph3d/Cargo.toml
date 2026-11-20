@@ -20,7 +20,7 @@ serde_json.workspace = true
 rce-memory = { path = "../rce-memory", optional = true }
 ide-receipt = { workspace = true, optional = true }
 ide-energy = { workspace = true, optional = true }
-wgpu = { version = "30.0.1", optional = true }
+wgpu = { version = "30.0.2", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]

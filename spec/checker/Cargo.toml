@@ -33,7 +33,7 @@ wat = "=1.262.0"
 # TLS between hosts (P4): TLS 1.3, mutual, pinned Ed25519 keys, no CA; ring
 # as the one crypto provider (no C toolchain beyond what ring needs)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
-rcgen = { version = "0.13", default-features = false, features = ["ring", "crypto"] }
+rcgen = { version = "0.14", default-features = false, features = ["ring", "crypto"] }
 ring = "0.17"
 # The graph term of the core (spec 6.13): RCE's FunctionGraph, its `.fg`
 # content hash, and the CPU backend that evaluates it as the reference.
