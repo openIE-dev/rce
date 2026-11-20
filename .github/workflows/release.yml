@@ -19,8 +19,8 @@ permissions:
   packages: write
 
 concurrency:
-  group: release
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
