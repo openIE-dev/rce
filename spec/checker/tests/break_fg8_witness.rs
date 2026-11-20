@@ -1573,7 +1573,9 @@ fn block_if_loop_distinguishes_depth_from_residual() {
 
 /// `catch` packs an owned sum. The handler builds its own value and does not
 /// read that sum; the success arm does. Both paths have to finish with the
-/// sum dead, and `construct(schedule(F))` stays `F`.
+/// sum dead. The byte check is the small catch below: `construct(schedule(F))`
+/// stays `F`. `22_tuples.rce` is tagged `round-trip` in the census, and this
+/// test does not assert the bytes of `fn use_it`.
 #[test]
 fn a_catch_handler_that_does_not_read_the_sum_round_trips() {
     let src = r#"
@@ -1609,8 +1611,9 @@ fn take() -> i64
 
     // `22_tuples.rce`'s `fn use_it` is this shape: `(q, r) = divmod(17, 5) catch (0, 0)`.
     // The schedule used to fail W3 because the handler left the sum live and the
-    // unreachable tag arm dropped it. It now schedules. The bytes still differ
-    // because `fn divmod`, which the closure calls, already did.
+    // unreachable tag arm dropped it. It now schedules, and the scheduled core
+    // returns 5. The census tags the file `round-trip`. This test does not
+    // assert its bytes: the closure includes `fn divmod`, whose bytes already differ.
     let m = load_example("22_tuples.rce");
     let use_it = bridge::closure(&m, "fn use_it").expect("fn use_it");
     let form = bridge::construct(&use_it).unwrap_or_else(|e| panic!("{}", e.line()));
