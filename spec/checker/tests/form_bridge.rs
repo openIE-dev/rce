@@ -1253,7 +1253,7 @@ fn whole_census(
         "limit of the run, not a field of the module, so that frame is not a".to_string(),
         "node. A read of `fuel` outside the frame stays refused. Constant".to_string(),
         "flags are memo cells, not folded constants, and those reads stay".to_string(),
-        "refused. `out` is in no whole-module set. The exact set global is 2.".to_string(),
+        "refused. `out` is in no whole-module set. The exact set global is 3.".to_string(),
         "whole stays 2.".to_string(),
         String::new(),
         format!("programs\t{programs}"),
@@ -2098,17 +2098,50 @@ fn bare_tuple_singleton_unpacks_to_the_pair() {
 }
 
 #[test]
-fn list_and_array_singletons_have_no_dummy() {
+fn list_singleton_starts_empty_and_array_has_no_dummy() {
+    // The initial list is `list.new`. Both arms that run drop it and store
+    // the real sum. An array still has no dummy in this slice.
     let list = Ty::List(Box::new(i64ty()));
-    match bridge::catch_boundary_for(bridge::CatchPack::Singleton, &list, 0) {
-        Err(err) => assert!(err.contains("list"), "{err}"),
-        Ok(_) => panic!("a list singleton was given a dummy"),
+    let b = bridge::catch_boundary_for(bridge::CatchPack::Singleton, &list, 0)
+        .unwrap_or_else(|e| panic!("list singleton: {e}"));
+    fn walk(stmts: &[Stmt], news: &mut usize, sets: &mut usize, wrapped: u32) {
+        for s in stmts {
+            match s {
+                Stmt::Prim(p, _, _) if p == "list.new" => *news += 1,
+                Stmt::Set(Place::V(v), _) if *v == wrapped => *sets += 1,
+                Stmt::If(_, t, e) => {
+                    walk(t, news, sets, wrapped);
+                    walk(e, news, sets, wrapped);
+                }
+                Stmt::Block(x) | Stmt::Loop(x) => walk(x, news, sets, wrapped),
+                _ => {}
+            }
+        }
     }
+    let (mut news, mut sets) = (0, 0);
+    walk(&b.stmts, &mut news, &mut sets, b.wrapped);
+    assert_eq!(news, 1, "the boundary builds one empty list: {:?}", b.stmts);
+    assert!(sets >= 2, "both arms that run replace the initial sum: {:?}", b.stmts);
     let arr = Ty::Arr(Box::new(i64ty()));
     match bridge::catch_boundary_for(bridge::CatchPack::Singleton, &arr, 0) {
         Err(err) => assert!(err.contains("array"), "{err}"),
         Ok(_) => panic!("an array singleton was given a dummy"),
     }
+}
+
+#[test]
+fn list_singleton_catch_round_trips() {
+    let list = Ty::List(Box::new(i64ty()));
+    let callee = callee_fn(list.clone(), vec![
+        Stmt::Prim("list.new".into(), vec![i64ty()], vec![]),
+        Stmt::Prim("list.push".into(), vec![i64ty()], vec![Atom::V(0), i64_lit(9)]),
+        Stmt::Ret(Atom::V(1)),
+    ]);
+    let (original, form_v, core_v) = round_trip_catch(callee);
+    let want = Val::Sum(0, Box::new(Val::Tup(vec![Val::List(vec![Val::Int(9)])])));
+    assert_eq!(original.as_ref().unwrap(), &want, "{original:?}");
+    assert_eq!(form_v.as_ref().unwrap(), &want, "{form_v:?}");
+    assert_eq!(core_v.as_ref().unwrap(), &want, "{core_v:?}");
 }
 
 fn i64b() -> fir::BTy {
