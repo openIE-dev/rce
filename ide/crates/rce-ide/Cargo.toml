@@ -23,10 +23,10 @@ serde_json.workspace = true
 hex.workspace = true
 ide-receipt.workspace = true
 rce_spec_check.workspace = true
-wgpu = { version = "30.0.1", optional = true }
+wgpu = { version = "30.0.2", optional = true }
 winit = { version = "0.30", default-features = false, features = ["x11", "rwh_06"], optional = true }
-parley = { version = "0.12.0", optional = true }
-fontique = { version = "0.12.0", features = ["fontconfig-dlopen"], optional = true }
+parley = { version = "0.13.0", optional = true }
+fontique = { version = "0.13.0", features = ["fontconfig-dlopen"], optional = true }
 swash = { version = "0.2", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 ropey = "1.6.1"
@@ -42,16 +42,16 @@ getrandom.workspace = true
 rce-memory = { path = "../rce-memory" }
 ide-sandbox = { path = "../ide-sandbox" }
 pollster = "1.0.1"
-arboard = { version = "3.6.1", default-features = false }
+arboard = { version = "3.7.0", default-features = false }
 rce-graph3d = { path = "../rce-graph3d", features = ["gpu", "native"], optional = true }
 
 # Browser: WebGPU through wgpu, a canvas through winit.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # WebGL2 fallback for browsers without WebGPU (glow; pure Rust).
-wgpu = { version = "30.0.1", features = ["webgl"], optional = true }
-wasm-bindgen = "0.2.129"
-wasm-bindgen-futures = "0.4.79"
-web-sys = { version = "0.3.106", features = ["Document", "Window", "Element", "HtmlCanvasElement", "console"] }
+wgpu = { version = "30.0.2", features = ["webgl"], optional = true }
+wasm-bindgen = "0.2.130"
+wasm-bindgen-futures = "0.4.80"
+web-sys = { version = "0.3.107", features = ["Document", "Window", "Element", "HtmlCanvasElement", "console"] }
 getrandom = { workspace = true, features = ["wasm_js"] }
 # rce-spec-check links ring (TLS between hosts, manifest signatures). On
 # wasm32-unknown-unknown ring has a random source only with this feature,

@@ -19,7 +19,7 @@ thiserror.workspace = true
 ide-receipt.workspace = true
 ide-energy.workspace = true
 rce_spec_check.workspace = true
-redb = "4.3.0"
+redb = "4.6.0"
 serde_norway = "0.9.42"
 
 [dev-dependencies]
