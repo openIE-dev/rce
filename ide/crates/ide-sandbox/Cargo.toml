@@ -16,10 +16,10 @@ wasmi.workspace = true
 wasmi_wasi.workspace = true
 wiggle.workspace = true
 ide-energy.workspace = true
-rustls = { version = "0.23.45", default-features = false, features = ["std", "tls12"] }
+rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12"] }
 rustls-graviola = "0.4.0"
-webpki-roots = "1.0.9"
-rustls-pki-types = "1.15.1"
+webpki-roots = "1.0.12"
+rustls-pki-types = "1.16.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock.workspace = true
@@ -28,6 +28,6 @@ libc = "0.2"
 
 [dev-dependencies]
 ide-receipt.workspace = true
-wat = "1.261.0"
+wat = "1.262.0"
 tempfile.workspace = true
-rustls = { version = "0.23.45", default-features = false, features = ["std"] }
+rustls = { version = "0.23.46", default-features = false, features = ["std"] }

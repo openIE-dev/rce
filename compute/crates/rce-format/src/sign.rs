@@ -98,11 +98,12 @@ impl Signatures {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_core::OsRng;
+    use getrandom::SysRng;
+    use rand_core::UnwrapErr;
 
     #[test]
     fn sign_and_verify_roundtrip() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let signing = SigningKey::generate(&mut rng);
         let content_hash = [0x42u8; 32];
         let mut sigs = Signatures::default();
@@ -112,7 +113,7 @@ mod tests {
 
     #[test]
     fn detects_tamper() {
-        let mut rng = OsRng;
+        let mut rng = UnwrapErr(SysRng);
         let signing = SigningKey::generate(&mut rng);
         let content_hash = [0x42u8; 32];
         let bad_hash = [0x99u8; 32];
