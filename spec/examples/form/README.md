@@ -27,6 +27,8 @@ canonical rules C1 to C11 and the gate rules FG1 to FG15 of
 | `types` | a declared record and kind (C8), an option field, a payload, an emitted float | applied |
 | `group` | `even` and `odd` as one recursive group with declared bounds (C9, FG8) | applied |
 | `loops` | Iterate with a measure and with a count bound, `list.get` under DF5, `sum.get` under DF4, a memo cell (FG6, FG8) | applied |
+| `count-order` | a count-bounded Iterate whose test and body only pass `order` through; C7 keeps that carried order (erratum of 2026-11-13) | applied |
+| `count-order-stripped` | the same count with that carried order removed, the bytes the old rule produced | requires change under FG7 |
 | `counter-c1`, `-c3` … `-c7`, `-c10`, `-c11`, `types-c8`, `group-c9` | each breaks one canonical rule | requires change under FG1 (C1, C10) or FG3 (the others) |
 | `counter-fg1` … `-fg13`, `types-fg12`, `types-fg14`, `group-fg8`, `counter.wrong-vectors` | each breaks one gate rule | requires change under that rule |
 | `cycle` | a region whose node reads its own output | requires change under FG4 (below) |

@@ -2442,15 +2442,14 @@ impl Built {
         // test's value (the Iterate passes the test's outputs to the body).
         self.seed_flow(sc, test_stmts, rest, &[])?;
         let vars = carried_vars(sc, &[test_stmts, rest]);
-        let thread = (sc.omega.is_some() || parent_omega.is_some())
-            && (self.stmts_need_order(test_stmts)
-                || self.stmts_need_order(rest)
-                || sc.omega.is_some());
-        // A count Iterate may halt, so it has no applied form unless a region
-        // actually consumes ω (C7 drops a carried ω that is only passed through).
-        if !thread {
+        // A count may halt, so it carries order whenever the enclosing
+        // region has one. C7 keeps that order when neither region uses it
+        // (erratum 2026-11-13). The old refusal here blamed that removal.
+        // It is false when an order is in scope. When none is, the region
+        // still has no order to carry; that is the message below, not C7.
+        if sc.omega.is_none() && parent_omega.is_none() {
             return Err(self.deny(
-                "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
+                "omega: a count-bounded Iterate may halt, and this region has no ω to carry",
             ));
         }
         let mut test = self.open_region(sc, parent_omega, &vars, true)?;
@@ -2468,19 +2467,12 @@ impl Built {
         };
         let mut bod = self.open_region(sc, parent_omega, &vars, true)?;
         let bw = bod.omega;
-        // A body break that names this loop is the flag. A pure count still
-        // has no applied form: the flag is a bool and is not a use of ω (O8).
+        // A body break that names this loop is the flag. The flag is a
+        // bool and is not a use of ω. The count still carries order, and
+        // C7 keeps that order when neither region uses it (erratum 2026-11-13).
         let bflag = self.exec_body(rest, &mut bod, bw, ret_ty, brk)?;
         if let Some(r) = bod.exit_residual {
             sc.exit_residual = Some(r);
-        }
-        if !region_uses_order(&test) && !region_uses_order(&bod) {
-            // The body may have been read as a flag. A pure count is still
-            // outside Dom, so that reading is not an admission (O8).
-            BODY_BREAK.with(|c| c.set(false));
-            return Err(self.deny(
-                "bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form",
-            ));
         }
         let test_b = Body {
             nodes: std::mem::take(&mut test.nodes),
@@ -2765,23 +2757,10 @@ impl Built {
         let mut bod = build_region(mid_body, &parts.flag1, &parts.sets1)?;
         lose_outputs(sc, &test);
         lose_outputs(sc, &bod);
+        // Both regions are given order together when the enclosing region
+        // has one, so a count does not reach a state where only one region
+        // carries it. The refusal for a count with no order at all is below.
         let thread = test.omega.is_some() || bod.omega.is_some() || sc.omega.is_some();
-        if thread {
-            for region in [&mut test, &mut bod] {
-                if region.omega.is_none() {
-                    let p = sc
-                        .omega
-                        .or(parent_omega)
-                        .ok_or_else(|| self.deny("defect: a loop region has no ω"))?;
-                    // inputs were built without ω; refuse rather than renumber
-                    if !region.caps.is_empty() || !region.nodes.is_empty() {
-                        return Err(self.deny("bound: a count-bounded Iterate must carry ω, and this loop's regions do not both receive it"));
-                    }
-                    region.caps.insert(0, p);
-                    region.omega = Some(Src::In(0));
-                }
-            }
-        }
         let omega_used = |region: &Scope| -> bool {
             let Some(Src::In(0)) = region.omega else {
                 return region.omega.is_some();
@@ -2796,8 +2775,18 @@ impl Built {
             }
             touch(&region.nodes, Src::In(0)) || region.omega != Some(Src::In(0))
         };
-        if count.is_some() && !omega_used(&test) && !omega_used(&bod) {
-            return Err(self.deny("bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form"));
+        // Both regions may only pass order through. C7 keeps that carried
+        // order on a count (erratum 2026-11-13), so the old refusal is
+        // false in that case. A count whose regions were not given an
+        // order still has none to carry.
+        if count.is_some()
+            && !omega_used(&test)
+            && !omega_used(&bod)
+            && (test.omega.is_none() || bod.omega.is_none())
+        {
+            return Err(self.deny(
+                "omega: a count-bounded Iterate may halt, and this region has no ω to carry",
+            ));
         }
         let finish = |region: &mut Scope, sets: &[(u32, Atom)]| -> Result<Body, Change> {
             if let Some(h) = region.env.get(&u32::MAX).copied() {
@@ -2839,13 +2828,12 @@ impl Built {
                 out,
             })
         };
-        // Recompute outs with a consistent ω bit.
+        // A count whose regions were given order carries it even when
+        // neither region uses it (erratum 2026-11-13). A count with no
+        // order was already refused above.
         let use_w = test.omega.is_some()
             && bod.omega.is_some()
             && (count.is_some() || omega_used(&test) || omega_used(&bod));
-        if count.is_some() && !use_w {
-            return Err(self.deny("bound: a count-bounded Iterate must carry ω, and C7 removes a carried ω that neither region uses, so this pure count loop has no applied form"));
-        }
         let mut carried_ty = vec![];
         if use_w {
             carried_ty.push(BTy::Order);
@@ -3201,11 +3189,6 @@ fn lit_bool(region: &mut Scope, v: bool) -> Src {
 fn bool_not(region: &mut Scope, s: Src) -> Src {
     let i = region.push(Attr::Prim("bool.not".into(), vec![], None), vec![s], vec![]);
     Src::Out(i, 0)
-}
-
-fn region_uses_order(region: &Scope) -> bool {
-    matches!(region.omega, Some(Src::Out(..)))
-        || region.nodes.iter().any(|n| n.ins.contains(&Src::In(0)))
 }
 
 fn region_outs(
