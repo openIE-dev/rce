@@ -184,6 +184,44 @@ fn break_or_fall(take: bool) -> ir::Fn {
     b.finish()
 }
 
+/// Three blocks and no `if`. The break is the whole of the inner block, so
+/// a tail between the blocks would follow a block that `break d` for `d > 0`
+/// cannot complete (W2). The value is 4, then 6 after the nest. The `br`
+/// index is `d`: no structural label intervenes.
+fn blocks_only(d: u32) -> ir::Fn {
+    let mut b = B::new();
+    let r = b.var(0);
+    b.block(|b| {
+        b.block(|b| {
+            b.block(|b| {
+                b.set(r, lit(4));
+                b.brk(d);
+            });
+        });
+    });
+    b.add_to(r, 6);
+    b.ret(r);
+    b.finish()
+}
+
+/// Two `if`s around `break d`, then two blocks. The `if`s do not change `d`.
+fn if_around_break(d: u32) -> ir::Fn {
+    let mut b = B::new();
+    let r = b.var(0);
+    b.block(|b| {
+        b.block(|b| {
+            b.when(Atom::bool(true), |b| {
+                b.when(Atom::bool(true), |b| b.brk(d));
+            });
+            b.add_to(r, 1);
+        });
+        b.add_to(r, 10);
+    });
+    b.add_to(r, 100);
+    b.ret(r);
+    b.finish()
+}
+
 /// Three blocks. `break d` adds 4, 5 and 6 only for the tails that run.
 fn depths(d: u32) -> ir::Fn {
     let mut b = B::new();
@@ -331,6 +369,111 @@ fn br_depth_follows_the_residual_law() {
         only_if.contains("names no enclosing block or loop"),
         "{only_if}"
     );
+}
+
+fn depth(labels: &[Label], residual: u32) -> u32 {
+    wasm_break::br_label(labels, Residual::at_break(residual))
+        .unwrap()
+        .get()
+}
+
+/// `one/eval.rs` returns the control of an `if` unchanged. `Block` and `Loop`
+/// are what map `Break(0)` to `Next` and `Break(d)` to `Break(d - 1)`.
+/// `Break.lean` states the same: `stepExit .ite d = some d`.
+#[test]
+fn an_if_never_decrements_the_carried_residual_count() {
+    // Residual 0 still names the nearest block after any number of `if`s.
+    // Residual 1 still names the block after that one. The `if`s add wasm
+    // labels and do not consume the count.
+    assert_eq!(depth(&[Label::Block], 0), 0);
+    assert_eq!(depth(&[Label::If, Label::Block], 0), 1);
+    assert_eq!(depth(&[Label::If, Label::If, Label::Block], 0), 2);
+    assert_eq!(depth(&[Label::Block, Label::Block], 1), 1);
+    assert_eq!(
+        depth(&[Label::If, Label::If, Label::Block, Label::Block], 1),
+        3
+    );
+    for d in 0..4 {
+        let err = wasm_break::br_label(&[Label::If, Label::If], Residual::at_break(d)).unwrap_err();
+        assert!(err.contains("names no enclosing block or loop"), "{err}");
+    }
+    // `break 0` inside two `if`s is still 0 at the inner block, so that
+    // block's tail does not run and the outer tail does: 10 + 100. A decrement
+    // on either `if` would also run the inner tail.
+    let kept0 = agree("if keeps break 0", if_around_break(0), &[(0, 2)]);
+    assert_eq!(kept0, 110);
+    // `break 1` is still 1 at the inner block. That block decrements it and
+    // the outer block consumes 0, so neither block tail runs: 100. One
+    // decrement on an `if` would let the outer tail add 10.
+    let kept1 = agree("if keeps break 1", if_around_break(1), &[(1, 3)]);
+    assert_eq!(kept1, 100);
+}
+
+/// The `br` index equals the residual count when the target contains no `if`
+/// and no loop-restart label. Each of those labels adds one. `eval.rs` does
+/// not count an `if`, and a wasm `if` is a branch target, so the two numbers
+/// differ whenever such a label intervenes.
+#[test]
+fn br_depth_is_the_residual_count_plus_intervening_structural_labels() {
+    assert_eq!(depth(&[Label::Block], 0), 0);
+    assert_eq!(depth(&[Label::Block, Label::Block], 1), 1);
+    assert_eq!(depth(&[Label::Block, Label::Block, Label::Block], 2), 2);
+    assert_eq!(depth(&[Label::If, Label::Block], 0), 0 + 1);
+    assert_eq!(
+        depth(&[Label::If, Label::If, Label::If, Label::Block], 0),
+        0 + 3
+    );
+    assert_eq!(depth(&[Label::LoopRestart, Label::LoopExit], 0), 0 + 1);
+    assert_eq!(
+        depth(&[Label::If, Label::LoopRestart, Label::LoopExit], 0),
+        0 + 2
+    );
+    assert_eq!(
+        depth(
+            &[Label::If, Label::Block, Label::LoopRestart, Label::LoopExit],
+            1
+        ),
+        1 + 2
+    );
+
+    // One break. `structural` is the number of `if` and loop-restart labels
+    // inside the target. The emitted `br` is checked against `label`.
+    let emitted = [
+        ("blocks only, break 0", blocks_only(0), 10, 0, 0, 0),
+        ("blocks only, break 1", blocks_only(1), 10, 1, 1, 0),
+        ("blocks only, break 2", blocks_only(2), 10, 2, 2, 0),
+        ("ifs around break 0", if_around_break(0), 110, 0, 2, 2),
+        ("ifs around break 1", if_around_break(1), 100, 1, 3, 2),
+        ("bare block", bare_block(), 7, 0, 0, 0),
+        ("two ifs, break 0", depths(0), 15, 0, 2, 2),
+        ("two ifs, break 2", depths(2), 6, 2, 4, 2),
+    ];
+    assert_eq!(emitted.len(), 8);
+    for (name, func, want, residual, label, structural) in emitted {
+        let got = agree(name, func, &[(residual, label)]);
+        assert_eq!(got, want, "{name}");
+        if structural == 0 {
+            assert_eq!(label, residual, "{name}");
+        } else {
+            assert_eq!(label, residual + structural, "{name}");
+            assert_ne!(label, residual, "{name}");
+        }
+    }
+    // `break 0` in the block: residual 0 plus the `if`. `break 1`: residual 1
+    // plus that `if` and the loop's restart label.
+    let seen = agree("block in a loop", block_in_loop(), &[(0, 1), (1, 3)]);
+    assert_eq!(seen, 1);
+    assert_eq!(1, 0 + 1);
+    assert_eq!(3, 1 + 2);
+    assert_ne!(1, 0);
+    assert_ne!(3, 1);
+    // Three `if`s inside the block, then the loop's own `break 0`, whose only
+    // structural label is the restart.
+    let marked = agree("three ifs in a loop", ifs_inside_loop(), &[(0, 3), (0, 1)]);
+    assert_eq!(marked, 11);
+    assert_eq!(3, 0 + 3);
+    assert_eq!(1, 0 + 1);
+    assert_ne!(3, 0);
 }
 
 struct Case {

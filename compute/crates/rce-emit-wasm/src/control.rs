@@ -296,6 +296,61 @@ mod tests {
     }
 
     #[test]
+    fn an_if_never_decrements_the_carried_residual_count() {
+        // The block a residual names is the same block after any number of
+        // `if`s. An `if` is not a residual step, so residual 0 still selects
+        // the nearest block, and residual 1 still selects the block after that.
+        assert_eq!(
+            depth(&[Label::Block], 0),
+            depth(&[Label::If, Label::Block], 0) - 1
+        );
+        assert_eq!(
+            depth(&[Label::Block, Label::Block], 1),
+            depth(&[Label::If, Label::If, Label::Block, Label::Block], 1) - 2
+        );
+        assert_eq!(depth(&[Label::If, Label::Block], 0), 1);
+        assert_eq!(
+            depth(&[Label::If, Label::If, Label::Block, Label::Block], 1),
+            3
+        );
+        // An `if` alone is not a target, at any carried count.
+        for d in 0..4 {
+            let err = br_label(&[Label::If, Label::If], Residual::at_break(d)).unwrap_err();
+            assert!(err.contains("names no enclosing block or loop"), "{err}");
+        }
+    }
+
+    #[test]
+    fn br_depth_is_the_residual_count_plus_intervening_structural_labels() {
+        // No `if` and no loop-restart label inside the target: the `br`
+        // index is the residual count.
+        assert_eq!(depth(&[Label::Block], 0), 0);
+        assert_eq!(depth(&[Label::Block, Label::Block], 1), 1);
+        assert_eq!(depth(&[Label::Block, Label::Block, Label::Block], 2), 2);
+        // Each intervening `if` or loop restart adds one. The residual does not
+        // already include those labels.
+        assert_eq!(depth(&[Label::If, Label::Block], 0), 0 + 1);
+        assert_eq!(
+            depth(&[Label::If, Label::If, Label::If, Label::Block], 0),
+            0 + 3
+        );
+        assert_eq!(depth(&[Label::LoopRestart, Label::LoopExit], 0), 0 + 1);
+        assert_eq!(
+            depth(&[Label::If, Label::LoopRestart, Label::LoopExit], 0),
+            0 + 2
+        );
+        assert_eq!(
+            depth(
+                &[Label::If, Label::Block, Label::LoopRestart, Label::LoopExit],
+                1
+            ),
+            1 + 2
+        );
+        let with_if = depth(&[Label::If, Label::Block], 0);
+        assert_ne!(with_if, 0);
+    }
+
+    #[test]
     fn residual_zero_is_the_local_exit_and_an_if_adds_a_label() {
         assert_eq!(depth(&[Label::Block], 0), 0);
         assert_eq!(depth(&[Label::If, Label::Block], 0), 1);
