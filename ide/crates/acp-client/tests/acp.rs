@@ -20,25 +20,38 @@ fn rce_mcp() -> &'static Path {
     static P: OnceLock<PathBuf> = OnceLock::new();
     P.get_or_init(|| {
         let exe = std::env::current_exe().unwrap();
-        let profile_dir = exe.parent().unwrap().parent().unwrap().to_path_buf(); // target/debug
-        let target = profile_dir.parent().unwrap();
-        let st = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-            .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
-            .args([
-                "build",
-                "-q",
-                "-p",
-                "rce-mcp",
-                "--bin",
-                "rce-mcp",
-                "--target-dir",
-            ])
-            .arg(target)
-            .status()
-            .unwrap();
-        assert!(st.success());
-        profile_dir.join("rce-mcp")
+        // Cargo 1.100 writes an integration test under
+        // target/<profile>/build/<pkg>/<hash>/out, so two parents up is not
+        // target/<profile>. The profile directory is the ancestor whose
+        // parent contains Cargo's CACHEDIR.TAG.
+        let (profile_dir, target) = target_profile(&exe);
+        let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
+        cmd.current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
+            .args(["build", "-q", "-p", "rce-mcp", "--bin", "rce-mcp"]);
+        if profile_dir.file_name().and_then(|s| s.to_str()) == Some("release") {
+            cmd.arg("--release");
+        }
+        let st = cmd.arg("--target-dir").arg(&target).status().unwrap();
+        assert!(st.success(), "cargo build -p rce-mcp failed");
+        let bin = profile_dir.join("rce-mcp");
+        assert!(bin.is_file(), "rce-mcp missing at {}", bin.display());
+        bin
     })
+}
+
+/// `(target/<profile>, target)` for the running test executable.
+fn target_profile(exe: &Path) -> (PathBuf, PathBuf) {
+    let mut dir = exe.parent().expect("test executable has a parent").to_path_buf();
+    loop {
+        let Some(parent) = dir.parent() else { break };
+        if parent.join("CACHEDIR.TAG").is_file() {
+            return (dir, parent.to_path_buf());
+        }
+        dir = parent.to_path_buf();
+    }
+    let profile = exe.parent().unwrap().parent().unwrap().to_path_buf();
+    let target = profile.parent().unwrap().to_path_buf();
+    (profile, target)
 }
 
 struct Env {
