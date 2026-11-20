@@ -16,6 +16,13 @@
 //! [`BLOB_SLOT`]` + n`; the result in slot [`OUT_SLOT`]. A term's export
 //! `term_KEY` returns 0, or `(n + 1) << 8 | status` for the first node `n`
 //! that did not complete (statuses of `rce-wasm-kernels`).
+//!
+//! A graph term has no residual break. The `(if ...)` in its function is a
+//! kernel status check that returns, so it is not a `br` target that a
+//! break must count. [`control`] lowers a residual break, where an `if` is
+//! a wasm label and the residual law does not count it.
+
+pub mod control;
 
 use rce_graph::graph::{FunctionGraph, GraphNode, LiteralValue, OpKind};
 use rce_graph::term::{Level, TermTypes};
