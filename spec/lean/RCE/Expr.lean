@@ -56,7 +56,13 @@ def binop (op : BinOp) (t : Ty) (a b : Val) : Except Trap Val :=
   | .sub, .int lo hi, .int x, .int y => chk lo hi (x - y)
   | .mul, .int lo hi, .int x, .int y => chk lo hi (x * y)
   | .div, .int lo hi, .int x, .int y => if y = 0 then .error .divZero else chk lo hi (tdiv x y)
-  | .rem, .int lo hi, .int x, .int y => if y = 0 then .error .divZero else chk lo hi (trem x y)
+  -- N2: `%` checks the quotient before the remainder, so `i64.MIN % -1`
+  -- traps with overflow, the same as `i64.MIN / -1`.
+  | .rem, .int lo hi, .int x, .int y =>
+    if y = 0 then .error .divZero else
+    match chk lo hi (tdiv x y) with
+    | .error t => .error t
+    | .ok _ => chk lo hi (trem x y)
   | .lt, _, .int x, .int y => .ok (.bool (decide (x < y)))
   | .eq, _, x, y => .ok (.bool (decide (x = y)))
   | _, _, _, _ => .error .badIndex
@@ -239,11 +245,30 @@ theorem chk_ty {lo hi r v} (h : chk lo hi r = .ok v) : v.hasTy (.int lo hi) := b
 /-- Operators preserve types (each checked result lies in its range). -/
 theorem binop_ty {op ta t x y r} (ho : OpTy op ta t) (hx : x.hasTy ta) (hy : y.hasTy ta)
     (h : binop op ta x y = .ok r) : r.hasTy t := by
-  cases ho <;> cases x <;> cases y <;> simp [binop] at h <;> simp [Val.hasTy] at hx hy
-  all_goals first
-    | exact chk_ty h
-    | (cases h; simp [Val.hasTy])
-    | (split at h <;> first | cases h | exact chk_ty h)
+  cases ho with
+  | @rem lo hi =>
+    cases x with
+    | bool _ => simp [binop] at h
+    | int n1 =>
+      cases y with
+      | bool _ => simp [binop] at h
+      | int n =>
+        simp [Val.hasTy] at hx hy
+        by_cases hz : n = 0
+        · simp [binop, hz] at h
+        · simp only [binop] at h
+          rw [if_neg hz] at h
+          cases hc : chk lo hi (tdiv n1 n) with
+          | error _ => simp [hc] at h
+          | ok _ =>
+            simp [hc] at h
+            exact chk_ty h
+  | _ =>
+    cases x <;> cases y <;> simp [binop] at h <;> simp [Val.hasTy] at hx hy
+    all_goals first
+      | exact chk_ty h
+      | (cases h; simp [Val.hasTy])
+      | (split at h <;> first | cases h | exact chk_ty h)
 
 /-- **T5 Preservation** (expressions). -/
 theorem preservation {Γ E e e' t} (hE : WtEnv Γ E) (hs : Step E e e') (ht : HasTy Γ e t) :
@@ -375,5 +400,19 @@ theorem eval_ty {Γ E e t v} (hE : WtEnv Γ E) (ht : HasTy Γ e t) (h : eval E e
     · exact ihb h
     · cases h
     · cases h
+
+/-! N2: `i64.MIN / -1` and `i64.MIN % -1` both trap. The quotient
+    `9223372036854775808` is outside i64. -/
+def i64 : Ty := .int (-9223372036854775808) 9223372036854775807
+
+example : binop .div i64 (.int (-9223372036854775808)) (.int (-1)) = .error .overflow := by
+  rfl
+
+example : binop .rem i64 (.int (-9223372036854775808)) (.int (-1)) = .error .overflow := by
+  rfl
+
+/-- A remainder whose quotient is in range keeps the dividend's sign. -/
+example : binop .rem i64 (.int (-7)) (.int 2) = .ok (.int (-1)) := by
+  rfl
 
 end RCE

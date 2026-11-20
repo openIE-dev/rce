@@ -40,6 +40,11 @@ namespace RCE.Core
 private abbrev i8 : Ty := .int (-128) 127
 private abbrev u8' : Ty := .int 0 255
 example : eval [] 10 [] (.bin .rem i8 (.lit (.int (-128))) (.lit (.int (-1)))) = .err (.overflow 128 (-128) 127) := by decide
+private abbrev i64 : Ty := .int (-9223372036854775808) 9223372036854775807
+example : eval [] 10 [] (.bin .div i64 (.lit (.int (-9223372036854775808))) (.lit (.int (-1)))) = .err (.overflow 9223372036854775808 (-9223372036854775808) 9223372036854775807) := by
+  rfl
+example : eval [] 10 [] (.bin .rem i64 (.lit (.int (-9223372036854775808))) (.lit (.int (-1)))) = .err (.overflow 9223372036854775808 (-9223372036854775808) 9223372036854775807) := by
+  rfl
 example : eval [] 10 [] (.bin .band i8 (.lit (.int (-6))) (.lit (.int 13))) = .ok (.int 8) := by decide
 example : eval [] 10 [] (.bin .bor i8 (.lit (.int (-6))) (.lit (.int 13))) = .ok (.int (-1)) := by decide
 example : eval [] 10 [] (.bin .bxor i8 (.lit (.int (-6))) (.lit (.int 13))) = .ok (.int (-9)) := by decide
