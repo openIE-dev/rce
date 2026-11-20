@@ -12,8 +12,9 @@
 //! Branching to a `loop` restarts it, so a loop is emitted as an exit
 //! `block` around a `loop`. The exit block is the one residual step for
 //! that loop. The restart label is wasm structure only, as an `if` is.
-//! The `br` immediate is the number of wasm labels from the break out to
-//! its residual target, including that target's label.
+//! The `br` immediate is the wasm index of that target. Zero is the
+//! innermost label. Labels inside the target count. The target's own label
+//! does not.
 
 /// The carried residual count. At the break it is the source depth.
 /// After a block or a loop has been left it is what remains. It is not a
