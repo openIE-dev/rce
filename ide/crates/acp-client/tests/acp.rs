@@ -43,11 +43,11 @@ fn rce_mcp() -> &'static Path {
 fn target_profile(exe: &Path) -> (PathBuf, PathBuf) {
     let mut dir = exe.parent().expect("test executable has a parent").to_path_buf();
     loop {
-        let Some(parent) = dir.parent() else { break };
+        let Some(parent) = dir.parent().map(|p| p.to_path_buf()) else { break };
         if parent.join("CACHEDIR.TAG").is_file() {
-            return (dir, parent.to_path_buf());
+            return (dir, parent);
         }
-        dir = parent.to_path_buf();
+        dir = parent;
     }
     let profile = exe.parent().unwrap().parent().unwrap().to_path_buf();
     let target = profile.parent().unwrap().to_path_buf();
