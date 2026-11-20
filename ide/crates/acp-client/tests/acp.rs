@@ -15,43 +15,47 @@ use std::time::Duration;
 const COUNTER: &str =
     include_str!("../../../../spec/examples/01_counter.rce");
 
-/// The rce-mcp binary, built into this test's target dir once.
+/// The rce-mcp binary, built once next to this package's final binaries.
+///
+/// Final binaries stay in `target/<profile>/`. `mock-acp-agent` is one of
+/// them, so its parent is the profile directory. The test executable is an
+/// intermediate artifact and, with this toolchain's build-dir layout, lives
+/// at `target/<profile>/build/<package>/<hash>/out/<test>`.
 fn rce_mcp() -> &'static Path {
     static P: OnceLock<PathBuf> = OnceLock::new();
     P.get_or_init(|| {
-        let exe = std::env::current_exe().unwrap();
-        // Cargo 1.100 writes an integration test under
-        // target/<profile>/build/<pkg>/<hash>/out, so two parents up is not
-        // target/<profile>. The profile directory is the ancestor whose
-        // parent contains Cargo's CACHEDIR.TAG.
-        let (profile_dir, target) = target_profile(&exe);
+        let agent = PathBuf::from(env!("CARGO_BIN_EXE_mock-acp-agent"));
+        let profile_dir = agent.parent().unwrap().to_path_buf();
+        let target = profile_dir.parent().unwrap();
         let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
         cmd.current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
-            .args(["build", "-q", "-p", "rce-mcp", "--bin", "rce-mcp"]);
-        if profile_dir.file_name().and_then(|s| s.to_str()) == Some("release") {
-            cmd.arg("--release");
+            .args([
+                "build",
+                "-q",
+                "-p",
+                "rce-mcp",
+                "--bin",
+                "rce-mcp",
+                "--target-dir",
+            ])
+            .arg(target);
+        // `dev`/`test` write into `debug`; `release`/`bench` write into `release`.
+        match profile_dir.file_name().and_then(|n| n.to_str()) {
+            Some("debug") => {}
+            Some("release") => {
+                cmd.arg("--release");
+            }
+            Some(profile) => {
+                cmd.arg("--profile").arg(profile);
+            }
+            None => panic!("no profile name in {}", profile_dir.display()),
         }
-        let st = cmd.arg("--target-dir").arg(&target).status().unwrap();
-        assert!(st.success(), "cargo build -p rce-mcp failed");
+        let st = cmd.status().unwrap();
+        assert!(st.success(), "rce-mcp build failed");
         let bin = profile_dir.join("rce-mcp");
-        assert!(bin.is_file(), "rce-mcp missing at {}", bin.display());
+        assert!(bin.is_file(), "rce-mcp was not built at {}", bin.display());
         bin
     })
-}
-
-/// `(target/<profile>, target)` for the running test executable.
-fn target_profile(exe: &Path) -> (PathBuf, PathBuf) {
-    let mut dir = exe.parent().expect("test executable has a parent").to_path_buf();
-    loop {
-        let Some(parent) = dir.parent().map(|p| p.to_path_buf()) else { break };
-        if parent.join("CACHEDIR.TAG").is_file() {
-            return (dir, parent);
-        }
-        dir = parent;
-    }
-    let profile = exe.parent().unwrap().parent().unwrap().to_path_buf();
-    let target = profile.parent().unwrap().to_path_buf();
-    (profile, target)
 }
 
 struct Env {
