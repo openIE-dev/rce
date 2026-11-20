@@ -12,6 +12,7 @@ name: compile-e5
 
 on:
   push:
+    branches: [main]
     paths:
       - "compile/experiments/e5-name-free/**"
       - "compile/experiments/e4-energy/wasm_eps.py"
@@ -23,6 +24,10 @@ on:
       - "compile/experiments/e4-energy/wasm_eps.py"
       - "compile/experiments/e1-determinism/e1.py"
       - ".github/workflows/compile-e5.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

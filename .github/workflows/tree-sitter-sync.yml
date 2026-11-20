@@ -7,7 +7,12 @@ name: tree-sitter sync
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # ci.yml runs the suite without the tree-sitter feature. This workflow
 # runs tree_sitter_sync for each feature set, the fast tests with the

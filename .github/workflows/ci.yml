@@ -2,7 +2,12 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The test suite is split so no single job runs for hours: the fast tests and
 # each slow vector suite (scripts/ci-tests.sh lists them) are separate jobs,

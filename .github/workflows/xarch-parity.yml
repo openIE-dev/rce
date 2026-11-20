@@ -9,6 +9,7 @@ name: RCE replay-hash parity
 
 "on":
   push:
+    branches: [main]
     paths:
       - 'spec/**'
       - 'apps/**'
@@ -23,6 +24,10 @@ name: RCE replay-hash parity
       - 'scripts/xarch-*'
       - '.github/workflows/xarch-parity.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   native:
