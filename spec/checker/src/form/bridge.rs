@@ -5306,10 +5306,12 @@ fn schedule_branch(
     // keeps a capture only when every arm that falls through still holds it.
     let mut arm_live = [saved_live.clone(), saved_live.clone()];
     let mut arm_falls = [false, false];
-    // A capture of a literal the parent built stays a capture. Inlining the
-    // bits would build the literal in the arm, and construct(schedule(F))
-    // would differ. An arm that already builds that literal keeps its own node.
-    let mut hoisted: HashMap<(Ty, Lit), u32> = HashMap::new();
+    // A capture of a literal the parent built has to be a node before the
+    // branch. The arms keep the literal atom, so a domain test and the
+    // operation name the same value, and `sum.mk` still sees a literal
+    // index. The `let` is what places the node. An arm that already builds
+    // that literal keeps it there: a parent node would capture it instead.
+    let mut placed: HashSet<(Ty, Lit)> = HashSet::new();
     let contains_lit = |lit: &Lit| {
         fn walk(b: &Body, lit: &Lit) -> bool {
             b.nodes.iter().any(|n| {
@@ -5319,21 +5321,29 @@ fn schedule_branch(
         }
         n.regions.iter().any(|r| walk(r, lit))
     };
-    for region in &n.regions {
-        for src in &region.out {
-            let Src::In(j) = *src else { continue };
-            let Some(parent) = n.ins.get(1 + j as usize) else { continue };
-            let Some(Av::A(Atom::K(t, l))) = env.get(parent) else { continue };
-            if !matches!(t, Ty::Bool | Ty::Int(..)) || contains_lit(l) {
-                continue;
-            }
-            let key = (t.clone(), l.clone());
-            if hoisted.contains_key(&key) {
-                continue;
-            }
-            let id = sch.let_atom(Atom::K(t.clone(), l.clone()), t.clone())?;
-            hoisted.insert(key, id);
+    let uses_in = |j: u32| {
+        fn walk(b: &Body, j: u32) -> bool {
+            b.out.iter().any(|s| *s == Src::In(j))
+                || b.nodes.iter().any(|n| {
+                    n.ins.contains(&Src::In(j)) || n.regions.iter().any(|r| walk(r, j))
+                })
         }
+        n.regions.iter().any(|r| walk(r, j))
+    };
+    for (j, s) in n.ins.iter().skip(1).enumerate() {
+        if !uses_in(j as u32) {
+            continue;
+        }
+        let Some(Av::A(Atom::K(t, l))) = env.get(s) else { continue };
+        if !matches!(t, Ty::Bool | Ty::Int(..)) || contains_lit(l) {
+            continue;
+        }
+        let key = (t.clone(), l.clone());
+        if placed.contains(&key) {
+            continue;
+        }
+        let _ = sch.let_atom(Atom::K(t.clone(), l.clone()), t.clone())?;
+        placed.insert(key);
     }
     let mut arm = |sch: &mut Sch, region: &Body, dom: Option<&Dom>, slot: usize| -> Result<Vec<Stmt>, Change> {
         sch.live.clone_from(&saved_live);
@@ -5357,12 +5367,7 @@ fn schedule_branch(
             for (p, var) in &vars {
                 let src = region.out[*p];
                 match sch.val(&en, src)? {
-                    Av::A(mut a) => {
-                        if let (Src::In(_), Atom::K(t, l)) = (src, &a)
-                            && let Some(id) = hoisted.get(&(t.clone(), l.clone()))
-                        {
-                            a = Atom::V(*id);
-                        }
+                    Av::A(a) => {
                         if let Atom::V(id) = &a {
                             keep.insert(*id);
                         }

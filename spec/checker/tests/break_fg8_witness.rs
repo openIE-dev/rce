@@ -1067,6 +1067,42 @@ fn a_returning_arm_and_a_falling_arm_keep_their_results() {
     assert_schedule(&f);
 }
 
+#[test]
+fn a_returning_arm_and_a_later_add_round_trip() {
+    // The fall arm stores, and the statements after the join add one.
+    // That literal is a node of the parent. The schedule has to build it
+    // there again, or construct(schedule(F)) differs.
+    let t = Ty::u64();
+    let mut b = FB::new(vec![Ty::Bool], t.clone());
+    let stop = b.arg(0);
+    let i = b.var(t.clone(), build::lit(1));
+    b.if_(
+        stop,
+        |b| {
+            b.ret(build::lit(7));
+            Ok(())
+        },
+        |b| {
+            b.set(i, build::lit(4));
+            Ok(())
+        },
+    )
+    .unwrap();
+    let copied = b.let_(Atom::V(i));
+    let sum = b.add_in(copied, build::lit(1), t).unwrap();
+    b.ret(sum);
+    let m = module("mixadd", b.finish());
+    wf::check(&m).unwrap();
+    let f = bridge::construct(&m).unwrap_or_else(|e| panic!("{}", e.line()));
+    assert!(!bridge::body_break_rewrite());
+    assert_applied(&f);
+    assert_schedule(&f);
+    let (yes, _) = core_eval(&m, vec![Val::Bool(true)]);
+    let (no, _) = core_eval(&m, vec![Val::Bool(false)]);
+    assert_eq!(yes, Ok(Val::Int(7)));
+    assert_eq!(no, Ok(Val::Int(5)));
+}
+
 /// `construct(schedule(F))` is `F`. Section 13: the schedule of an admitted
 /// form constructs back to the same bytes.
 fn assert_schedule(f: &fir::Module) {
