@@ -32,7 +32,7 @@ def ins : Nat → Ty → List Ty → List Ty
   | c + 1, u, t :: Γ => t :: ins c u Γ
 
 theorem ins_get : ∀ (c : Nat) (u : Ty) (Γ : List Ty) (i : Nat) {t},
-    Γ.get? i = some t → (ins c u Γ).get? (if i < c then i else i + 1) = some t
+    Γ[i]? = some t → (ins c u Γ)[if i < c then i else i + 1]? = some t
   | 0, _, _, _, _, h => by simpa [ins] using h
   | _ + 1, _, [], _, _, h => by simp at h
   | _ + 1, _, _ :: _, 0, _, h => by simpa [ins] using h
@@ -40,9 +40,9 @@ theorem ins_get : ∀ (c : Nat) (u : Ty) (Γ : List Ty) (i : Nat) {t},
     have ih := ins_get c u Γ j (by simpa using h)
     by_cases hj : j < c
     · have : j + 1 < c + 1 := by omega
-      simp only [hj, if_true] at ih; simpa [ins, this] using ih
+      simp only [hj, ite_true] at ih; simpa [ins, this] using ih
     · have : ¬ j + 1 < c + 1 := by omega
-      simp only [hj, if_false] at ih; simpa [ins, this] using ih
+      simp only [hj, ite_false] at ih; simpa [ins, this] using ih
 
 /-- **Weakening.** -/
 theorem weaken {S} : ∀ {Γ e t}, HasTy S Γ e t → ∀ (c : Nat) (u : Ty),

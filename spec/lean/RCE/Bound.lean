@@ -50,11 +50,11 @@ theorem eval_bound (E : Env) (e : Expr) : ∃ n, n ≤ e.size ∧ NSteps E n e (
   | lit v => exact ⟨0, by simp [Expr.size], .refl⟩
   | trap m => exact ⟨0, by simp [Expr.size], .refl⟩
   | field i =>
-    simp only [eval]; cases h : E.fields.get? i with
+    simp only [eval]; cases h : E.fields[i]? with
     | none => exact ⟨1, by simp [Expr.size], .one (.fieldBad h)⟩
     | some v => exact ⟨1, by simp [Expr.size], .one (.field h)⟩
   | arg i =>
-    simp only [eval]; cases h : E.args.get? i with
+    simp only [eval]; cases h : E.args[i]? with
     | none => exact ⟨1, by simp [Expr.size], .one (.argBad h)⟩
     | some v => exact ⟨1, by simp [Expr.size], .one (.arg h)⟩
   | bin op ta a b iha ihb =>
@@ -205,7 +205,7 @@ theorem iter_eq_exec_loop (args : List Val) (n : Nat) (c : Expr) (b : Stmt) (fs 
     with total cost at most `B s`. -/
 theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s ∧ SRun args k (.run s fs os) (exec args s fs os).toCfg := by
   induction s with
-  | skip => intro fs os; exact ⟨1, by simp [B], by simpa using SRun.step .skip .refl⟩
+  | skip => intro fs os; exact ⟨1, by simp [B], by simpa [exec, SRes.toCfg] using SRun.step .skip .refl⟩
   | assign i e =>
     intro fs os
     obtain ⟨n, hn, he⟩ := evalN_exists ⟨fs, args⟩ e
@@ -215,9 +215,9 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
     | ok v =>
       intro he
       by_cases hi : i < fs.length
-      · simp only [hi, ite_true, SRes.toCfg]; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.assign he hi) .refl⟩
-      · simp only [hi, ite_false, SRes.toCfg]; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.assignBad he hi) .refl⟩
-    | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.assignTrap he) .refl⟩
+      · simp only [hi, ite_true, SRes.toCfg]; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.assign he hi) .refl⟩
+      · simp only [hi, ite_false, SRes.toCfg]; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.assignBad he hi) .refl⟩
+    | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.assignTrap he) .refl⟩
   | seq a b iha ihb =>
     intro fs os
     obtain ⟨ka, hka, ra⟩ := iha fs os
@@ -235,10 +235,10 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
     simp only [exec]
     revert hc
     cases eval ⟨fs, args⟩ c with
-    | error m => intro hc; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.ifTrap hc) .refl⟩
+    | error m => intro hc; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.ifTrap hc) .refl⟩
     | ok v =>
       cases v with
-      | int j => intro hc; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.ifBad hc) .refl⟩
+      | int j => intro hc; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.ifBad hc) .refl⟩
       | bool bb =>
         cases bb
         · intro hc; obtain ⟨k, hk, r⟩ := ihb fs os
@@ -253,27 +253,27 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
       rw [iter_eq_exec_loop]; simp only [iter]
       revert hc
       cases eval ⟨fs, args⟩ c with
-      | error e => intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa using SRun.step (.loopTrap hc) .refl⟩
+      | error e => intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopTrap hc) .refl⟩
       | ok v =>
         cases v with
-        | int j => intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa using SRun.step (.loopBad hc) .refl⟩
+        | int j => intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopBad hc) .refl⟩
         | bool bb =>
           cases bb
-          · intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa using SRun.step (.loopStop hc) .refl⟩
-          · intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa using SRun.step (.loopBound hc) .refl⟩
+          · intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopStop hc) .refl⟩
+          · intro hc; exact ⟨m + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopBound hc) .refl⟩
     | succ k ihk =>
       intro fs os
       obtain ⟨m, hm, hc⟩ := evalN_exists ⟨fs, args⟩ c
       rw [iter_eq_exec_loop]; simp only [iter]
       revert hc
       cases eval ⟨fs, args⟩ c with
-      | error e => intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa using SRun.step (.loopTrap hc) .refl⟩
+      | error e => intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopTrap hc) .refl⟩
       | ok v =>
         cases v with
-        | int j => intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa using SRun.step (.loopBad hc) .refl⟩
+        | int j => intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopBad hc) .refl⟩
         | bool bb =>
           cases bb
-          · intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa using SRun.step (.loopStop hc) .refl⟩
+          · intro hc; exact ⟨m + 1, by simp [B, Nat.succ_mul]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.loopStop hc) .refl⟩
           · intro hc
             obtain ⟨kb, hkb, rb⟩ := ihb fs os
             simp only
@@ -281,21 +281,21 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
             cases exec args b fs os with
             | ref x =>
               intro rb
-              exact ⟨m + 1 + kb, by simp [B, Nat.succ_mul, Nat.add_mul] at hkb ⊢; omega, .step (.loopGo hc) (SRun.seqKept rb)⟩
+              exact ⟨m + 1 + kb, by simp [B, Nat.succ_mul] at hkb ⊢; omega, .step (.loopGo hc) (SRun.seqKept rb)⟩
             | ok fs' os' =>
               intro rb
               obtain ⟨kl, hkl, rl⟩ := ihk fs' os'
               rw [iter_eq_exec_loop] at rl
-              exact ⟨m + 1 + (kb + kl), by simp [B, Nat.succ_mul, Nat.add_mul] at hkl ⊢; omega, .step (.loopGo hc) ((SRun.seqDone rb).trans rl)⟩
-  | fail x => intro fs os; exact ⟨1, by simp [B], by simpa using SRun.step .fail .refl⟩
+              exact ⟨m + 1 + (kb + kl), by simp [B, Nat.succ_mul] at hkl ⊢; omega, .step (.loopGo hc) ((SRun.seqDone rb).trans rl)⟩
+  | fail x => intro fs os; exact ⟨1, by simp [B], by simpa [exec, SRes.toCfg] using SRun.step .fail .refl⟩
   | emit e =>
     intro fs os
     obtain ⟨n, hn, he⟩ := evalN_exists ⟨fs, args⟩ e
     simp only [exec]
     revert he
     cases eval ⟨fs, args⟩ e with
-    | ok v => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.emit he) .refl⟩
-    | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.emitTrap he) .refl⟩
+    | ok v => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.emit he) .refl⟩
+    | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa [exec, SRes.toCfg] using SRun.step (.emitTrap he) .refl⟩
 
 /-- **T4 for statements**: every running configuration takes a step; the
     only configurations that do not are results (`done`) and kept outcomes (`kept`). -/
@@ -337,7 +337,7 @@ theorem region_bound (args : List Val) (ev : String) (i : Nat) (fs : List Val) :
     obtain ⟨m, hm, hr⟩ := region_bound args ev i fs ds
     simp only [regionStep]
     by_cases hd : d.region = i ∧ d.event = ev
-    · rw [if_pos hd]
+    · rw [ite_eq_left hd]
       obtain ⟨n, hn, hg⟩ := evalN_exists ⟨fs, args⟩ d.guard
       revert hg
       cases eval ⟨fs, args⟩ d.guard with
@@ -351,7 +351,7 @@ theorem region_bound (args : List Val) (ev : String) (i : Nat) (fs : List Val) :
           · intro hg
             obtain ⟨k, hk, hb⟩ := stmt_bound args d.body fs []
             exact ⟨n + 1 + k, by simp [BR]; omega, .guardT hd hg hb⟩
-    · rw [if_neg hd]; exact ⟨m, by simp [BR]; omega, .other hd hr⟩
+    · rw [ite_eq_right hd]; exact ⟨m, by simp [BR]; omega, .other hd hr⟩
 
 /-- δ with cost: every region, in declaration order, on the pre-state. -/
 inductive DRun (P : Program) (e : Event) : Nat → State → Nat → Except Reason (State × List Val) → Prop where

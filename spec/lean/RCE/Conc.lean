@@ -91,7 +91,7 @@ def minReady (rdy : Nat → Bool) : List (Nat × Nat) → Option (Nat × Nat)
     | some b => if rdy a.1 ∧ a.1 ≤ b.1 then some a else some b
 
 def argRegs (regs : Nat → CV) (args : List Nat) : Nat → CV :=
-  fun i => match args.get? i with
+  fun i => match args[i]? with
     | some r => regs r
     | .none => .none
 
@@ -141,7 +141,7 @@ def deliver (chans : Nat → Chan) : List (Nat × CV) → Nat → Chan
   | (c, v) :: rest => deliver (setC chans c { chans c with buf := (chans c).buf ++ [v] }) rest
 
 def postMail (as : List Actor) (m : List (Nat × CV)) : List Actor :=
-  as.enum.map fun (i, a) => { a with mbox := a.mbox ++ (m.filter (fun p => p.1 == i)).map Prod.snd }
+  as.zipIdx.map fun (a, i) => { a with mbox := a.mbox ++ (m.filter (fun p => p.1 == i)).map Prod.snd }
 
 /-- Each actor handles at most one message per tick, in mailbox order. -/
 def runActor (a : Actor) : Actor :=
@@ -195,7 +195,7 @@ theorem minReady_spec {rdy : Nat → Bool} : ∀ {as : List (Nat × Nat)} {a}, m
       rw [hm] at h; simp only at h
       by_cases hb : rdy b.1 = true ∧ b.1 ≤ x.1
       · simp only [hb, and_self, ite_true, Option.some.injEq] at h; subst h; exact hb.1
-      · rw [if_neg hb] at h; cases h; exact minReady_spec hm
+      · rw [ite_eq_right hb] at h; cases h; exact minReady_spec hm
 
 theorem tstep_total (w : W) (t : Task) : ∃ w' t', TStep w t w' t' := by
   cases hc : t.code with
@@ -289,7 +289,7 @@ theorem run_idle {w ts w' ts'} (h : Run w ts w' ts') (hn : ∀ t ∈ ts, ¬ enab
   induction h with
   | nil => simp
   | @cons w t ts w1 t' w2 ts' hs hr ih =>
-    obtain ⟨rfl, hc, hst, hm, hb, -⟩ := tstep_idle hs (hn t (List.mem_cons_self _ _))
+    obtain ⟨rfl, hc, hst, hm, hb, -⟩ := tstep_idle hs (hn t (List.mem_cons_self))
     have := ih (fun u hu => by rw [enabled_congr hc hst u]; exact hn u (List.mem_cons_of_mem _ hu))
     obtain ⟨rfl, h1, h2, h3, h4⟩ := this
     exact ⟨rfl, h1.trans hc, h2.trans hst, h3.trans hm, h4.trans hb⟩
@@ -354,13 +354,13 @@ theorem minReady_mem {rdy : Nat → Bool} : ∀ {as : List (Nat × Nat)} {a}, mi
     | none =>
       rw [hm] at h; simp only at h
       by_cases hb : rdy b.1 = true
-      · simp [hb] at h; subst h; exact List.mem_cons_self _ _
+      · simp [hb] at h; subst h; exact List.mem_cons_self
       · simp [hb] at h
     | some x =>
       rw [hm] at h; simp only at h
       by_cases hb : rdy b.1 = true ∧ b.1 ≤ x.1
-      · simp only [hb, and_self, ite_true, Option.some.injEq] at h; subst h; exact List.mem_cons_self _ _
-      · rw [if_neg hb] at h; cases h; exact List.mem_cons_of_mem _ (minReady_mem hm)
+      · simp only [hb, and_self, ite_true, Option.some.injEq] at h; subst h; exact List.mem_cons_self
+      · rw [ite_eq_right hb] at h; cases h; exact List.mem_cons_of_mem _ (minReady_mem hm)
 
 theorem recvFrom_data {ch v ch'} (hd : DataL ch.buf) (h : recvFrom ch = some (v, ch')) :
     v.isRef = false ∧ DataL ch'.buf := by
@@ -369,7 +369,7 @@ theorem recvFrom_data {ch v ch'} (hd : DataL ch.buf) (h : recvFrom ch = some (v,
   · rename_i x rest hb
     simp at h; obtain ⟨rfl, rfl⟩ := h
     rw [hb] at hd
-    exact ⟨hd _ (List.mem_cons_self _ _), fun u hu => hd u (List.mem_cons_of_mem _ hu)⟩
+    exact ⟨hd _ (List.mem_cons_self), fun u hu => hd u (List.mem_cons_of_mem _ hu)⟩
   · split at h
     · simp at h; obtain ⟨rfl, rfl⟩ := h; exact ⟨rfl, hd⟩
     · simp at h
@@ -436,10 +436,10 @@ theorem tstep_ok {RK base w t w' t'} (hs : TStep w t w' t') (ht : TaskOK RK t) (
         · obtain ⟨h1, h2, h3⟩ := hw.born u hu; exact ⟨h1, h2, Nat.lt_succ_of_lt h3⟩
         · refine ⟨⟨hb, fun r _ => ?_, fun r l hl => ?_⟩, hw.le, Nat.lt_succ_self _⟩
           · simp only [argRegs]; split
-            · rename_i a ha; exact ht.data a (has a (List.get?_mem ha))
+            · rename_i a ha; exact ht.data a (has a (List.mem_of_getElem? ha))
             · rfl
           · simp only [argRegs] at hl; split at hl
-            · rename_i a ha; have := ht.data a (has a (List.get?_mem ha)); rw [hl] at this; simp [CV.isRef] at this
+            · rename_i a ha; have := ht.data a (has a (List.mem_of_getElem? ha)); rw [hl] at this; simp [CV.isRef] at this
             · cases hl
       · simp only [List.map_append, List.map_cons, List.map_nil]
         rw [nodup_append']
@@ -474,7 +474,7 @@ theorem run_ok {RK base w ts w' ts'} (hr : Run w ts w' ts') (ht : ∀ t ∈ ts, 
   induction hr with
   | nil => exact ⟨fun _ h => by simp at h, hw, rfl, Nat.le_refl _⟩
   | @cons w t ts w1 t' w2 ts' hs _ ih =>
-    obtain ⟨h1, h2⟩ := tstep_ok hs (ht _ (List.mem_cons_self _ _)) hw
+    obtain ⟨h1, h2⟩ := tstep_ok hs (ht _ (List.mem_cons_self)) hw
     obtain ⟨h3, h4, h5, h6⟩ := ih (fun u hu => ht u (List.mem_cons_of_mem _ hu)) h2
     refine ⟨fun u hu => ?_, h4, ?_, ?_⟩
     · simp only [List.mem_cons] at hu; rcases hu with rfl | hu
@@ -506,7 +506,7 @@ theorem deliver_data {f : Nat → Chan} (hf : ∀ c, DataL (f c).buf) :
       · intro u hu; simp only [List.mem_append, List.mem_singleton] at hu
         rcases hu with hu | rfl
         · exact hf c0 u hu
-        · exact hst _ (List.mem_cons_self _ _)
+        · exact hst _ (List.mem_cons_self)
       · exact hf c'
     · intro q hq; exact hst q (List.mem_cons_of_mem _ hq)
 
@@ -519,8 +519,8 @@ theorem postMail_data {as : List Actor} (ha : ∀ a ∈ as, DataL a.mbox) {m : L
     (hm : ∀ p ∈ m, p.2.isRef = false) : ∀ a ∈ postMail as m, DataL a.mbox := by
   intro a hamem
   simp only [postMail, List.mem_map] at hamem
-  obtain ⟨⟨i, b⟩, hib, rfl⟩ := hamem
-  have hb : b ∈ as := List.snd_mem_of_mem_enum hib
+  obtain ⟨⟨b, i⟩, hib, rfl⟩ := hamem
+  have hb : b ∈ as := by have ⟨_, _, hbi⟩ := List.mem_zipIdx hib; rw [hbi]; exact List.getElem_mem _
   intro u hu
   simp only [List.mem_append, List.mem_map, List.mem_filter] at hu
   rcases hu with hu | ⟨p, ⟨hp, _⟩, rfl⟩
@@ -545,7 +545,7 @@ theorem tick_inv {RK c c' m} (hi : Inv RK c) (ht : Tick c c' m) : Inv RK c' := b
       · exact h2.mail
     · intro t htm; simp only [finish, List.mem_append] at htm
       rcases htm with htm | htm
-      · have : t.id ∈ c.tasks.map Task.id := by rw [← h3]; exact List.mem_map_of_mem _ htm
+      · have : t.id ∈ c.tasks.map Task.id := by rw [← h3]; exact List.mem_map_of_mem htm
         simp only [List.mem_map] at this; obtain ⟨u, hu, he⟩ := this
         have := hi.ids u hu; simp [start] at h4; simp [finish]; omega
       · exact (h2.born t htm).2.2
@@ -555,7 +555,7 @@ theorem tick_inv {RK c c' m} (hi : Inv RK c) (ht : Tick c c' m) : Inv RK c' := b
       intro a ha b hb hab; subst hab
       simp only [List.mem_map] at ha hb
       obtain ⟨u, hu, rfl⟩ := ha; obtain ⟨v, hv, he⟩ := hb
-      have := hi.ids u hu; have := (h2.born v hv).2.1; simp [start] at this; omega
+      have := hi.ids u hu; have := (h2.born v hv).2.1; omega
 
 /-- T6 (5.8): no two tasks ever hold a reference to the same mutable
     location: references are only to locations a task allocated itself, and

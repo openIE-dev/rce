@@ -72,7 +72,7 @@ theorem interleave_eq_seq :
     intro hd s
     obtain ⟨k, v⟩ := b
     have hd' : Disjoint _ _ := fun j hj hy => hd j hj (List.mem_cons_of_mem _ hy)
-    have hk : k ∉ keys _ := fun hx => hd k hx (List.mem_cons_self _ _)
+    have hk : k ∉ keys _ := fun hx => hd k hx (List.mem_cons_self)
     show apply (upd s k v) _ = apply (upd (apply s _) k v) _
     rw [ih hd', apply_upd s k v _ hk]
 
@@ -88,7 +88,7 @@ def split (m : Nat) : Nat := 2 ^ Nat.log2 (m - 1)
 -- agrees with `host::tree_split` (`1 << (m-1).ilog2()`) on samples
 #guard [2, 3, 5, 8, 9, 40].map split == [1, 2, 4, 4, 8, 32]
 
-theorem split_pos (m : Nat) : 0 < split m := Nat.pos_pow_of_pos _ (by decide)
+theorem split_pos (m : Nat) : 0 < split m := Nat.pow_pos (by decide)
 
 theorem split_lt (m : Nat) (h : 2 ≤ m) : split m < m := by
   have := Nat.log2_self_le (n := m - 1) (by omega)

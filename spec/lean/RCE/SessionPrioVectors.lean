@@ -73,7 +73,7 @@ def gen (seed : Nat) : Prog :=
     (ha, hb)
   -- workers that hold something, renumbered 1..nw
   let used := (List.range nwMax).map (· + 1) |>.filter fun w => hold.any fun (a, b) => a == w || b == w
-  let ren := fun h => if h == 0 then 0 else (used.indexOf h) + 1
+  let ren := fun h => if h == 0 then 0 else (used.idxOf h) + 1
   let hold := hold.map fun (a, b) => (ren a, ren b)
   let nw := used.length
   let ops := fun p => (List.range nc).foldr (fun c acc =>
@@ -92,7 +92,7 @@ def net (g : Prog) : List (List Act) × List (Nat × Nat) :=
   let tr : Op → Act := fun
     | .step c _ k => (c, k)
     | .spawn w => (g.nc + w - 1, 0)
-  let L := g.procs.enum.map fun (p, ops) =>
+  let L := g.procs.zipIdx.map fun (ops, p) =>
     (if p == 0 then [] else [(g.nc + p - 1, 0)]) ++ ops.map tr
   let es := g.holders ++ (List.range g.nw).map fun w => (0, w + 1)
   (L, es)
@@ -105,7 +105,7 @@ def treeOK (g : Prog) : Bool :=
   let main := g.procs.getD 0 []
   let spawnedBefore : Nat → Nat → Bool := fun i w =>
     (main.take i).any fun | .spawn w' => w' == w | _ => false
-  let early := main.enum.any fun (i, op) =>
+  let early := main.zipIdx.any fun (op, i) =>
     match op with
     | .step c _ _ =>
       let (ha, hb) := g.holders.getD c (0, 0)
@@ -115,7 +115,7 @@ def treeOK (g : Prog) : Bool :=
     | .spawn _ => false
   !twice && !early
 
-def protoName (p : Proto) : String := "P_" ++ String.mk (p.map fun b => if b then 's' else 'r')
+def protoName (p : Proto) : String := "P_" ++ String.ofList (p.map fun b => if b then 's' else 'r')
 
 def ind := "    "
 

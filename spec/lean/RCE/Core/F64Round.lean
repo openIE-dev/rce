@@ -1,4 +1,5 @@
 import RCE.Core.F64
+set_option exponentiation.threshold 10000
 /-! S3: `RCE.F64.round` is round-to-nearest, ties to even, of the exact
     value, over every finite binary64 value; and it overflows exactly when
     IEEE 754 roundTiesToEven does. -/
@@ -43,7 +44,7 @@ theorem lgWords_spec : ∀ (f n acc : Nat), 0 < n → n < 2 ^ (64 * f + 64) →
     · rename_i h2
       exact lgBits_spec 64 n acc h0 (Nat.lt_of_lt_of_le h2 (Nat.pow_le_pow_right (by omega) (by omega)))
     · rename_i h2
-      have hp : 0 < 2 ^ 64 := Nat.pos_pow_of_pos _ (by omega)
+      have hp : 0 < 2 ^ 64 := Nat.pow_pos (by omega)
       have hn2 : 0 < n / 2 ^ 64 := (Nat.le_div_iff_mul_le hp).mpr (by omega)
       have hlt : n / 2 ^ 64 < 2 ^ (64 * f + 64) := by
         rw [Nat.div_lt_iff_lt_mul hp, ← Nat.pow_add]
@@ -139,14 +140,14 @@ theorem rq_tie (num den q' : Nat) (hd : 0 < den)
     rw [Nat.succ_mul] at this
     unfold ndist at *
     generalize q' * den = a at *; generalize q * den = b at *
-    by_cases hb : b ≤ num <;> by_cases ha : a ≤ num <;> simp only [hb, ha, if_true, if_false] at he h1 ⊢ <;> omega
+    by_cases hb : b ≤ num <;> by_cases ha : a ≤ num <;> simp only [hb, ha, ite_true, ite_false] at he h1 ⊢ <;> omega
   · rcases Nat.eq_or_lt_of_le h with h | h
     · subst h; exact absurd rfl hne
     · have : (q + 1) * den ≤ q' * den := Nat.mul_le_mul_right _ h
       rw [Nat.succ_mul] at this
       unfold ndist at *
       generalize q' * den = a at *; generalize q * den = b at *
-      by_cases hb : b ≤ num <;> by_cases ha : a ≤ num <;> simp only [hb, ha, if_true, if_false] at he h1 ⊢ <;> omega
+      by_cases hb : b ≤ num <;> by_cases ha : a ≤ num <;> simp only [hb, ha, ite_true, ite_false] at he h1 ⊢ <;> omega
 
 theorem rq_le (num den : Nat) : rq num den ≤ num / den + 1 := by
   unfold rq; split <;> omega
@@ -173,7 +174,7 @@ theorem decode_sub (q : Nat) (hq : q < 2 ^ 52) : decode q = (false, q, -1074) :=
 
 theorem decode_norm (ex r : Nat) (h1 : 1 ≤ ex) (h2 : ex < 2047) (hr : r < 2 ^ 52) :
     decode (ex * 2 ^ 52 + r) = (false, r + 2 ^ 52, (ex : Int) - 1075) := by
-  have hp : 0 < 2 ^ 52 := Nat.pos_pow_of_pos _ (by omega)
+  have hp : 0 < 2 ^ 52 := Nat.pow_pos (by omega)
   have hd : (ex * 2 ^ 52 + r) / 2 ^ 52 = ex := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hp, Nat.div_eq_of_lt hr]; omega
   have hm : (ex * 2 ^ 52 + r) % 2 ^ 52 = r := by
@@ -188,7 +189,7 @@ theorem decode_norm (ex r : Nat) (h1 : 1 ≤ ex) (h2 : ex < 2047) (hr : r < 2 ^ 
   simp [decode, hd, hm, h3, h4, h5]
 
 theorem norm_fin (ex r : Nat) (h2 : ex < 2047) (hr : r < 2 ^ 52) : NonnegFin (ex * 2 ^ 52 + r) := by
-  have hp : 0 < 2 ^ 52 := Nat.pos_pow_of_pos _ (by omega)
+  have hp : 0 < 2 ^ 52 := Nat.pow_pos (by omega)
   have hd : (ex * 2 ^ 52 + r) / 2 ^ 52 = ex := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hp, Nat.div_eq_of_lt hr]; omega
   have : ex * 2 ^ 52 ≤ 2046 * 2 ^ 52 := Nat.mul_le_mul_right _ (by omega)
@@ -204,7 +205,7 @@ theorem sub_fin (q : Nat) (hq : q < 2 ^ 52) : NonnegFin q := by
 theorem decode_fin (c : Nat) (h : NonnegFin c) :
     (decode c).1 = false ∧ (decode c).2.1 < 2 ^ 53 ∧ 1126 ≤ ((decode c).2.2 + bias).toNat := by
   obtain ⟨h1, h2⟩ := h
-  have hp : 0 < 2 ^ 52 := Nat.pos_pow_of_pos _ (by omega)
+  have hp : 0 < 2 ^ 52 := Nat.pow_pos (by omega)
   have hlt : c / 2 ^ 52 < 2048 := by
     rw [Nat.div_lt_iff_lt_mul hp]; have := p63
     omega
@@ -212,15 +213,15 @@ theorem decode_fin (c : Nat) (h : NonnegFin c) :
   have h3 : ¬ c ≥ 2 ^ 63 := by omega
   have hb := p53
   simp only [isFinite, Nat.mod_eq_of_lt hlt] at h2
-  simp only [decode, Nat.mod_eq_of_lt hlt, h3, decide_False, bias]
+  simp only [decode, Nat.mod_eq_of_lt hlt, h3, decide_false, bias]
   simp only [bne_iff_ne, ne_eq] at h2
   generalize c / 2 ^ 52 = x at *
   generalize c % 2 ^ 52 = r at *
   split
   · simp; omega
-  · simp only [true_and]
+  · dsimp only
     have := Int.toNat_of_nonneg (show (0:Int) ≤ (x:Int) - 1075 + ((2200:Nat):Int) by omega)
-    omega
+    refine ⟨rfl, by omega, by omega⟩
 
 
 /-! The rounding. -/
@@ -294,7 +295,7 @@ theorem roundA_result (A D p : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464) (h : ro
   simp only at h
   have hEb : 1126 ≤ max (lg (A / D) - 52) 1126 := Nat.le_max_right _ _
   generalize max (lg (A / D) - 52) 1126 = Eb at *
-  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pos_pow_of_pos _ (by omega))
+  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pow_pos (by omega))
   have hq53 : rq A (D * 2 ^ Eb) ≤ 2 ^ 53 := by
     have h1 := rq_le A (D * 2 ^ Eb)
     have h2 : A / (D * 2 ^ Eb) < 2 ^ 53 := (Nat.div_lt_iff_lt_mul hden).mpr hF1
@@ -367,7 +368,7 @@ theorem roundA_nearest (A D p : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464)
   rw [hv]
   have hEb : 1126 ≤ max (lg (A / D) - 52) 1126 := Nat.le_max_right _ _
   generalize max (lg (A / D) - 52) 1126 = Eb at *
-  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pos_pow_of_pos _ (by omega))
+  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pow_pos (by omega))
   have hcv : Cv D c = (decode c).2.1 * D * 2 ^ ((decode c).2.2 + bias).toNat := rfl
   rw [hcv]
   generalize (decode c).2.1 = m at *
@@ -379,7 +380,7 @@ theorem roundA_nearest (A D p : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464)
     have h52 := hF2 hE
     have hcl : m * D * 2 ^ ec < 2 ^ 52 * (D * 2 ^ Eb) := by
       have h1 : m * (D * 2 ^ ec) < 2 ^ 53 * (D * 2 ^ ec) :=
-        Nat.mul_lt_mul_of_pos_right hm (Nat.mul_pos hD (Nat.pos_pow_of_pos _ (by omega)))
+        Nat.mul_lt_mul_of_pos_right hm (Nat.mul_pos hD (Nat.pow_pos (by omega)))
       have h2 : 2 ^ 53 * (D * 2 ^ ec) ≤ 2 ^ 52 * (D * 2 ^ Eb) := by
         have e : 2 ^ 53 * (D * 2 ^ ec) = 2 ^ 52 * (D * 2 ^ (ec + 1)) := by
           rw [Nat.pow_succ 2 ec, p53]; ac_rfl
@@ -392,10 +393,10 @@ theorem roundA_nearest (A D p : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464)
     generalize m * D * 2 ^ ec = w at *
     unfold ndist at *
     refine ⟨?_, ?_⟩
-    · by_cases hv1 : v ≤ A <;> by_cases hg : g ≤ A <;> simp only [hv1, hg, if_true, if_false] at hn ⊢ <;>
+    · by_cases hv1 : v ≤ A <;> by_cases hg : g ≤ A <;> simp only [hv1, hg, ite_true, ite_false] at hn ⊢ <;>
         split <;> omega
     · intro he1
-      by_cases hv1 : v ≤ A <;> by_cases hg : g ≤ A <;> simp only [hv1, hg, if_true, if_false] at hn he1 <;>
+      by_cases hv1 : v ≤ A <;> by_cases hg : g ≤ A <;> simp only [hv1, hg, ite_true, ite_false] at hn he1 <;>
         split at he1 <;> omega
   · -- on the grid: the nearest integer
     have hc' : m * D * 2 ^ ec = (m * 2 ^ (ec - Eb)) * (D * 2 ^ Eb) := by
@@ -464,7 +465,7 @@ theorem ovf_lg (A D : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464) (ho : Overflows 
     apply (Nat.le_div_iff_mul_le hD).mpr
     rw [p3223]
     exact mono_gen _ _ _ _ _ (by decide) ho
-  have h2 := (lg_spec _ (Nat.lt_of_lt_of_le (Nat.pos_pow_of_pos _ (by omega)) h1) hT).2
+  have h2 := (lg_spec _ (Nat.lt_of_lt_of_le (Nat.pow_pos (by omega)) h1) hT).2
   have := Nat.lt_of_le_of_lt h1 h2
   exact Nat.le_of_lt_succ ((Nat.pow_lt_pow_iff_right (by omega)).mp this)
 
@@ -489,7 +490,7 @@ theorem roundA_none (A D : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464) :
   generalize lg (A / D) = L at *
   generalize max (L - 52) 1126 = Eb at *
   clear hT
-  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pos_pow_of_pos _ (by omega))
+  have hden : 0 < D * 2 ^ Eb := Nat.mul_pos hD (Nat.pow_pos (by omega))
   have hq52 : 1126 < Eb → 2 ^ 52 ≤ rq A (D * 2 ^ Eb) := by
     intro hE
     have h1 := rq_ge A (D * 2 ^ Eb)
@@ -532,9 +533,9 @@ theorem roundA_none (A D : Nat) (hD : 0 < D) (hT : A / D < 2 ^ 6464) :
     split
     · omega
     · split
-      · rename_i h53; rw [if_pos (by omega)]
+      · rename_i h53; rw [ite_eq_left (by omega)]
       · rename_i h53
-        rw [if_pos]
+        rw [ite_eq_left]
         rcases Nat.lt_or_ge Eb 3172 with h1 | h1
         · exfalso
           have hE' : Eb = 3171 := by omega
@@ -578,7 +579,7 @@ theorem round_rne (N D : Nat) (k : Int) (hD : 0 < D) (hT : N * 2 ^ (k + bias).to
 /-- Ranges of a finite pattern's decoding (either sign). -/
 theorem decode_range (b : Nat) (hf : isFinite b = true) :
     (decode b).2.1 < 2 ^ 53 ∧ -1074 ≤ (decode b).2.2 ∧ (decode b).2.2 ≤ 971 := by
-  have hp : 0 < 2 ^ 52 := Nat.pos_pow_of_pos _ (by omega)
+  have hp : 0 < 2 ^ 52 := Nat.pow_pos (by omega)
   have hm := Nat.mod_lt b hp
   have hx := Nat.mod_lt (b / 2 ^ 52) (show 0 < 2048 by omega)
   simp only [isFinite, bne_iff_ne, ne_eq] at hf
@@ -604,17 +605,17 @@ theorem mul_rne (x y : Nat) (hx : isFinite x = true) (hy : isFinite y = true)
   obtain ⟨m1, l1, u1⟩ := decode_range x hx
   obtain ⟨m2, l2, u2⟩ := decode_range y hy
   refine ⟨?_, round_rne _ _ _ (by omega) ?_⟩
-  · simp only [mul]; rw [if_neg hm]
+  · simp only [mul]; rw [ite_eq_right hm]
   · rw [Nat.div_one]
     generalize (decode x).2.1 = a at *; generalize (decode y).2.1 = b at *
     generalize (decode x).2.2 = e at *; generalize (decode y).2.2 = f at *
     have h1 : a * b < 2 ^ 53 * 2 ^ 53 :=
       Nat.lt_of_le_of_lt (Nat.mul_le_mul_left a (Nat.le_of_lt m2))
-        (Nat.mul_lt_mul_of_pos_right m1 (Nat.pos_pow_of_pos _ (by omega)))
+        (Nat.mul_lt_mul_of_pos_right m1 (Nat.pow_pos (by omega)))
     have h2 : 2 ^ (e + f + bias).toNat ≤ 2 ^ (4142 : Int).toNat :=
       pow_toNat_le _ _ (by unfold bias; omega) (by unfold bias; omega)
     have h3 : a * b * 2 ^ (e + f + bias).toNat < 2 ^ 53 * 2 ^ 53 * 2 ^ (4142 : Int).toNat :=
-      Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right h1 (Nat.pos_pow_of_pos _ (by omega)))
+      Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right h1 (Nat.pow_pos (by omega)))
         (Nat.mul_le_mul_left _ h2)
     refine Nat.lt_of_lt_of_le h3 ?_
     rw [← Nat.pow_add, ← Nat.pow_add]
@@ -632,25 +633,25 @@ theorem div_rne (x y : Nat) (hx : isFinite x = true) (hy : isFinite y = true)
   obtain ⟨m1, l1, u1⟩ := decode_range x hx
   obtain ⟨m2, l2, u2⟩ := decode_range y hy
   refine ⟨?_, round_rne _ _ _ (by omega) ?_⟩
-  · simp only [div]; rw [if_neg h2, if_neg h1]
+  · simp only [div]; rw [ite_eq_right h2, ite_eq_right h1]
   · generalize (decode x).2.1 = a at *; generalize (decode y).2.1 = b at *
     generalize (decode x).2.2 = e at *; generalize (decode y).2.2 = f at *
     refine Nat.lt_of_le_of_lt (Nat.div_le_self _ _) ?_
     have h2 : 2 ^ (e - f + bias).toNat ≤ 2 ^ (4245 : Int).toNat :=
       pow_toNat_le _ _ (by unfold bias; omega) (by unfold bias; omega)
     have h3 : a * 2 ^ (e - f + bias).toNat < 2 ^ 53 * 2 ^ (4245 : Int).toNat :=
-      Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right m1 (Nat.pos_pow_of_pos _ (by omega)))
+      Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right m1 (Nat.pow_pos (by omega)))
         (Nat.mul_le_mul_left _ h2)
     refine Nat.lt_of_lt_of_le h3 ?_
     rw [← Nat.pow_add]
     exact Nat.pow_le_pow_right (by omega) (by decide)
 
 theorem natAbs_mp (m n : Nat) : ((m:Int) * 2 ^ n).natAbs = m * 2 ^ n := by
-  rw [show ((m:Int) * 2 ^ n) = ((m * 2 ^ n : Nat) : Int) by rw [Int.ofNat_mul, Int.natCast_pow]; rfl]
-  exact Int.natAbs_ofNat _
+  rw [show ((m:Int) * 2 ^ n) = ((m * 2 ^ n : Nat) : Int) by rw [Int.natCast_mul, Int.natCast_pow]; rfl]
+  exact Int.natAbs_natCast _
 
 theorem atUnit_abs (s : Bool) (m : Nat) (e u : Int) : (atUnit s m e u).natAbs = m * 2 ^ (e - u).toNat := by
-  unfold atUnit; cases s <;> simp only [Int.natAbs_neg, natAbs_mp, ite_true, ite_false, cond_true, cond_false] <;> first | rfl | simp [Int.natAbs_neg, natAbs_mp]
+  unfold atUnit; cases s <;> simp [Int.natAbs_neg, natAbs_mp]
 
 /-- **Addition** (and so subtraction, `sub x y = add x (neg y)`) of finite
     operands: an exact zero sum is `+0` unless both are negative (IEEE 754
@@ -703,7 +704,7 @@ theorem ofInt_rne (x : Int) (hx : x ≠ 0) (hb : x.natAbs < 2 ^ 4264) :
   rw [Nat.div_one]
   have : ((0:Int) + bias).toNat = 2200 := rfl
   rw [this]
-  refine Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right hb (Nat.pos_pow_of_pos _ (by omega))) ?_
+  refine Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right hb (Nat.pow_pos (by omega))) ?_
   rw [← Nat.pow_add]
   exact Nat.pow_le_pow_right (by omega) (by decide)
 

@@ -110,7 +110,7 @@ theorem evalAll_some (ev : Nat → List Nat → Option Int) (r : Nat → List Na
       evalAll ev cs = some (cs.map (fun c => r c.1 c.2))
   | [], _ => rfl
   | (g, a) :: cs, h => by
-    have h1 := h (g, a) (List.mem_cons_self _ _)
+    have h1 := h (g, a) (List.mem_cons_self)
     have h2 := evalAll_some ev r cs (fun c hc => h c (List.mem_cons_of_mem _ hc))
     simp [evalAll, h1, h2]
 
@@ -202,7 +202,7 @@ theorem call_keep (passed recv kept mine : List Nat) {b : Bool} (h : LeLt passed
   | 0 => Nat
   | k + 1 => Nat × Tup k
 
-def tupWf : (k : Nat) → WellFoundedRelation (Tup k)
+@[instance_reducible] def tupWf : (k : Nat) → WellFoundedRelation (Tup k)
   | 0 => Nat.lt_wfRel
   | k + 1 => Prod.lex Nat.lt_wfRel (tupWf k)
 
@@ -243,7 +243,7 @@ theorem evalF_mono (p : Prog) : ∀ n f a v, evalF p n f a = some v → evalF p 
   | zero => intro f a v h; simp [evalF] at h
   | succ n ih =>
     intro f a v h
-    simp only [evalF, Option.map_eq_some'] at h ⊢
+    simp only [evalF, Option.map_eq_some_iff] at h ⊢
     obtain ⟨vs, h1, h2⟩ := h
     exact ⟨vs, evalAll_mono _ _ ih _ _ h1, h2⟩
 
@@ -258,7 +258,7 @@ theorem evalAll_exists (p : Prog) :
       ∃ n vs, evalAll (evalF p n) cs = some vs
   | [], _ => ⟨0, [], rfl⟩
   | (g, a) :: cs, h => by
-    obtain ⟨n1, v, hv⟩ := h (g, a) (List.mem_cons_self _ _)
+    obtain ⟨n1, v, hv⟩ := h (g, a) (List.mem_cons_self)
     obtain ⟨n2, vs, hvs⟩ := evalAll_exists p cs (fun c hc => h c (List.mem_cons_of_mem _ hc))
     refine ⟨max n1 n2, v :: vs, ?_⟩
     have e1 := evalF_mono_le p n1 (max n1 n2) g a v (Nat.le_max_left _ _) hv

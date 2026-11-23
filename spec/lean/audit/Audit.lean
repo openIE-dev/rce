@@ -11,7 +11,7 @@ open Lean Elab Command
 elab "#rce_audit" : command => do
   let env ← getEnv
   let allowed : List Name := [``propext, ``Quot.sound, ``Classical.choice]
-  let mut n := 0
+  let mut n : Nat := 0
   let mut bad : Array String := #[]
   for (nm, ci) in env.constants.toList do
     if let .thmInfo _ := ci then

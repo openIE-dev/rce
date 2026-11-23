@@ -71,7 +71,7 @@ theorem dual_shift : ∀ (c : Nat) (p : P), dual (shift c p) = shift c (dual p)
   | c, .send a | c, .recv a => by simp [shift, dual, dual_shift c a]
   | c, .choose a b | c, .offer a b => by simp [shift, dual, dual_shift c a, dual_shift c b]
   | c, .mu a => by simp [shift, dual, dual_shift (c + 1) a]
-  | c, .var n => by simp only [shift]; split <;> rfl
+  | c, .var n => by simp only [shift, dual]; split <;> rfl
 
 theorem enc_dual : ∀ (s : SP) (e k : P), dual (enc s e k) = enc (sdual s) (dual e) (dual k)
   | .done, _, _ | .brk, _, _ => rfl
@@ -126,7 +126,7 @@ theorem shift_closed : ∀ {m : Nat} (j : Nat) (p : P), closedAt m p → m ≤ j
     simp [shift, shift_closed j a h.1 hj, shift_closed j b h.2 hj]
   | _, j, .mu a, h, hj => by simp [shift, shift_closed (j + 1) a h (by omega)]
   | m, j, .var n, h, hj => by
-    simp only [closedAt] at h; simp only [shift]; rw [if_neg (by omega)]
+    simp only [closedAt] at h; simp only [shift]; rw [ite_eq_right (by omega)]
 
 theorem subst_closed : ∀ {m : Nat} (k : Nat) (c p : P), closedAt m p → m ≤ k → subst k c p = p
   | _, _, _, .done, _, _ => rfl
@@ -135,7 +135,7 @@ theorem subst_closed : ∀ {m : Nat} (k : Nat) (c p : P), closedAt m p → m ≤
     simp [subst, subst_closed k c a h.1 hk, subst_closed k c b h.2 hk]
   | _, k, c, .mu a, h, hk => by simp [subst, subst_closed (k + 1) c a h (by omega)]
   | _, k, c, .var n, h, hk => by
-    simp only [closedAt] at h; simp only [subst]; rw [if_neg (by omega)]
+    simp only [closedAt] at h; simp only [subst]; rw [ite_eq_right (by omega)]
 
 theorem subst_shift_comm : ∀ (j k : Nat) {c : P} (p : P), closedAt 0 c → j ≤ k →
     subst (k + 1) c (shift j p) = shift j (subst k c p)
@@ -148,12 +148,12 @@ theorem subst_shift_comm : ∀ (j k : Nat) {c : P} (p : P), closedAt 0 c → j �
     simp only [shift, subst]; rw [subst_shift_comm (j + 1) (k + 1) a hc (by omega)]
   | j, k, c, .var n, hc, hj => by
     by_cases h1 : j ≤ n
-    · simp only [shift, if_pos h1, subst]
+    · simp only [shift, ite_eq_left h1, subst]
       by_cases h2 : n = k
       · subst h2; simp [shift_closed j c hc (Nat.zero_le _)]
-      · rw [if_neg (by omega), if_neg h2]; simp [shift, h1]
-    · simp only [shift, if_neg h1, subst]
-      rw [if_neg (by omega), if_neg (by omega)]; simp [shift, h1]
+      · rw [ite_eq_right (by omega), ite_eq_right h2]; simp [shift, h1]
+    · simp only [shift, ite_eq_right h1, subst]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega)]; simp [shift, h1]
 
 theorem subst_enc : ∀ (k : Nat) {c : P} (s : SP) (e kk : P), closedAt 0 c →
     subst k c (enc s e kk) = enc s (subst k c e) (subst k c kk)

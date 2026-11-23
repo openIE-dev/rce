@@ -40,13 +40,13 @@ def maxS : Semi Int where
   join a b := max a b
   assoc a b c := by simp only [Int.max_def]; split <;> split <;> (try split) <;> (try split) <;> omega
   comm a b := by simp only [Int.max_def]; split <;> split <;> omega
-  idem a := by simp [Int.max_def]
+  idem a := by simp
 
 def minS : Semi Int where
   join a b := min a b
   assoc a b c := by simp only [Int.min_def]; split <;> split <;> (try split) <;> (try split) <;> omega
   comm a b := by simp only [Int.min_def]; split <;> split <;> omega
-  idem a := by simp [Int.min_def]
+  idem a := by simp
 
 def orS : Semi Bool := ⟨(· || ·), Bool.or_assoc, Bool.or_comm, Bool.or_self⟩
 def andS : Semi Bool := ⟨(· && ·), Bool.and_assoc, Bool.and_comm, Bool.and_self⟩

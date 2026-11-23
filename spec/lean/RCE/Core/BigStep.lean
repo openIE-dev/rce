@@ -13,7 +13,7 @@ def Final : Res → Prop
   | _ => False
 
 inductive BS (P : Prog) : List Val → Expr → Res → Prop where
-  | var {ρ i v} : ρ.get? i = some v → BS P ρ (.var i) (.ok v)
+  | var {ρ i v} : ρ[i]? = some v → BS P ρ (.var i) (.ok v)
   | lit {ρ v} : BS P ρ (.lit v) (.ok v)
   | bin {ρ op ta a b x y} : BS P ρ a (.ok x) → BS P ρ b (.ok y) → Final (binop op ta x y) →
       BS P ρ (.bin op ta a b) (binop op ta x y)
@@ -42,7 +42,7 @@ inductive BS (P : Prog) : List Val → Expr → Res → Prop where
   | catch_h {ρ a h c r} : BS P ρ a (.err (.user c)) → BS P ρ h r → BS P ρ (.catch_ a h) r
   | catch_ok {ρ a h v} : BS P ρ a (.ok v) → BS P ρ (.catch_ a h) (.ok v)
   | catch_t {ρ a h t} : BS P ρ a (.err t) → (∀ c, t ≠ .user c) → BS P ρ (.catch_ a h) (.err t)
-  | call {ρ f a x ta t body r} : BS P ρ a (.ok x) → P.get? f = some (ta, t, body) →
+  | call {ρ f a x ta t body r} : BS P ρ a (.ok x) → P[f]? = some (ta, t, body) →
       BS P [x] (.tick body) r → BS P ρ (.call f a) r
   | call_e {ρ f a t} : BS P ρ a (.err t) → BS P ρ (.call f a) (.err t)
   | tick {ρ e r} : BS P ρ e r → BS P ρ (.tick e) r
@@ -73,9 +73,9 @@ theorem eval_bigstep (P : Prog) :
     cases e with
     | var i =>
       simp only [eval] at hf ⊢
-      cases hv : ρ.get? i with
+      cases hv : ρ[i]? with
       | none => simp only [hv, Final] at hf
-      | some v => simp only [hv]; exact .var hv
+      | some v => exact .var hv
     | lit v => simp only [eval]; exact .lit
     | bin op ta a b =>
       simp only [eval] at hf ⊢
@@ -110,12 +110,12 @@ theorem eval_bigstep (P : Prog) :
     | fst a =>
       simp only [eval] at hf ⊢
       cases ha : eval P n ρ a <;> simp only [ha] at hf ⊢ <;> try simp [Final] at hf
-      · rename_i v; cases v <;> simp [Final] at hf ⊢; exact .fst (IH _ _ _ ha trivial)
+      · rename_i v; cases v <;> simp at hf ⊢; exact .fst (IH _ _ _ ha trivial)
       · exact .fst_e (IH _ _ _ ha trivial)
     | snd a =>
       simp only [eval] at hf ⊢
       cases ha : eval P n ρ a <;> simp only [ha] at hf ⊢ <;> try simp [Final] at hf
-      · rename_i v; cases v <;> simp [Final] at hf ⊢; exact .snd (IH _ _ _ ha trivial)
+      · rename_i v; cases v <;> simp at hf ⊢; exact .snd (IH _ _ _ ha trivial)
       · exact .snd_e (IH _ _ _ ha trivial)
     | inl a =>
       simp only [eval] at hf ⊢
@@ -149,13 +149,13 @@ theorem eval_bigstep (P : Prog) :
       cases ha : eval P n ρ a with
       | ok x =>
         simp only [ha] at hf ⊢
-        cases hp : P.get? f with
+        cases hp : P[f]? with
         | none => simp only [hp, Final] at hf
         | some fb =>
           obtain ⟨ta, t, body⟩ := fb
           simp only [hp] at hf ⊢
           exact .call (IH _ _ _ ha trivial) hp (ih _ _ hf)
-      | err t => simp only [ha]; exact .call_e (IH _ _ _ ha trivial)
+      | err t => exact .call_e (IH _ _ _ ha trivial)
       | oof => simp only [ha, Final] at hf
       | stuck => simp only [ha, Final] at hf
     | tick e => simp only [eval] at hf ⊢; exact .tick (ih _ _ hf)

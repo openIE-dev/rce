@@ -93,10 +93,10 @@ theorem proj_msg {p q r : Nat} {k : G} {l : L} :
   | none => simp
   | some x =>
     by_cases h1 : r = p
-    · simp only [if_pos h1]; simp [eq_comm]
+    · simp only [ite_eq_left h1]; simp [eq_comm]
     · by_cases h2 : r = q
-      · simp only [if_neg h1, if_pos h2]; simp [eq_comm]
-      · simp only [if_neg h1, if_neg h2]; simp [eq_comm]
+      · simp only [ite_eq_right h1, ite_eq_left h2]; simp [eq_comm]
+      · simp only [ite_eq_right h1, ite_eq_right h2]; simp [eq_comm]
 
 theorem proj_br {p q r : Nat} {a b : G} {l : L} :
     proj (.br p q a b) r = some l ↔
@@ -110,10 +110,10 @@ theorem proj_br {p q r : Nat} {a b : G} {l : L} :
     | none => simp
     | some y =>
       by_cases h1 : r = p
-      · simp only [if_pos h1]; simp [eq_comm]
+      · simp only [ite_eq_left h1]; simp [eq_comm]
       · by_cases h2 : r = q
-        · simp only [if_neg h1, if_pos h2]; simp [eq_comm]
-        · simp only [if_neg h1, if_neg h2]
+        · simp only [ite_eq_right h1, ite_eq_left h2]; simp [eq_comm]
+        · simp only [ite_eq_right h1, ite_eq_right h2]
           by_cases h3 : x = y
           · subst h3; simp [eq_comm]
           · simp [h3]
@@ -237,10 +237,10 @@ theorem sr : ∀ (g : G) {c c' : C}, WF g → Proj g c → Step c c' → ∃ g',
       refine ⟨.br a b x' y', ⟨hw.1, wx, wy⟩, fun r => proj_br.2 ⟨_, _, px r, py r, ?_⟩⟩
       rw [upd2, upd2, upd2]
       by_cases r3 : r = a
-      · subst r3; simp [h1, h3, Ne.symm h1, Ne.symm h3, ca]
+      · subst r3; simp [Ne.symm h1, Ne.symm h3, ca]
       · by_cases r4 : r = b
-        · subst r4; simp [h2, h4, Ne.symm h2, Ne.symm h4, r3, cb]
-        · simp only [r3, r4, if_false]
+        · subst r4; simp [Ne.symm h2, Ne.symm h4, r3, cb]
+        · simp only [r3, r4, ite_false]
           have := co r r3 r4
           by_cases r1 : r = q <;> by_cases r2 : r = p <;> simp [r1, r2, this.1, this.2]
 
@@ -305,11 +305,11 @@ theorem filter_one {f : Nat → Bool} {c : Nat} : ∀ l : List Nat, l.Nodup →
     · subst h
       have e : (l.filter f).filter (fun i => i == j) = [] := by rw [ih]; simp [hj]
       by_cases hf : f j = true
-      · simp [List.filter_cons, hf, e]
-      · simp [List.filter_cons, hf, e]
+      · simp [hf, e]
+      · simp [hf, e]
     · by_cases hf : f j = true
-      · simp [List.filter_cons, hf, h, ih, Ne.symm h]
-      · simp [List.filter_cons, hf, ih, Ne.symm h]
+      · simp [hf, h, ih, Ne.symm h]
+      · simp [hf, ih, Ne.symm h]
 
 open RCE.SessionPrio in
 theorem global_prio {evs : List (Nat × Nat)} (hw : ∀ e ∈ evs, e.1 ≠ e.2) :
@@ -317,7 +317,7 @@ theorem global_prio {evs : List (Nat × Nat)} (hw : ∀ e ∈ evs, e.1 ≠ e.2) 
   have hd : ∀ c, (evs.getD c (0, 1)).1 ≠ (evs.getD c (0, 1)).2 := by
     intro c
     by_cases h : c < evs.length
-    · simp [List.getD, List.getElem?_eq_getElem h]; exact hw _ (List.getElem_mem _ _ _)
+    · simp [List.getD, List.getElem?_eq_getElem h]; exact hw _ (List.getElem_mem h)
     · simp [List.getD, List.getElem?_eq_none (by omega : evs.length ≤ c)]
   refine ⟨?_, fun c => hd c, ?_, ?_⟩
   · intro p a ha
@@ -328,10 +328,10 @@ theorem global_prio {evs : List (Nat × Nat)} (hw : ∀ e ∈ evs, e.1 ≠ e.2) 
     · exact Or.inr h.symm
   · intro c
     simp only [netOf, endsOf]
-    rw [filt_map0, filt_map0, filter_one _ (List.nodup_range _), filter_one _ (List.nodup_range _)]
+    rw [filt_map0, filt_map0, filter_one _ List.nodup_range, filter_one _ List.nodup_range]
     simp [inv]
   · intro r
     simp only [netOf, List.pairwise_map]
-    exact List.Pairwise.filter _ (List.pairwise_lt_range _)
+    exact List.Pairwise.filter _ List.pairwise_lt_range
 
 end RCE.SessionGlobal

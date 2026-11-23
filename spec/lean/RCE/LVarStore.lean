@@ -207,20 +207,20 @@ theorem inv_step {P : List (List (Op ι α))} {c c' : Cfg ι α} (h : Inv P c)
       have hk := h.sum k
       simp only [rem_append, rem, putsOf] at hk ⊢
       by_cases e : k = l
-      · subst e; simp only [upd, if_pos] at hk ⊢; rw [← hk]; ac_rfl
+      · subst e; simp only [upd, ite_eq_left] at hk ⊢; rw [← hk]; ac_rfl
       · have e' : ¬ l = k := fun h => e h.symm
-        simp only [upd, if_neg e, if_neg e'] at hk ⊢; exact hk
+        simp only [upd, ite_eq_right e, ite_eq_right e'] at hk ⊢; exact hk
     · intro k; by_cases e : k = l
-      · subst e; simp only [upd, if_pos]; exact hnt
-      · simp only [upd, if_neg e]; exact h.ntop k
+      · subst e; simp only [upd, ite_eq_left]; exact hnt
+      · simp only [upd, ite_eq_right e]; exact h.ntop k
     · rw [prog_mid]; exact h.shape
     · refine good_mid h.good (good_mono ?_ ?_) rfl
       · intro k; by_cases e : k = l
-        · subst e; simp only [upd, if_pos]; exact le_join_left _ _
-        · simp only [upd, if_neg e]; exact le_refl' _
+        · subst e; simp only [upd, ite_eq_left]; exact le_join_left _ _
+        · simp only [upd, ite_eq_right e]; exact le_refl' _
       · intro k hf; refine ⟨hf, ?_⟩; by_cases e : k = l
-        · subst e; simp only [upd, if_pos]; exact hfz hf
-        · simp only [upd, if_neg e]
+        · subst e; simp only [upd, ite_eq_left]; exact hfz hf
+        · simp only [upd, ite_eq_right e]
     · intro k
       have := h.frz k
       simp only [frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt] at this ⊢
@@ -242,14 +242,14 @@ theorem inv_step {P : List (List (Op ι α))} {c c' : Cfg ι α} (h : Inv P c)
       intro k hf; refine ⟨?_, rfl⟩
       by_cases e : k = l
       · subst e; simp [upd]
-      · simp only [upd, if_neg e]; exact hf
+      · simp only [upd, ite_eq_right e]; exact hf
     · intro k
       have := h.frz k
       by_cases e : k = l
       · subst e
         simp [upd, frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt]
       · simp only [frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt] at this ⊢
-        simp only [upd, if_neg e]
+        simp only [upd, ite_eq_right e]
         have e' : ¬ l = k := fun h' => e h'.symm
         simpa [e'] using this
 
@@ -263,7 +263,7 @@ theorem rem_complete (k : ι) : ∀ {ths : List (Th ι α)}, (∀ t ∈ ths, t.t
   | [], _ => rfl
   | t :: ts, h => by
     simp only [rem]
-    rw [h t (List.mem_cons_self _ _),
+    rw [h t (List.mem_cons_self),
       rem_complete k (fun t' ht' => h t' (List.mem_cons_of_mem _ ht'))]
     simp only [putsOf, bot_join]
 
@@ -298,7 +298,7 @@ theorem list_det {G : Op ι α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 �
   | _ :: _, [], h, _, _ => by simp at h
   | a :: as, b :: bs, h, g1, g2 => by
       simp only [List.map_cons, List.cons.injEq] at h
-      rw [hG a b (g1 a (List.mem_cons_self _ _)) (g2 b (List.mem_cons_self _ _)) h.1,
+      rw [hG a b (g1 a (List.mem_cons_self)) (g2 b (List.mem_cons_self)) h.1,
         list_det hG as bs h.2 (fun e he => g1 e (List.mem_cons_of_mem _ he))
           (fun e he => g2 e (List.mem_cons_of_mem _ he))]
 
@@ -310,12 +310,12 @@ theorem ths_det {G : Op ι α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 →
   | [], _ :: _, h, _, _, _, _ => by simp [prog] at h
   | _ :: _, [], h, _, _, _, _ => by simp [prog] at h
   | ⟨ad, atd⟩ :: as, ⟨bd, btd⟩ :: bs, h, k1, k2, g1, g2 => by
-      have ta : atd = [] := k1 _ (List.mem_cons_self _ _)
-      have tb : btd = [] := k2 _ (List.mem_cons_self _ _)
+      have ta : atd = [] := k1 _ (List.mem_cons_self)
+      have tb : btd = [] := k2 _ (List.mem_cons_self)
       subst ta; subst tb
       simp only [prog, List.map_cons, List.cons.injEq, List.append_nil] at h
-      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self _ _))
-        (g2 _ (List.mem_cons_self _ _))
+      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self))
+        (g2 _ (List.mem_cons_self))
       have hr : as = bs := ths_det hG as bs h.2
         (fun t ht => k1 t (List.mem_cons_of_mem _ ht)) (fun t ht => k2 t (List.mem_cons_of_mem _ ht))
         (fun t ht => g1 t (List.mem_cons_of_mem _ ht)) (fun t ht => g2 t (List.mem_cons_of_mem _ ht))
@@ -347,7 +347,7 @@ theorem anyFrz_false (k : ι) : ∀ {l : List (Op ι α × α)}, (∀ e ∈ l, i
   | [], _ => rfl
   | e :: es, hl => by
     have h0 : frzAt k e.1 = false := by
-      have := hl e (List.mem_cons_self _ _)
+      have := hl e (List.mem_cons_self)
       revert this; cases e.1 <;> simp [isFrz, frzAt]
     simp only [anyFrz, h0, anyFrz_false k (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
       Bool.or_self]
@@ -356,7 +356,7 @@ theorem frozenDone_false (k : ι) : ∀ {ths : List (Th ι α)},
     (∀ t ∈ ths, ∀ e ∈ t.done, isFrz e.1 = false) → frozenDone k ths = false
   | [], _ => rfl
   | t :: ts, h => by
-    simp only [frozenDone, anyFrz_false k (h t (List.mem_cons_self _ _)),
+    simp only [frozenDone, anyFrz_false k (h t (List.mem_cons_self)),
       frozenDone_false k (fun t' ht' => h t' (List.mem_cons_of_mem _ ht')), Bool.or_self]
 
 /-- **Determinism without freeze, for a store.** -/
@@ -372,7 +372,7 @@ theorem store_det_no_err {P : List (List (Op ι α))} (hP : FreezeFree P) {c : C
     cases hs with
     | @put_top v f pre post dn l d tl htop =>
       have hd : Le d (rem l (pre ++ ⟨dn, .put l d :: tl⟩ :: post)) := by
-        simp only [rem_append, rem, putsOf, if_pos]
+        simp only [rem_append, rem, putsOf, ite_eq_left]
         exact le_trans' (le_trans' (le_join_left d _) (le_join_left _ _)) (le_join_right _ _)
       have := join_mono (v := v l) hd
       rw [htop, i0.sum l] at this

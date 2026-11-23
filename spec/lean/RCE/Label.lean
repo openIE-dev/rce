@@ -23,7 +23,7 @@ inductive Piece | lit (s : List Char) | enc (s : List Char)
 def render : List Piece → List Char
   | [] => []
   | .lit s :: d => s ++ render d
-  | .enc s :: d => s.bind enc ++ render d
+  | .enc s :: d => s.flatMap enc ++ render d
 
 def litMeta : List Piece → List Char
   | [] => []
@@ -31,12 +31,12 @@ def litMeta : List Piece → List Char
   | .enc _ :: d => litMeta d
 
 theorem enc_clean (h : ∀ c, ∀ x ∈ enc c, isMeta x = false) (s : List Char) :
-    (s.bind enc).filter isMeta = [] := by
+    (s.flatMap enc).filter isMeta = [] := by
   induction s with
   | nil => rfl
   | cons c cs ih =>
-    simp only [List.bind_cons, List.filter_append, ih, List.append_nil]
-    exact List.filter_eq_nil.mpr (fun x hx => by simp [h c x hx])
+    simp only [List.flatMap_cons, List.filter_append, ih, List.append_nil]
+    exact List.filter_eq_nil_iff.mpr (fun x hx => by simp [h c x hx])
 
 /-- Every metacharacter of a rendered `Text[C]` value comes from a literal. -/
 theorem ctx_meta_from_literals (h : ∀ c, ∀ x ∈ enc c, isMeta x = false) (d : List Piece) :
@@ -138,7 +138,7 @@ theorem guarded_needs_cap (d : G × O → E → G × O) (h : CapWF hasCap d)
   | cons e es ih =>
     simp only [List.foldl]
     rw [ih (d s e) (fun x hx => hl x (List.mem_cons_of_mem _ hx))]
-    exact h s e (hl e (List.mem_cons_self _ _))
+    exact h s e (hl e (List.mem_cons_self))
 end Cap
 
 end RCE.Label

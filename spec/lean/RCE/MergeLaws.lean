@@ -48,7 +48,7 @@ theorem intMax_assoc (a b c : Int) : max (max a b) c = max a (max b c) := by
 theorem intMax_comm (a b : Int) : max a b = max b a := by
   simp only [Int.max_def]; split <;> split <;> omega
 
-theorem intMax_idem (a : Int) : max a a = a := by simp [Int.max_def]
+theorem intMax_idem (a : Int) : max a a = a := by simp
 
 /-- a chosen bottom `b` is an identity on the values at or above it -/
 theorem intMax_bot (b a : Int) (h : b ≤ a) : max b a = a := by
@@ -111,7 +111,7 @@ def topJoin {α : Type} (s : SL α) : Option α → Option α → Option α
   | some x, some y => some (s.join x y)
   | _, _ => none
 
-def withTop {α : Type} (s : SL α) : RCE.LVarQD.Lat (Option α) where
+@[instance_reducible] def withTop {α : Type} (s : SL α) : RCE.LVarQD.Lat (Option α) where
   join := topJoin s
   bot := some s.bot
   top := none

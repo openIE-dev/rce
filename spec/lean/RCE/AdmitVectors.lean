@@ -49,7 +49,7 @@ def shuffle (l : List In) (s : Nat) : List In :=
     | _, [] => []
     | f + 1, _ =>
       let i := (s / 65536) % l.length
-      match l.get? i with
+      match l[i]? with
       | some x => x :: go (l.eraseIdx i) (lcg s) f
       | none => l
   let p := go l s l.length

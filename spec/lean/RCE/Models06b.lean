@@ -71,7 +71,7 @@ theorem maxL_mem : ∀ (l : List Nat), l ≠ [] → maxL l ∈ l
     show max x (maxL (y :: ys)) ∈ x :: y :: ys
     by_cases h : x ≤ maxL (y :: ys)
     · rw [Nat.max_eq_right h]; exact List.mem_cons_of_mem _ ih
-    · rw [Nat.max_eq_left (by omega)]; exact List.mem_cons_self _ _
+    · rw [Nat.max_eq_left (by omega)]; exact List.mem_cons_self
 
 /-- T25: priority admission admits a pending request whose priority is at
 least that of every other pending request. -/

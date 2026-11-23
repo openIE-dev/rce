@@ -42,14 +42,14 @@ theorem card_le : ∀ {l S : List Nat}, l.Nodup → (∀ x ∈ l, x ∈ S) → l
   | [], _, _, _ => Nat.zero_le _
   | a :: t, S, hl, hs => by
     rw [nodup_cons] at hl
-    have ha : a ∈ S := hs a (mem_cons_self a t)
+    have ha : a ∈ S := hs a mem_cons_self
     have h2 : ∀ x ∈ t, x ∈ S.erase a := by
       intro x hx
       have hne : x ≠ a := fun h => hl.1 (h ▸ hx)
       exact (mem_erase_of_ne hne).2 (hs x (mem_cons_of_mem a hx))
     have ih := card_le hl.2 h2
     rw [length_erase_of_mem ha] at ih
-    have hp : 0 < S.length := length_pos.2 (ne_nil_of_mem ha)
+    have hp : 0 < S.length := length_pos_of_mem ha
     simp only [length_cons]
     omega
 

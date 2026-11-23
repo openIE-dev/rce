@@ -1,4 +1,5 @@
 import RCE.Core.F64
+set_option exponentiation.threshold 10000
 /-! Kernel-checked vectors for the unary float methods (bits from Rust/IEEE). -/
 namespace RCE.F64
 set_option maxRecDepth 200000

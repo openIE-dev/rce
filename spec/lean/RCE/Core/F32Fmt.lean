@@ -66,8 +66,8 @@ def text32 (b : Nat) : String :=
   let n := ds.length
   if E ≥ 0 then
     let ip := E.toNat + 1
-    if n ≤ ip then sgn ++ ds ++ String.mk (List.replicate (ip - n) '0')
-    else sgn ++ (ds.take ip) ++ "." ++ (ds.drop ip)
-  else sgn ++ "0." ++ String.mk (List.replicate ((-E).toNat - 1) '0') ++ ds
+    if n ≤ ip then sgn ++ ds ++ String.ofList (List.replicate (ip - n) '0')
+    else sgn ++ (ds.take ip).toString ++ "." ++ (ds.drop ip).toString
+  else sgn ++ "0." ++ String.ofList (List.replicate ((-E).toNat - 1) '0') ++ ds
 
 end RCE.F64

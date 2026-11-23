@@ -292,7 +292,7 @@ theorem run_log_aux (P : Program) : ∀ (es : List Event) (m : Machine),
 /-- The log records exactly the admitted events. -/
 theorem log_is_events (P : Program) (s0 : State) (es : List Event) :
     (run P s0 es).log.map Prod.fst = es := by
-  have := run_log_aux P es ⟨s0, []⟩; simpa using this
+  have := run_log_aux P es ⟨s0, []⟩; simpa [run] using this
 
 /-- **T3 Replay**: folding the log again reproduces the machine exactly,
     every state and every output entry. -/
@@ -364,10 +364,10 @@ theorem regionStep_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b �
     have hiff : (ρ d.event = ρ ev) ↔ (d.event = ev) := ⟨hρ _ _, fun h => h ▸ rfl⟩
     by_cases hc : d.region = i ∧ d.event = ev
     · have hc' : d.region = i ∧ ρ d.event = ρ ev := ⟨hc.1, hiff.2 hc.2⟩
-      simp only [hc, hc', and_self, if_true]
+      simp only [hc, hc', and_self, ite_true]
       split <;> simp_all [SRes.rename, Reason.rename, exec_rename]
     · have hc' : ¬ (d.region = i ∧ ρ d.event = ρ ev) := fun h => hc ⟨h.1, hiff.1 h.2⟩
-      simp only [hc, hc', if_false]; exact ih
+      simp only [hc, hc', ite_false]; exact ih
 
 theorem runRegions_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a = b)
     (P : Program) (e : Event) : ∀ (s : State) i,

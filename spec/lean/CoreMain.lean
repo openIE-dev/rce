@@ -133,11 +133,11 @@ partial def ckStmts (S : Sig) (Γ : List Ty) : List Json → Except String (List
     | .arr #[.str "emit", e, ty] => do
       let t ← jTy ty; let _ ← need (← jExpr e) (some t) (some t); ckStmts S Γ js
     | .arr #[.str "set", i, _, e] => do
-      let some t := Γ.get? (← i.getNat?) | throw "set: unbound"
+      let some t := Γ[← i.getNat?]? | throw "set: unbound"
       let _ ← need (← jExpr e) (some t) (some t); ckStmts S Γ js
     | .arr #[.str "setop", i, .str op, ty, e] => do
       let ta ← jTy ty
-      unless Γ.get? (← i.getNat?) == some ta do throw "setop: variable type"
+      unless Γ[← i.getNat?]? == some ta do throw "setop: variable type"
       unless opRes (← jOp op) ta == some ta do throw "setop: operator"
       let _ ← need (← jExpr e) (some ta) (some ta); ckStmts S Γ js
     | .arr #[.str "if", .arr arms, .arr els] => do
@@ -152,7 +152,7 @@ partial def ckStmts (S : Sig) (Γ : List Ty) : List Json → Except String (List
     | .arr #[.str "forpar", a, b, ity, _, i, .str op, ty, idv, .arr body] => do
       let it ← jTy ity; let ta ← jTy ty
       let _ ← need (← jExpr a) (some it) (some it); let _ ← need (← jExpr b) (some it) (some it)
-      unless Γ.get? (← i.getNat?) == some ta do throw "forpar: target type"
+      unless Γ[← i.getNat?]? == some ta do throw "forpar: target type"
       unless opRes (← jOp op) ta == some ta do throw "forpar: operator"
       let _ ← need (← jExpr idv) (some ta) (some ta)
       let _ ← ckStmts S (it :: Γ) body.toList; ckStmts S Γ js
@@ -236,8 +236,9 @@ def handle (line : String) : Json := Id.run do
 partial def loop (i : IO.FS.Stream) (o : IO.FS.Stream) : IO Unit := do
   let line ← i.getLine
   if line.isEmpty then return
-  if line.trim.isEmpty then loop i o else
-  o.putStrLn (handle line.trim).compress
+  let t := line.trimAscii.toString
+  if t.isEmpty then loop i o else
+  o.putStrLn (handle t).compress
   o.flush
   loop i o
 

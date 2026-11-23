@@ -24,7 +24,7 @@ theorem seqTrap_none (F : Nat) :
     simp only [RCE.ParFuel.seqTrap] at h
     by_cases hu : c + u > F
     · simp [hu] at h
-    · simp only [hu, if_false, Option.map_eq_none'] at h
+    · simp only [hu, ite_false, Option.map_eq_none_iff] at h
       have := seqTrap_none F us (c + u) h (by omega)
       simp only [List.foldr]; omega
 

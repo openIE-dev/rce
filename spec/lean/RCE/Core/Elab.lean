@@ -64,13 +64,13 @@ theorem mkStruct_ty {S Γ} : ∀ {es ts}, AllTy S Γ es ts → HasTy S Γ (mkStr
   | _, _, .nil => .lit .unit
   | _, _, .cons h hs => .pair h (mkStruct_ty hs)
 
-theorem proj_ty {S Γ} : ∀ (i : Nat) {e ts t}, ts.get? i = some t →
+theorem proj_ty {S Γ} : ∀ (i : Nat) {e ts t}, ts[i]? = some t →
     HasTy S Γ e (structTy ts) → HasTy S Γ (proj i e) t
   | _, _, [], _, h, _ => by simp at h
   | 0, _, _ :: _, _, h, he => by simp at h; subst h; exact .fst he
   | i+1, _, _ :: ts, _, h, he => proj_ty i (by simpa using h) (.snd he)
 
-theorem inj_ty {S Γ} : ∀ (i : Nat) (ts : List Ty) {e t}, ts.get? i = some t →
+theorem inj_ty {S Γ} : ∀ (i : Nat) (ts : List Ty) {e t}, ts[i]? = some t →
     HasTy S Γ e t → HasTy S Γ (inj i ts e) (enumTy ts)
   | _, [], _, _, h, _ => by simp at h
   | 0, [_], _, _, h, he => by simp at h; subst h; exact he
@@ -78,7 +78,7 @@ theorem inj_ty {S Γ} : ∀ (i : Nat) (ts : List Ty) {e t}, ts.get? i = some t �
   | 0, _ :: _ :: _, _, _, h, he => by simp at h; subst h; exact .inl he
   | i+1, _ :: t' :: ts, _, _, h, he => .inr (inj_ty i (t' :: ts) (by simpa using h) he)
 
-theorem injV_ty : ∀ (i : Nat) (ts : List Ty) {v t}, ts.get? i = some t →
+theorem injV_ty : ∀ (i : Nat) (ts : List Ty) {v t}, ts[i]? = some t →
     VTy v t → VTy (injV i ts v) (enumTy ts)
   | _, [], _, _, h, _ => by simp at h
   | 0, [_], _, _, h, hv => by simp at h; subst h; exact hv
@@ -111,7 +111,7 @@ theorem arms_exhaustive {S Γ t} : ∀ {ts as}, ArmsTy S Γ t ts as → as.lengt
     injection of exactly one variant's payload, so the `case` chain always
     reaches an arm and never the fallback. -/
 theorem enum_val_inv : ∀ (ts : List Ty) {v}, ts ≠ [] → VTy v (enumTy ts) →
-    ∃ i t u, ts.get? i = some t ∧ VTy u t ∧ v = injV i ts u
+    ∃ i t u, ts[i]? = some t ∧ VTy u t ∧ v = injV i ts u
   | [], _, hn, _ => absurd rfl hn
   | [t], v, _, h => ⟨0, t, v, rfl, h, rfl⟩
   | t0 :: t1 :: ts, _, _, h => by

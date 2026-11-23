@@ -24,19 +24,19 @@ variable {α : Type} (lt : α → α → Prop)
 theorem set_canon (irr : ∀ a, ¬ lt a a) (asym : ∀ a b, lt a b → ¬ lt b a) :
     ∀ {l1 l2 : List α}, l1.Pairwise lt → l2.Pairwise lt → (∀ x, x ∈ l1 ↔ x ∈ l2) → l1 = l2
   | [], [], _, _, _ => rfl
-  | [], b :: _, _, _, h => absurd ((h b).2 (List.mem_cons_self _ _)) (List.not_mem_nil _)
-  | a :: _, [], _, _, h => absurd ((h a).1 (List.mem_cons_self _ _)) (List.not_mem_nil _)
+  | [], b :: _, _, _, h => absurd ((h b).2 List.mem_cons_self) List.not_mem_nil
+  | a :: _, [], _, _, h => absurd ((h a).1 List.mem_cons_self) List.not_mem_nil
   | a :: t1, b :: t2, p1, p2, h => by
     rw [List.pairwise_cons] at p1 p2
     have hab : a = b := by
       apply Classical.byContradiction
       intro ne
       have ha : a ∈ t2 := by
-        rcases List.mem_cons.1 ((h a).1 (List.mem_cons_self _ _)) with e | e
+        rcases List.mem_cons.1 ((h a).1 (List.mem_cons_self)) with e | e
         · exact absurd e ne
         · exact e
       have hb : b ∈ t1 := by
-        rcases List.mem_cons.1 ((h b).2 (List.mem_cons_self _ _)) with e | e
+        rcases List.mem_cons.1 ((h b).2 (List.mem_cons_self)) with e | e
         · exact absurd e.symm ne
         · exact e
       exact asym _ _ (p1.1 b hb) (p2.1 a ha)
@@ -71,13 +71,13 @@ theorem mem_iff_lookup (irr : ∀ a, ¬ lt a a) :
     simp only [lookup, List.mem_cons, Prod.mk.injEq]
     by_cases e : k' = k
     · subst e
-      simp only [if_true, Option.some.injEq, true_and]
+      simp only [ite_true, Option.some.injEq, true_and]
       constructor
       · rintro (h | h)
         · exact h.symm
         · exact absurd (p.1 _ h) (irr _)
       · intro h; exact Or.inl h.symm
-    · rw [if_neg e, ← mem_iff_lookup irr p.2 k v]
+    · rw [ite_eq_right e, ← mem_iff_lookup irr p.2 k v]
       constructor
       · rintro (h | h)
         · exact absurd h.1.symm e

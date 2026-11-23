@@ -57,7 +57,7 @@ def genB : Nat → Bool → List St → Nat → Prog × List St
       cont (.branch a b) Γa
     else (.nil, Γ)
 
-def ind (n : Nat) : String := String.mk (List.replicate (4 * n) ' ')
+def ind (n : Nat) : String := String.ofList (List.replicate (4 * n) ' ')
 
 def nm (n : Nat) (x : Nat) : String := if x < n then s!"c{x}" else s!"m{x}"
 

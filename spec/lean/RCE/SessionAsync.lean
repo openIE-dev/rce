@@ -208,7 +208,7 @@ theorem merge_mono : ∀ (x : L) {y z x' y' : L}, merge x y = some z → Wide x 
     obtain ⟨u', e1, w1⟩ := ka
     obtain ⟨v', e2, w2⟩ := kb
     refine ⟨.snd q ha hb u' v', ?_, .snd w1 w2⟩
-    simp only [merge, and_self, if_true]
+    simp only [merge, and_self, ite_true]
     rw [e1, e2]
   | .rcv p ha hb a b, _, _, _, _, hm, wx, wy => by
     rcases merge_inv hm with ⟨h, _⟩ | ⟨_, _, _, _, _, _, _, _, _, h, _⟩ | ⟨_, _, _, _, _, ha', hb', a', b', u, v, h, rfl, rfl, ma, mb⟩ <;>
@@ -222,7 +222,7 @@ theorem merge_mono : ∀ (x : L) {y z x' y' : L}, merge x y = some z → Wide x 
     obtain ⟨u', e1, w1⟩ := mb_mono (fun hm wx wy => merge_mono a hm wx wy) ma fa fa' wa wa'
     obtain ⟨v', e2, w2⟩ := mb_mono (fun hm wx wy => merge_mono b hm wx wy) mb fb fb' wb wb'
     refine ⟨.rcv p (f1 || f2) (g1 || g2) u' v', ?_, .rcv ?_ ?_ w1 w2⟩
-    · simp only [merge, if_true]; rw [e1, e2]
+    · simp only [merge, ite_true]; rw [e1, e2]
     · intro h; cases f1 <;> cases f2 <;> simp_all
     · intro h; cases g1 <;> cases g2 <;> simp_all
 
@@ -343,15 +343,15 @@ theorem proj_ns {g : G} {α : Act} {g' : G} (st : GStep g α g') :
     simp only [Act.subj] at hr
     unfold pbody at hbody
     by_cases hq : r = q
-    · rw [if_pos hq] at hbody; cases hbody
-      exact ⟨_, proj_comm.2 ⟨x, y, e1, e2, by rw [pbody, if_pos hq]⟩, Wide.refl _⟩
-    · simp only [if_neg hq, if_neg hr] at hbody
-      exact ⟨pick d x y, proj_comm.2 ⟨x, y, e1, e2, by simp only [pbody, if_neg hq, hd, if_true]⟩, join_wide hbody hd⟩
+    · rw [ite_eq_left hq] at hbody; cases hbody
+      exact ⟨_, proj_comm.2 ⟨x, y, e1, e2, by rw [pbody, ite_eq_left hq]⟩, Wide.refl _⟩
+    · simp only [ite_eq_right hq, ite_eq_right hr] at hbody
+      exact ⟨pick d x y, proj_comm.2 ⟨x, y, e1, e2, by simp only [pbody, ite_eq_right hq, hd, ite_true]⟩, join_wide hbody hd⟩
   | @recv p q d ha hb a b =>
     intro _ r l hr hp
     obtain ⟨x, y, e1, e2, hbody⟩ := proj_comm.1 hp
     simp only [Act.subj] at hr
-    simp only [pbody, hr, if_false] at hbody
+    simp only [pbody, hr, ite_false] at hbody
     split at hbody
     · next hd =>
       cases hbody
@@ -379,14 +379,14 @@ theorem proj_ns {g : G} {α : Act} {g' : G} (st : GStep g α g') :
     obtain ⟨y', ey, wy⟩ := ky
     unfold pbody at hbody
     by_cases hq : r = q
-    · rw [if_pos hq] at hbody; cases hbody
-      exact ⟨_, proj_comm.2 ⟨x', y', ex, ey, by rw [pbody, if_pos hq]⟩, .rcv id id wx wy⟩
+    · rw [ite_eq_left hq] at hbody; cases hbody
+      exact ⟨_, proj_comm.2 ⟨x', y', ex, ey, by rw [pbody, ite_eq_left hq]⟩, .rcv id id wx wy⟩
     · by_cases hpp : r = p
-      · simp only [if_neg hq, if_pos hpp] at hbody; cases hbody
-        exact ⟨_, proj_comm.2 ⟨x', y', ex, ey, by simp only [pbody, if_neg hq, if_pos hpp]⟩, .snd wx wy⟩
-      · simp only [if_neg hq, if_neg hpp] at hbody
+      · simp only [ite_eq_right hq, ite_eq_left hpp] at hbody; cases hbody
+        exact ⟨_, proj_comm.2 ⟨x', y', ex, ey, by simp only [pbody, ite_eq_right hq, ite_eq_left hpp]⟩, .snd wx wy⟩
+      · simp only [ite_eq_right hq, ite_eq_right hpp] at hbody
         have ⟨l', ej, w⟩ := join_mono hbody wx wy
-        exact ⟨l', proj_comm.2 ⟨x', y', ex, ey, by simp only [pbody, if_neg hq, if_neg hpp, ej]⟩, w⟩
+        exact ⟨l', proj_comm.2 ⟨x', y', ex, ey, by simp only [pbody, ite_eq_right hq, ite_eq_right hpp, ej]⟩, w⟩
   | @ctxS p q d ha hb a b x α hs _ ih =>
     intro hw r l hr hp
     obtain ⟨xa, xb, e1, e2, hbody⟩ := proj_comm.1 hp
@@ -437,16 +437,16 @@ theorem queues_step {g : G} {α : Act} {g' : G} (st : GStep g α g') :
     by_cases hx : x = p ∧ y = q
     · obtain ⟨rfl, rfl⟩ := hx
       cases d <;> cases ha <;> cases hb <;> simp_all [pick]
-    · simp only [hx, if_false, List.nil_append]
+    · simp only [hx, ite_false, List.nil_append]
       cases d <;> cases ha <;> cases hb <;> simp_all [pick]
   | @recv p q d ha hb a b =>
     intro _ _
     funext x y
     simp only [queues, updQ]
     by_cases hx : x = p ∧ y = q
-    · simp only [hx, and_self, if_true, List.singleton_append, List.tail_cons]
+    · simp only [hx, and_self, ite_true, List.singleton_append, List.tail_cons]
       cases d <;> rfl
-    · simp only [hx, if_false, List.nil_append]; cases d <;> rfl
+    · simp only [hx, ite_false, List.nil_append]; cases d <;> rfl
   | @ctxU p q ha hb a b a' b' α h1 h2 _ _ ea eb iha ihb =>
     intro hw hi
     obtain ⟨ia, ib, _, _, _⟩ := hi
@@ -454,8 +454,8 @@ theorem queues_step {g : G} {α : Act} {g' : G} (st : GStep g α g') :
     simp only [queues]
     cases h : ha
     · have hb' : hb = true := by have := hw.2.1; simp_all
-      rw [if_neg (by simp)]; rw [ihb hb' (hw.2.2.2.2 hb') (ib hb')]; rfl
-    · rw [if_pos rfl]; rw [iha h (hw.2.2.2.1 h) (ia h)]; rfl
+      rw [ite_eq_right (by simp)]; rw [ihb hb' (hw.2.2.2.2 hb') (ib hb')]; rfl
+    · rw [ite_eq_left rfl]; rw [iha h (hw.2.2.2.1 h) (ia h)]; rfl
   | @ctxS p q d ha hb a b x α hs _ ih =>
     intro hw hi
     have hd := hw.2.2.1 d rfl
@@ -528,17 +528,17 @@ theorem lsend : ∀ (g : G) {p q : Nat} {ha hb : Bool} {y1 y2 : L} {d : Bool}, W
   | .comm s t st fa fb a b, p, q, ha, hb, y1, y2, d, hw, hp, hd => by
     obtain ⟨x, y, e1, e2, hbody⟩ := proj_comm.1 hp
     by_cases ht : p = t
-    · simp only [pbody, if_pos ht] at hbody; cases hbody
+    · simp only [pbody, ite_eq_left ht] at hbody; cases hbody
     cases st with
     | none =>
       by_cases hs : p = s
-      · simp only [pbody, if_neg ht, if_pos hs] at hbody; cases hbody; subst hs
+      · simp only [pbody, ite_eq_right ht, ite_eq_left hs] at hbody; cases hbody; subst hs
         refine ⟨_, GStep.send hd, proj_comm.2 ⟨y1, y2, e1, e2, ?_⟩⟩
-        simp only [pbody, if_neg ht]; rw [if_pos hd]
-      · simp only [pbody, if_neg ht, if_neg hs] at hbody
+        simp only [pbody, ite_eq_right ht]; rw [ite_eq_left hd]
+      · simp only [pbody, ite_eq_right ht, ite_eq_right hs] at hbody
         have sp : (Act.snd p q d).subj = p := rfl
         unfold join at hbody
-        cases hfa : fa <;> cases hfb : fb <;> simp only [hfa, hfb, if_true, if_false, Bool.false_eq_true] at hbody e1 e2
+        cases hfa : fa <;> cases hfb : fb <;> simp only [hfa, hfb, ite_true, ite_false, Bool.false_eq_true] at hbody e1 e2
         · cases hbody
         · cases hbody
           have ⟨b', sb, pb⟩ := lsend b (hw.2.2.2.2 hfb) (pj_true e2) hd
@@ -566,29 +566,29 @@ theorem lsend : ∀ (g : G) {p q : Nat} {ha hb : Bool} {y1 y2 : L} {d : Bool}, W
             exact GStep.ctxU (by simp [Act.subj, hs]) (by simp [Act.subj, ht]) (fun _ => sa) (fun _ => sb) (fun h => by cases h) (fun h => by cases h)
           · rw [hfa]; exact pa
           · rw [hfb]; exact pb
-          · simp only [pbody, if_neg ht, if_neg hs, join, hfa, hfb, if_true]
+          · simp only [pbody, ite_eq_right ht, ite_eq_right hs, join, hfa, hfb, ite_true]
             cases d <;> simp [pick] at hd ⊢
             · exact mv hd
             · exact mu hd
     | some e =>
       by_cases he : pick e fa fb = true
-      · simp only [pbody, if_neg ht, he, if_true, Option.some.injEq] at hbody
+      · simp only [pbody, ite_eq_right ht, he, ite_true, Option.some.injEq] at hbody
         cases e
-        · simp only [pick, Bool.false_eq_true, if_false] at he hbody
+        · simp only [pick, Bool.false_eq_true, ite_false] at he hbody
           subst he hbody
           have ⟨b', sb, pb⟩ := lsend b (hw.2.2.2.2 rfl) (pj_true e2) hd
           refine ⟨_, GStep.ctxS (d := false) (a := a) (b := b) (by simp [Act.subj, ht]) sb, proj_comm.2 ⟨x, pick d y1 y2, ?_, ?_, ?_⟩⟩
           · exact e1
           · exact pb
           · simp [pbody, ht, pick]
-        · simp only [pick, if_true] at he hbody
+        · simp only [pick, ite_true] at he hbody
           subst he hbody
           have ⟨a', sa, pa⟩ := lsend a (hw.2.2.2.1 rfl) (pj_true e1) hd
           refine ⟨_, GStep.ctxS (d := true) (a := a) (b := b) (by simp [Act.subj, ht]) sa, proj_comm.2 ⟨pick d y1 y2, y, ?_, ?_, ?_⟩⟩
           · exact pa
           · exact e2
           · simp [pbody, ht, pick]
-      · simp only [pbody, if_neg ht, he, if_false, Bool.false_eq_true] at hbody; cases hbody
+      · simp only [pbody, ite_eq_right ht, he, ite_false, Bool.false_eq_true] at hbody; cases hbody
 
 /-- a role whose local type (projected from `g`) receives from `p` while the
     `p → q` queue has `d` at its head: the label is accepted, and the global
@@ -603,22 +603,22 @@ theorem lrecv : ∀ (g : G) {p q : Nat} {ha hb : Bool} {y1 y2 : L} {d : Bool} {r
     | none =>
       by_cases ht : q = t
       · exfalso
-        simp only [pbody, if_pos ht] at hbody
+        simp only [pbody, ite_eq_left ht] at hbody
         cases hbody
         simp only [queues] at hq
         cases fa
         · have hfb : fb = true := by simpa using hw.2.1
-          simp only [if_false, Bool.false_eq_true] at hq
+          simp only [ite_false, Bool.false_eq_true] at hq
           rw [hi.2.2.2.2 hfb] at hq; cases hq
-        · simp only [if_true] at hq
+        · simp only [ite_true] at hq
           rw [hi.2.2.2.1 rfl] at hq; cases hq
       by_cases hs : q = s
-      · simp only [pbody, if_neg ht, if_pos hs] at hbody; cases hbody
-      simp only [pbody, if_neg ht, if_neg hs] at hbody
+      · simp only [pbody, ite_eq_right ht, ite_eq_left hs] at hbody; cases hbody
+      simp only [pbody, ite_eq_right ht, ite_eq_right hs] at hbody
       obtain ⟨ia, ib, i1, -, -⟩ := hi
       simp only [queues] at hq
       unfold join at hbody
-      cases hfa : fa <;> cases hfb : fb <;> simp only [hfa, hfb, if_true, if_false, Bool.false_eq_true] at hbody e1 e2 hq
+      cases hfa : fa <;> cases hfb : fb <;> simp only [hfa, hfb, ite_true, ite_false, Bool.false_eq_true] at hbody e1 e2 hq
       · cases hbody
       · cases hbody
         obtain ⟨hd, b', sb, pb⟩ := lrecv b (hw.2.2.2.2 hfb) (ib hfb) (pj_true e2) hq
@@ -649,13 +649,13 @@ theorem lrecv : ∀ (g : G) {p q : Nat} {ha hb : Bool} {y1 y2 : L} {d : Bool} {r
           exact GStep.ctxU (by simp [Act.subj, hs]) (by simp [Act.subj, ht]) (fun _ => sa) (fun _ => sb) (fun h => by cases h) (fun h => by cases h)
         · rw [hfa]; exact pa
         · rw [hfb]; exact pb
-        · simp only [pbody, if_neg ht, if_neg hs, join, hfa, hfb, if_true]
+        · simp only [pbody, ite_eq_right ht, ite_eq_right hs, join, hfa, hfb, ite_true]
           cases d <;> simp [pick] at hd1 hd2 ⊢
           · exact mv.1 hd1 hd2
           · exact mu.1 hd1 hd2
     | some e =>
       by_cases ht : q = t
-      · simp only [pbody, if_pos ht] at hbody
+      · simp only [pbody, ite_eq_left ht] at hbody
         cases hbody
         subst ht
         simp [queues] at hq
@@ -667,21 +667,21 @@ theorem lrecv : ∀ (g : G) {p q : Nat} {ha hb : Bool} {y1 y2 : L} {d : Bool} {r
         · simpa [pj, hd] using e1
       · have hq' : queues (pick e a b) p q = d :: rest := by
           have : ¬ (p = s ∧ q = t) := fun h => ht h.2
-          simp only [queues, if_neg this, List.nil_append] at hq; cases e <;> simpa [pick] using hq
+          simp only [queues, ite_eq_right this, List.nil_append] at hq; cases e <;> simpa [pick] using hq
         by_cases he : pick e fa fb = true
-        · simp only [pbody, if_neg ht, he, if_true, Option.some.injEq] at hbody
+        · simp only [pbody, ite_eq_right ht, he, ite_true, Option.some.injEq] at hbody
           cases e
-          · simp only [pick, Bool.false_eq_true, if_false] at he hbody hq'
+          · simp only [pick, Bool.false_eq_true, ite_false] at he hbody hq'
             subst he hbody
             obtain ⟨hd, b', sb, pb⟩ := lrecv b (hw.2.2.2.2 rfl) (hi.2 rfl) (pj_true e2) hq'
             refine ⟨hd, _, GStep.ctxS (d := false) (a := a) (b := b) (by simp [Act.subj, ht]) sb, proj_comm.2 ⟨x, pick d y1 y2, e1, pb, ?_⟩⟩
             simp [pbody, ht, pick]
-          · simp only [pick, if_true] at he hbody hq'
+          · simp only [pick, ite_true] at he hbody hq'
             subst he hbody
             obtain ⟨hd, a', sa, pa⟩ := lrecv a (hw.2.2.2.1 rfl) (hi.1 rfl) (pj_true e1) hq'
             refine ⟨hd, _, GStep.ctxS (d := true) (a := a) (b := b) (by simp [Act.subj, ht]) sa, proj_comm.2 ⟨pick d y1 y2, y, pa, e2, ?_⟩⟩
             simp [pbody, ht, pick]
-        · simp only [pbody, if_neg ht, he, if_false, Bool.false_eq_true] at hbody; cases hbody
+        · simp only [pbody, ite_eq_right ht, he, ite_false, Bool.false_eq_true] at hbody; cases hbody
 
 /-! ## Configurations and asynchronous steps -/
 
@@ -744,7 +744,7 @@ theorem assoc_step {g g' : G} {α : Act} {C : Cfg} {l y : L} (hA : Assoc g C) (s
   · subst hr; exact ⟨y, hp, by simp [setc]; exact hw⟩
   · obtain ⟨y0, e0, w0⟩ := pr r
     obtain ⟨y', e', w'⟩ := proj_ns st w hr e0
-    exact ⟨y', e', by simp only [setc, if_neg hr]; exact Wide.trans w0 w'⟩
+    exact ⟨y', e', by simp only [setc, ite_eq_right hr]; exact Wide.trans w0 w'⟩
 
 /-- subject reduction: every step of an associated configuration is a step
     of the global type, and the result is associated with the new global type -/
@@ -800,7 +800,7 @@ theorem progress {g : G} {C : Cfg} (hA : Assoc g C) : Final C ∨ ∃ α C', ASt
     | none =>
       obtain ⟨y, ey, wy⟩ := pr p
       obtain ⟨x1, x2, -, -, hb'⟩ := proj_comm.1 ey
-      simp only [pbody, if_neg hpq, if_true] at hb'
+      simp only [pbody, ite_eq_right hpq, ite_true] at hb'
       cases hb'
       cases hcp : c p with
       | snd q' ha' hb' k1 k2 =>
@@ -812,7 +812,7 @@ theorem progress {g : G} {C : Cfg} (hA : Assoc g C) : Final C ∨ ∃ α C', ASt
       have hd := hs e rfl
       obtain ⟨y, ey, wy⟩ := pr q
       obtain ⟨x1, x2, -, -, hb'⟩ := proj_comm.1 ey
-      simp only [pbody, if_true] at hb'
+      simp only [pbody, ite_true] at hb'
       cases hb'
       have hQ : Q p q = e :: (if e then queues a p q else queues b p q) := by rw [hq]; simp [queues]
       cases hcq : c q with

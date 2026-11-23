@@ -12,7 +12,7 @@ def evalC (P : Prog) : Nat → Nat → List Val → Expr → Res × Nat
   | _ + 1, 0, _, _ => (.oof, 0)
   | d + 1, f + 1, ρ, e =>
     match e with
-    | .var i => (match ρ.get? i with | some v => .ok v | none => .stuck, f)
+    | .var i => (match ρ[i]? with | some v => .ok v | none => .stuck, f)
     | .lit v => (.ok v, f)
     | .bin op ta a b =>
       match evalC P d f ρ a with
@@ -63,7 +63,7 @@ def evalC (P : Prog) : Nat → Nat → List Val → Expr → Res × Nat
       | r => r
     | .call g a =>
       match evalC P d f ρ a with
-      | (.ok x, f1) => match P.get? g with
+      | (.ok x, f1) => match P[g]? with
         | some (_, _, body) => evalC P d f1 [x] (.tick body)
         | none => (.stuck, f1)
       | r => r
@@ -109,7 +109,7 @@ theorem evalC_sound (P : Prog) (hP : WtProg P) :
     | var h =>
       obtain ⟨v, hv, hvt⟩ := env_lookup _ hE h
       simp only [evalC]; rw [hv]; exact hvt
-    | lit hv => simpa [evalC] using hv
+    | lit hv => simpa [evalC, RTy] using hv
     | raise => simp [evalC, RTy]
     | tick he => simp only [evalC]; exact ih _ hE he
     | bin ho ha hb =>
@@ -198,7 +198,6 @@ theorem evalC_sound (P : Prog) (hP : WtProg P) :
     | call hf ha =>
       obtain ⟨b, hb⟩ := sig_lookup P _ hf
       have hb' := hb
-      simp only [List.get?_eq_getElem?] at hb'
       simp only [evalC]
       have ia := ih f hE ha
       rcases eqa : evalC P d f ρ _ with ⟨ra, fa⟩

@@ -1,8 +1,8 @@
 name: lean
 
 # spec/lean: build the proof library with the pinned toolchain and run the
-# standing axiom audit (every RCE theorem uses only propext, Quot.sound and
-# Classical.choice; a sorry fails the check).
+# standing axiom and 6-kernel paranoid audit (every RCE theorem uses only
+# propext, Quot.sound and Classical.choice; a sorry fails the check).
 
 on:
   push:
@@ -30,8 +30,10 @@ jobs:
           build: true
           test: false
           use-github-cache: true
-      - name: Axiom audit
-        working-directory: spec/lean
+      - name: Enable bwrap sandbox on runner
         run: |
-          out=$(lake env lean audit/Audit.lean 2>&1); echo "$out"
-          grep -q "standard axioms only" <<< "$out"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Axiom and 6-kernel paranoid audit
+        run: bash scripts/lean-audit.sh

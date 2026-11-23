@@ -1,0 +1,117 @@
+{
+  "schema": "rce.lean.six_kernel_paranoid_audit.v1",
+  "package": "rce",
+  "target": "RCE",
+  "toolchain": "leanprover/lean4:v4.36.0",
+  "lean_release": "Lean (version 4.36.0, x86_64-unknown-linux-gnu, commit 611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9, Release)",
+  "sandbox": {
+    "enforced": true,
+    "backend": "bwrap",
+    "bwrap_release": "bubblewrap 0.11.1",
+    "inadvisably_no_sandbox": false,
+    "command": "lake check --paranoid"
+  },
+  "security_disclosures_mitigated": [
+    {
+      "id": "CVE-2026-72844",
+      "upstream_issue": "lean4#14576",
+      "summary": "Nested inductive projection type confusion in environment::add_inductive (affected <= v4.31.0, fixed in v4.32.2+)"
+    },
+    {
+      "id": "CVE-2026-72711",
+      "upstream_issue": "lean4#14484",
+      "summary": "Missing check_no_metavar_no_fvar in environment::add_opaque allowing free-variable inference-cache poisoning"
+    },
+    {
+      "id": "LEAN-2026-11-OLEAN-REPLAY",
+      "upstream_issues": [
+        "lean4#16674",
+        "lean4#16675",
+        "lean4#16677",
+        "lean4#16688",
+        "lean4#16693"
+      ],
+      "summary": "Forged .olean/.inductInfo bypassing in-process collectAxioms and non-paranoid replay, plus compiler-trust native_decide/ofReduceBool"
+    }
+  ],
+  "library_counts": {
+    "lean_files_scanned": 97,
+    "rce_theorems_audited": 5393,
+    "rce_total_constants": 12675,
+    "rce_constants_by_kind": {
+      "thmInfo": 5393,
+      "defnInfo": 5405,
+      "inductInfo": 284,
+      "ctorInfo": 1299,
+      "recInfo": 294,
+      "opaqueInfo": 0,
+      "axiomInfo": 0
+    },
+    "total_environment_constants": 225235
+  },
+  "static_soundness_scan": {
+    "sorry_count": 0,
+    "custom_axiom_count": 0,
+    "opaque_count": 0,
+    "native_decide_or_ofReduceBool_count": 0,
+    "implemented_by_or_extern_or_skipKernelTC_count": 0,
+    "prop_structures_with_non_prop_data_fields_count": 0,
+    "nested_projection_inductive_count": 0,
+    "list_nested_inductive_blocks_lowered": [
+      "RCE.Core.Stmt",
+      "RCE.Conc.Instr",
+      "RCE.NameFree.NInstr",
+      "RCE.FormBridge.Catch.Payload",
+      "RCE.Positional.PV",
+      "RCE.ValOrder.Val"
+    ]
+  },
+  "kernels": {
+    "con_leche_verified": {
+      "status": "accepted",
+      "mode": "--verified",
+      "accepted_declarations": 68090,
+      "in_process_modelled_inductive_blocks": 8,
+      "generated_fold_records": 252
+    },
+    "con_ron_verified": {
+      "status": "accepted",
+      "mode": "--verified",
+      "accepted_declarations": 68090,
+      "in_process_modelled_inductive_blocks": 8,
+      "generated_fold_records": 252
+    },
+    "lean4lean": {
+      "status": "accepted",
+      "checked_declarations": 68092
+    },
+    "nanoda": {
+      "status": "accepted",
+      "unpermitted_axioms_rejected": [
+        "sorryAx"
+      ]
+    },
+    "leanchecker_paranoid": {
+      "status": "accepted",
+      "fresh_environment_replay": true
+    },
+    "lean_default_cpp_kernel": {
+      "status": "accepted",
+      "release": "4.36.0"
+    }
+  },
+  "permitted_axioms_used": [
+    "Classical.choice",
+    "propext",
+    "Quot.sound"
+  ],
+  "telemetry": {
+    "started_utc": "2026-11-23T21:57:52Z",
+    "completed_utc": "2026-11-23T22:03:12Z",
+    "wall_clock_ms": 319804.697,
+    "rapl_domain": "package-0",
+    "rapl_rollovers": 1,
+    "rapl_samples": 6367,
+    "reported_j": 22354.77226
+  }
+}

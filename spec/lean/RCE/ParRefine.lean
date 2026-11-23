@@ -75,7 +75,7 @@ theorem Ex.evalB_eval (σ : Store) : ∀ (e : Ex) {v : Int}, e.evalB σ = some v
   | .lit n, v, h => by simp only [Ex.evalB] at h; exact chk_some h
   | .var x, v, h => by simp only [Ex.evalB, Option.some.injEq] at h; exact h.symm
   | .add a b, v, h | .mul a b, v, h | .lt a b, v, h => by
-    simp only [Ex.evalB, Option.bind_eq_bind, Option.bind_eq_some] at h
+    simp only [Ex.evalB, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
     obtain ⟨x, hx, y, hy, h⟩ := h
     have ex := Ex.evalB_eval σ a hx
     have ey := Ex.evalB_eval σ b hy
@@ -87,21 +87,21 @@ theorem Ex.evalB_eval (σ : Store) : ∀ (e : Ex) {v : Int}, e.evalB σ = some v
 theorem evalB_exec : ∀ (s : St) (σ : Store) {σ' : Store}, evalB s σ = some σ' → σ' = exec s σ
   | .skip, σ, σ', h => by simp only [evalB, Option.some.injEq] at h; exact h.symm
   | .assign x e, σ, σ', h => by
-    simp only [evalB, Option.map_eq_some'] at h
+    simp only [evalB, Option.map_eq_some_iff] at h
     obtain ⟨v, hv, e2⟩ := h
     subst e2; simp only [exec]; rw [Ex.evalB_eval σ e hv]
   | .seq a b, σ, σ', h | .par a b, σ, σ', h => by
-    simp only [evalB, Option.bind_eq_some] at h
+    simp only [evalB, Option.bind_eq_some_iff] at h
     obtain ⟨τ, ha, hb⟩ := h
     simp only [exec]; rw [evalB_exec b τ hb, evalB_exec a σ ha]
   | .ite c a b, σ, σ', h => by
-    simp only [evalB, Option.bind_eq_some] at h
+    simp only [evalB, Option.bind_eq_some_iff] at h
     obtain ⟨v, hv, h⟩ := h
     have ev := Ex.evalB_eval σ c hv
     simp only [exec]; rw [← ev]
     split at h
-    · rw [if_pos (by assumption)]; exact evalB_exec a σ h
-    · rw [if_neg (by assumption)]; exact evalB_exec b σ h
+    · rw [ite_eq_left (by assumption)]; exact evalB_exec a σ h
+    · rw [ite_eq_right (by assumption)]; exact evalB_exec b σ h
 
 /-! ### footprints for the bounded evaluator -/
 
@@ -118,16 +118,16 @@ theorem evalB_frame : ∀ (s : St) (σ : Store) {σ' : Store}, evalB s σ = some
     ∀ x, x ∉ W s → σ' x = σ x
   | .skip, σ, σ', h, x, _ => by simp only [evalB, Option.some.injEq] at h; rw [h]
   | .assign y e, σ, σ', h, x, hx => by
-    simp only [evalB, Option.map_eq_some'] at h
+    simp only [evalB, Option.map_eq_some_iff] at h
     obtain ⟨v, _, e2⟩ := h
     simp [W] at hx; subst e2; simp [upd, hx]
   | .seq a b, σ, σ', h, x, hx | .par a b, σ, σ', h, x, hx => by
-    simp only [evalB, Option.bind_eq_some] at h
+    simp only [evalB, Option.bind_eq_some_iff] at h
     obtain ⟨τ, ha, hb⟩ := h
     simp only [W, List.mem_append, not_or] at hx
     rw [evalB_frame b τ hb x hx.2, evalB_frame a σ ha x hx.1]
   | .ite c a b, σ, σ', h, x, hx => by
-    simp only [evalB, Option.bind_eq_some] at h
+    simp only [evalB, Option.bind_eq_some_iff] at h
     obtain ⟨v, _, h⟩ := h
     simp only [W, List.mem_append, not_or] at hx
     split at h
@@ -168,7 +168,7 @@ theorem evalB_agree (S : Nat → Prop) : ∀ (s : St) (σ τ : Store), (∀ y, y
     cases c.evalB τ with
     | none => trivial
     | some v =>
-      simp only [Option.some_bind]; split
+      simp only [Option.bind_some]; split
       · exact evalB_agree S a σ τ (fun z hz => hS z (by simp [FV, hz])) h
       · exact evalB_agree S b σ τ (fun z hz => hS z (by simp [FV, hz])) h
 
@@ -183,7 +183,7 @@ theorem evalB_comm (a b : St) (hab : Disj (W a) (FV b)) (hba : Disj (W b) (FV a)
       have := evalB_agree (· ∈ FV a) a σ σb (fun _ h => h)
         (fun y hy => (evalB_frame b σ hb y (fun h => hba y h hy)).symm)
       rw [ha] at this
-      simp only [Option.none_bind, Option.some_bind]
+      simp only [Option.bind_none, Option.bind_some]
       cases h' : evalB a σb with
       | none => rfl
       | some _ => rw [h'] at this; exact this.elim
@@ -193,7 +193,7 @@ theorem evalB_comm (a b : St) (hab : Disj (W a) (FV b)) (hba : Disj (W b) (FV a)
     cases hb : evalB b σ with
     | none =>
       rw [hb] at agb
-      simp only [Option.none_bind, Option.some_bind]
+      simp only [Option.bind_none, Option.bind_some]
       cases h' : evalB b σa with
       | none => rfl
       | some _ => rw [h'] at agb; exact agb.elim
@@ -201,7 +201,7 @@ theorem evalB_comm (a b : St) (hab : Disj (W a) (FV b)) (hba : Disj (W b) (FV a)
       have aga := evalB_agree (· ∈ FV a) a σ σb (fun _ h => h)
         (fun y hy => (evalB_frame b σ hb y (fun h => hba y h hy)).symm)
       rw [hb] at agb; rw [ha] at aga
-      simp only [Option.some_bind]
+      simp only [Option.bind_some]
       cases hab' : evalB b σa with
       | none => rw [hab'] at agb; exact agb.elim
       | some σab =>

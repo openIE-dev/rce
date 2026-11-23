@@ -23,7 +23,7 @@ theorem delta_atomic (P : Prog) (n : Nat) (s e a : Val)
 
 /-- A handler signature: state, event, answer, output types. -/
 def WtHandler (P : Prog) (St Ev An Out : Ty) : Prop :=
-  (sig P).get? 0 = some (.prod (.prod St Ev) An, .prod St Out)
+  (sig P)[0]? = some (.prod (.prod St Ev) An, .prod St Out)
 
 /-- **T5 for δ**: a well-typed handler maps a typed state to a typed state. -/
 theorem delta_wt (P : Prog) (hP : WtProg P) {St Ev An Out} (hh : WtHandler P St Ev An Out)
@@ -67,7 +67,7 @@ theorem fold_wt (P : Prog) (hP : WtProg P) {St Ev An Out} (hh : WtHandler P St E
       VTy (D.foldl (fun s ea => delta P n s ea.1 ea.2) s) St
   | [], _, hs, _ => hs
   | ea :: D, s, hs, hD => by
-    have h1 := hD ea (List.mem_cons_self _ _)
+    have h1 := hD ea (List.mem_cons_self)
     exact fold_wt P hP hh n D _ (delta_wt P hP hh n hs h1.1 h1.2)
       (fun x m => hD x (List.mem_cons_of_mem _ m))
 

@@ -169,7 +169,7 @@ theorem declFields_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b �
     simp only [List.map, declFields]
     by_cases h : n = ty
     · subst h; simp
-    · rw [if_neg (fun h' => h (hρ _ _ h')), if_neg h, declFields_rename ρ hρ ty rest]
+    · rw [ite_eq_right (fun h' => h (hρ _ _ h')), ite_eq_right h, declFields_rename ρ hρ ty rest]
 
 theorem variantIn_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a = b) (n : String) :
     ∀ k : List (String × List String),
@@ -179,7 +179,7 @@ theorem variantIn_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b �
     simp only [List.map, variantIn]
     by_cases h : v = n
     · subst h; simp
-    · rw [if_neg (fun h' => h (hρ _ _ h')), if_neg h, variantIn_rename ρ hρ n rest]
+    · rw [ite_eq_right (fun h' => h (hρ _ _ h')), ite_eq_right h, variantIn_rename ρ hρ n rest]
       cases variantIn rest n <;> rfl
 
 theorem variantIndex_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a = b) (n : String) :
@@ -200,7 +200,7 @@ theorem lookupF_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → 
     simp only [List.map, lookupF]
     by_cases h : g = f
     · subst h; simp
-    · rw [if_neg (fun h' => h (hρ _ _ h')), if_neg h, lookupF_rename ρ hρ f rest]
+    · rw [ite_eq_right (fun h' => h (hρ _ _ h')), ite_eq_right h, lookupF_rename ρ hρ f rest]
 
 theorem reorder_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a = b)
     (decl : List String) (pf : List (String × PV)) :
@@ -240,7 +240,7 @@ theorem pos_rename (d : Decls) (ρ : String → String) (h : Nameless d ρ) :
   | .list xs => by simp only [NV.rename, pos, posL_rename d ρ h xs]
   | .record ty fs => by
     by_cases hdecl : (declFields d.types ty).isSome ∨ (variantIndex d.kinds ty).isSome
-    · simp only [NV.rename, if_pos hdecl, pos]
+    · simp only [NV.rename, ite_eq_left hdecl, pos]
       rw [posF_renameAll d ρ h fs]
       have ht := declFields_rename ρ h.inj ty d.types
       have hv := variantIndex_rename ρ h.inj ty d.kinds
@@ -249,11 +249,11 @@ theorem pos_rename (d : Decls) (ρ : String → String) (h : Nameless d ρ) :
       cases hd1 : declFields d.types ty with
       | some decl => simp [reorder_rename ρ h.inj]
       | none =>
-        simp only [Option.map_none']
+        simp only [Option.map_none]
         cases hd2 : variantIndex d.kinds ty with
         | some p => simp [reorder_rename ρ h.inj]
         | none => rw [hd1, hd2] at hdecl; simp at hdecl
-    · simp only [NV.rename, if_neg hdecl, pos]
+    · simp only [NV.rename, ite_eq_right hdecl, pos]
       rw [posF_renameVals d ρ h fs, declFields_undeclared d ρ h ty hdecl, variantIndex_undeclared d ρ h ty hdecl]
       have h1 : declFields d.types ty = none := by
         cases hd : declFields d.types ty with

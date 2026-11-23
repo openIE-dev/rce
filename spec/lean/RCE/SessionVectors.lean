@@ -44,7 +44,7 @@ def gen : Nat → Bool → Bool → Nat → SP
     | 7 => if inLoop then .brk else .done
     | _ => .done
 
-def ind (n : Nat) : String := String.mk (List.replicate (4 * n) ' ')
+def ind (n : Nat) : String := String.ofList (List.replicate (4 * n) ' ')
 
 /-- RCE source lines of a step sequence at indent `n` -/
 partial def lines (n : Nat) : SP → List String

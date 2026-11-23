@@ -244,20 +244,20 @@ theorem inv_step {P : List (List (Op ι α))} {c c' : Cfg ι α} (h : Inv P c)
       have hk := h.sum k
       simp only [rem_append, rem, putsOf] at hk ⊢
       by_cases e : k = l
-      · subst e; simp only [upd, if_pos] at hk ⊢; rw [← hk]; ac_rfl
+      · subst e; simp only [upd, ite_eq_left] at hk ⊢; rw [← hk]; ac_rfl
       · have e' : ¬ l = k := fun h => e h.symm
-        simp only [upd, if_neg e, if_neg e'] at hk ⊢; exact hk
+        simp only [upd, ite_eq_right e, ite_eq_right e'] at hk ⊢; exact hk
     · intro k; by_cases e : k = l
-      · subst e; simp only [upd, if_pos]; exact hnt
-      · simp only [upd, if_neg e]; exact h.ntop k
+      · subst e; simp only [upd, ite_eq_left]; exact hnt
+      · simp only [upd, ite_eq_right e]; exact h.ntop k
     · rw [prog_mid]; exact h.shape
     · refine good_mid h.good (good_mono ?_ ?_) rfl
       · intro k; by_cases e : k = l
-        · subst e; simp only [upd, if_pos]; exact le_join_left _ _
-        · simp only [upd, if_neg e]; exact le_refl' _
+        · subst e; simp only [upd, ite_eq_left]; exact le_join_left _ _
+        · simp only [upd, ite_eq_right e]; exact le_refl' _
       · intro k hf; refine ⟨hf, ?_⟩; by_cases e : k = l
-        · subst e; simp only [upd, if_pos]; exact hfz hf
-        · simp only [upd, if_neg e]
+        · subst e; simp only [upd, ite_eq_left]; exact hfz hf
+        · simp only [upd, ite_eq_right e]
     · intro k
       have := h.frz k
       simp only [frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt] at this ⊢
@@ -287,14 +287,14 @@ theorem inv_step {P : List (List (Op ι α))} {c c' : Cfg ι α} (h : Inv P c)
       intro k hf; refine ⟨?_, rfl⟩
       by_cases e : k = l
       · subst e; simp [upd]
-      · simp only [upd, if_neg e]; exact hf
+      · simp only [upd, ite_eq_right e]; exact hf
     · intro k
       have := h.frz k
       by_cases e : k = l
       · subst e
         simp [upd, frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt]
       · simp only [frozenDone_append, frozenDone, anyFrz_append, anyFrz, frzAt] at this ⊢
-        simp only [upd, if_neg e]
+        simp only [upd, ite_eq_right e]
         have e' : ¬ l = k := fun h' => e h'.symm
         simpa [e'] using this
     · intro k
@@ -316,7 +316,7 @@ theorem inv_step {P : List (List (Op ι α))} {c c' : Cfg ι α} (h : Inv P c)
       · subst e
         simp [upd, allocDone_append, allocDone, anyNew_append, anyNew, newAt]
       · simp only [allocDone_append, allocDone, anyNew_append, anyNew, newAt] at this ⊢
-        simp only [upd, if_neg e]
+        simp only [upd, ite_eq_right e]
         have e' : ¬ l = k := fun h' => e h'.symm
         simpa [e'] using this
 
@@ -330,7 +330,7 @@ theorem rem_complete (k : ι) : ∀ {ths : List (Th ι α)}, (∀ t ∈ ths, t.t
   | [], _ => rfl
   | t :: ts, h => by
     simp only [rem]
-    rw [h t (List.mem_cons_self _ _),
+    rw [h t (List.mem_cons_self),
       rem_complete k (fun t' ht' => h t' (List.mem_cons_of_mem _ ht'))]
     simp only [putsOf, bot_join]
 
@@ -374,7 +374,7 @@ theorem list_det {G : Op ι α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 �
   | _ :: _, [], h, _, _ => by simp at h
   | a :: as, b :: bs, h, g1, g2 => by
       simp only [List.map_cons, List.cons.injEq] at h
-      rw [hG a b (g1 a (List.mem_cons_self _ _)) (g2 b (List.mem_cons_self _ _)) h.1,
+      rw [hG a b (g1 a (List.mem_cons_self)) (g2 b (List.mem_cons_self)) h.1,
         list_det hG as bs h.2 (fun e he => g1 e (List.mem_cons_of_mem _ he))
           (fun e he => g2 e (List.mem_cons_of_mem _ he))]
 
@@ -386,12 +386,12 @@ theorem ths_det {G : Op ι α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 →
   | [], _ :: _, h, _, _, _, _ => by simp [prog] at h
   | _ :: _, [], h, _, _, _, _ => by simp [prog] at h
   | ⟨ad, atd⟩ :: as, ⟨bd, btd⟩ :: bs, h, k1, k2, g1, g2 => by
-      have ta : atd = [] := k1 _ (List.mem_cons_self _ _)
-      have tb : btd = [] := k2 _ (List.mem_cons_self _ _)
+      have ta : atd = [] := k1 _ (List.mem_cons_self)
+      have tb : btd = [] := k2 _ (List.mem_cons_self)
       subst ta; subst tb
       simp only [prog, List.map_cons, List.cons.injEq, List.append_nil] at h
-      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self _ _))
-        (g2 _ (List.mem_cons_self _ _))
+      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self))
+        (g2 _ (List.mem_cons_self))
       have hr : as = bs := ths_det hG as bs h.2
         (fun t ht => k1 t (List.mem_cons_of_mem _ ht)) (fun t ht => k2 t (List.mem_cons_of_mem _ ht))
         (fun t ht => g1 t (List.mem_cons_of_mem _ ht)) (fun t ht => g2 t (List.mem_cons_of_mem _ ht))
@@ -424,7 +424,7 @@ theorem anyFrz_false (k : ι) : ∀ {l : List (Op ι α × α)}, (∀ e ∈ l, i
   | [], _ => rfl
   | e :: es, hl => by
     have h0 : frzAt k e.1 = false := by
-      have := hl e (List.mem_cons_self _ _)
+      have := hl e (List.mem_cons_self)
       revert this; cases e.1 <;> simp [isFrz, frzAt]
     simp only [anyFrz, h0, anyFrz_false k (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
       Bool.or_self]
@@ -433,7 +433,7 @@ theorem frozenDone_false (k : ι) : ∀ {ths : List (Th ι α)},
     (∀ t ∈ ths, ∀ e ∈ t.done, isFrz e.1 = false) → frozenDone k ths = false
   | [], _ => rfl
   | t :: ts, h => by
-    simp only [frozenDone, anyFrz_false k (h t (List.mem_cons_self _ _)),
+    simp only [frozenDone, anyFrz_false k (h t (List.mem_cons_self)),
       frozenDone_false k (fun t' ht' => h t' (List.mem_cons_of_mem _ ht')), Bool.or_self]
 
 /-- **Determinism without freeze, for a store.** -/
@@ -449,7 +449,7 @@ theorem alloc_det_no_err {P : List (List (Op ι α))} (hP : FreezeFree P) {c : C
     cases hs with
     | @put_top v f a pre post dn l d tl _ htop =>
       have hd : Le d (rem l (pre ++ ⟨dn, .put l d :: tl⟩ :: post)) := by
-        simp only [rem_append, rem, putsOf, if_pos]
+        simp only [rem_append, rem, putsOf, ite_eq_left]
         exact le_trans' (le_trans' (le_join_left d _) (le_join_left _ _)) (le_join_right _ _)
       have := join_mono (v := v l) hd
       rw [htop, i0.sum l] at this
@@ -501,7 +501,7 @@ theorem pick_spec : ∀ {ths : List (Th ι α)} {i : Nat} {pre t post},
       simp only [pick, Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl, rfl⟩ := h; rfl
   | t :: ts, n + 1, pre, x, post, h => by
-      simp only [pick, Option.map_eq_some'] at h
+      simp only [pick, Option.map_eq_some_iff] at h
       obtain ⟨⟨p, y, q⟩, hp, he⟩ := h
       simp only [Prod.mk.injEq] at he
       obtain ⟨rfl, rfl, rfl⟩ := he
@@ -556,18 +556,18 @@ theorem stepOp_sound {v : ι → α} {f a : ι → Bool} {pre post : List (Th ι
     simp only [stepOp] at h
     by_cases ha : a l = true
     · by_cases ht : join (v l) d = top
-      · rw [if_pos ha, if_pos ht, Option.some.injEq] at h; subst h; exact Step.put_top ha ht
+      · rw [ite_eq_left ha, ite_eq_left ht, Option.some.injEq] at h; subst h; exact Step.put_top ha ht
       · by_cases hf : f l = true ∧ join (v l) d ≠ v l
-        · rw [if_pos ha, if_neg ht, if_pos hf, Option.some.injEq] at h; subst h
+        · rw [ite_eq_left ha, ite_eq_right ht, ite_eq_left hf, Option.some.injEq] at h; subst h
           exact Step.put_frozen ha hf.1 hf.2
-        · rw [if_pos ha, if_neg ht, if_neg hf, Option.some.injEq] at h; subst h
+        · rw [ite_eq_left ha, ite_eq_right ht, ite_eq_right hf, Option.some.injEq] at h; subst h
           refine Step.put ha ht ?_
           intro hfl; apply Classical.byContradiction; intro hne; exact hf ⟨hfl, hne⟩
     · simp [ha] at h
   | .get l q :: tl, h =>
     simp only [stepOp] at h
     by_cases hc : a l = true ∧ incompB q = true
-    · rw [if_pos hc] at h
+    · rw [ite_eq_left hc] at h
       split at h
       · rename_i o hfind
         simp only [Option.some.injEq] at h; subst h
@@ -576,16 +576,16 @@ theorem stepOp_sound {v : ι → α} {f a : ι → Bool} {pre post : List (Th ι
         simp only [decide_eq_true_eq] at hp
         exact Step.get hc.1 (incompB_sound hc.2) hm hp
       · simp at h
-    · rw [if_neg hc] at h; simp at h
+    · rw [ite_eq_right hc] at h; simp at h
   | .freeze l :: tl, h =>
     simp only [stepOp] at h
     by_cases ha : a l = true
-    · rw [if_pos ha, Option.some.injEq] at h; subst h; exact Step.freeze ha
+    · rw [ite_eq_left ha, Option.some.injEq] at h; subst h; exact Step.freeze ha
     · simp [ha] at h
   | .new l :: tl, h =>
     simp only [stepOp] at h
     by_cases ha : a l = false
-    · rw [if_pos ha, Option.some.injEq] at h; subst h; exact Step.new ha
+    · rw [ite_eq_left ha, Option.some.injEq] at h; subst h; exact Step.new ha
     · simp [ha] at h
 
 /-- **Soundness of the executable semantics**: every step `stepAt` takes
@@ -644,18 +644,18 @@ theorem stepAt_complete {c : Cfg ι α} {s : St ι α} (hv : ∀ k, c.val k ≠ 
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
     have hf : ¬ (f l = true ∧ join (v l) d ≠ v l) := fun ⟨h1, h2⟩ => h2 (hfz h1)
-    rw [if_pos ha, if_neg hnt, if_neg hf]
+    rw [ite_eq_left ha, ite_eq_right hnt, ite_eq_right hf]
   | @put_top v f a pre post dn l d tl ha ht =>
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
-    rw [if_pos ha, if_pos ht]
+    rw [ite_eq_left ha, ite_eq_left ht]
   | @put_frozen v f a pre post dn l d tl ha hf hne =>
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
-    rw [if_pos ha]
+    rw [ite_eq_left ha]
     by_cases ht : join (v l) d = top
-    · rw [if_pos ht]
-    · rw [if_neg ht, if_pos ⟨hf, hne⟩]
+    · rw [ite_eq_left ht]
+    · rw [ite_eq_right ht, ite_eq_left ⟨hf, hne⟩]
   | @get v f a pre post dn l q o tl ha hq hm hl =>
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
@@ -665,7 +665,7 @@ theorem stepAt_complete {c : Cfg ι α} {s : St ι α} (hv : ∀ k, c.val k ≠ 
       by_cases e : x = y
       · exact Or.inl e
       · exact Or.inr (hq x hx y hy e)
-    rw [if_pos ⟨ha, hb⟩]
+    rw [ite_eq_left ⟨ha, hb⟩]
     have hfind : q.find? (fun o => decide (join o (v l) = v l)) = some o := by
       cases hfo : q.find? (fun o => decide (join o (v l) = v l)) with
       | none =>
@@ -681,11 +681,11 @@ theorem stepAt_complete {c : Cfg ι α} {s : St ι α} (hv : ∀ k, c.val k ≠ 
   | @freeze v f a pre post dn l tl ha =>
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
-    rw [if_pos ha]
+    rw [ite_eq_left ha]
   | @new v f a pre post dn l tl ha =>
     refine ⟨pre.length, ?_⟩
     simp only [stepAt, pick_mid, stepOp]
-    rw [if_pos ha]
+    rw [ite_eq_left ha]
 
 end exec
 

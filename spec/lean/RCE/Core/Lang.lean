@@ -251,7 +251,7 @@ def eval (P : Prog) : Nat → List Val → Expr → Res
   | 0, _, _ => .oof
   | n+1, ρ, e =>
     match e with
-    | .var i => match ρ.get? i with | some v => .ok v | none => .stuck
+    | .var i => match ρ[i]? with | some v => .ok v | none => .stuck
     | .lit v => .ok v
     | .bin op ta a b =>
       match eval P n ρ a with
@@ -302,7 +302,7 @@ def eval (P : Prog) : Nat → List Val → Expr → Res
       | r => r
     | .call f a =>
       match eval P n ρ a with
-      | .ok x => match P.get? f with
+      | .ok x => match P[f]? with
         | some (_, _, body) => eval P n [x] (.tick body)
         | none => .stuck
       | r => r
@@ -385,7 +385,7 @@ abbrev Sig := List (Ty × Ty)
 def sig (P : Prog) : Sig := P.map (fun d => (d.1, d.2.1))
 
 inductive HasTy (S : Sig) : List Ty → Expr → Ty → Prop where
-  | var {Γ i t} : Γ.get? i = some t → HasTy S Γ (.var i) t
+  | var {Γ i t} : Γ[i]? = some t → HasTy S Γ (.var i) t
   | lit {Γ v t} : VTy v t → HasTy S Γ (.lit v) t
   | bin {Γ op ta a b t} : OpTy op ta t → HasTy S Γ a ta → HasTy S Γ b ta →
       HasTy S Γ (.bin op ta a b) t
@@ -401,7 +401,7 @@ inductive HasTy (S : Sig) : List Ty → Expr → Ty → Prop where
       HasTy S (tb :: Γ) r t → HasTy S Γ (.case s l r) t
   | raise {Γ c t} : HasTy S Γ (.raise c) t
   | catch_ {Γ a h t} : HasTy S Γ a t → HasTy S Γ h t → HasTy S Γ (.catch_ a h) t
-  | call {Γ f a ta t} : S.get? f = some (ta, t) → HasTy S Γ a ta → HasTy S Γ (.call f a) t
+  | call {Γ f a ta t} : S[f]? = some (ta, t) → HasTy S Γ a ta → HasTy S Γ (.call f a) t
   | tick {Γ e t} : HasTy S Γ e t → HasTy S Γ (.tick e) t
   | try_ {Γ e ta t c} : HasTy S Γ e (.sum ta t) → HasTy S Γ (.try_ e c) t
   | cast {Γ e lo hi lo' hi'} : HasTy S Γ e (.int lo' hi') → HasTy S Γ (.cast lo hi e) (.int lo hi)
@@ -410,7 +410,7 @@ inductive HasTy (S : Sig) : List Ty → Expr → Ty → Prop where
   | un {Γ op ta t e} : UnTy op ta t → HasTy S Γ e ta → HasTy S Γ (.un op ta e) t
 
 def WtProg (P : Prog) : Prop :=
-  ∀ f ta t b, P.get? f = some (ta, t, b) → HasTy (sig P) [ta] b t
+  ∀ (f : Nat) ta t b, P[f]? = some (ta, t, b) → HasTy (sig P) [ta] b t
 
 /-- The environment agrees with the context pointwise. -/
 inductive WtEnv : List Ty → List Val → Prop where

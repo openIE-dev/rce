@@ -35,8 +35,8 @@ def truthy : Val → Except Trap Bool
 def reval (E : Env) : RE → Except Trap Val
   | .ok v => .ok v
   | .err m => .error m
-  | .fld i => match E.fields.get? i with | some v => .ok v | none => .error .badIndex
-  | .arg i => match E.args.get? i with | some v => .ok v | none => .error .badIndex
+  | .fld i => match E.fields[i]? with | some v => .ok v | none => .error .badIndex
+  | .arg i => match E.args[i]? with | some v => .ok v | none => .error .badIndex
   | .bin op ta a b => match reval E a with
     | .error m => .error m
     | .ok x => match reval E b with
@@ -367,7 +367,7 @@ theorem region_agrees (args : List Val) (ev : String) (i : Nat) (ds : List StepD
             cases h with
             | skipD hn _ => exact absurd hm hn
             | gT _ h1 _ => simp_all
-            | gF _ _ h1 => simp only [regionStep, hm, and_self, if_true, hg]; exact ih2 f h1
+            | gF _ _ h1 => simp only [regionStep, hm, and_self, ite_true, hg]; exact ih2 f h1
             | gBad _ h1 => simp_all
             | gErr _ h1 => simp_all
           | true =>
@@ -376,14 +376,14 @@ theorem region_agrees (args : List Val) (ev : String) (i : Nat) (ds : List StepD
             cases h with
             | skipD hn _ => exact absurd hm hn
             | gT _ _ h1 =>
-              simp only [regionStep, hm, and_self, if_true, hg]; exact emit_agrees args d.body fs [] ks f h1
+              simp only [regionStep, hm, and_self, ite_true, hg]; exact emit_agrees args d.body fs [] ks f h1
             | gF _ h1 _ => simp_all
             | gBad _ h1 => simp_all
             | gErr _ h1 => simp_all
     · obtain ⟨⟨f0, h0⟩, ih2⟩ := ih
       refine ⟨⟨f0, .skipD hm h0⟩, fun f h => ?_⟩
       cases h with
-      | skipD _ h1 => simp only [regionStep, hm, if_false]; exact ih2 f h1
+      | skipD _ h1 => simp only [regionStep, hm, ite_false]; exact ih2 f h1
       | gT h' _ _ => exact absurd h' hm
       | gF h' _ _ => exact absurd h' hm
       | gBad h' _ => exact absurd h' hm

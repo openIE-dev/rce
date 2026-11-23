@@ -139,7 +139,7 @@ def execS (P : Prog) : Nat → Nat → List Val → List Stmt → List String ×
         let ρ' := leave (ρ.length + 1) r.2.2.1
         match r.2.1 with
         | .norm | .cont =>
-          match ρ'.get? (i + 1) with
+          match ρ'[i + 1]? with
           | some c =>
             let r2 := execS P d r.2.2.2 (ρ'.drop 1)
               (.fpstep (j + 1) n x0 i op ta idv before (c :: acc) body :: ss)
@@ -162,7 +162,7 @@ def execS (P : Prog) : Nat → Nat → List Val → List Stmt → List String ×
             | (.ok (.int y), f2) =>
               let n := (y - x).toNat
               if n > bnd then ([], .trap .loopBound, ρ, f2) else
-              match ρ.get? i with
+              match ρ[i]? with
               | some before => execS P d f2 ρ (.fpstep 0 n x i op ta idv before [] body :: ss)
               | none => ([], .stuck, ρ, f2)
             | (.ok _, f2) => ([], .stuck, ρ, f2)
@@ -204,7 +204,7 @@ def execS (P : Prog) : Nat → Nat → List Val → List Stmt → List String ×
             match f1 with
             | 0 => ([], .oof, ρ, 0)
             | f1 + 1 =>
-              match ρ.get? i with
+              match ρ[i]? with
               | none => ([], .stuck, ρ, f1)
               | some x =>
                 match binop op ta x y with

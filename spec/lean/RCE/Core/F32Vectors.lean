@@ -1,4 +1,5 @@
 import RCE.Core.F32Fmt
+set_option exponentiation.threshold 10000
 namespace RCE.F64
 set_option maxRecDepth 200000
 example : to32 4591870180066957722 = some 4591870180174331904 := by decide            -- 0.1 as f32

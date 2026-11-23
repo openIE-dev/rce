@@ -51,7 +51,7 @@ theorem seqC_isolated (P : Prog) (d j : Nat) :
         (bs.map (·.2.2.2), k)
   | [], _, _ => rfl
   | (ρ, e, u, r) :: bs, k, h => by
-    have h0 := h _ (List.mem_cons_self _ _)
+    have h0 := h _ (List.mem_cons_self)
     have hf := evalC_frame P d u ρ e ((bs.map (·.2.2.1)).foldr (· + ·) k) j (by rw [h0.1]; exact h0.2)
     rw [h0.1] at hf
     simp only [List.map, List.foldr, seqC]

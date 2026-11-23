@@ -90,8 +90,8 @@ theorem verify_prefix (hf : H → Ev → H → H) (p : H) (l : List (Entry Ev H)
     unfold verify
     by_cases h : links hf p x = true
     · obtain ⟨t, ht⟩ := ih x.hash
-      exact ⟨t, by rw [if_pos h, List.cons_append, ht]⟩
-    · exact ⟨x :: xs, by rw [if_neg h]; rfl⟩
+      exact ⟨t, by rw [ite_eq_left h, List.cons_append, ht]⟩
+    · exact ⟨x :: xs, by rw [ite_eq_right h]; rfl⟩
 
 theorem verify_valid (hf : H → Ev → H → H) (p : H) (l : List (Entry Ev H)) :
     valid hf p (verify hf p l) := by
@@ -100,8 +100,8 @@ theorem verify_valid (hf : H → Ev → H → H) (p : H) (l : List (Entry Ev H))
   | cons x xs ih =>
     unfold verify
     by_cases h : links hf p x = true
-    · rw [if_pos h]; exact ⟨h, ih x.hash⟩
-    · rw [if_neg h]; trivial
+    · rw [ite_eq_left h]; exact ⟨h, ih x.hash⟩
+    · rw [ite_eq_right h]; trivial
 
 theorem verify_intact (hf : H → Ev → H → H) (p : H) (l : List (Entry Ev H))
     (hv : valid hf p l) : verify hf p l = l := by
@@ -110,7 +110,7 @@ theorem verify_intact (hf : H → Ev → H → H) (p : H) (l : List (Entry Ev H)
   | cons x xs ih =>
     obtain ⟨h, hr⟩ := hv
     unfold verify
-    rw [if_pos h, ih x.hash hr]
+    rw [ite_eq_left h, ih x.hash hr]
 
 theorem verify_append (hf : H → Ev → H → H) (p : H) (l t : List (Entry Ev H))
     (hv : valid hf p l) : verify hf p (l ++ t) = l ++ verify hf (last p l) t := by
@@ -119,7 +119,7 @@ theorem verify_append (hf : H → Ev → H → H) (p : H) (l t : List (Entry Ev 
   | cons x xs ih =>
     obtain ⟨h, hr⟩ := hv
     simp only [List.cons_append]
-    rw [verify.eq_2, if_pos h, ih x.hash hr]
+    rw [verify.eq_2, ite_eq_left h, ih x.hash hr]
     rfl
 
 /-- A torn or corrupted tail entry is cut, and the valid log is kept. -/

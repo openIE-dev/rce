@@ -89,22 +89,22 @@ inductive OpTy : BinOp → Ty → Ty → Prop where
 inductive HasTy (Γ : Ctx) : Expr → Ty → Prop where
   | lit {v t} : v.hasTy t → HasTy Γ (.lit v) t
   | trap {m t} : HasTy Γ (.trap m) t
-  | field {i t} : Γ.fields.get? i = some t → HasTy Γ (.field i) t
-  | arg {i t} : Γ.args.get? i = some t → HasTy Γ (.arg i) t
+  | field {i t} : Γ.fields[i]? = some t → HasTy Γ (.field i) t
+  | arg {i t} : Γ.args[i]? = some t → HasTy Γ (.arg i) t
   | bin {op ta a b t} : OpTy op ta t → HasTy Γ a ta → HasTy Γ b ta → HasTy Γ (.bin op ta a b) t
   | ite {c a b t} : HasTy Γ c .bool → HasTy Γ a t → HasTy Γ b t → HasTy Γ (.ite c a b) t
 
 /-- The environment agrees with the context. -/
 def WtEnv (Γ : Ctx) (E : Env) : Prop :=
-  (∀ i v t, E.fields.get? i = some v → Γ.fields.get? i = some t → v.hasTy t) ∧
-  (∀ i v t, E.args.get? i = some v → Γ.args.get? i = some t → v.hasTy t)
+  (∀ (i : Nat) v t, E.fields[i]? = some v → Γ.fields[i]? = some t → v.hasTy t) ∧
+  (∀ (i : Nat) v t, E.args[i]? = some v → Γ.args[i]? = some t → v.hasTy t)
 
 /-- Small-step reduction (spec 6.2, left-to-right, traps propagate). -/
 inductive Step (E : Env) : Expr → Expr → Prop where
-  | field {i v} : E.fields.get? i = some v → Step E (.field i) (.lit v)
-  | fieldBad {i} : E.fields.get? i = none → Step E (.field i) (.trap .badIndex)
-  | arg {i v} : E.args.get? i = some v → Step E (.arg i) (.lit v)
-  | argBad {i} : E.args.get? i = none → Step E (.arg i) (.trap .badIndex)
+  | field {i v} : E.fields[i]? = some v → Step E (.field i) (.lit v)
+  | fieldBad {i} : E.fields[i]? = none → Step E (.field i) (.trap .badIndex)
+  | arg {i v} : E.args[i]? = some v → Step E (.arg i) (.lit v)
+  | argBad {i} : E.args[i]? = none → Step E (.arg i) (.trap .badIndex)
   | binL {op ta a a' b} : Step E a a' → Step E (.bin op ta a b) (.bin op ta a' b)
   | binR {op ta v b b'} : Step E b b' → Step E (.bin op ta (.lit v) b) (.bin op ta (.lit v) b')
   | binTrapL {op ta m b} : Step E (.bin op ta (.trap m) b) (.trap m)
@@ -200,12 +200,12 @@ theorem progress {Γ E e t} (ht : HasTy Γ e t) :
   | trap => exact .inr (.inl ⟨_, rfl⟩)
   | @field i _ _ =>
     right; right
-    cases h : E.fields.get? i with
+    cases h : E.fields[i]? with
     | none => exact ⟨_, .fieldBad h⟩
     | some v => exact ⟨_, .field h⟩
   | @arg i _ _ =>
     right; right
-    cases h : E.args.get? i with
+    cases h : E.args[i]? with
     | none => exact ⟨_, .argBad h⟩
     | some v => exact ⟨_, .arg h⟩
   | @bin op ta a b t _ _ _ iha ihb =>
@@ -294,8 +294,8 @@ theorem Steps.iteC {E c c' a b} (h : Steps E c c') : Steps E (.ite c a b) (.ite 
 def eval (E : Env) : Expr → Except Trap Val
   | .lit v => .ok v
   | .trap m => .error m
-  | .field i => match E.fields.get? i with | some v => .ok v | none => .error .badIndex
-  | .arg i => match E.args.get? i with | some v => .ok v | none => .error .badIndex
+  | .field i => match E.fields[i]? with | some v => .ok v | none => .error .badIndex
+  | .arg i => match E.args[i]? with | some v => .ok v | none => .error .badIndex
   | .bin op ta a b => do let x ← eval E a; let y ← eval E b; binop op ta x y
   | .ite c a b => match eval E c with
     | .ok (.bool true) => eval E a
@@ -313,11 +313,11 @@ theorem eval_steps (E : Env) (e : Expr) : Steps E e (Res.toExpr (eval E e)) := b
   | lit v => exact .refl
   | trap m => exact .refl
   | field i =>
-    simp only [eval]; cases h : E.fields.get? i with
+    simp only [eval]; cases h : E.fields[i]? with
     | none => exact .step (.fieldBad h) .refl
     | some v => exact .step (.field h) .refl
   | arg i =>
-    simp only [eval]; cases h : E.args.get? i with
+    simp only [eval]; cases h : E.args[i]? with
     | none => exact .step (.argBad h) .refl
     | some v => exact .step (.arg h) .refl
   | bin op ta a b iha ihb =>
@@ -355,10 +355,10 @@ theorem eval_ty {Γ E e t v} (hE : WtEnv Γ E) (ht : HasTy Γ e t) (h : eval E e
   | lit hv => simp [eval] at h; subst h; exact hv
   | trap => simp [eval] at h
   | @field i _ hg =>
-    simp only [eval] at h; cases hf : E.fields.get? i <;> rw [hf] at h <;> simp at h
+    simp only [eval] at h; cases hf : E.fields[i]? <;> rw [hf] at h <;> simp at h
     subst h; exact hE.1 _ _ _ hf hg
   | @arg i _ hg =>
-    simp only [eval] at h; cases hf : E.args.get? i <;> rw [hf] at h <;> simp at h
+    simp only [eval] at h; cases hf : E.args[i]? <;> rw [hf] at h <;> simp at h
     subst h; exact hE.2 _ _ _ hf hg
   | @bin op ta a b _ ho _ _ iha ihb =>
     simp only [eval, bind, Except.bind] at h

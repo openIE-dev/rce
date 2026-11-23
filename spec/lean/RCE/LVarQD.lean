@@ -302,7 +302,7 @@ theorem rem_complete : ∀ {ths : List (Th α)}, (∀ t ∈ ths, t.todo = []) �
   | [], _ => rfl
   | t :: ts, h => by
     simp only [rem]
-    rw [h t (List.mem_cons_self _ _), rem_complete (fun t' ht' => h t' (List.mem_cons_of_mem _ ht'))]
+    rw [h t (List.mem_cons_self), rem_complete (fun t' ht' => h t' (List.mem_cons_of_mem _ ht'))]
     simp only [putsOf, bot_join]
 
 theorem val_complete {P : List (List (Op α))} {c : Cfg α} (h : Inv P c) (k : Complete c) :
@@ -335,7 +335,7 @@ theorem list_det {G : Op α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 → e
   | _ :: _, [], h, _, _ => by simp at h
   | a :: as, b :: bs, h, g1, g2 => by
       simp only [List.map_cons, List.cons.injEq] at h
-      rw [hG a b (g1 a (List.mem_cons_self _ _)) (g2 b (List.mem_cons_self _ _)) h.1,
+      rw [hG a b (g1 a (List.mem_cons_self)) (g2 b (List.mem_cons_self)) h.1,
         list_det hG as bs h.2 (fun e he => g1 e (List.mem_cons_of_mem _ he))
           (fun e he => g2 e (List.mem_cons_of_mem _ he))]
 
@@ -347,12 +347,12 @@ theorem ths_det {G : Op α × α → Prop} (hG : ∀ e1 e2, G e1 → G e2 → e1
   | [], _ :: _, h, _, _, _, _ => by simp [prog] at h
   | _ :: _, [], h, _, _, _, _ => by simp [prog] at h
   | ⟨ad, atd⟩ :: as, ⟨bd, btd⟩ :: bs, h, k1, k2, g1, g2 => by
-      have ta : atd = [] := k1 _ (List.mem_cons_self _ _)
-      have tb : btd = [] := k2 _ (List.mem_cons_self _ _)
+      have ta : atd = [] := k1 _ (List.mem_cons_self)
+      have tb : btd = [] := k2 _ (List.mem_cons_self)
       subst ta; subst tb
       simp only [prog, List.map_cons, List.cons.injEq, List.append_nil] at h
-      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self _ _))
-        (g2 _ (List.mem_cons_self _ _))
+      have hd : ad = bd := list_det hG ad bd h.1 (g1 _ (List.mem_cons_self))
+        (g2 _ (List.mem_cons_self))
       have hr : as = bs := ths_det hG as bs h.2
         (fun t ht => k1 t (List.mem_cons_of_mem _ ht)) (fun t ht => k2 t (List.mem_cons_of_mem _ ht))
         (fun t ht => g1 t (List.mem_cons_of_mem _ ht)) (fun t ht => g2 t (List.mem_cons_of_mem _ ht))
@@ -391,9 +391,9 @@ theorem frozenDone_false : ∀ {ths : List (Th α)},
       | nil => intro _; rfl
       | cons e es ih =>
         intro hl
-        simp only [anyFrz, hl e (List.mem_cons_self _ _), ih (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
+        simp only [anyFrz, hl e (List.mem_cons_self), ih (fun x hx => hl x (List.mem_cons_of_mem _ hx)),
           Bool.or_self]
-    simp only [frozenDone, ha (h t (List.mem_cons_self _ _)),
+    simp only [frozenDone, ha (h t (List.mem_cons_self)),
       frozenDone_false (fun t' ht' => h t' (List.mem_cons_of_mem _ ht')), Bool.or_self]
 
 /-- **Determinism without freeze.** If a freeze-free program has a run that

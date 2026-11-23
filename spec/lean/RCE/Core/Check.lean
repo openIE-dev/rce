@@ -108,7 +108,7 @@ def hintR : Option Ty → Option Ty
 
 /-- Type synthesis with a hint. -/
 def inf (S : Sig) : List Ty → Expr → Option Ty → Option Ty
-  | Γ, .var i, _ => Γ.get? i
+  | Γ, .var i, _ => Γ[i]?
   | _, .lit v, h => match h with
     | some t => if vty v t then some t else litTy v
     | none => litTy v
@@ -147,7 +147,7 @@ def inf (S : Sig) : List Ty → Expr → Option Ty → Option Ty
   | Γ, .catch_ a k, h => match inf S Γ a h with
     | some t => if inf S Γ k (some t) = some t then some t else none
     | none => none
-  | Γ, .call f a, _ => match S.get? f with
+  | Γ, .call f a, _ => match S[f]? with
     | some (ta, t) => if inf S Γ a (some ta) = some ta then some t else none
     | none => none
   | Γ, .tick e, h => inf S Γ e h
@@ -262,7 +262,7 @@ def checkProg (P : Prog) : Bool :=
 
 theorem checkProg_sound (P : Prog) : checkProg P = true → WtProg P := by
   intro H f ta t b hf
-  have hm := List.get?_mem hf
+  have hm := List.mem_of_getElem? hf
   have := List.all_eq_true.mp H _ hm
   simp at this
   exact inf_sound _ _ _ _ _ this

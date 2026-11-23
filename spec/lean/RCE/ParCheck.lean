@@ -17,7 +17,7 @@ theorem disjb_sound {l m : List Nat} (h : disjb l m = true) : Disj l m := by
   unfold disjb at h
   rw [List.all_eq_true] at h
   have := h x hx
-  simp [List.contains, List.elem_iff] at this
+  simp at this
   exact this hm
 
 def WFb : St → Bool

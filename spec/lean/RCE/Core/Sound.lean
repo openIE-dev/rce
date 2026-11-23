@@ -5,14 +5,14 @@ import RCE.Core.Lang
     defined trap or exhaustion), and determinism. -/
 namespace RCE.Core
 
-theorem env_lookup : ∀ {Γ ρ} (i : Nat) {t}, WtEnv Γ ρ → Γ.get? i = some t →
-    ∃ v, ρ.get? i = some v ∧ VTy v t
+theorem env_lookup : ∀ {Γ ρ} (i : Nat) {t}, WtEnv Γ ρ → Γ[i]? = some t →
+    ∃ v, ρ[i]? = some v ∧ VTy v t
   | _, _, _, _, .nil, h => by simp at h
   | _, _, 0, _, .cons hv _, h => by simp at h; subst h; exact ⟨_, rfl, hv⟩
   | _, _, i+1, _, .cons _ hr, h => by simpa using env_lookup i hr (by simpa using h)
 
-theorem sig_lookup : ∀ (P : Prog) (f : Nat) {ta t}, (sig P).get? f = some (ta, t) →
-    ∃ b, P.get? f = some (ta, t, b)
+theorem sig_lookup : ∀ (P : Prog) (f : Nat) {ta t}, (sig P)[f]? = some (ta, t) →
+    ∃ b, P[f]? = some (ta, t, b)
   | [], _, _, _, h => by simp [sig] at h
   | d :: _, 0, _, _, h => by
       simp [sig] at h; obtain ⟨rfl, rfl⟩ := h; exact ⟨d.2.2, rfl⟩
@@ -69,7 +69,7 @@ theorem eval_sound (P : Prog) (hP : WtProg P) :
     | var h =>
       obtain ⟨v, hv, hvt⟩ := env_lookup _ hE h
       simp only [eval]; rw [hv]; exact hvt
-    | lit hv => simpa [eval] using hv
+    | lit hv => simpa [eval, RTy] using hv
     | bin ho ha hb =>
       have iha := ih hE ha; have ihb := ih hE hb
       simp only [eval]
@@ -133,9 +133,7 @@ theorem eval_sound (P : Prog) (hP : WtProg P) :
       obtain ⟨b, hb⟩ := sig_lookup P _ hf
       simp only [eval]
       cases hx : eval P n ρ _ <;> rw [hx] at iha <;> try simp [RTy] at iha ⊢
-      have hb' := hb
-      simp only [List.get?_eq_getElem?] at hb'
-      rw [hb']
+      rw [hb]
       exact ih (.cons iha .nil) (.tick (hP _ _ _ _ hb))
     | tick he => simp only [eval]; exact ih hE he
     | try_ ha =>

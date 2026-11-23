@@ -1,3 +1,4 @@
+set_option exponentiation.threshold 10000
 /-! S3: IEEE 754 binary64 on bit patterns, by exact arithmetic. A float is
     its 64-bit pattern as a `Nat`. Each operation computes the exact real
     result as a fraction and rounds it once to nearest, ties to even, so
@@ -219,7 +220,7 @@ def shortest (b : Nat) : Nat × Int :=
 
 def digits (n : Nat) : String := toString n
 
-def stripZeros (s : String) : String := (s.toList.reverse.dropWhile (· == '0')).reverse.asString
+def stripZeros (s : String) : String := String.ofList (s.toList.reverse.dropWhile (· == '0')).reverse
 
 /-- The reference's `float_text` (checker interp.rs): `0`/`-0`; plain
     decimal for magnitudes in [1e-5, 1e16); otherwise `d.ddde±X`. -/
@@ -236,11 +237,11 @@ def text (b : Nat) : String :=
   if plain then
     if E ≥ 0 then
       let ip := E.toNat + 1
-      if n ≤ ip then sgn ++ ds ++ String.mk (List.replicate (ip - n) '0')
-      else sgn ++ (ds.take ip) ++ "." ++ (ds.drop ip)
-    else sgn ++ "0." ++ String.mk (List.replicate ((-E).toNat - 1) '0') ++ ds
+      if n ≤ ip then sgn ++ ds ++ String.ofList (List.replicate (ip - n) '0')
+      else sgn ++ (ds.take ip).toString ++ "." ++ (ds.drop ip).toString
+    else sgn ++ "0." ++ String.ofList (List.replicate ((-E).toNat - 1) '0') ++ ds
   else
-    let mant := if n = 1 then ds else ds.take 1 ++ "." ++ ds.drop 1
+    let mant := if n = 1 then ds else (ds.take 1).toString ++ "." ++ (ds.drop 1).toString
     sgn ++ mant ++ "e" ++ (if E ≥ 0 then "+" else "") ++ toString E
 where
   ge10Pat (a : Nat) (j : Int) : Bool :=

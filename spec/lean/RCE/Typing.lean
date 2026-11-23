@@ -4,11 +4,11 @@ import RCE.Form
 namespace RCE
 
 def WtFields (ts : List Ty) (fs : List Val) : Prop :=
-  fs.length = ts.length ∧ ∀ i v t, fs.get? i = some v → ts.get? i = some t → v.hasTy t
+  fs.length = ts.length ∧ ∀ (i : Nat) v t, fs[i]? = some v → ts[i]? = some t → v.hasTy t
 
 inductive WtStmt (Γ : Ctx) : Stmt → Prop where
   | skip : WtStmt Γ .skip
-  | assign {i e t} : Γ.fields.get? i = some t → HasTy Γ e t → WtStmt Γ (.assign i e)
+  | assign {i e t} : Γ.fields[i]? = some t → HasTy Γ e t → WtStmt Γ (.assign i e)
   | seq {a b} : WtStmt Γ a → WtStmt Γ b → WtStmt Γ (.seq a b)
   | ifs {c a b} : HasTy Γ c .bool → WtStmt Γ a → WtStmt Γ b → WtStmt Γ (.ifs c a b)
   | loop {n c b} : HasTy Γ c .bool → WtStmt Γ b → WtStmt Γ (.loop n c b)
@@ -18,17 +18,17 @@ inductive WtStmt (Γ : Ctx) : Stmt → Prop where
 theorem wtEnv_of {ts as fs args} (hf : WtFields ts fs) (ha : WtFields as args) :
     WtEnv ⟨ts, as⟩ ⟨fs, args⟩ := ⟨hf.2, ha.2⟩
 
-theorem wtFields_set {ts fs i v t} (hf : WtFields ts fs) (hi : ts.get? i = some t) (hv : v.hasTy t) :
+theorem wtFields_set {ts fs i v t} (hf : WtFields ts fs) (hi : ts[i]? = some t) (hv : v.hasTy t) :
     WtFields ts (fs.set i v) := by
   refine ⟨by simp [hf.1], ?_⟩
   intro j w u hj hu
-  simp only [List.get?_eq_getElem?, List.getElem?_set] at hj
+  simp only [List.getElem?_set] at hj
   split at hj
   · rename_i hij; subst hij
     split at hj
     · cases hj; rw [hi] at hu; cases hu; exact hv
     · cases hj
-  · exact hf.2 j w u (by simpa [List.get?_eq_getElem?] using hj) hu
+  · exact hf.2 j w u hj hu
 
 theorem iter_pres (Q : List Val → Prop) (f : List Val → List Val → SRes) (c)
     (hf : ∀ fs os fs' os', Q fs → f fs os = .ok fs' os' → Q fs') :
@@ -85,17 +85,17 @@ structure Sig where
   events : String → List Ty
 
 def WtStep (S : Sig) (d : StepDecl) : Prop :=
-  ∃ ts, S.regions.get? d.region = some ts ∧
+  ∃ ts, S.regions[d.region]? = some ts ∧
     HasTy ⟨ts, S.events d.event⟩ d.guard .bool ∧ WtStmt ⟨ts, S.events d.event⟩ d.body
 
 def WtProg (S : Sig) (P : Program) : Prop := ∀ d ∈ P.steps, WtStep S d
 
 def WtState (S : Sig) (s : State) : Prop :=
   s.length = S.regions.length ∧
-  ∀ k fs ts, s.get? k = some fs → S.regions.get? k = some ts → WtFields ts fs
+  ∀ (k : Nat) fs ts, s[k]? = some fs → S.regions[k]? = some ts → WtFields ts fs
 
 theorem regionStep_wt (S : Sig) {args ev i fs ts} (ha : WtFields (S.events ev) args)
-    (hts : S.regions.get? i = some ts) (hf : WtFields ts fs) :
+    (hts : S.regions[i]? = some ts) (hf : WtFields ts fs) :
     ∀ ds : List StepDecl, (∀ d ∈ ds, WtStep S d) → ∀ fs' o,
       regionStep args ev i fs ds = .ok fs' o → WtFields ts fs' := by
   intro ds; induction ds with
@@ -105,7 +105,7 @@ theorem regionStep_wt (S : Sig) {args ev i fs ts} (ha : WtFields (S.events ev) a
     simp only [regionStep] at h
     split at h
     · rename_i hc
-      obtain ⟨ts', hr, _, hb⟩ := hd d (List.mem_cons_self _ _)
+      obtain ⟨ts', hr, _, hb⟩ := hd d (List.mem_cons_self)
       rw [hc.1, hts] at hr; cases hr
       rw [hc.2] at hb
       split at h
@@ -118,10 +118,10 @@ theorem regionStep_wt (S : Sig) {args ev i fs ts} (ha : WtFields (S.events ev) a
 theorem runRegions_wt (S : Sig) (P : Program) (hP : WtProg S P) (e : Event)
     (ha : WtFields (S.events e.1) e.2) :
     ∀ (s : State) (i : Nat) s' o,
-      (∀ k fs ts, s.get? k = some fs → S.regions.get? (i + k) = some ts → WtFields ts fs) →
+      (∀ (k : Nat) fs ts, s[k]? = some fs → S.regions[i + k]? = some ts → WtFields ts fs) →
       runRegions P e i s = .ok (s', o) →
       s'.length = s.length ∧
-      ∀ k fs ts, s'.get? k = some fs → S.regions.get? (i + k) = some ts → WtFields ts fs := by
+      ∀ (k : Nat) fs ts, s'[k]? = some fs → S.regions[i + k]? = some ts → WtFields ts fs := by
   intro s; induction s with
   | nil => intro i s' o _ h; simp [runRegions] at h; obtain ⟨rfl, rfl⟩ := h; simp
   | cons fs rs ih =>
@@ -134,7 +134,7 @@ theorem runRegions_wt (S : Sig) (P : Program) (hP : WtProg S P) (e : Event)
       · cases h
       · rename_i rs' os hrest
         cases h
-        have hrs : ∀ k fs ts, rs.get? k = some fs → S.regions.get? (i + 1 + k) = some ts → WtFields ts fs := by
+        have hrs : ∀ (k : Nat) fs ts, rs[k]? = some fs → S.regions[i + 1 + k]? = some ts → WtFields ts fs := by
           intro k f t hk ht
           exact hw (k+1) f t (by simpa using hk) (by rw [show i + (k+1) = i + 1 + k by omega]; exact ht)
         obtain ⟨hl, hw'⟩ := ih (i+1) rs' os hrs hrest
@@ -144,7 +144,7 @@ theorem runRegions_wt (S : Sig) (P : Program) (hP : WtProg S P) (e : Event)
         | zero =>
           simp at hk; subst hk
           simp at ht
-          exact regionStep_wt S ha (by simpa [List.get?_eq_getElem?] using ht) (hw 0 fs t (by simp) (by simpa using ht)) P.steps hP _ _ hr
+          exact regionStep_wt S ha (by simpa using ht) (hw 0 fs t (by simp) (by simpa using ht)) P.steps hP _ _ hr
         | succ k =>
           exact hw' k f t (by simpa using hk) (by rw [show i + 1 + k = i + (k+1) by omega]; exact ht)
 
@@ -167,7 +167,7 @@ theorem run_wt (S : Sig) (P : Program) (hP : WtProg S P) :
   | nil => intro s hs _; exact hs
   | cons e es ih =>
     intro s hs he
-    exact ih _ (delta_wt S P hP s e hs (he e (List.mem_cons_self _ _)))
+    exact ih _ (delta_wt S P hP s e hs (he e (List.mem_cons_self)))
       (fun e' m => he e' (List.mem_cons_of_mem _ m))
 
 end RCE

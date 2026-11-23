@@ -74,11 +74,10 @@ exactly the claim the tool can make, and it is what T59 means in the spec
 once "every trace of length ≤ k" is read as "every trace over the
 explored alphabet". -/
 
-/-- All words of length `n` over the alphabet `evs`.
-    (`List.bind` is the v4.12.0 name; it became `List.flatMap` in v4.14.) -/
+/-- All words of length `n` over the alphabet `evs`. -/
 def words (evs : List Event) : Nat → List (List Event)
   | 0 => [[]]
-  | n + 1 => (words evs n).bind fun w => evs.map fun e => e :: w
+  | n + 1 => (words evs n).flatMap fun w => evs.map fun e => e :: w
 
 theorem mem_words_length (evs : List Event) : ∀ n w, w ∈ words evs n → w.length = n := by
   intro n
@@ -90,7 +89,7 @@ theorem mem_words_length (evs : List Event) : ∀ n w, w ∈ words evs n → w.l
     rfl
   | succ n ih =>
     intro w h
-    simp only [words, List.mem_bind, List.mem_map] at h
+    simp only [words, List.mem_flatMap, List.mem_map] at h
     obtain ⟨w', hw', e, _, rfl⟩ := h
     simp [List.length_cons, ih w' hw']
 

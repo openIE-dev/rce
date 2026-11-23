@@ -20,7 +20,7 @@ theorem idx_rename (ρ : String → String) (hρ : ∀ a b, ρ a = ρ b → a = 
     have : (ρ a = ρ x) ↔ (a = x) := ⟨hρ _ _, fun h => h ▸ rfl⟩
     by_cases h : a = x
     · simp [h]
-    · rw [if_neg (fun h' => h (this.1 h')), if_neg h, idx_rename ρ hρ x as]
+    · rw [ite_eq_right (fun h' => h (this.1 h')), ite_eq_right h, idx_rename ρ hρ x as]
 
 /-! ### Log hashes -/
 

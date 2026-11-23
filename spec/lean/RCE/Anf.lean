@@ -127,7 +127,7 @@ theorem run_frame (p : List (Nat × Op)) (k : Nat) (h : ∀ b ∈ p, k ≤ b.1)
     obtain ⟨j, o⟩ := b
     simp only [run]
     rw [ih (fun c hc => h c (List.mem_cons_of_mem _ hc))]
-    have : k ≤ j := h (j, o) (List.mem_cons_self _ _)
+    have : k ≤ j := h (j, o) (List.mem_cons_self)
     simp only [upd]
     have hne : i ≠ j := by omega
     simp [hne]
@@ -157,11 +157,11 @@ theorem t34 (e : E) (k : Nat) (ρ : Nat → Int) (s : St) :
         exact run_frame _ ra.2.2 (fun c hc => ((anf_bounds b ra.2.2).2 c hc).1) ρ1 s1 i hi2
     simp only [anf, run_append, run, op, aval, eval]
     refine ⟨?_, ?_⟩
-    · simp only [upd, if_pos rfl]
+    · simp only [upd, ite_true]
       show aval (run (anf b ra.2.2).1 ρ1 s1).1 ra.2.1 + aval (run (anf b ra.2.2).1 ρ1 s1).1 (anf b ra.2.2).2.1 = _
-      rw [keep, vb]; simp only [ρ1, va, s1, sa]
+      rw [keep, vb]; dsimp only [ρ1, s1]; rw [va, sa]
     · show (⟨(run (anf b ra.2.2).1 ρ1 s1).2.σ, (run (anf b ra.2.2).1 ρ1 s1).2.tr ++ [.charge 1]⟩ : St) = _
-      rw [sb]; simp only [s1, sa]
+      rw [sb]; dsimp only [s1]; rw [sa]
   | emit a iha =>
     obtain ⟨va, sa⟩ := iha k ρ s
     simp only [anf, run_append, run, op, eval, aval_upd_tmp]

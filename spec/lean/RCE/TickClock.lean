@@ -99,7 +99,7 @@ theorem cnt_mono (q : Nat) {m n : Nat} (h : m ≤ n) : cnt t q m ≤ cnt t q n :
   | step _ ih => rw [cnt_succ]; omega
 
 theorem cnt_lt {q j n : Nat} (hj : j < n) (hp : t.proc j = q) : cnt t q j < cnt t q n := by
-  have : cnt t q (j + 1) = cnt t q j + 1 := by rw [cnt_succ, if_pos hp]
+  have : cnt t q (j + 1) = cnt t q j + 1 := by rw [cnt_succ, ite_eq_left hp]
   have := cnt_mono (t := t) q (show j + 1 ≤ n by omega)
   omega
 
@@ -130,7 +130,7 @@ theorem cnt_zero {p i : Nat} (h : lastBefore t p i = none) : cnt t p i = 0 := by
       simp only [lastBefore] at h; split at h
       · contradiction
       · exact h
-    rw [cnt_succ, ih h' (fun j hj => hn j (by omega)), if_neg (hn n (by omega))]
+    rw [cnt_succ, ih h' (fun j hj => hn j (by omega)), ite_eq_right (hn n (by omega))]
 
 theorem pos_inj {j j' : Nat} (hp : t.proc j = t.proc j') (h : pos t j = pos t j') : j = j' := by
   unfold pos at h; rw [hp] at h
@@ -146,11 +146,11 @@ theorem hist_stable : ∀ {n m j : Nat}, j < n → n ≤ m → hist t m j = hist
   | @step m hle ih =>
     have : n ≤ m := hle
     show (if j = m then step t (hist t m) m else hist t m j) = _
-    rw [if_neg (by omega)]; exact ih
+    rw [ite_eq_right (by omega)]; exact ih
 
 theorem hist_self (i : Nat) : hist t (i + 1) i = step t (hist t i) i := by
   show (if i = i then step t (hist t i) i else hist t i i) = _
-  exact if_pos rfl
+  exact ite_eq_left rfl
 
 theorem hist_V {i l : Nat} (h : l < i) : hist t i l = V t l := by
   unfold V; exact hist_stable (Nat.lt_succ_self l) h
@@ -221,7 +221,7 @@ theorem count : ∀ i q k, k < V t i q ↔ ∃ j, t.proc j = q ∧ pos t j = k �
           have hown : pos t l < V t l (t.proc l) :=
             (ih l hl _ _).2 ⟨l, rfl, rfl, .refl _⟩
           have : cnt t (t.proc i) (l + 1) = pos t l + 1 := by
-            rw [cnt_succ, if_pos hpl, pos, hpl]
+            rw [cnt_succ, ite_eq_left hpl, pos, hpl]
           rw [hpl] at hown; omega
       have hM : ov (V t) (t.proc i) (t.src i) ≤ pos t i := by
         cases h : t.src i with
@@ -252,7 +252,7 @@ theorem count : ∀ i q k, k < V t i q ↔ ∃ j, t.proc j = q ∧ pos t j = k �
         · omega
     · rintro ⟨j, hpj, hk, hj⟩
       cases hj with
-      | refl => subst hpj; rw [if_pos rfl, own]; omega
+      | refl => subst hpj; rw [ite_eq_left rfl, own]; omega
       | prev hl hj' =>
         have := (ih _ (lastBefore_lt hl).1 q k).2 ⟨j, hpj, hk, hj'⟩
         have : k < ov (V t) q (lastBefore t (t.proc i) i) := by rw [hl]; exact this

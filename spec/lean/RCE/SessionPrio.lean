@@ -72,7 +72,7 @@ theorem mem_filt_self {a : Act} {l : List Act} (h : a ∈ l) : a ∈ filt a.1 l 
 /-- the other holder of the channel of a pending action owes it too -/
 theorem partner {s : State} (I : Inv E pr s) {p : Nat} {a : Act} {l : List Act}
     (h : s p = a :: l) : ∃ q, q ≠ p ∧ a ∈ s q := by
-  have ha : a ∈ s p := h ▸ List.mem_cons_self a l
+  have ha : a ∈ s p := h ▸ List.mem_cons_self
   have hf := mem_filt_self ha
   rcases I.holds p a ha with e | e
   · refine ⟨(E a.1).2, fun h' => I.apart a.1 (e.symm.trans h'.symm), ?_⟩
@@ -116,11 +116,11 @@ theorem progress {s : State} (I : Inv E pr s) : Final s ∨ ∃ s', Step s s' :=
 
 theorem filt_tail_ne {c : Nat} {a : Act} {l : List Act} (h : a.1 ≠ c) :
     filt c (a :: l) = filt c l := by
-  simp [filt, List.filter_cons, h]
+  simp [filt, h]
 
 theorem filt_tail_eq {c : Nat} {a : Act} {l : List Act} (h : a.1 = c) :
     filt c (a :: l) = a :: filt c l := by
-  simp [filt, List.filter_cons, h]
+  simp [filt, h]
 
 theorem preserve {s s' : State} (I : Inv E pr s) (st : Step s s') : Inv E pr s' := by
   cases st with
@@ -140,8 +140,8 @@ theorem preserve {s s' : State} (I : Inv E pr s) (st : Step s s') : Inv E pr s' 
       rw [v, v]
       by_cases hc : a.1 = c
       · -- the step is on c: its holders are p and q
-        have hpE := I.holds p a (by rw [hp]; exact List.mem_cons_self _ _)
-        have hqE := I.holds q a (by rw [hq]; exact List.mem_cons_self _ _)
+        have hpE := I.holds p a (by rw [hp]; exact List.mem_cons_self)
+        have hqE := I.holds q a (by rw [hq]; exact List.mem_cons_self)
         have hs := I.same c
         subst hc
         have ap := I.apart a.1
@@ -149,10 +149,10 @@ theorem preserve {s s' : State} (I : Inv E pr s) (st : Step s s') : Inv E pr s' 
         · exact absurd (e1.trans e2.symm) hpq
         · rw [← e1, ← e2, hp, hq, filt_tail_eq rfl, filt_tail_eq rfl] at hs
           have hs := (List.cons.inj hs).2
-          rw [← e1, ← e2]; simp [hpq, Ne.symm hpq, hs]
+          rw [← e1, ← e2]; simp [hpq, hs]
         · rw [← e1, ← e2, hp, hq, filt_tail_eq rfl, filt_tail_eq rfl] at hs
           have hs := (List.cons.inj hs).2
-          rw [← e1, ← e2]; simp [hpq, Ne.symm hpq, hs]
+          rw [← e1, ← e2]; simp [hpq, hs]
         · exact absurd (e1.trans e2.symm) hpq
       · -- the step is on another channel: c's view is unchanged
         have keep : ∀ i, filt c (if i = q then l2 else if i = p then l1 else s i) = filt c (s i) := by
@@ -213,11 +213,9 @@ theorem toEnds_out {es : List (Nat × Nat)} {c : Nat} (h : es.length ≤ c) : to
 
 theorem toState_mem {L : List (List Act)} {p : Nat} (h : p < L.length) : toState L p ∈ L := by
   simp [toState, List.getD, List.getElem?_eq_getElem h]
-  exact List.getElem_mem _ _ _
 
 theorem toEnds_mem {es : List (Nat × Nat)} {c : Nat} (h : c < es.length) : toEnds es c ∈ es := by
   simp [toEnds, List.getD, List.getElem?_eq_getElem h]
-  exact List.getElem_mem _ _ _
 
 theorem filt_out {L : List (List Act)} {es : List (Nat × Nat)}
     (hch : ∀ p a, a ∈ toState L p → a.1 < es.length) {c : Nat} (hc : es.length ≤ c) (p : Nat) :
@@ -236,7 +234,7 @@ theorem chk_sound {L : List (List Act)} {es : List (Nat × Nat)} {pr : Act → N
     intro p a hm
     by_cases hp : p < L.length
     · have := hh p hp a hm
-      simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true, beq_iff_eq] at this
+      simp only [decide_eq_true_eq, Bool.or_eq_true, beq_iff_eq] at this
       exact this
     · rw [toState_out (by omega)] at hm; cases hm
   refine ⟨fun p a hm => (hp p a hm).2, ?_, ?_, ?_⟩
@@ -362,8 +360,8 @@ def ringBad : List (List Act) := [[(2, 0), (0, 0)], [(0, 0), (1, 0)], [(1, 0), (
 
 example (pr : Act → Nat) : chk ringBad ringEnds pr = false := by
   apply cycle_chk_false (x := (0, 0)) (ys := [(1, 0), (2, 0), (0, 0)]) _ rfl
-  refine ⟨⟨_, List.mem_cons_of_mem _ (List.mem_cons_self _ _), 0, rfl, rfl⟩,
-    ⟨_, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self _ _)), 0, rfl, rfl⟩,
-    ⟨_, List.mem_cons_self _ _, 0, rfl, rfl⟩, trivial⟩
+  refine ⟨⟨_, List.mem_cons_of_mem _ (List.mem_cons_self), 0, rfl, rfl⟩,
+    ⟨_, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self)), 0, rfl, rfl⟩,
+    ⟨_, List.mem_cons_self, 0, rfl, rfl⟩, trivial⟩
 
 end RCE.SessionPrio

@@ -40,7 +40,7 @@ inductive HasTyO (S : Sig) : OCtx → Expr → Ty → OCtx → Prop where
       HasTyO S Γ (.case s l r) t Γ2
   | raise {Γ c t} : HasTyO S Γ (.raise c) t Γ
   | catch_ {Γ Γ1 a h t} : HasTyO S Γ a t Γ1 → HasTyO S Γ1 h t Γ1 → HasTyO S Γ (.catch_ a h) t Γ1
-  | call {Γ Γ1 f a ta t} : S.get? f = some (ta, t) → HasTyO S Γ a ta Γ1 →
+  | call {Γ Γ1 f a ta t} : S[f]? = some (ta, t) → HasTyO S Γ a ta Γ1 →
       HasTyO S Γ (.call f a) t Γ1
   | tick {Γ Γ1 e t} : HasTyO S Γ e t Γ1 → HasTyO S Γ (.tick e) t Γ1
   | try_ {Γ Γ1 e ta t c} : HasTyO S Γ e (.sum ta t) Γ1 → HasTyO S Γ (.try_ e c) t Γ1
@@ -62,7 +62,7 @@ theorem types_kept {S Γ e t Γ'} (h : HasTyO S Γ e t Γ') : Γ'.map Prod.fst =
     intro j
     simp only [List.getElem?_map, List.getElem?_set]
     by_cases hj : i = j
-    · subst hj; simp [hg, hl]
+    · subst hj; rw [hg]; simp [hl]
     · simp [hj]
   | let_ _ _ iha ihb => simp only [List.map] at ihb; rw [(List.cons.inj ihb).2, iha]
   | case _ _ _ ihs ihl _ => simp only [List.map] at ihl; rw [(List.cons.inj ihl).2, ihs]
@@ -75,8 +75,8 @@ theorem types_kept {S Γ e t Γ'} (h : HasTyO S Γ e t Γ') : Γ'.map Prod.fst =
 /-- Erasing liveness gives the core typing. -/
 theorem erase {S Γ e t Γ'} (h : HasTyO S Γ e t Γ') : HasTy S (Γ.map Prod.fst) e t := by
   induction h with
-  | varC hg _ => exact .var (by simp [List.get?_eq_getElem?, List.getElem?_map, hg])
-  | varM hg _ => exact .var (by simp [List.get?_eq_getElem?, List.getElem?_map, hg])
+  | varC hg _ => exact .var (by simp [List.getElem?_map, hg])
+  | varM hg _ => exact .var (by simp [List.getElem?_map, hg])
   | lit hv => exact .lit hv
   | bin ho ha hb iha ihb => exact .bin ho iha (by rw [← types_kept ha]; exact ihb)
   | ite hc ha hb ihc iha ihb =>

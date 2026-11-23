@@ -7,7 +7,7 @@ namespace RCE.F64
 
 theorem ipow_add (a b : Nat) : (2:Int) ^ (a + b) = 2 ^ a * 2 ^ b := by
   rw [show (2:Int) = ((2:Nat):Int) from rfl, ← Int.natCast_pow, ← Int.natCast_pow, ← Int.natCast_pow,
-    Nat.pow_add, Int.ofNat_mul]
+    Nat.pow_add, Int.natCast_mul]
 
 theorem atUnit_scale (s : Bool) (m : Nat) (e u d : Int) (hu : u ≤ e) (hd : 0 ≤ d) :
     atUnit s m e (u - d) = atUnit s m e u * 2 ^ d.toNat := by
@@ -29,7 +29,7 @@ theorem compare_mul_pos (a b c : Int) (hc : 0 < c) : compare (a * c) (b * c) = c
 
 theorem pow2_pos (n : Nat) : (0:Int) < 2 ^ n := by
   rw [show (2:Int) = ((2:Nat):Int) from rfl, ← Int.natCast_pow]
-  exact Int.ofNat_lt.mpr (Nat.pos_pow_of_pos _ (by decide))
+  exact Int.ofNat_lt.mpr (Nat.pow_pos (by decide))
 
 /-- **Comparison is exact**: `cmp x y` is the order of the exact values,
     computed at any common unit `2^u` at or below both exponents. -/
@@ -72,12 +72,12 @@ theorem trunc_exact (x : Nat) :
     (0 ≤ d.2.2 → (trunc x).natAbs = d.2.1 * 2 ^ d.2.2.toNat) ∧
     (d.2.2 < 0 → (trunc x).natAbs * 2 ^ (-d.2.2).toNat ≤ d.2.1 ∧
                  d.2.1 < ((trunc x).natAbs + 1) * 2 ^ (-d.2.2).toNat) := by
-  intro d
-  simp only [trunc, d]
+  dsimp only
+  simp only [trunc]
   generalize decode x = dx
   obtain ⟨s, m, e⟩ := dx
   simp only
-  have hp : 0 < 2 ^ (-e).toNat := Nat.pos_pow_of_pos _ (by omega)
+  have hp : 0 < 2 ^ (-e).toNat := Nat.pow_pos (by omega)
   refine ⟨?_, ?_, ?_⟩
   · cases s <;> simp
   · intro he; cases s <;> simp [he, Int.natAbs_mul]
@@ -90,6 +90,6 @@ theorem trunc_exact (x : Nat) :
       generalize 2 ^ (-e).toNat = k at *
       generalize m / k = q at *; generalize m % k = r at *
       rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm q k]; omega
-    cases s <;> simpa [hne] using key
+    cases s <;> simp only [hne, ite_false, ite_true, Int.natAbs_neg, Int.natAbs_natCast] <;> exact key
 
 end RCE.F64
