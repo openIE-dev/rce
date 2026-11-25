@@ -39,6 +39,8 @@ pub struct IngestReport {
     pub admitted: usize,
     pub dedup: usize,
     pub refused: usize,
+    /// Episodes refused because their trace does not replay against the plant twin.
+    pub refused_twin: usize,
     pub keys: Vec<String>,
 }
 
@@ -60,7 +62,35 @@ pub fn ingest(eps: &[Trajectory]) -> IngestReport {
             dedup += 1;
         }
     }
-    IngestReport { offered: eps.len(), admitted, dedup, refused, keys }
+    IngestReport { offered: eps.len(), admitted, dedup, refused, refused_twin: 0, keys }
+}
+
+/// Gated ingestion: an episode is admitted only if it is integral, distinct, AND its
+/// recorded trace replays against the plant twin within tol (sim2real admission).
+pub fn ingest_gated(eps: &[Trajectory], plant: &crate::twin::Plant, tol: f64) -> IngestReport {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut keys = Vec::new();
+    let (mut admitted, mut dedup, mut refused, mut refused_twin) = (0, 0, 0, 0);
+    for e in eps {
+        if e.ticks.is_empty() || e.ticks.iter().any(|t| !t.obs.is_finite() || !t.act.is_finite()) {
+            refused += 1;
+            continue;
+        }
+        let acts: Vec<f64> = e.ticks.iter().map(|t| t.act).collect();
+        let recorded: Vec<f64> = e.ticks.iter().map(|t| t.obs).collect();
+        if !crate::twin::admit_controller(plant, &acts, &recorded, tol) {
+            refused_twin += 1;
+            continue;
+        }
+        let k = content_key(e);
+        if seen.insert(k.clone()) {
+            admitted += 1;
+            keys.push(k);
+        } else {
+            dedup += 1;
+        }
+    }
+    IngestReport { offered: eps.len(), admitted, dedup, refused, refused_twin, keys }
 }
 
 /// The provenance answer to a dataset-size claim: (distinct admitted, unbacked claim).

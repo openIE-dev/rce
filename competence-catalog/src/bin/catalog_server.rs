@@ -372,7 +372,8 @@ async fn fleet_ep(axum::extract::Query(q): axum::extract::Query<FleetQuery>) -> 
     let acts = q.acts;
     let readings = tokio::task::spawn_blocking(move || fleet::collect(&nodes, acts)).await.unwrap();
     let (tot, acts_total, mean) = fleet::aggregate(&readings);
-    Json(json!({"nodes": readings, "total_uj": tot, "total_acts": acts_total, "mean_uj_per_act": mean}))
+    Json(json!({"nodes": readings, "total_uj": tot, "total_acts": acts_total, "mean_uj_per_act": mean,
+        "mean_us_per_act": fleet::aggregate_latency(&readings)}))
 }
 
 #[derive(Deserialize)]
