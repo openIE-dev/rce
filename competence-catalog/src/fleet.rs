@@ -11,6 +11,7 @@ use crate::lift::lift_expr;
 use crate::repair::eval_expr;
 
 /// One node's bare-metal energy reading for a batch of acts.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct NodeReading {
     pub node: String,
     pub source: String,
@@ -36,4 +37,15 @@ pub fn aggregate(readings: &[NodeReading]) -> (u64, u64, f64) {
     let total_acts: u64 = readings.iter().map(|r| r.acts).sum();
     let mean = if total_acts == 0 { 0.0 } else { total_uj as f64 / total_acts as f64 };
     (total_uj, total_acts, mean)
+}
+
+/// Collect wall-metered readings from fleet nodes over HTTP (`GET {node}/energy?acts=N`).
+/// A node that cannot measure is skipped (never a fabricated 0). This is the fleet-wide
+/// aggregation the bare-metal fleet enables.
+pub fn collect(nodes: &[String], acts: usize) -> Vec<NodeReading> {
+    nodes.iter().filter_map(|n| {
+        let url = format!("{n}/energy?acts={acts}");
+        let resp = ureq::get(&url).call().ok()?;
+        resp.into_json::<NodeReading>().ok()
+    }).collect()
 }

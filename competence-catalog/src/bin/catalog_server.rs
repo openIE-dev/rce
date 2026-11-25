@@ -26,7 +26,7 @@ use competence_catalog::lut_emit::{builtin_luts, emit_expr};
 use competence_catalog::semantic::{semantic_key, Probe, SemanticResolver};
 use competence_catalog::symbolic::symbolically_equivalent;
 use competence_catalog::threshold::{self, Measurements};
-use competence_catalog::{bench, conform, fabric};
+use competence_catalog::{bench, conform, fabric, fleet};
 use competence_catalog::{basis_gate, intent_key, Catalog, CompetenceRecord, Provenance};
 use rcevc_core::{Checker, State as RState, Unit};
 use serde::Deserialize;
@@ -348,6 +348,33 @@ async fn fabrics_ep() -> Json<Value> {
     Json(json!({"count": fs.len(), "place": best, "fabrics": rows}))
 }
 
+fn default_acts() -> usize { 200_000 }
+
+#[derive(Deserialize)]
+struct EnergyQuery { #[serde(default = "default_acts")] acts: usize }
+
+/// This node's wall-metered energy for a batch of acts (bare-metal, `Measured`).
+async fn energy_ep(axum::extract::Query(q): axum::extract::Query<EnergyQuery>) -> Json<Value> {
+    let node = std::env::var("RCE_NODE").unwrap_or_else(|_| "local".into());
+    let r = tokio::task::spawn_blocking(move || fleet::measure_local(&node, q.acts)).await.unwrap();
+    match r {
+        Ok(rd) => Json(json!(rd)),
+        Err(e) => Json(json!({"error": e})),
+    }
+}
+
+#[derive(Deserialize)]
+struct FleetQuery { nodes: String, #[serde(default = "default_acts")] acts: usize }
+
+/// Fleet-wide aggregation: collect wall-metered readings from the given nodes and total them.
+async fn fleet_ep(axum::extract::Query(q): axum::extract::Query<FleetQuery>) -> Json<Value> {
+    let nodes: Vec<String> = q.nodes.split(',').map(|s| s.trim().to_string()).collect();
+    let acts = q.acts;
+    let readings = tokio::task::spawn_blocking(move || fleet::collect(&nodes, acts)).await.unwrap();
+    let (tot, acts_total, mean) = fleet::aggregate(&readings);
+    Json(json!({"nodes": readings, "total_uj": tot, "total_acts": acts_total, "mean_uj_per_act": mean}))
+}
+
 #[derive(Deserialize)]
 struct CanonReq {
     src: String,
@@ -634,6 +661,8 @@ async fn main() {
         .route("/bench", get(bench_ep))
         .route("/conform", post(conform_ep))
         .route("/fabrics", get(fabrics_ep))
+        .route("/energy", get(energy_ep))
+        .route("/fleet", get(fleet_ep))
         .route("/emit", post(emit_ep))
         .route("/languages", get(languages_ep))
         .with_state(state);
