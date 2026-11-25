@@ -210,6 +210,79 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
     }
 }
 
+/// A cooperative async scheduler seed: spawned tasks run ONE statement per round in FIFO
+/// order (deterministic interleaving); `Await` is a yield point (the task gives up the rest
+/// of its round). Fuel-bounded; no preemption, no IO async (those stay open).
+pub struct Scheduler {
+    tasks: std::collections::VecDeque<(String, Vec<Stmt>, usize, Env)>,
+    pub log: Vec<String>,
+    pub rounds: u64,
+}
+
+impl Scheduler {
+    pub fn new() -> Self {
+        Scheduler { tasks: std::collections::VecDeque::new(), log: Vec::new(), rounds: 0 }
+    }
+
+    /// Spawn a task as a statement sequence with its own environment.
+    pub fn spawn(&mut self, id: &str, body: Stmt, seed: Env) {
+        let stmts = match body {
+            Stmt::Seq(ss) => ss,
+            other => vec![other],
+        };
+        self.tasks.push_back((id.to_string(), stmts, 0, seed));
+    }
+
+    /// Run one round: each ready task executes one statement (Await yields without executing).
+    /// Returns true if any task remains.
+    pub fn run_round(&mut self, fns: &mut FnTable, fuel: &mut u64) -> Result<bool, String> {
+        self.rounds += 1;
+        let n = self.tasks.len();
+        for _ in 0..n {
+            let (id, stmts, pc, mut env) = match self.tasks.pop_front() {
+                Some(t) => t,
+                None => break,
+            };
+            if pc >= stmts.len() {
+                continue; // finished
+            }
+            if *fuel == 0 {
+                return Err("scheduler fuel exhausted".into());
+            }
+            *fuel -= 1;
+            let s = &stmts[pc];
+            let yielded = matches!(s, Stmt::Await(_));
+            if !yielded {
+                // A Return inside a task ends that task.
+                if let Some(_v) = eval_fuel(s, &mut env, fns, fuel)? {
+                    self.log.push(format!("{id}:return"));
+                    continue;
+                }
+            }
+            self.log.push(format!("{id}:{}", if yielded { "yield" } else { "step" }));
+            self.tasks.push_back((id, stmts, pc + 1, env));
+        }
+        Ok(!self.tasks.is_empty())
+    }
+
+    /// Run to completion (or fuel exhaustion). Deterministic for a given spawn order.
+    pub fn run_to_completion(&mut self, fns: &mut FnTable, max_rounds: u64) -> Result<(), String> {
+        let mut fuel = FUEL;
+        while self.run_round(fns, &mut fuel)? {
+            if self.rounds >= max_rounds {
+                return Err("scheduler round cap".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The replay gate for whole-program Forms: admitted iff the program reproduces EVERY probe
 /// (seeded environment → expected return) under deterministic execution. Same admission law
 /// as expressions, extended to statements.
