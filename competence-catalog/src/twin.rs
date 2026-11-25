@@ -114,6 +114,41 @@ pub fn simulate2(p: &Plant2, acts: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+/// A two-boundary contact plant (floor + ceiling) with per-contact restitution and tangential
+/// friction. A multi-contact seed; full rigid-body / arbitrary contact manifolds stay open.
+#[derive(Clone, Copy, Debug)]
+pub struct Plant3 {
+    pub dt: f64,
+    pub gravity: f64,
+    pub lo: f64,
+    pub hi: f64,
+    pub restitution: f64,
+    pub friction: f64,
+}
+
+/// Simulate Plant3; the trace stays within [lo, hi]; contact reflects velocity by restitution
+/// and bleeds it by friction.
+pub fn simulate3(p: &Plant3, acts: &[f64]) -> Vec<f64> {
+    let (mut x, mut v) = (0.0, 0.0);
+    acts.iter()
+        .map(|a| {
+            v += (a - p.gravity) * p.dt;
+            x += v * p.dt;
+            if x < p.lo {
+                x = p.lo;
+                v = -v * p.restitution;
+                v *= 1.0 - p.friction;
+            }
+            if x > p.hi {
+                x = p.hi;
+                v = -v * p.restitution;
+                v *= 1.0 - p.friction;
+            }
+            x
+        })
+        .collect()
+}
+
 /// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
 /// explains the recording; None when no candidate is within tol.
 pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {

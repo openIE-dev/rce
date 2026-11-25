@@ -30,6 +30,23 @@ pub fn schedulable(ts: &[Task]) -> bool {
         && utilization(ts) <= rm_bound(ts.len())
 }
 
+/// Deterministic priority dispatch: at each tick, among released tasks (period divides
+/// tick) run the highest priority (shortest period, then name). None if not schedulable.
+pub fn priority_dispatch(ts: &[Task], ticks: u64) -> Option<Vec<String>> {
+    if !schedulable(ts) {
+        return Option::None;
+    }
+    let mut out = Vec::new();
+    for t in 0..ticks {
+        let mut released: Vec<&Task> = ts.iter().filter(|x| t % x.period_us == 0).collect();
+        released.sort_by(|a, b| a.period_us.cmp(&b.period_us).then_with(|| a.name.cmp(b.name)));
+        if let Some(x) = released.first() {
+            out.push(x.name.to_string());
+        }
+    }
+    Option::Some(out)
+}
+
 fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 { a } else { gcd(b, a % b) }
 }

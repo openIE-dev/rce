@@ -67,6 +67,7 @@ pub mod train;
 pub mod trajectory;
 pub mod trust;
 pub mod twin;
+pub mod types;
 pub mod unsilo;
 pub mod value;
 pub mod workflow;
