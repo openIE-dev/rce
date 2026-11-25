@@ -8,21 +8,66 @@
 
 use rce_spec_check::ast::Expr;
 
+use crate::lift::lift_expr;
+use crate::repair::eval_expr;
+
 /// Deterministic Form features (the proposer's input representation).
 pub fn features(e: &Expr) -> Vec<f64> {
-    fn walk(e: &Expr, n: &mut f64, bin: &mut f64, neg: &mut f64, d: f64, maxd: &mut f64) {
+    fn walk(e: &Expr, n: &mut f64, bin: &mut f64, neg: &mut f64, id: &mut f64, d: f64, maxd: &mut f64) {
         use Expr::*;
         *n += 1.0;
         *maxd = maxd.max(d);
         match e {
-            Neg(a, _) => { *neg += 1.0; walk(a, n, bin, neg, d + 1.0, maxd); }
-            Bin(_, a, b, _) => { *bin += 1.0; walk(a, n, bin, neg, d + 1.0, maxd); walk(b, n, bin, neg, d + 1.0, maxd); }
+            Neg(a, _) => { *neg += 1.0; walk(a, n, bin, neg, id, d + 1.0, maxd); }
+            Bin(_, a, b, _) => { *bin += 1.0; walk(a, n, bin, neg, id, d + 1.0, maxd); walk(b, n, bin, neg, id, d + 1.0, maxd); }
+            Name(_, _) => { *id += 1.0; }
             _ => {}
         }
     }
-    let (mut n, mut bin, mut neg, mut maxd) = (0.0, 0.0, 0.0, 0.0);
-    walk(e, &mut n, &mut bin, &mut neg, 0.0, &mut maxd);
-    vec![n, bin, neg, maxd]
+    let (mut n, mut bin, mut neg, mut id, mut maxd) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    walk(e, &mut n, &mut bin, &mut neg, &mut id, 0.0, &mut maxd);
+    vec![n, bin, neg, maxd, id]
+}
+
+fn gen(depth: usize, open: bool, rng: &mut impl FnMut() -> usize) -> String {
+    if depth == 0 {
+        if open && rng() % 2 == 0 { "x".to_string() } else { (rng() % 9).to_string() }
+    } else {
+        let op = ["+", "-", "*"][rng() % 3];
+        format!("({} {} {})", gen(depth - 1, open, rng), op, gen(depth - 1, open, rng))
+    }
+}
+
+/// A deterministic receipt corpus at scale: generated Forms labelled by the executor
+/// (closed-form eval succeeds = admitted-by-replay proxy), never by assertion.
+pub fn receipt_corpus(n: usize) -> Vec<(Vec<f64>, bool)> {
+    let mut seed = 0x5EEDu64;
+    let mut rng = || {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        (seed >> 33) as usize
+    };
+    let mut out = Vec::new();
+    for _ in 0..n {
+        let depth = 1 + rng() % 4;
+        let open = rng() % 3 == 0;
+        let src = gen(depth, open, &mut rng);
+        if let Ok(e) = lift_expr(&src) {
+            out.push((features(&e), eval_expr(&e).is_some()));
+        }
+    }
+    out
+}
+
+/// Train the proposer seed on a scaled receipt corpus; return (scorer, holdout accuracy).
+/// The gate still decides admission — this only ranks candidates before it.
+pub fn train_on_corpus(n: usize, epochs: usize, lr: f64) -> (Scorer, f64) {
+    let corpus = receipt_corpus(n);
+    let split = corpus.len() * 4 / 5;
+    let s = Scorer::train(&corpus[..split], epochs, lr);
+    let hold = &corpus[split..];
+    let correct = hold.iter().filter(|(x, y)| (s.score(x) > 0.5) == *y).count();
+    let acc = if hold.is_empty() { 0.0 } else { correct as f64 / hold.len() as f64 };
+    (s, acc)
 }
 
 fn sigmoid(z: f64) -> f64 { 1.0 / (1.0 + (-z).exp()) }
