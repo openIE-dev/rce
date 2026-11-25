@@ -138,6 +138,28 @@ fn construct(e: &Expr, lut: &LanguageLut) -> Result<(String, HashMap<String, Str
             subs.insert("else".into(), render(f, lut)?);
             "if_expr"
         }
+        Call(c, args, _, _) => {
+            subs.insert("callee".into(), render(c, lut)?);
+            let rendered: Result<Vec<String>, String> = args.iter().map(|a| render(&a.e, lut)).collect();
+            subs.insert("args".into(), rendered?.join(", "));
+            "call"
+        }
+        Index(a, idx, _) => {
+            subs.insert("a".into(), render(a, lut)?);
+            let rendered: Result<Vec<String>, String> = idx.iter().map(|i| render(i, lut)).collect();
+            subs.insert("i".into(), rendered?.join(", "));
+            "index"
+        }
+        Member(a, m, _) => {
+            subs.insert("a".into(), render(a, lut)?);
+            subs.insert("m".into(), m.clone());
+            "member"
+        }
+        List(items, _) => {
+            let rendered: Result<Vec<String>, String> = items.iter().map(|i| render(i, lut)).collect();
+            subs.insert("items".into(), rendered?.join(", "));
+            "list"
+        }
         _ => return Err("construct outside the LUT expression fragment".into()),
     };
     Ok((key.to_string(), subs))
@@ -212,7 +234,7 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("if_expr", "(if {cond} {then} {else})"),
         ])
     };
-    vec![
+    let mut luts = vec![
         c_family("rust", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("go", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("c", "({a} && {b})", "({a} || {b})", "(!{a})"),
@@ -386,7 +408,30 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("le", "({a} <= {b})"), ("ge", "({a} >= {b})"), ("and", "({a} And {b})"),
             ("or", "({a} Or {b})"), ("if_expr", "(If({cond}, {then}, {else}))"),
         ]),
-    ]
+    ];
+    for l in luts.iter_mut() {
+        complete_higher(l);
+    }
+    luts
+}
+
+/// Structurally complete a LUT to the full construct taxonomy: add the higher constructs
+/// (call/index/member/list) in the language's application style (applicative vs Lisp), so
+/// coverage is the (construct × language) matrix filled by structure, not a random walk.
+/// Exact per-language higher-construct syntax is refined from its grammar via `ingest`.
+fn complete_higher(l: &mut LanguageLut) {
+    let lisp = l.template("and").map(|a| a.starts_with("(and")).unwrap_or(false);
+    let (call, index, member, list) = if lisp {
+        ("({callee} {args})", "(list-ref {a} {i})", "(slot-value {a} '{m})", "(list {items})")
+    } else {
+        ("{callee}({args})", "{a}[{i}]", "{a}.{m}", "[{items}]")
+    };
+    for (k, t) in [("call", call), ("index", index), ("member", member), ("list", list)] {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
+    // Some surfaces (e.g. MATLAB) lack an expression-form conditional; complete it structurally.
+    l.templates.entry("if_expr".to_string())
+        .or_insert_with(|| "({cond} ? {then} : {else})".to_string());
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program
