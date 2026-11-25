@@ -44,8 +44,41 @@ pub fn eval_expr_env(e: &Expr, env: &Env) -> Option<i128> {
     }
 }
 
-/// Local functions (closure seed): name → (params, body).
-pub type FnTable = BTreeMap<String, (Vec<String>, Stmt)>;
+/// Local functions (closure seed) plus a deterministic macro table.
+/// A macro is (arity, expression template with `{0}`,`{1}`,… arg slots); expansion is
+/// substitution + lift, a deterministic rewrite, never a model call.
+pub struct FnTable {
+    pub fns: BTreeMap<String, (Vec<String>, Stmt)>,
+    pub macros: BTreeMap<String, (usize, String)>,
+}
+
+impl FnTable {
+    pub fn new() -> Self {
+        FnTable { fns: BTreeMap::new(), macros: BTreeMap::new() }
+    }
+    pub fn add_macro(&mut self, name: &str, arity: usize, template: &str) {
+        self.macros.insert(name.to_string(), (arity, template.to_string()));
+    }
+}
+
+impl Default for FnTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Expand a macro by substituting rendered args into its template and lifting the result.
+pub fn expand_macro(name: &str, args: &[Expr], macros: &BTreeMap<String, (usize, String)>) -> Result<Expr, String> {
+    let (arity, tpl) = macros.get(name).ok_or_else(|| format!("unknown macro {name}"))?;
+    if *arity != args.len() {
+        return Err(format!("macro {name} arity mismatch"));
+    }
+    let mut out = tpl.clone();
+    for (i, a) in args.iter().enumerate() {
+        out = out.replace(&format!("{{{i}}}"), &crate::canonical::emit(a));
+    }
+    crate::lift::lift_expr(&out)
+}
 
 /// Execute a statement; returns the returned value (Return) or None. Fuel-bounded.
 pub fn eval_stmt(s: &Stmt, env: &mut Env) -> Result<Option<i128>, String> {
@@ -125,11 +158,11 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(Option::None)
         }
         Stmt::LetFn(n, params, body) => {
-            fns.insert(n.clone(), (params.clone(), *body.clone()));
+            fns.fns.insert(n.clone(), (params.clone(), *body.clone()));
             Ok(Option::None)
         }
         Stmt::Call(n, args) => {
-            let (params, body) = fns.get(n).cloned().ok_or_else(|| format!("unknown fn {n}"))?;
+            let (params, body) = fns.fns.get(n).cloned().ok_or_else(|| format!("unknown fn {n}"))?;
             if params.len() != args.len() {
                 return Err(format!("arity mismatch calling {n}"));
             }
@@ -146,17 +179,20 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
         }
         Stmt::GenericFn(n, _tp, params, body) => {
             // Monomorphization seed: type params erased at execution (i128 core).
-            fns.insert(n.clone(), (params.clone(), *body.clone()));
+            fns.fns.insert(n.clone(), (params.clone(), *body.clone()));
             Ok(Option::None)
         }
         Stmt::GenericType(_, _) => Ok(Option::None),
         Stmt::AsyncFn(n, params, body) => {
-            fns.insert(n.clone(), (params.clone(), *body.clone()));
+            fns.fns.insert(n.clone(), (params.clone(), *body.clone()));
             Ok(Option::None)
         }
         Stmt::Await(inner) => eval_fuel(inner, env, fns, fuel),
         Stmt::Attribute(_) => Ok(Option::None),
-        Stmt::Macro(_, _) => Err("macro expansion is an open frontier".into()),
+        Stmt::Macro(n, args) => {
+            let e = expand_macro(n, args, &fns.macros)?;
+            Ok(eval_expr_env(&e, env))
+        }
         Stmt::LetCall(n, f, args) => {
             let v = eval_fuel(&Stmt::Call(f.clone(), args.clone()), env, fns, fuel)?
                 .ok_or_else(|| format!("call {f} returned no value"))?;

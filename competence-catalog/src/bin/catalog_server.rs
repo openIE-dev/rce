@@ -44,6 +44,28 @@ enum Req {
     Sync { peers: Vec<String>, reply: oneshot::Sender<Value> },
     Resolve { shape: String, probes: Vec<ProbeWire>, reply: oneshot::Sender<Value> },
     Build { src: String, reply: oneshot::Sender<Value> },
+    AdmitProgram { src: String, probes: Vec<ProgramProbeWire>, reply: oneshot::Sender<Value> },
+    RunProgram { key: String, seed: HashMap<String, i128>, reply: oneshot::Sender<Value> },
+}
+
+/// A whole-program behavioral probe: a seeded environment and the expected return.
+#[derive(Deserialize)]
+struct ProgramProbeWire {
+    seed: HashMap<String, i128>,
+    expected: i128,
+}
+
+#[derive(Deserialize)]
+struct AdmitProgramReq {
+    src: String,
+    probes: Vec<ProgramProbeWire>,
+}
+
+#[derive(Deserialize)]
+struct RunProgramReq {
+    key: String,
+    #[serde(default)]
+    seed: HashMap<String, i128>,
 }
 
 #[derive(Deserialize)]
@@ -175,6 +197,18 @@ async fn admit(State(st): State<Arc<AppState>>, Json(req): Json<AdmitReq>) -> Js
     };
     let (tx, rx) = oneshot::channel();
     st.tx.send(Req::Admit { rec, reply: tx }).await.unwrap();
+    Json(rx.await.unwrap())
+}
+
+async fn admit_program(State(st): State<Arc<AppState>>, Json(req): Json<AdmitProgramReq>) -> Json<Value> {
+    let (tx, rx) = oneshot::channel();
+    st.tx.send(Req::AdmitProgram { src: req.src, probes: req.probes, reply: tx }).await.unwrap();
+    Json(rx.await.unwrap())
+}
+
+async fn run_program(State(st): State<Arc<AppState>>, Json(req): Json<RunProgramReq>) -> Json<Value> {
+    let (tx, rx) = oneshot::channel();
+    st.tx.send(Req::RunProgram { key: req.key, seed: req.seed, reply: tx }).await.unwrap();
     Json(rx.await.unwrap())
 }
 
@@ -376,6 +410,7 @@ async fn fleet_ep(axum::extract::Query(q): axum::extract::Query<FleetQuery>) -> 
         "mean_us_per_act": fleet::aggregate_latency(&readings)}))
 }
 
+
 #[derive(Deserialize)]
 struct CanonReq {
     src: String,
@@ -497,6 +532,8 @@ async fn main() {
         // The semantic resolver: the basis indexed by shape, so an intent spec
         // (shape + behavioral probes) resolves to owned competence by replay.
         let mut semantic = SemanticResolver::new(bridge.clone(), &sig_entries);
+        // Whole-program competence admitted by replay, served at G0 by content key.
+        let mut programs: HashMap<String, competence_catalog::lut_emit::Stmt> = HashMap::new();
         for (op, _m, _n, sh) in &sig_entries {
             semantic.index(&CompetenceRecord {
                 input_key: intent_key(op, sh),
@@ -552,6 +589,43 @@ async fn main() {
                         let _ = reply.send(json!({"accepted": false, "gate": "replay",
                             "error": "spectest did not reproduce; refused"}));
                     }
+                }
+                Req::AdmitProgram { src, probes, reply } => {
+                    let r = match competence_catalog::program::lift_program(&src) {
+                        Err(e) => json!({"accepted": false, "gate": "replay", "error": e}),
+                        Ok(stmt) => {
+                            let ps: Vec<(competence_catalog::program::Env, i128)> = probes.iter()
+                                .map(|p| (p.seed.iter().map(|(k, v)| (k.clone(), *v)).collect(), p.expected))
+                                .collect();
+                            if competence_catalog::program::replay_admit(&stmt, &ps) {
+                                match competence_catalog::program::program_key(&stmt) {
+                                    Ok(key) => {
+                                        programs.insert(key.clone(), stmt);
+                                        json!({"accepted": true, "gate": "replay", "key": key, "cost_uj": 1})
+                                    }
+                                    Err(e) => json!({"accepted": false, "gate": "replay", "error": e}),
+                                }
+                            } else {
+                                json!({"accepted": false, "gate": "replay",
+                                    "error": "program did not reproduce every probe; refused"})
+                            }
+                        }
+                    };
+                    let _ = reply.send(r);
+                }
+                Req::RunProgram { key, seed, reply } => {
+                    let r = match programs.get(&key) {
+                        None => json!({"hit": false, "error": "no owned whole-program competence; escalate"}),
+                        Some(stmt) => {
+                            let mut env: competence_catalog::program::Env =
+                                seed.iter().map(|(k, v)| (k.clone(), *v)).collect();
+                            match competence_catalog::program::eval_program(stmt, &mut env, &mut competence_catalog::program::FnTable::new()) {
+                                Ok(v) => json!({"hit": true, "key": key, "result": v, "cost_uj": 1, "model_calls": 0}),
+                                Err(e) => json!({"hit": true, "key": key, "error": e}),
+                            }
+                        }
+                    };
+                    let _ = reply.send(r);
                 }
                 Req::Measure { op, shape, args, n, reply } => {
                     // Pure lookup (no ecology metering); measure a batch of G0
@@ -648,6 +722,8 @@ async fn main() {
         .route("/lookup", post(lookup))
         .route("/execute", post(execute))
         .route("/admit", post(admit))
+        .route("/admit_program", post(admit_program))
+        .route("/run_program", post(run_program))
         .route("/measure", post(measure))
         .route("/export", get(export))
         .route("/import", post(import))
