@@ -144,6 +144,17 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             }
             eval_fuel(&body, &mut callee_env, fns, fuel)
         }
+        Stmt::GenericFn(n, _tp, params, body) => {
+            // Monomorphization seed: type params erased at execution (i128 core).
+            fns.insert(n.clone(), (params.clone(), *body.clone()));
+            Ok(Option::None)
+        }
+        Stmt::GenericType(_, _) => Ok(Option::None),
+        Stmt::AsyncFn(n, params, body) => {
+            fns.insert(n.clone(), (params.clone(), *body.clone()));
+            Ok(Option::None)
+        }
+        Stmt::Await(inner) => eval_fuel(inner, env, fns, fuel),
         Stmt::LetCall(n, f, args) => {
             let v = eval_fuel(&Stmt::Call(f.clone(), args.clone()), env, fns, fuel)?
                 .ok_or_else(|| format!("call {f} returned no value"))?;

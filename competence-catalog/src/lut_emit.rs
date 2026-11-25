@@ -514,6 +514,40 @@ fn complete_higher(l: &mut LanguageLut) {
     for (k, t) in match_stmts {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
+
+    // Generics + async/await surface realizations, completed per family as data.
+    let gen_stmts: &[(&str, &str)] = if lisp {
+        &[
+            ("generic_fn", "(defun {name} ({params}) {body})"),
+            ("generic_type", "(deftype {name} ({tparams}))"),
+            ("async_fn", "(defun {name} ({params}) {body})"),
+            ("await", "{value}"),
+        ]
+    } else if ml {
+        &[
+            ("generic_fn", "let {name} ({params}) = {body}"),
+            ("generic_type", "type {name}<{tparams}>"),
+            ("async_fn", "let {name} ({params}) = {body}"),
+            ("await", "{value}"),
+        ]
+    } else {
+        &[
+            ("generic_fn", "fn {name}<{tparams}>({params}) {{ {body} }}"),
+            ("generic_type", "type {name}<{tparams}>;"),
+            ("async_fn", "async fn {name}({params}) {{ {body} }}"),
+            ("await", "await {value}"),
+        ]
+    };
+    for (k, t) in gen_stmts {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
+    // Taxonomy aliases so the coverage matrix sees the generic/async constructs.
+    let g = l.template("generic_fn").cloned()
+        .unwrap_or_else(|| "fn {name}<{tparams}>({params}) {{ {body} }}".into());
+    let a = l.template("async_fn").cloned()
+        .unwrap_or_else(|| "async fn {name}({params}) {{ {body} }}".into());
+    l.templates.entry("generic".to_string()).or_insert(g);
+    l.templates.entry("async".to_string()).or_insert(a);
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program
@@ -544,6 +578,14 @@ pub enum Stmt {
     Call(String, Vec<Expr>),
     /// `let name = fn(args)` — bind a call's result.
     LetCall(String, String, Vec<Expr>),
+    /// `fn name<T…>(params) { body }` — generic function (monomorphized at execution).
+    GenericFn(String, Vec<String>, Vec<String>, Box<Stmt>),
+    /// `type name<T…>` — generic type declaration.
+    GenericType(String, Vec<String>),
+    /// `async fn name(params) { body }` — async function (cooperative seed).
+    AsyncFn(String, Vec<String>, Box<Stmt>),
+    /// `await stmt` — a yield point (cooperative seed; runs inner to completion).
+    Await(Box<Stmt>),
     /// A statement sequence.
     Seq(Vec<Stmt>),
 }
@@ -643,6 +685,28 @@ pub fn render_stmt(s: &Stmt, lut: &LanguageLut) -> Result<String, String> {
             let rendered: Result<Vec<String>, String> = args.iter().map(|a| render(a, lut)).collect();
             subs.insert("args".into(), rendered?.join(", "));
             "call"
+        }
+        Stmt::GenericFn(n, tp, params, b) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("tparams".into(), tp.join(", "));
+            subs.insert("params".into(), params.join(", "));
+            subs.insert("body".into(), render_stmt(b, lut)?);
+            "generic_fn"
+        }
+        Stmt::GenericType(n, tp) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("tparams".into(), tp.join(", "));
+            "generic_type"
+        }
+        Stmt::AsyncFn(n, params, b) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("params".into(), params.join(", "));
+            subs.insert("body".into(), render_stmt(b, lut)?);
+            "async_fn"
+        }
+        Stmt::Await(inner) => {
+            subs.insert("value".into(), render_stmt(inner, lut)?);
+            "await"
         }
         Stmt::LetCall(n, f, args) => {
             subs.insert("name".into(), n.clone());

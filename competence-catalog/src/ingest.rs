@@ -62,6 +62,10 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "case_expression" | "pattern" | "match_pattern" | "case_clause" => { out.insert("match"); }
         "closure_expression" | "lambda_expression" | "arrow_function" | "function_expression"
         | "anonymous_function" | "lambda" | "closure" => { out.insert("fn"); }
+        "type_parameters" | "generic_type" | "type_parameter" | "generic_function"
+        | "type_arguments" | "generic_parameter" => { out.insert("generic"); }
+        "async_function_declaration" | "async_function" | "async_block" | "async" => { out.insert("async"); }
+        "await_expression" | "await" => { out.insert("await"); }
         _ => {}
     }
 }
