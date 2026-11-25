@@ -63,6 +63,7 @@ pub mod threshold;
 pub mod train;
 pub mod trust;
 pub mod unsilo;
+pub mod value;
 pub mod workflow;
 pub mod worldmodel;
 
