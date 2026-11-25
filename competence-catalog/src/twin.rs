@@ -83,3 +83,33 @@ pub fn contact_pressure(forces: &[f64], area_m2: f64) -> Option<Vec<f64>> {
 pub fn pressure_limit_ok(pressures: &[f64], limit_pa: f64) -> bool {
     limit_pa.is_finite() && limit_pa >= 0.0 && pressures.iter().all(|p| p.is_finite() && *p <= limit_pa)
 }
+
+/// Real-to-sim seed (system identification): pick the candidate dt whose simulated trace
+/// best explains the recorded trace; return (dt, divergence) only if within tol.
+/// None when no candidate explains the data — the sim2real gap stays visible, not hidden.
+pub fn identify(acts: &[f64], recorded: &[f64], candidates: &[f64], tol: f64) -> Option<(f64, f64)> {
+    if !tol.is_finite() || tol < 0.0 {
+        return Option::None;
+    }
+    let mut best: Option<(f64, f64)> = Option::None;
+    for dt in candidates {
+        if !dt.is_finite() || *dt <= 0.0 {
+            continue;
+        }
+        let d = match divergence(recorded, &simulate(&Plant { dt: *dt }, acts)) {
+            Option::Some(d) => d,
+            Option::None => continue,
+        };
+        let better = match best {
+            Option::None => true,
+            Option::Some((_, bd)) => d < bd,
+        };
+        if better {
+            best = Option::Some((*dt, d));
+        }
+    }
+    match best {
+        Option::Some((dt, d)) if d <= tol => Option::Some((dt, d)),
+        _ => Option::None,
+    }
+}

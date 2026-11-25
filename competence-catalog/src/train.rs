@@ -58,6 +58,28 @@ pub fn receipt_corpus(n: usize) -> Vec<(Vec<f64>, bool)> {
     out
 }
 
+/// Intent→Form pairs at corpus scale: raw Form features → canonicalized Form features.
+/// The learned inverse of normalization (the JEPA target is the canonical representation).
+pub fn canonical_pairs(n: usize) -> Vec<(Vec<f64>, Vec<f64>)> {
+    let mut seed = 0xCA40u64;
+    let mut rng = || {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        (seed >> 33) as usize
+    };
+    let mut out = Vec::new();
+    for _ in 0..n {
+        let depth = 1 + rng() % 4;
+        let src = gen(depth, false, &mut rng);
+        let Ok(raw) = lift_expr(&src) else { continue };
+        let Ok(canon_src) = crate::canonical::canonicalize(&src) else { continue };
+        let Ok(canon) = lift_expr(&canon_src) else { continue };
+        // Scale the representation (node counts reach ~31) so GD stays in its stable range.
+        let scale = |e: &Expr| features(e).into_iter().map(|v| v / 32.0).collect::<Vec<f64>>();
+        out.push((scale(&raw), scale(&canon)));
+    }
+    out
+}
+
 /// Train the proposer seed on a scaled receipt corpus; return (scorer, holdout accuracy).
 /// The gate still decides admission — this only ranks candidates before it.
 pub fn train_on_corpus(n: usize, epochs: usize, lr: f64) -> (Scorer, f64) {

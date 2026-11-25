@@ -47,6 +47,7 @@ pub mod placement;
 pub mod realtime;
 pub mod repair;
 pub mod replay;
+pub mod rtos;
 pub mod repo;
 pub mod runtime;
 pub mod secure;

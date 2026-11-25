@@ -152,4 +152,20 @@ impl TrustLayer {
     pub fn eu_gaps(&self) -> Vec<Control> {
         eu_machinery_controls().into_iter().filter(|c| !c.built).collect()
     }
+
+    /// Notified-body / auditor evidence bundle: the control maps, chain status, log size,
+    /// and the honest open-gap list. The artifact a certification body consumes; the
+    /// attestation itself remains a process edge.
+    pub fn evidence_package(&self) -> serde_json::Value {
+        let mut open: Vec<&'static str> = self.gaps().iter().map(|c| c.id).collect();
+        open.extend(self.eu_gaps().iter().map(|c| c.id));
+        serde_json::json!({
+            "schema": "rce-evidence/1",
+            "soc2": soc2_controls(),
+            "eu_machinery": eu_machinery_controls(),
+            "chain_intact": self.chain_intact(),
+            "entries": self.log.len(),
+            "open_gaps": open,
+        })
+    }
 }
