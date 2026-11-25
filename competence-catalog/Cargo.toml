@@ -7,9 +7,9 @@ description = "L5 competence substrate: a content-addressed, proof-admitted, jou
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-rcevc-core = { path = "../rce-vc/crates/rcevc-core" }
-rce-energy = { path = "../rce/compute/crates/rce-energy" }
-rce-spec-check = { path = "../rce/spec/checker" }
+rcevc-core = { path = "../vc/crates/rcevc-core" }
+rce-energy = { path = "../compute/crates/rce-energy" }
+rce-spec-check = { path = "../spec/checker" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 num-bigint = "0.4"
