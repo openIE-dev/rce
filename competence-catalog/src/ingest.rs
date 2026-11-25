@@ -58,6 +58,10 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "function_item" | "function_declaration" | "function_definition" | "method_declaration"
         | "method_definition" | "fn_item" | "function" | "def_declaration" | "fun_declaration" => { out.insert("fn"); }
         "if_statement" | "if_expression" => { out.insert("if_stmt"); }
+        "match_expression" | "match_arm" | "switch_statement" | "switch_expression"
+        | "case_expression" | "pattern" | "match_pattern" | "case_clause" => { out.insert("match"); }
+        "closure_expression" | "lambda_expression" | "arrow_function" | "function_expression"
+        | "anonymous_function" | "lambda" | "closure" => { out.insert("fn"); }
         _ => {}
     }
 }

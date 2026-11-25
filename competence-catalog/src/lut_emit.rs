@@ -481,10 +481,44 @@ fn complete_higher(l: &mut LanguageLut) {
     for (k, t) in stmts {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
+
+    // Match / pattern / local-function constructs, completed per family as data.
+    let match_stmts: &[(&str, &str)] = if lisp {
+        &[
+            ("match", "(case {scrut} {arms})"),
+            ("arm", "({pat} {body})"),
+            ("letfn", "(defun {name} ({params}) {body})"),
+            ("pat_wild", "_"),
+            ("pat_lit", "{value}"),
+            ("pat_bind", "{name}"),
+        ]
+    } else if ml {
+        &[
+            ("match", "(match {scrut} with {arms})"),
+            ("arm", "| {pat} -> {body}"),
+            ("letfn", "let rec {name} ({params}) = {body}"),
+            ("pat_wild", "_"),
+            ("pat_lit", "{value}"),
+            ("pat_bind", "{name}"),
+        ]
+    } else {
+        &[
+            ("match", "match ({scrut}) {{ {arms} }}"),
+            ("arm", "{pat} => {body},"),
+            ("letfn", "fn {name}({params}) {{ {body} }}"),
+            ("pat_wild", "_"),
+            ("pat_lit", "{value}"),
+            ("pat_bind", "{name}"),
+        ]
+    };
+    for (k, t) in match_stmts {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program
 /// emission is the same LUT mechanism extended to statement templates.
+#[derive(Clone)]
 pub enum Stmt {
     /// `let name = expr`.
     Let(String, Expr),
@@ -502,8 +536,24 @@ pub enum Stmt {
     Import(String),
     /// `type name` (declaration).
     TypeDef(String),
+    /// `match scrut { pat => body, … }` — first matching arm wins.
+    Match(Expr, Vec<(Pattern, Box<Stmt>)>),
+    /// `fn name(params) { body }` — a local function (closure seed).
+    LetFn(String, Vec<String>, Box<Stmt>),
+    /// `name(args)` — call a local function.
+    Call(String, Vec<Expr>),
+    /// `let name = fn(args)` — bind a call's result.
+    LetCall(String, String, Vec<Expr>),
     /// A statement sequence.
     Seq(Vec<Stmt>),
+}
+
+/// A match pattern: wildcard, literal, or binding.
+#[derive(Clone, Debug)]
+pub enum Pattern {
+    Wild,
+    Lit(i128),
+    Bind(String),
 }
 
 /// A function: name, typed parameters, return type, body.
@@ -550,6 +600,59 @@ pub fn render_stmt(s: &Stmt, lut: &LanguageLut) -> Result<String, String> {
         Stmt::TypeDef(n) => {
             subs.insert("name".into(), n.clone());
             "type_def"
+        }
+        Stmt::Match(scrut, arms) => {
+            subs.insert("scrut".into(), render(scrut, lut)?);
+            let sep = lut.template("sep").cloned().unwrap_or_else(|| "\n".into());
+            let rendered: Result<Vec<String>, String> = arms
+                .iter()
+                .map(|(p, b)| {
+                    let pat = match p {
+                        Pattern::Wild => lut.template("pat_wild").cloned().unwrap_or_else(|| "_".into()),
+                        Pattern::Lit(v) => {
+                            let t = lut.template("pat_lit").cloned().unwrap_or_else(|| "{value}".into());
+                            let mut s = HashMap::new();
+                            s.insert("value".into(), v.to_string());
+                            fill(&t, &s)
+                        }
+                        Pattern::Bind(n) => {
+                            let t = lut.template("pat_bind").cloned().unwrap_or_else(|| "{name}".into());
+                            let mut s = HashMap::new();
+                            s.insert("name".into(), n.clone());
+                            fill(&t, &s)
+                        }
+                    };
+                    let mut s = HashMap::new();
+                    s.insert("pat".into(), pat);
+                    s.insert("body".into(), render_stmt(b, lut)?);
+                    let t = lut.template("arm").ok_or_else(|| format!("{} has no arm template", lut.name))?;
+                    Ok(fill(t, &s))
+                })
+                .collect();
+            subs.insert("arms".into(), rendered?.join(&sep));
+            "match"
+        }
+        Stmt::LetFn(n, params, b) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("params".into(), params.join(", "));
+            subs.insert("body".into(), render_stmt(b, lut)?);
+            "letfn"
+        }
+        Stmt::Call(n, args) => {
+            subs.insert("callee".into(), n.clone());
+            let rendered: Result<Vec<String>, String> = args.iter().map(|a| render(a, lut)).collect();
+            subs.insert("args".into(), rendered?.join(", "));
+            "call"
+        }
+        Stmt::LetCall(n, f, args) => {
+            subs.insert("name".into(), n.clone());
+            let rendered: Result<Vec<String>, String> = args.iter().map(|a| render(a, lut)).collect();
+            let call_t = lut.template("call").ok_or_else(|| format!("{} has no call template", lut.name))?;
+            let mut cs = HashMap::new();
+            cs.insert("callee".into(), f.clone());
+            cs.insert("args".into(), rendered?.join(", "));
+            subs.insert("value".into(), fill(call_t, &cs));
+            "let"
         }
         Stmt::If(c, t, f) => {
             subs.insert("cond".into(), render(c, lut)?);
