@@ -18,13 +18,30 @@ pub struct Jit {
     dir: PathBuf,
     pub compiles: u64,
     pub hits: u64,
+    hot: HashMap<String, u64>,
+    pub threshold: u64,
 }
 
 impl Jit {
     pub fn new() -> Self {
         let dir = std::env::temp_dir().join("rce-jit-cache");
         let _ = std::fs::create_dir_all(&dir);
-        Jit { cache: HashMap::new(), dir, compiles: 0, hits: 0 }
+        Jit { cache: HashMap::new(), dir, compiles: 0, hits: 0, hot: HashMap::new(), threshold: 3 }
+    }
+
+    /// Tiered execution: interpret while cold, compile to native once a Form is hot. This is the
+    /// seed of a tracing/tiering JIT — pay compile energy only for recurring (hot) competence.
+    pub fn run_tiered(&mut self, src: &str) -> Result<String, String> {
+        let key = canonical_key(src)?;
+        let n = self.hot.entry(key.clone()).or_insert(0);
+        *n += 1;
+        if *n <= self.threshold && !self.cache.contains_key(&key) {
+            // cold tier: interpret at the floor, no compile cost
+            let e = crate::lift::lift_expr(src)?;
+            return crate::repair::eval_expr(&e).map(|v| v.to_string())
+                .ok_or_else(|| "not a closed form".into());
+        }
+        self.run(src)
     }
 
     /// Compile (once, cached) and run the Form natively; return the printed result.

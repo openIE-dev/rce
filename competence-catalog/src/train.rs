@@ -60,3 +60,50 @@ impl Scorer {
         sigmoid(self.w.iter().zip(x).map(|(a, c)| a * c).sum::<f64>() + self.b)
     }
 }
+
+/// A JEPA-style latent predictor seed: maps intent features → Form features in representation
+/// space (predict the target summary, not tokens). Trained by gradient descent on verified
+/// (intent, form) pairs; energy = distance to a candidate. The full hierarchical JEPA is the open
+/// frontier; this is the buildable linear seed of the learned inverse.
+pub struct LatentPredictor {
+    pub w: Vec<Vec<f64>>,
+    pub b: Vec<f64>,
+}
+
+impl LatentPredictor {
+    pub fn train(pairs: &[(Vec<f64>, Vec<f64>)], epochs: usize, lr: f64) -> LatentPredictor {
+        let dx = pairs.first().map(|(x, _)| x.len()).unwrap_or(0);
+        let dy = pairs.first().map(|(_, y)| y.len()).unwrap_or(0);
+        let mut w = vec![vec![0.0; dx]; dy];
+        let mut b = vec![0.0; dy];
+        for _ in 0..epochs {
+            let mut gw = vec![vec![0.0; dx]; dy];
+            let mut gb = vec![0.0; dy];
+            for (x, y) in pairs {
+                for j in 0..dy {
+                    let pred: f64 = w[j].iter().zip(x).map(|(a, c)| a * c).sum::<f64>() + b[j];
+                    let err = pred - y[j];
+                    for k in 0..dx { gw[j][k] += err * x[k]; }
+                    gb[j] += err;
+                }
+            }
+            let n = pairs.len().max(1) as f64;
+            for j in 0..dy {
+                for k in 0..dx { w[j][k] -= lr * gw[j][k] / n; }
+                b[j] -= lr * gb[j] / n;
+            }
+        }
+        LatentPredictor { w, b }
+    }
+
+    /// Predict the target (Form) representation from the intent representation.
+    pub fn predict(&self, x: &[f64]) -> Vec<f64> {
+        (0..self.b.len()).map(|j| self.w[j].iter().zip(x).map(|(a, c)| a * c).sum::<f64>() + self.b[j]).collect()
+    }
+
+    /// Latent energy of a candidate against the predicted target (lower = better fit).
+    pub fn energy(&self, x: &[f64], y: &[f64]) -> f64 {
+        let p = self.predict(x);
+        p.iter().zip(y).map(|(a, c)| (a - c) * (a - c)).sum::<f64>()
+    }
+}
