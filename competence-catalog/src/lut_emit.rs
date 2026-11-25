@@ -548,6 +548,18 @@ fn complete_higher(l: &mut LanguageLut) {
         .unwrap_or_else(|| "async fn {name}({params}) {{ {body} }}".into());
     l.templates.entry("generic".to_string()).or_insert(g);
     l.templates.entry("async".to_string()).or_insert(a);
+
+    // Attributes / macros surface realizations, completed per family as data.
+    let attr_stmts: &[(&str, &str)] = if lisp {
+        &[("attribute", "(declare {name})"), ("macro", "({name} {args})")]
+    } else if ml {
+        &[("attribute", "[@{name}]"), ("macro", "({name} {args})")]
+    } else {
+        &[("attribute", "#[{name}]"), ("macro", "{name}!({args})")]
+    };
+    for (k, t) in attr_stmts {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program
@@ -586,6 +598,10 @@ pub enum Stmt {
     AsyncFn(String, Vec<String>, Box<Stmt>),
     /// `await stmt` — a yield point (cooperative seed; runs inner to completion).
     Await(Box<Stmt>),
+    /// `#[name]` / `@name` — an attribute/annotation (declaration metadata).
+    Attribute(String),
+    /// `name!(args)` — a macro invocation (expansion is an open frontier; execution refuses).
+    Macro(String, Vec<Expr>),
     /// A statement sequence.
     Seq(Vec<Stmt>),
 }
@@ -707,6 +723,16 @@ pub fn render_stmt(s: &Stmt, lut: &LanguageLut) -> Result<String, String> {
         Stmt::Await(inner) => {
             subs.insert("value".into(), render_stmt(inner, lut)?);
             "await"
+        }
+        Stmt::Attribute(n) => {
+            subs.insert("name".into(), n.clone());
+            "attribute"
+        }
+        Stmt::Macro(n, args) => {
+            subs.insert("name".into(), n.clone());
+            let rendered: Result<Vec<String>, String> = args.iter().map(|a| render(a, lut)).collect();
+            subs.insert("args".into(), rendered?.join(", "));
+            "macro"
         }
         Stmt::LetCall(n, f, args) => {
             subs.insert("name".into(), n.clone());

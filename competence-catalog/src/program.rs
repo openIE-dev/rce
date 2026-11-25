@@ -155,6 +155,8 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(Option::None)
         }
         Stmt::Await(inner) => eval_fuel(inner, env, fns, fuel),
+        Stmt::Attribute(_) => Ok(Option::None),
+        Stmt::Macro(_, _) => Err("macro expansion is an open frontier".into()),
         Stmt::LetCall(n, f, args) => {
             let v = eval_fuel(&Stmt::Call(f.clone(), args.clone()), env, fns, fuel)?
                 .ok_or_else(|| format!("call {f} returned no value"))?;
@@ -170,6 +172,27 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(Option::None)
         }
     }
+}
+
+/// The replay gate for whole-program Forms: admitted iff the program reproduces EVERY probe
+/// (seeded environment → expected return) under deterministic execution. Same admission law
+/// as expressions, extended to statements.
+pub fn replay_admit(s: &Stmt, probes: &[(Env, i128)]) -> bool {
+    !probes.is_empty() && probes.iter().all(|(seed, expected)| {
+        let mut env = seed.clone();
+        matches!(eval_program(s, &mut env, &mut FnTable::new()), Ok(Some(v)) if v == *expected)
+    })
+}
+
+/// Name-free content key for a whole-program Form: SHA-256 of its canonical emission
+/// (reference LUT), so equivalent renderings collapse to one key.
+pub fn program_key(s: &Stmt) -> Result<String, String> {
+    let lut = crate::lut_emit::builtin_luts()
+        .into_iter()
+        .find(|l| l.name == "rust")
+        .ok_or_else(|| "no reference lut".to_string())?;
+    let rendered = crate::lut_emit::render_stmt(s, &lut)?;
+    Ok(rcevc_core::sha256(rendered.as_bytes()).hex())
 }
 
 /// Lift a small statement language: let/assign/return/import/type, if/while/for with brace

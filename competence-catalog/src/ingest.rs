@@ -66,6 +66,10 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "type_arguments" | "generic_parameter" => { out.insert("generic"); }
         "async_function_declaration" | "async_function" | "async_block" | "async" => { out.insert("async"); }
         "await_expression" | "await" => { out.insert("await"); }
+        "attribute_item" | "attribute" | "annotation" | "decorator" | "annotation_argument"
+        | "inner_attribute_item" => { out.insert("attribute"); }
+        "macro_invocation" | "macro_definition" | "macro_rules" | "macro_call"
+        | "macro" => { out.insert("macro"); }
         _ => {}
     }
 }
