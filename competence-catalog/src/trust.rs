@@ -121,3 +121,35 @@ impl TrustLayer {
 impl Default for TrustLayer {
     fn default() -> Self { Self::new() }
 }
+
+/// EU Machinery Regulation 2023/1230 + embodied-safety standards mapped to mechanisms.
+/// The attestation itself (notified body, SIL certification) is a process edge: built=false.
+pub fn eu_machinery_controls() -> Vec<Control> {
+    vec![
+        Control { id: "EU-1.1", criterion: Criterion::ProcessingIntegrity,
+            requirement: "evolving ML safety functions verified before deployment (Annex III)",
+            mechanism: "replay gate + spectests; realtime deadline gate refuses unfit gears", built: true },
+        Control { id: "EU-1.2", criterion: Criterion::Security,
+            requirement: "safety-software logs retained five years, tamper-evident",
+            mechanism: "hash-chained audit log + tiered store retention", built: true },
+        Control { id: "EU-1.3", criterion: Criterion::ProcessingIntegrity,
+            requirement: "notified-body evidence package for evolving safety functions",
+            mechanism: "trust report + provenance receipts; attestation process OPEN", built: false },
+        Control { id: "ISO-10218", criterion: Criterion::Security,
+            requirement: "industrial robot safety (ISO 10218-1/2)",
+            mechanism: "mapping open; gate + deadline refusal are partial evidence", built: false },
+        Control { id: "ISO-TS-15066", criterion: Criterion::Security,
+            requirement: "collaborative force/pressure limits",
+            mechanism: "open: needs plant-level force model (twin seed is kinematic)", built: false },
+        Control { id: "IEC-61508", criterion: Criterion::ProcessingIntegrity,
+            requirement: "functional safety SIL assignment",
+            mechanism: "Lean metatheory partial; SIL certification open", built: false },
+    ]
+}
+
+impl TrustLayer {
+    /// The honest embodied-safety gap list (attestation + standards mapping).
+    pub fn eu_gaps(&self) -> Vec<Control> {
+        eu_machinery_controls().into_iter().filter(|c| !c.built).collect()
+    }
+}

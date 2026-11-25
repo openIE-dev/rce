@@ -110,3 +110,39 @@ pub fn energy_muladd(f: &Fabric) -> f64 {
 pub fn place(fabrics: &[Fabric]) -> Option<&Fabric> {
     fabrics.iter().min_by(|x, y| energy_muladd(x).partial_cmp(&energy_muladd(y)).unwrap_or(std::cmp::Ordering::Equal))
 }
+
+/// Resident memory capacity per fabric class, KiB — a modelled datasheet-class prior
+/// (Thor 128 GB unified vs HW3-class vs Groq SRAM). Adding a fabric = adding a row.
+pub fn memory_kib(name: &str) -> u64 {
+    match name {
+        "cpu-x86" => 134_217_728,
+        "cpu-arm64" => 16_777_216,
+        "cpu-riscv" => 4_194_304,
+        "gpu-nvidia-ptx" => 83_886_080,
+        "gpu-amd-cdna" => 201_326_592,
+        "gpu-apple-metal" => 134_217_728,
+        "webgpu-wgsl" => 4_194_304,
+        "apple-ane" => 16_777_216,
+        "intel-amx" => 134_217_728,
+        "google-tpu" => 33_554_432,
+        "ascend-davinci" => 67_108_864,
+        "cambricon" => 16_777_216,
+        "tenstorrent-tensix" => 12_582_912,
+        "groq-lpu" => 235_520,
+        "cerebras-wse" => 46_137_344,
+        "graphcore-ipu" => 921_600,
+        "cgra" => 1_024,
+        "wasm" => 4_194_304,
+        _ => 16_777_216,
+    }
+}
+
+/// Memory-aware placement: argmin joules among fabric classes that can hold the act
+/// (`need_kib`) and exist inside the device budget (`cap_kib`). The FSD-Lite inversion:
+/// a memory-bound device gets the cheapest mind that FITS, not a crippled tier.
+pub fn place_within(fabrics: &[Fabric], need_kib: u64, cap_kib: u64) -> Option<&Fabric> {
+    fabrics
+        .iter()
+        .filter(|f| memory_kib(f.name) >= need_kib && memory_kib(f.name) <= cap_kib)
+        .min_by(|x, y| energy_muladd(x).partial_cmp(&energy_muladd(y)).unwrap_or(std::cmp::Ordering::Equal))
+}

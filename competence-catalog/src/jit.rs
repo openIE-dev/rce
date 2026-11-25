@@ -88,3 +88,59 @@ impl Default for Jit {
         Self::new()
     }
 }
+
+/// Deadline-aware tiering: a cold Form is interpreted NOW (inside the control loop's
+/// deadline) and its compile is queued for a maintenance slot OFF the hot path. A
+/// compile spike never blocks a control tick — the ros2_control catch-up failure mode
+/// answered by construction.
+pub struct DeadlineJit {
+    pub jit: Jit,
+    pending: Vec<String>,
+    pub offloop_compiles: u64,
+}
+
+impl DeadlineJit {
+    pub fn new() -> Self {
+        DeadlineJit { jit: Jit::new(), pending: Vec::new(), offloop_compiles: 0 }
+    }
+
+    /// Serve one act: cached native if hot, else interpret now and queue the compile.
+    /// Returns (result, served_native). Never compiles inside this call.
+    pub fn serve(&mut self, src: &str) -> Result<(String, bool), String> {
+        let key = canonical_key(src)?;
+        if self.jit.cache.contains_key(&key) {
+            let out = self.jit.run(src)?;
+            return Ok((out, true));
+        }
+        let e = crate::lift::lift_expr(src)?;
+        let v = crate::repair::eval_expr(&e)
+            .map(|v| v.to_string())
+            .ok_or_else(|| "not a closed form".to_string())?;
+        if !self.pending.iter().any(|p| p == src) {
+            self.pending.push(src.to_string());
+        }
+        Ok((v, false))
+    }
+
+    /// One maintenance slot off the hot path: compile at most one queued Form.
+    pub fn maintenance(&mut self) -> Result<bool, String> {
+        match self.pending.pop() {
+            Some(src) => {
+                self.jit.run(&src)?;
+                self.offloop_compiles += 1;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    pub fn pending_len(&self) -> usize {
+        self.pending.len()
+    }
+}
+
+impl Default for DeadlineJit {
+    fn default() -> Self {
+        Self::new()
+    }
+}

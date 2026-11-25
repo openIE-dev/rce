@@ -116,3 +116,30 @@ pub fn chunk_coherent(c: &Chunk, tol: f64) -> bool {
     }
     i == c.plan.len()
 }
+
+/// A wall-measured gear: `wcet_us` is the worst of N wall-clock samples (Measured),
+/// not an analytical bound; sub-µs samples round up to the 1 µs clock floor. Joules
+/// stays the G0 floor prior until energy metering is wired per gear.
+pub struct Measured {
+    pub gear: Gear,
+    pub provenance: crate::Provenance,
+    pub samples: u64,
+}
+
+/// Time the G0 lookup handler N times on the wall clock; the worst sample becomes
+/// the gear's WCET. A reading, never a fabricated 0.
+pub fn measure_lookup(samples: u64) -> Measured {
+    let n = samples.max(1);
+    let mut worst = 0u64;
+    for i in 0..n {
+        let probe = format!("probe {i}");
+        let t0 = std::time::Instant::now();
+        let _ = crate::run_handler("upper", &probe);
+        worst = worst.max(t0.elapsed().as_micros() as u64);
+    }
+    Measured {
+        gear: Gear { name: "g0-lookup-measured", wcet_us: worst.max(1), memory_kib: 64, benefit: 1.0, joules: 1.0 },
+        provenance: crate::Provenance::Measured,
+        samples: n,
+    }
+}
