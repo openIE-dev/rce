@@ -49,3 +49,23 @@ pub fn admit_controller(p: &Plant, acts: &[f64], recorded: &[f64], tol: f64) -> 
         Option::None => false,
     }
 }
+
+/// Spring-damper contact force while the plant presses past a surface at `wall`:
+/// F = k*penetration + c*approach-velocity. A force-model seed toward ISO/TS 15066
+/// (collaborative force/pressure limits); full pressure/area mapping stays open.
+pub fn contact_force(p: &Plant, acts: &[f64], wall: f64, k: f64, c: f64) -> Vec<f64> {
+    let (mut x, mut v) = (0.0, 0.0);
+    acts.iter()
+        .map(|a| {
+            v += a * p.dt;
+            x += v * p.dt;
+            let pen = (x - wall).max(0.0);
+            if pen > 0.0 { k * pen + c * v.max(0.0) } else { 0.0 }
+        })
+        .collect()
+}
+
+/// Force-limit gate: every contact sample finite and <= limit (Newtons).
+pub fn force_limit_ok(forces: &[f64], limit_n: f64) -> bool {
+    limit_n.is_finite() && limit_n >= 0.0 && forces.iter().all(|f| f.is_finite() && *f <= limit_n)
+}

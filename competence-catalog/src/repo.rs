@@ -63,3 +63,27 @@ pub fn ingest_repo(root: &Path, policy: Policy) -> RepoReport {
     }
     rep
 }
+
+/// Unified admission receipt: robot episodes under the same sovereignty path as source.
+pub struct EpisodeAdmission {
+    pub report: crate::trajectory::IngestReport,
+    pub audit_len: usize,
+}
+
+/// Ingest robot episodes sovereignly: the policy must be fully isolated, and an episode
+/// is admitted only if integral, distinct, and replaying against the plant twin. Every
+/// admission is audited as isolated — one admission path for code and for robot data.
+pub fn ingest_episodes(
+    eps: &[crate::trajectory::Trajectory],
+    policy: Policy,
+    plant: &crate::twin::Plant,
+    tol: f64,
+) -> Result<EpisodeAdmission, String> {
+    let mut sov = Sovereign::new(policy);
+    sov.assert_isolated()?;
+    let report = crate::trajectory::ingest_gated(eps, plant, tol);
+    for k in &report.keys {
+        sov.audit.push(format!("episode admitted isolated (residency={}): {k}", sov.policy.residency));
+    }
+    Ok(EpisodeAdmission { report, audit_len: sov.audit.len() })
+}

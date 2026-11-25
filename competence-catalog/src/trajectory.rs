@@ -97,3 +97,17 @@ pub fn ingest_gated(eps: &[Trajectory], plant: &crate::twin::Plant, tol: f64) ->
 pub fn dispute(claim: usize, r: &IngestReport) -> (usize, usize) {
     (r.admitted, claim.saturating_sub(r.admitted))
 }
+
+/// Standards-style episode manifest (India consortium / AAIF interop seed): name-free
+/// content keys, counts, and refusal reasons — the receipt a dataset standard can verify.
+pub fn manifest(r: &IngestReport) -> serde_json::Value {
+    serde_json::json!({
+        "schema": "rce-episode-manifest/1",
+        "offered": r.offered,
+        "admitted": r.admitted,
+        "dedup": r.dedup,
+        "refused": r.refused,
+        "refused_twin": r.refused_twin,
+        "keys": r.keys,
+    })
+}
