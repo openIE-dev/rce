@@ -1,0 +1,130 @@
+module text.parse
+
+# Parser combinators (composition-closure gap), defunctionalized: a PParser kind
+# of combinators applied by run(). RCE closures are new/unproved (F.8, T46/T49),
+# so combinators are data (like col.func). char/seq/alt/many + a JSON-number
+# parser composed from them. run returns [ok, value, newpos]; pure, bounded.
+
+pub kind PParser
+    PChar(want: text)
+    PSeq(a: PParser, b: PParser)
+    PAlt(a: PParser, b: PParser)
+    PMany(p: PParser)
+    PDigit
+    PInt
+    PFixed(v: i64)
+
+pub fn run(pp: &PParser, cs: &List[text], pos: usize) -> List[i64] bound 1000000
+    match pp
+        PChar(want: w) -> return if pos < cs.len() then (if copy(cs[pos]) == w then [1, 0, (pos + 1) as i64] else [0, 0, pos as i64]) else [0, 0, pos as i64]
+        PFixed(v: v) -> return [1, v, pos as i64]
+        PDigit -> return digit_at(cs, pos)
+        PSeq(a: a, b: b) -> return run_seq(&a, &b, cs, pos)
+        PAlt(a: a, b: b) -> return run_alt(&a, &b, cs, pos)
+        PMany(p: p) -> return run_many(&p, cs, pos)
+        PInt -> return run_int(cs, pos)
+
+fn run_seq(a: &PParser, b: &PParser, cs: &List[text], pos: usize) -> List[i64] bound 1000000
+    let ra = run(a, cs, pos)
+    if copy(ra[0]) == 0
+        return [0, 0, pos as i64]
+    let rb = run(b, cs, copy(ra[2]) as usize)
+    if copy(rb[0]) == 0
+        return [0, 0, pos as i64]
+    return [1, copy(rb[1]), copy(rb[2])]
+
+fn run_alt(a: &PParser, b: &PParser, cs: &List[text], pos: usize) -> List[i64] bound 1000000
+    let ra = run(a, cs, pos)
+    if copy(ra[0]) == 1
+        return ra
+    return run(b, cs, pos)
+
+fn run_many(p: &PParser, cs: &List[text], pos: usize) -> List[i64] bound 1000000
+    var cur = pos
+    var count: i64 = 0
+    var go: bool = true
+    while go bound 67108864
+        let r = run(p, cs, cur)
+        if copy(r[0]) == 1
+            if copy(r[2]) as usize > cur
+                cur = copy(r[2]) as usize
+                count += 1
+            else
+                go = false
+        else
+            go = false
+    return [1, count, cur as i64]
+
+fn is_digit(c: &text) -> bool
+    return c == "0" or c == "1" or c == "2" or c == "3" or c == "4" or c == "5" or c == "6" or c == "7" or c == "8" or c == "9"
+
+fn digit_val(c: &text) -> i64
+    let ds = "0123456789".chars()
+    var k: usize = 0
+    while k < 10 bound 10
+        if copy(ds[k]) == c
+            return k as i64
+        k += 1
+    return 0
+
+fn digit_at(cs: &List[text], pos: usize) -> List[i64]
+    if pos >= cs.len()
+        return [0, 0, pos as i64]
+    let c = copy(cs[pos])
+    if is_digit(&c)
+        return [1, digit_val(&c), (pos + 1) as i64]
+    return [0, 0, pos as i64]
+
+fn run_int(cs: &List[text], pos: usize) -> List[i64]
+    var v: i64 = 0
+    var cur = pos
+    var any: bool = false
+    while cur < cs.len() bound 67108864
+        let c = copy(cs[cur])
+        if is_digit(&c)
+            v = v * 10 + digit_val(&c)
+            cur += 1
+            any = true
+        else
+            break
+    if any
+        return [1, v, cur as i64]
+    return [0, 0, pos as i64]
+
+# A JSON-number parser composed from combinators: many(digit) then int.
+pub fn parse_number(cs: &List[text], pos: usize) -> List[i64]
+    let digits: PParser = PMany(p: PDigit)
+    let rd = run(&digits, cs, pos)
+    if copy(rd[1]) == 0
+        return [0, 0, pos as i64]
+    let intp: PParser = PInt
+    return run(&intp, cs, pos)
+
+# ---------------- spectests ----------------
+
+const ABC: List[text] = ["a", "b", "c"]
+const NUM: List[text] = ["1", "2", "3", "x"]
+const EMPTY: List[text] = []
+
+const CA: PParser = PChar(want: "a")
+const CB: PParser = PChar(want: "b")
+const SEQAB: PParser = PSeq(a: CA, b: CB)
+const ALTAB: PParser = PAlt(a: CA, b: CB)
+const MANYA: PParser = PMany(p: CA)
+const AAA: List[text] = ["a", "a", "a", "b"]
+
+const R1: List[i64] = run(&CA, &ABC, 0)
+const R2: List[i64] = run(&SEQAB, &ABC, 0)
+const R3: List[i64] = run(&ALTAB, &ABC, 1)
+const R4: List[i64] = run(&MANYA, &AAA, 0)
+const R5: List[i64] = parse_number(&NUM, 0)
+const R6: List[i64] = parse_number(&ABC, 0)
+
+check R1 == [1, 0, 1]
+check R2 == [1, 0, 2]
+check R3 == [1, 0, 2]
+check R4 == [1, 3, 3]
+check R5 == [1, 123, 3]
+check R6 == [0, 0, 0]
+check run(&CA, &EMPTY, 0) == [0, 0, 0]
+check run(&SEQAB, &ABC, 1) == [0, 0, 1]

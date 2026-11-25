@@ -2,7 +2,7 @@
 use std::fmt;
 
 pub const INTS: &[&str] = &[
-    "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize",
+    "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "usize",
 ];
 
 pub fn int_range(n: &str) -> (i128, i128) {
@@ -11,10 +11,15 @@ pub fn int_range(n: &str) -> (i128, i128) {
         "i16" => (-32768, 32767),
         "i32" => (i32::MIN as i128, i32::MAX as i128),
         "i64" => (i64::MIN as i128, i64::MAX as i128),
+        "i128" => (i128::MIN, i128::MAX),
         "u8" => (0, 255),
         "u16" => (0, 65535),
         "u32" => (0, u32::MAX as i128),
         "u64" | "usize" => (0, u64::MAX as i128),
+        // u128 spans 0..2^128-1; values above i128::MAX are stored as their
+        // two's-complement i128 bit pattern. The parseable literal range is
+        // 0..i128::MAX; full-width wrapping is handled in the interpreter.
+        "u128" => (0, i128::MAX),
         _ => (i64::MIN as i128, i64::MAX as i128),
     }
 }

@@ -589,6 +589,8 @@ fn int_range(t: &str) -> Option<(i128, i128)> {
         "u16" => (0, u16::MAX as i128),
         "u32" => (0, u32::MAX as i128),
         "u64" | "usize" => (0, u64::MAX as i128),
+        "i128" => (i128::MIN, i128::MAX),
+        "u128" => (0, i128::MAX),
         _ => return None,
     })
 }

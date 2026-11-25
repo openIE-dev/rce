@@ -1,0 +1,99 @@
+module col.graph
+
+# Graph algorithms (universal-core gap): adjacency-list graphs (List[List[i64]],
+# node ids 0..n-1), BFS/DFS traversal, connected components, reachability.
+# Pure, total, bounded. The traversal primitives from which path/connectivity
+# intents are composed.
+
+pub fn bfs(g: &List[List[i64]], start: i64) -> List[i64]
+    var visited: List[bool] = [false for _ in 0..g.len()]
+    var queue: List[i64] = [start]
+    var order: List[i64] = []
+    var head: usize = 0
+    visited[start as usize] = true
+    while head < queue.len() bound 67108864
+        let u = copy(queue[head])
+        head += 1
+        order.append(u)
+        for v in copy(g[u as usize])
+            if not visited[v as usize]
+                visited[v as usize] = true
+                queue.append(v)
+    return order
+
+pub fn dfs(g: &List[List[i64]], start: i64) -> List[i64]
+    var visited: List[bool] = [false for _ in 0..g.len()]
+    var order: List[i64] = []
+    var stack: List[i64] = [start]
+    while stack.len() > 0 bound 67108864
+        let u = copy(stack[stack.len() - 1])
+        let _ = stack.pop()
+        if not visited[u as usize]
+            visited[u as usize] = true
+            order.append(u)
+            let nb = copy(g[u as usize])
+            var i: usize = nb.len()
+            while i > 0 bound 67108864
+                i -= 1
+                let v = copy(nb[i])
+                if not visited[v as usize]
+                    stack.append(v)
+    return order
+
+pub fn components(g: &List[List[i64]]) -> i64
+    var visited: List[bool] = [false for _ in 0..g.len()]
+    var count: i64 = 0
+    var s: usize = 0
+    while s < g.len() bound 67108864
+        if not visited[s]
+            count += 1
+            var queue: List[i64] = [s as i64]
+            var head: usize = 0
+            visited[s] = true
+            while head < queue.len() bound 67108864
+                let u = copy(queue[head])
+                head += 1
+                for v in copy(g[u as usize])
+                    if not visited[v as usize]
+                        visited[v as usize] = true
+                        queue.append(v)
+        s += 1
+    return count
+
+pub fn reachable(g: &List[List[i64]], a: i64, b: i64) -> bool
+    let order = bfs(g, a)
+    for u in order
+        if u == b
+            return true
+    return false
+
+# ---------------- spectests ----------------
+
+# two components: {0,1,2} path, {3,4} edge
+const R0: List[i64] = [1]
+const R1: List[i64] = [0, 2]
+const R2: List[i64] = [1]
+const R3: List[i64] = [4]
+const R4: List[i64] = [3]
+const G: List[List[i64]] = [R0, R1, R2, R3, R4]
+const SR0: List[i64] = []
+const SINGLE: List[List[i64]] = [SR0]
+const T0: List[i64] = [1, 2]
+const T1: List[i64] = [0, 2]
+const T2: List[i64] = [0, 1]
+const TRIANGLE: List[List[i64]] = [T0, T1, T2]
+
+const BFS0: List[i64] = bfs(&G, 0)
+const DFS0: List[i64] = dfs(&G, 0)
+const BFS3: List[i64] = bfs(&G, 3)
+
+check BFS0 == [0, 1, 2]
+check BFS3 == [3, 4]
+check DFS0 == [0, 1, 2]
+check components(&G) == 2
+check components(&TRIANGLE) == 1
+check components(&SINGLE) == 1
+check reachable(&G, 0, 2) == true
+check reachable(&G, 0, 3) == false
+check reachable(&G, 3, 4) == true
+check reachable(&TRIANGLE, 0, 2) == true

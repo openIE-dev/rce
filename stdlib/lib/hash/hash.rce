@@ -1,0 +1,82 @@
+module hash
+
+# Non-cryptographic hashes (P0 basis gap): FNV-1a 32, CRC-32 (IEEE 802.3,
+# reflected poly 0xEDB88320), Adler-32 (RFC 1950). Pure, total, deterministic.
+# Vectors from Go hash/fnv, hash/crc32, hash/adler32 and RFC 1950. These are
+# checksums, NOT cryptographic — crypto hashes live in crypto.rce / blake3.rce.
+#
+# FNV-1a 64 uses i128 intermediates (the 64x40-bit product < 2^104 fits i128),
+# masked to 64 bits — enabled by the language's i128/u128 support.
+
+const FNV32_OFFSET: u64 = 2166136261
+const FNV32_PRIME: u64 = 16777619
+
+pub fn fnv1a32(bytes: &[u8]) -> u32
+    var h: u64 = FNV32_OFFSET
+    for b in bytes
+        h = (h ^ (b as u64)) * FNV32_PRIME
+        h = h & 0xFFFFFFFF
+    return h as u32
+
+pub fn fnv1a64(bytes: &[u8]) -> u64
+    var h: i128 = 14695981039346656037
+    for b in bytes
+        h = (h ^ (b as i128)) * 1099511628211
+        h = h & 0xFFFFFFFFFFFFFFFF
+    return h as u64
+
+# ---------------- CRC-32 (IEEE, reflected) ----------------
+
+pub fn crc32(bytes: &[u8]) -> u32
+    var crc: u64 = 0xFFFFFFFF
+    for b in bytes
+        crc = crc ^ (b as u64)
+        var k: usize = 0
+        while k < 8 bound 8
+            if (crc & 1) == 1
+                crc = (crc >> 1) ^ 0xEDB88320
+            else
+                crc = crc >> 1
+            k += 1
+    return (crc ^ 0xFFFFFFFF) as u32
+
+# ---------------- Adler-32 (RFC 1950) ----------------
+
+const ADLER_MOD: u64 = 65521
+
+pub fn adler32(bytes: &[u8]) -> u32
+    var a: u64 = 1
+    var b: u64 = 0
+    for x in bytes
+        a = (a + (x as u64)) % ADLER_MOD
+        b = (b + a) % ADLER_MOD
+    return ((b << 16) | a) as u32
+
+# ---------------- spectests (reference vectors) ----------------
+
+const H_EMPTY: List[u8] = []
+const H_A: List[u8] = [97]
+const H_FOOBAR: List[u8] = [102, 111, 111, 98, 97, 114]
+const H_DIGITS: List[u8] = [49, 50, 51, 52, 53, 54, 55, 56, 57]
+const H_WIKI: List[u8] = [87, 105, 107, 105, 112, 101, 100, 105, 97]
+
+# FNV-1a 32: empty -> offset basis; "a" -> 0xe40c292c; "foobar" -> 0xbf9cf968
+check fnv1a32(&H_EMPTY) == 2166136261
+check fnv1a32(&H_A) == 3826002220
+check fnv1a32(&H_FOOBAR) == 3214735720
+
+# CRC-32 IEEE: empty -> 0; "123456789" -> 0xCBF43926; "a" -> 0xE8B7BE43
+check crc32(&H_EMPTY) == 0
+check crc32(&H_DIGITS) == 3421780262
+check crc32(&H_A) == 3904355907
+
+# Adler-32: empty -> 1; "a" -> 0x00620062; "Wikipedia" -> 0x11E60398
+check adler32(&H_EMPTY) == 1
+check adler32(&H_A) == 6422626
+check adler32(&H_WIKI) == 300286872
+
+# FNV-1a 64 (i128 intermediate): empty -> offset; "a" -> 0xaf63dc4c8601ec8c;
+# "foobar" -> 0x85944171f73967e8
+check fnv1a64(&H_EMPTY) == 14695981039346656037
+check fnv1a64(&H_A) == 12638187200555641996
+check fnv1a64(&H_FOOBAR) == 9625390261332436968

@@ -1,0 +1,23 @@
+[package]
+name = "competence-catalog"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "L5 competence substrate: a content-addressed, proof-admitted, joule-priced cross-engine competence catalog built on the rce-vc admission law. The Law of Coding made into a store: I = H_task - H_corpus -> 0."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rcevc-core = { path = "../vc/crates/rcevc-core" }
+rce-energy = { path = "../compute/crates/rce-energy" }
+rce-spec-check = { path = "../spec/checker" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+ureq = { version = "2", features = ["json"] }
+
+[[bin]]
+name = "catalog-server"
+path = "src/bin/catalog_server.rs"
+
+[workspace]

@@ -1,0 +1,75 @@
+module text.glob
+
+# Glob matching (P0 text gap): '*' matches any sequence (including empty),
+# '?' matches any single character. Greedy backtracking, linear-ish, pure
+# and total. A simpler cousin of regex; covers file/path pattern intents.
+
+pub fn glob_match(pat: &text, s: &text) -> bool
+    let p = pat.chars()
+    let t = s.chars()
+    var pi: usize = 0
+    var ti: usize = 0
+    var have_star: bool = false
+    var star_pi: usize = 0
+    var star_ti: usize = 0
+    while ti < t.len() bound 67108864
+        var matched: bool = false
+        if pi < p.len()
+            let pc = copy(p[pi])
+            if pc == "?"
+                pi += 1
+                ti += 1
+                matched = true
+            else
+                if pc == "*"
+                    have_star = true
+                    star_pi = pi
+                    star_ti = ti
+                    pi += 1
+                    matched = true
+                else
+                    if pc == copy(t[ti])
+                        pi += 1
+                        ti += 1
+                        matched = true
+        if not matched
+            if have_star
+                star_ti += 1
+                ti = star_ti
+                pi = star_pi + 1
+            else
+                return false
+    while pi < p.len() bound 67108864
+        if copy(p[pi]) != "*"
+            return false
+        pi += 1
+    return true
+
+# ---------------- spectests ----------------
+
+const P_TXT: text = "*.txt"
+const S_TXT: text = "file.txt"
+const S_MD: text = "file.md"
+const P_Q: text = "a?c"
+const S_ABC: text = "abc"
+const S_AC: text = "ac"
+const P_STAR: text = "*"
+const S_ANY: text = "anything"
+const P_AB: text = "a*b"
+const S_AXB: text = "axxxb"
+const S_AXC: text = "axxxc"
+const P_ABC: text = "abc"
+const S_ABD: text = "abd"
+const EMPTY: text = ""
+
+check glob_match(&P_TXT, &S_TXT) == true
+check glob_match(&P_TXT, &S_MD) == false
+check glob_match(&P_Q, &S_ABC) == true
+check glob_match(&P_Q, &S_AC) == false
+check glob_match(&P_STAR, &S_ANY) == true
+check glob_match(&P_AB, &S_AXB) == true
+check glob_match(&P_AB, &S_AXC) == false
+check glob_match(&EMPTY, &EMPTY) == true
+check glob_match(&P_ABC, &S_ABC) == true
+check glob_match(&P_ABC, &S_ABD) == false
+check glob_match(&P_STAR, &EMPTY) == true

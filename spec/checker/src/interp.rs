@@ -911,6 +911,11 @@ pub fn float_text(x: f64) -> String {
 }
 
 pub(crate) fn chk(x: i128, t: &'static str) -> R<V> {
+    // u128 spans the full 128-bit pattern; values above i128::MAX are stored as
+    // their two's-complement i128 bit pattern, so any i128 is a valid u128.
+    if t == "u128" {
+        return Ok(V::Int(x, t));
+    }
     let (lo, hi) = int_range(if t == "lit" { "i64" } else { t });
     if x < lo || x > hi {
         trap(format!(
@@ -976,22 +981,50 @@ impl<'a> Interp<'a> {
                     "i8" | "u8" => 8,
                     "i16" | "u16" => 16,
                     "i32" | "u32" => 32,
+                    "i128" | "u128" => 128,
                     _ => 64,
                 };
+                let wide = bits == 128;
+                let unsigned128 = ty == "u128";
                 match op {
-                    "+" => chk(x + y, ty),
-                    "-" => chk(x - y, ty),
+                    "+" => {
+                        if unsigned128 {
+                            chk(x.wrapping_add(y), ty)
+                        } else {
+                            match x.checked_add(y) {
+                                Some(p) => chk(p, ty),
+                                None => trap(format!("overflow: {} is outside {}", wide_mul(x, y), ty)),
+                            }
+                        }
+                    }
+                    "-" => {
+                        if unsigned128 {
+                            chk(x.wrapping_sub(y), ty)
+                        } else {
+                            match x.checked_sub(y) {
+                                Some(p) => chk(p, ty),
+                                None => trap(format!("overflow: {} is outside {}", wide_mul(x, y), ty)),
+                            }
+                        }
+                    }
                     // |x|, |y| < 2^64, so the product can leave i128 (u64 * u64);
                     // the trap then names the exact value, as the Python and
-                    // JS runtimes do with their unbounded integers.
-                    "*" => match x.checked_mul(y) {
-                        Some(p) => chk(p, ty),
-                        None => trap(format!(
-                            "overflow: {} is outside {}",
-                            wide_mul(x, y),
-                            if ty == "lit" { "i64" } else { ty }
-                        )),
-                    },
+                    // JS runtimes do with their unbounded integers. u128 wraps
+                    // mod 2^128 (the i128 bit pattern is the unsigned residue).
+                    "*" => {
+                        if unsigned128 {
+                            chk(x.wrapping_mul(y), ty)
+                        } else {
+                            match x.checked_mul(y) {
+                                Some(p) => chk(p, ty),
+                                None => trap(format!(
+                                    "overflow: {} is outside {}",
+                                    wide_mul(x, y),
+                                    if ty == "lit" { "i64" } else { ty }
+                                )),
+                            }
+                        }
+                    }
                     "/" => {
                         if y == 0 {
                             trap("division by zero")
@@ -1016,21 +1049,29 @@ impl<'a> Interp<'a> {
                         if y < 0 || y >= bits as i128 {
                             return trap("shift amount out of range");
                         }
-                        let r = (x << y) & ((1i128 << bits) - 1);
-                        chk(
-                            if ty.starts_with('i') && r >= 1i128 << (bits - 1) {
-                                r - (1i128 << bits)
-                            } else {
-                                r
-                            },
-                            ty,
-                        )
+                        if wide {
+                            chk(x.wrapping_shl(y as u32), ty)
+                        } else {
+                            let r = (x << y) & ((1i128 << bits) - 1);
+                            chk(
+                                if ty.starts_with('i') && r >= 1i128 << (bits - 1) {
+                                    r - (1i128 << bits)
+                                } else {
+                                    r
+                                },
+                                ty,
+                            )
+                        }
                     }
                     ">>" => {
                         if y < 0 || y >= bits as i128 {
                             return trap("shift amount out of range");
                         }
-                        chk(x >> y, ty)
+                        if wide && unsigned128 {
+                            chk(((x as u128) >> (y as u32)) as i128, ty)
+                        } else {
+                            chk(x >> y, ty)
+                        }
                     }
                     _ => trap(format!("bad operator {op}")),
                 }
@@ -2095,7 +2136,15 @@ impl<'a> Interp<'a> {
                 };
                 let (lo, hi) = crate::types::int_range(t);
                 Ok(Int(
-                    if m.starts_with("wrapping") {
+                    if t == "u128" {
+                        // width 2^128: the i128 wrapping residue IS the unsigned
+                        // residue mod 2^128; no rem_euclid (which would overflow).
+                        if m.starts_with("wrapping") {
+                            r
+                        } else {
+                            r.clamp(0, i128::MAX)
+                        }
+                    } else if m.starts_with("wrapping") {
                         let w = hi - lo + 1;
                         r.wrapping_sub(lo).rem_euclid(w) + lo
                     } else {

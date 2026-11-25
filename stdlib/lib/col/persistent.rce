@@ -1,0 +1,89 @@
+module col.persistent
+
+# Persistent (immutable) cons-list with structural sharing. Recursion goes
+# through List indirection (Cons.tail: List[PList], 0-or-1 elements) — the same
+# pattern JsonDoc uses — so no direct recursive value kind is needed. cons/head/
+# length/fold/to_list/from_list. Pure, bounded recursion.
+
+pub kind PList
+    Nil
+    Cons(head: i64, tail: List[PList])
+
+pub fn cons(h: i64, t: &PList) -> PList
+    return Cons(head: h, tail: [copy(t)])
+
+pub fn head(xs: &PList) -> i64
+    match xs
+        Nil -> return 0
+        Cons(head: h, tail: _t) -> return h
+
+fn is_nil(xs: &PList) -> bool
+    match xs
+        Nil -> return true
+        Cons(head: _h, tail: _t) -> return false
+
+fn tail_of(xs: &PList) -> PList
+    match xs
+        Nil -> return Nil
+        Cons(head: _h, tail: t) -> return if t.len() == 0 then Nil else copy(t[0])
+
+fn plen_tail(t: &List[PList]) -> i64 bound 1000000
+    if t.len() == 0
+        return 0
+    let rest = copy(t[0])
+    return plen(&rest)
+
+pub fn plen(xs: &PList) -> i64 bound 1000000
+    match xs
+        Nil -> return 0
+        Cons(head: _h, tail: t) -> return 1 + plen_tail(&t)
+
+fn pfold_tail(t: &List[PList], init: i64, add: bool) -> i64 bound 1000000
+    if t.len() == 0
+        return init
+    let rest = copy(t[0])
+    return pfold(&rest, init, add)
+
+pub fn pfold(xs: &PList, init: i64, add: bool) -> i64 bound 1000000
+    match xs
+        Nil -> return init
+        Cons(head: h, tail: t) -> return if add then h + pfold_tail(&t, init, add) else h * pfold_tail(&t, init, add)
+
+pub fn to_list(xs: &PList) -> List[i64]
+    var out: List[i64] = []
+    var cur: PList = copy(xs)
+    while not is_nil(&cur) bound 1000000
+        out.append(head(&cur))
+        cur = tail_of(&cur)
+    return out
+
+pub fn from_list(xs: &[i64]) -> PList
+    var out: PList = Nil
+    var i: usize = xs.len()
+    while i > 0 bound 1000000
+        i -= 1
+        out = Cons(head: copy(xs[i]), tail: [out])
+    return out
+
+# ---------------- spectests ----------------
+
+const XS: List[i64] = [1, 2, 3, 4, 5]
+const PL: PList = from_list(&XS)
+const PL2: PList = cons(0, &PL)
+const EMPTY: PList = Nil
+
+const RT: List[i64] = to_list(&PL)
+const RT2: List[i64] = to_list(&PL2)
+const SUM: i64 = pfold(&PL, 0, true)
+const PROD: i64 = pfold(&PL, 1, false)
+
+check plen(&PL) == 5
+check plen(&PL2) == 6
+check plen(&EMPTY) == 0
+check head(&PL) == 1
+check head(&PL2) == 0
+check RT == [1, 2, 3, 4, 5]
+check RT2 == [0, 1, 2, 3, 4, 5]
+check SUM == 15
+check PROD == 120
+check to_list(&EMPTY) == []

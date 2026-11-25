@@ -2037,8 +2037,8 @@ enum ITag {
     Unk,
 }
 
-const INT_NAMES: [&str; 10] = [
-    "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "lit",
+const INT_NAMES: [&str; 12] = [
+    "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "usize", "lit",
 ];
 
 fn iname(t: &Ty) -> Option<&'static str> {
@@ -2060,6 +2060,8 @@ fn int_range(n: &str) -> (i128, i128) {
         "u16" => (0, 65535),
         "u32" => (0, u32::MAX as i128),
         "u64" | "usize" => (0, u64::MAX as i128),
+        "i128" => (i128::MIN, i128::MAX),
+        "u128" => (0, i128::MAX),
         _ => (i64::MIN as i128, i64::MAX as i128),
     }
 }

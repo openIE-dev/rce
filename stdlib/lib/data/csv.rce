@@ -1,0 +1,86 @@
+module data.csv
+
+# CSV (RFC 4180), P0 serialization gap. Parse one record into fields;
+# format a field with quoting when it contains comma, quote, CR or LF.
+# Fields are text; a record is a List[text]. Vectors from RFC 4180 §2.
+
+pub fn csv_parse_record(line: &text) -> List[text]
+    var fields: List[text] = []
+    var cur: text = ""
+    var in_quotes: bool = false
+    let cs = line.chars()
+    var i: usize = 0
+    while i < cs.len() bound 67108864
+        let c = copy(cs[i])
+        if in_quotes
+            if c == "\""
+                if i + 1 < cs.len()
+                    if cs[i + 1] == "\""
+                        cur = cur + "\""
+                        i += 1
+                    else
+                        in_quotes = false
+                else
+                    in_quotes = false
+            else
+                cur = cur + c
+        else
+            if c == ","
+                fields.append(cur)
+                cur = ""
+            else
+                if c == "\""
+                    in_quotes = true
+                else
+                    cur = cur + c
+        i += 1
+    fields.append(cur)
+    return fields
+
+# Quote a field if it contains comma, quote, CR or LF; double any quote.
+pub fn csv_format_field(field: &text) -> text
+    var needs: bool = false
+    for c in field.chars()
+        if c == ","
+            needs = true
+        if c == "\""
+            needs = true
+        if c == "\n"
+            needs = true
+        if c == "\r"
+            needs = true
+    if not needs
+        return copy(field)
+    var out: text = "\""
+    for c in field.chars()
+        if c == "\""
+            out = out + "\"\""
+        else
+            out = out + c
+    return out + "\""
+
+# ---------------- spectests (RFC 4180) ----------------
+
+const R1: text = "aaa,bbb,ccc"
+const R2: text = "\"aaa\",\"bbb\",\"ccc\""
+const R3: text = "\"aaa\",\"b,bb\",\"ccc\""
+const R4: text = "\"a\"\"b\",c"
+const R5: text = ""
+
+const F1: List[text] = ["aaa", "bbb", "ccc"]
+const F2: List[text] = ["aaa", "b,bb", "ccc"]
+const F3: List[text] = ["a\"b", "c"]
+
+check csv_parse_record(&R1) == F1
+check csv_parse_record(&R2) == F1
+check csv_parse_record(&R3) == F2
+check csv_parse_record(&R4) == F3
+check csv_parse_record(&R5) == [""]
+
+const PLAIN: text = "aaa"
+const COMMA: text = "a,b"
+const QUOTE: text = "a\"b"
+
+check csv_format_field(&PLAIN) == "aaa"
+check csv_format_field(&COMMA) == "\"a,b\""
+check csv_format_field(&QUOTE) == "\"a\"\"b\""
