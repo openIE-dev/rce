@@ -47,9 +47,9 @@ pub fn soc2_controls() -> Vec<Control> {
         Control { id: "C1.1", criterion: Criterion::Confidentiality, requirement: "protect confidential code/data",
             mechanism: "Cleanroom private repo; name-free keys carry no source identifiers", built: true },
         Control { id: "C1.2", criterion: Criterion::Confidentiality, requirement: "encryption at rest / in transit",
-            mechanism: "TLS + at-rest encryption (to be implemented)", built: false },
+            mechanism: "AES-256-GCM authenticated sealing (secure::seal/open); tamper detected", built: true },
         Control { id: "CC6.3", criterion: Criterion::Security, requirement: "role-based access / least privilege",
-            mechanism: "RBAC over the catalog (to be implemented)", built: false },
+            mechanism: "RBAC least-privilege matrix (secure::can)", built: true },
         Control { id: "P3.1", criterion: Criterion::Privacy, requirement: "no PII in stored competence",
             mechanism: "content keys are name-free behavior hashes; retention/prune operators", built: true },
     ]

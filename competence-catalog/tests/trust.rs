@@ -25,11 +25,10 @@ fn verified_only_admission_and_report() {
 }
 
 #[test]
-fn honest_compliance_gaps_listed() {
+fn soc2_gaps_closed() {
     let t = TrustLayer::new();
-    let gaps = t.gaps();
-    assert!(gaps.iter().any(|c| c.id == "C1.2")); // encryption at rest
-    assert!(gaps.iter().any(|c| c.id == "CC6.3")); // RBAC
+    // encryption at rest (C1.2) and RBAC (CC6.3) now implemented -> no built-control gaps.
+    assert!(t.gaps().is_empty(), "gaps: {:?}", t.gaps().iter().map(|c| c.id).collect::<Vec<_>>());
 }
 
 #[test]

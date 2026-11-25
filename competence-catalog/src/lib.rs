@@ -47,6 +47,7 @@ pub mod placement;
 pub mod repair;
 pub mod replay;
 pub mod runtime;
+pub mod secure;
 pub mod spec_bridge;
 pub mod semantic;
 pub mod semantics;
