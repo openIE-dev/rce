@@ -51,7 +51,7 @@ fn num(n: i128) -> Value {
     } else if let Ok(v) = u64::try_from(n) {
         json!(v)
     } else {
-        Value::Null
+        json!(n)
     }
 }
 

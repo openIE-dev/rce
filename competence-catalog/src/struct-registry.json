@@ -1,0 +1,1704 @@
+{
+ "BW": {
+  "module": "compress.dhuffman",
+  "qualified": "compress.dhuffman.BW",
+  "generic": false,
+  "fields": {
+   "bits": "List[i64]"
+  }
+ },
+ "Big": {
+  "module": "core.exact",
+  "qualified": "core.exact.Big",
+  "generic": false,
+  "fields": {
+   "neg": "bool",
+   "mag": "List[i64]"
+  }
+ },
+ "QR": {
+  "module": "core.exact",
+  "qualified": "core.exact.QR",
+  "generic": false,
+  "fields": {
+   "q": "List[i64]",
+   "r": "List[i64]"
+  }
+ },
+ "Rat": {
+  "module": "core.exact",
+  "qualified": "core.exact.Rat",
+  "generic": false,
+  "fields": {
+   "num": "Big",
+   "den": "Big"
+  }
+ },
+ "Dec": {
+  "module": "crypto",
+  "qualified": "crypto.Dec",
+  "generic": false,
+  "fields": {
+   "ok": "bool",
+   "p": "Pt"
+  }
+ },
+ "SenderSealed": {
+  "module": "crypto",
+  "qualified": "crypto.SenderSealed",
+  "generic": false,
+  "fields": {
+   "chain": "text",
+   "n": "i64",
+   "body": "text"
+  }
+ },
+ "Pt": {
+  "module": "crypto",
+  "qualified": "crypto.Pt",
+  "generic": false,
+  "fields": {
+   "x": "List[i64]",
+   "y": "List[i64]",
+   "z": "List[i64]",
+   "t": "List[i64]"
+  }
+ },
+ "EdKey": {
+  "module": "crypto",
+  "qualified": "crypto.EdKey",
+  "generic": false,
+  "fields": {
+   "a": "List[i64]",
+   "prefix": "List[i64]",
+   "pk": "List[i64]"
+  }
+ },
+ "Change": {
+  "module": "os.perm",
+  "qualified": "os.perm.Change",
+  "generic": false,
+  "fields": {
+   "op": "text",
+   "flag": "i64",
+   "affected": "i64",
+   "value": "i64",
+   "mentioned": "i64"
+  }
+ },
+ "Rd": {
+  "module": "data.cdc",
+  "qualified": "data.cdc.Rd",
+  "generic": false,
+  "fields": {
+   "b": "List[i64]",
+   "at": "usize"
+  }
+ },
+ "PgMsg": {
+  "module": "data.cdc",
+  "qualified": "data.cdc.PgMsg",
+  "generic": false,
+  "fields": {
+   "lsn": "text",
+   "hex": "text"
+  }
+ },
+ "PgRel": {
+  "module": "data.cdc",
+  "qualified": "data.cdc.PgRel",
+  "generic": false,
+  "fields": {
+   "id": "i64",
+   "ns": "text",
+   "names": "List[text]",
+   "types": "List[i64]",
+   "key": "List[bool]"
+  }
+ },
+ "Pg": {
+  "module": "data.cdc",
+  "qualified": "data.cdc.Pg",
+  "generic": false,
+  "fields": {
+   "rels": "List[PgRel]",
+   "xid": "text",
+   "out": "List[Change]",
+   "txs": "List[text]"
+  }
+ },
+ "AckMeta": {
+  "module": "data.cdc",
+  "qualified": "data.cdc.AckMeta",
+  "generic": false,
+  "fields": {
+   "domain": "text",
+   "stream": "text",
+   "consumer": "text",
+   "delivered": "i64",
+   "stream_seq": "i64",
+   "consumer_seq": "i64",
+   "ts": "text",
+   "pending": "i64"
+  }
+ },
+ "Hdr": {
+  "module": "data.events",
+  "qualified": "data.events.Hdr",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "value": "text"
+  }
+ },
+ "Record": {
+  "module": "net.dns",
+  "qualified": "net.dns.Record",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "rtype": "i64",
+   "rclass": "i64",
+   "ttl": "i64",
+   "rdata": "List[i64]"
+  }
+ },
+ "Entry": {
+  "module": "ui.text",
+  "qualified": "ui.text.Entry",
+  "generic": false,
+  "fields": {
+   "level": "i64",
+   "ovr": "i64",
+   "iso": "bool"
+  }
+ },
+ "Token": {
+  "module": "data.feed",
+  "qualified": "data.feed.Token",
+  "generic": false,
+  "fields": {
+   "height": "i64",
+   "digest": "text"
+  }
+ },
+ "Err": {
+  "module": "data.feed",
+  "qualified": "data.feed.Err",
+  "generic": false,
+  "fields": {
+   "server": "bool",
+   "code": "i64",
+   "labels": "List[text]",
+   "cmd": "text",
+   "wire": "i64"
+  }
+ },
+ "Pos": {
+  "module": "data.feed",
+  "qualified": "data.feed.Pos",
+  "generic": false,
+  "fields": {
+   "start_after": "text",
+   "resume_after": "text",
+   "start_at_op_time": "text"
+  }
+ },
+ "Cs": {
+  "module": "data.feed",
+  "qualified": "data.feed.Cs",
+  "generic": false,
+  "fields": {
+   "opts": "Pos",
+   "token": "text",
+   "op_time": "text",
+   "returned": "bool",
+   "closed": "bool",
+   "err_code": "i64"
+  }
+ },
+ "Hist": {
+  "module": "data.feed",
+  "qualified": "data.feed.Hist",
+  "generic": false,
+  "fields": {
+   "session_id": "text",
+   "last_seq": "text"
+  }
+ },
+ "Ckpt": {
+  "module": "data.feed",
+  "qualified": "data.feed.Ckpt",
+  "generic": false,
+  "fields": {
+   "session_id": "text",
+   "last_seq": "text",
+   "history": "List[Hist]"
+  }
+ },
+ "Inbox": {
+  "module": "data.feed",
+  "qualified": "data.feed.Inbox",
+  "generic": false,
+  "fields": {
+   "window": "i64",
+   "bud": "i64",
+   "used": "i64",
+   "keys": "List[text]",
+   "key_height": "List[i64]",
+   "pending": "List[text]",
+   "pending_height": "List[i64]",
+   "acked": "text",
+   "overflow": "i64",
+   "dups": "i64"
+  }
+ },
+ "Pair": {
+  "module": "os.path",
+  "qualified": "os.path.Pair",
+  "generic": false,
+  "fields": {
+   "head": "text",
+   "tail": "text"
+  }
+ },
+ "OpId": {
+  "module": "data.sync",
+  "qualified": "data.sync.OpId",
+  "generic": false,
+  "fields": {
+   "ctr": "i64",
+   "who": "text"
+  }
+ },
+ "Slot": {
+  "module": "data.sync",
+  "qualified": "data.sync.Slot",
+  "generic": false,
+  "fields": {
+   "replica": "text",
+   "n": "i64"
+  }
+ },
+ "PN": {
+  "module": "data.sync",
+  "qualified": "data.sync.PN",
+  "generic": false,
+  "fields": {
+   "p": "List[Slot]",
+   "n": "List[Slot]"
+  }
+ },
+ "Lww": {
+  "module": "data.sync",
+  "qualified": "data.sync.Lww",
+  "generic": false,
+  "fields": {
+   "ts": "i64",
+   "replica": "text",
+   "value": "text"
+  }
+ },
+ "Tagged": {
+  "module": "data.sync",
+  "qualified": "data.sync.Tagged",
+  "generic": false,
+  "fields": {
+   "elem": "text",
+   "tag": "text"
+  }
+ },
+ "OrSet": {
+  "module": "data.sync",
+  "qualified": "data.sync.OrSet",
+  "generic": false,
+  "fields": {
+   "adds": "List[Tagged]",
+   "gone": "List[text]"
+  }
+ },
+ "Plan": {
+  "module": "os.target",
+  "qualified": "os.target.Plan",
+  "generic": false,
+  "fields": {
+   "ops": "List[Op]",
+   "proposals": "List[text]",
+   "world": "text",
+   "legacy": "bool"
+  }
+ },
+ "Backoff": {
+  "module": "effect",
+  "qualified": "effect.Backoff",
+  "generic": false,
+  "fields": {
+   "base": "u64",
+   "cap": "u64",
+   "attempts": "u64",
+   "retry_failed": "bool"
+  }
+ },
+ "Retry": {
+  "module": "effect",
+  "qualified": "effect.Retry",
+  "generic": false,
+  "fields": {
+   "attempt": "u64",
+   "wait_until": "u64",
+   "verdict": "text"
+  }
+ },
+ "VarOut": {
+  "module": "enc",
+  "qualified": "enc.VarOut",
+  "generic": false,
+  "fields": {
+   "v": "i64",
+   "next": "i64"
+  }
+ },
+ "Receipt": {
+  "module": "energy",
+  "qualified": "energy.Receipt",
+  "generic": false,
+  "fields": {
+   "profile": "text",
+   "grant_id": "text",
+   "issuer": "text",
+   "subject": "text",
+   "resource": "text",
+   "action": "text",
+   "payload_hash": "text",
+   "frame_kind": "text",
+   "trust": "text",
+   "verdict": "text",
+   "deny_reason": "text",
+   "cost_uj": "i64",
+   "provenance": "text",
+   "partial": "bool",
+   "budget_remaining_uj": "i64",
+   "budget_uj": "i64",
+   "steward": "text",
+   "chain_ids": "List[text]"
+  }
+ },
+ "OpenedReceipt": {
+  "module": "energy",
+  "qualified": "energy.OpenedReceipt",
+  "generic": false,
+  "fields": {
+   "receipt": "Receipt",
+   "prot": "List[i64]",
+   "payload": "List[i64]",
+   "kid": "text",
+   "sig": "List[i64]"
+  }
+ },
+ "Spend": {
+  "module": "energy",
+  "qualified": "energy.Spend",
+  "generic": false,
+  "fields": {
+   "grant_id": "text",
+   "spent_uj": "i64"
+  }
+ },
+ "Tally": {
+  "module": "energy",
+  "qualified": "energy.Tally",
+  "generic": false,
+  "fields": {
+   "grant_id": "text",
+   "subject": "text",
+   "allowed": "i64",
+   "denied": "i64",
+   "joules_uj": "i64"
+  }
+ },
+ "Regex": {
+  "module": "fmt",
+  "qualified": "fmt.Regex",
+  "generic": false,
+  "fields": {
+   "code": "List[i64]",
+   "classes": "List[i64]"
+  }
+ },
+ "Parser": {
+  "module": "fmt",
+  "qualified": "fmt.Parser",
+  "generic": false,
+  "fields": {
+   "pat": "List[i64]",
+   "pos": "usize",
+   "classes": "List[i64]",
+   "err": "i64"
+  }
+ },
+ "Out": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Out",
+  "generic": false,
+  "fields": {
+   "val": "text",
+   "i": "i64",
+   "err": "text"
+  }
+ },
+ "Pending": {
+  "module": "os.signal",
+  "qualified": "os.signal.Pending",
+  "generic": false,
+  "fields": {
+   "std": "List[bool]",
+   "stdval": "List[i64]",
+   "rt": "List[Queued]",
+   "ignored": "List[bool]"
+  }
+ },
+ "LineReader": {
+  "module": "io",
+  "qualified": "io.LineReader",
+  "generic": false,
+  "fields": {
+   "rest": "text",
+   "eof": "bool",
+   "lines": "u64"
+  }
+ },
+ "Writer": {
+  "module": "io",
+  "qualified": "io.Writer",
+  "generic": false,
+  "fields": {
+   "data": "text",
+   "off": "usize",
+   "flight": "usize",
+   "max": "usize",
+   "sent": "u64"
+  }
+ },
+ "Question": {
+  "module": "net.dns",
+  "qualified": "net.dns.Question",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "qtype": "i64",
+   "qclass": "i64"
+  }
+ },
+ "Dns": {
+  "module": "net.dns",
+  "qualified": "net.dns.Dns",
+  "generic": false,
+  "fields": {
+   "id": "i64",
+   "flags": "i64",
+   "questions": "List[Question]",
+   "answers": "List[Record]",
+   "authority": "List[Record]",
+   "additional": "List[Record]"
+  }
+ },
+ "NameAt": {
+  "module": "net.dns",
+  "qualified": "net.dns.NameAt",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "next": "i64"
+  }
+ },
+ "Message": {
+  "module": "net.http",
+  "qualified": "net.http.Message",
+  "generic": false,
+  "fields": {
+   "request": "bool",
+   "method": "text",
+   "target": "text",
+   "major": "i64",
+   "minor": "i64",
+   "status": "i64",
+   "reason": "text",
+   "names": "List[text]",
+   "values": "List[text]",
+   "body": "List[i64]",
+   "trailer_names": "List[text]",
+   "trailer_values": "List[text]",
+   "used": "i64"
+  }
+ },
+ "Flags": {
+  "module": "net.idna",
+  "qualified": "net.idna.Flags",
+  "generic": false,
+  "fields": {
+   "std3": "bool",
+   "hyphens": "bool",
+   "bidi": "bool",
+   "joiners": "bool",
+   "transitional": "bool",
+   "dns_length": "bool",
+   "ignore_bad_punycode": "bool"
+  }
+ },
+ "Cps": {
+  "module": "net.idna",
+  "qualified": "net.idna.Cps",
+  "generic": false,
+  "fields": {
+   "cps": "List[i64]",
+   "err": "bool"
+  }
+ },
+ "Ascii": {
+  "module": "net.idna",
+  "qualified": "net.idna.Ascii",
+  "generic": false,
+  "fields": {
+   "host": "text",
+   "err": "bool"
+  }
+ },
+ "Labels": {
+  "module": "net.idna",
+  "qualified": "net.idna.Labels",
+  "generic": false,
+  "fields": {
+   "labels": "List[List[i64]]",
+   "err": "bool"
+  }
+ },
+ "UrlParts": {
+  "module": "net.url",
+  "qualified": "net.url.UrlParts",
+  "generic": false,
+  "fields": {
+   "scheme": "text",
+   "username": "text",
+   "password": "text",
+   "has_host": "bool",
+   "host": "text",
+   "port": "i64",
+   "opaque": "bool",
+   "opath": "text",
+   "path": "List[text]",
+   "has_query": "bool",
+   "query": "text",
+   "has_frag": "bool",
+   "frag": "text"
+  }
+ },
+ "BigInt": {
+  "module": "num.big",
+  "qualified": "num.big.BigInt",
+  "generic": false,
+  "fields": {
+   "neg": "bool",
+   "mag": "List[i64]"
+  }
+ },
+ "Complex": {
+  "module": "num.complex",
+  "qualified": "num.complex.Complex",
+  "generic": false,
+  "fields": {
+   "re": "f64",
+   "im": "f64"
+  }
+ },
+ "Mat": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Mat",
+  "generic": false,
+  "fields": {
+   "m": "usize",
+   "n": "usize",
+   "a": "List[f64]"
+  }
+ },
+ "Lu": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Lu",
+  "generic": false,
+  "fields": {
+   "lu": "Mat",
+   "piv": "List[i64]",
+   "info": "i64"
+  }
+ },
+ "Qr": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Qr",
+  "generic": false,
+  "fields": {
+   "qr": "Mat",
+   "tau": "List[f64]"
+  }
+ },
+ "Eigh": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Eigh",
+  "generic": false,
+  "fields": {
+   "values": "List[f64]",
+   "vectors": "Mat"
+  }
+ },
+ "Svd": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Svd",
+  "generic": false,
+  "fields": {
+   "u": "Mat",
+   "s": "List[f64]",
+   "v": "Mat"
+  }
+ },
+ "Balanced": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Balanced",
+  "generic": false,
+  "fields": {
+   "ilo": "i64",
+   "ihi": "i64",
+   "scale": "List[f64]"
+  }
+ },
+ "Eigvals": {
+  "module": "num.linalg",
+  "qualified": "num.linalg.Eigvals",
+  "generic": false,
+  "fields": {
+   "re": "List[f64]",
+   "im": "List[f64]"
+  }
+ },
+ "Lgamma": {
+  "module": "num.special",
+  "qualified": "num.special.Lgamma",
+  "generic": false,
+  "fields": {
+   "value": "f64",
+   "sign": "i64"
+  }
+ },
+ "Ols": {
+  "module": "num.stats",
+  "qualified": "num.stats.Ols",
+  "generic": false,
+  "fields": {
+   "coef": "List[f64]",
+   "se": "List[f64]",
+   "resid_sd": "f64",
+   "r2": "f64",
+   "ss_reg": "f64",
+   "ss_res": "f64",
+   "df_reg": "i64",
+   "df_res": "i64",
+   "f": "f64",
+   "exact": "bool"
+  }
+ },
+ "Anova": {
+  "module": "num.stats",
+  "qualified": "num.stats.Anova",
+  "generic": false,
+  "fields": {
+   "ss_between": "f64",
+   "ss_within": "f64",
+   "df_between": "i64",
+   "df_within": "i64",
+   "ms_between": "f64",
+   "ms_within": "f64",
+   "f": "f64",
+   "p": "f64",
+   "r2": "f64",
+   "resid_sd": "f64"
+  }
+ },
+ "Test": {
+  "module": "num.stats",
+  "qualified": "num.stats.Test",
+  "generic": false,
+  "fields": {
+   "stat": "f64",
+   "df": "f64",
+   "p": "f64"
+  }
+ },
+ "Dur": {
+  "module": "os.clock",
+  "qualified": "os.clock.Dur",
+  "generic": false,
+  "fields": {
+   "secs": "u64",
+   "nanos": "i64"
+  }
+ },
+ "Timespec": {
+  "module": "os.clock",
+  "qualified": "os.clock.Timespec",
+  "generic": false,
+  "fields": {
+   "secs": "i64",
+   "nanos": "i64"
+  }
+ },
+ "Diff": {
+  "module": "os.clock",
+  "qualified": "os.clock.Diff",
+  "generic": false,
+  "fields": {
+   "ok": "bool",
+   "d": "Dur"
+  }
+ },
+ "Mono": {
+  "module": "os.clock",
+  "qualified": "os.clock.Mono",
+  "generic": false,
+  "fields": {
+   "last": "Timespec",
+   "seen": "bool",
+   "raised": "i64"
+  }
+ },
+ "Timer": {
+  "module": "os.clock",
+  "qualified": "os.clock.Timer",
+  "generic": false,
+  "fields": {
+   "id": "i64",
+   "at": "Timespec",
+   "seq": "i64"
+  }
+ },
+ "Timers": {
+  "module": "os.clock",
+  "qualified": "os.clock.Timers",
+  "generic": false,
+  "fields": {
+   "list": "List[Timer]",
+   "next": "i64"
+  }
+ },
+ "I2cMsg": {
+  "module": "os.devices",
+  "qualified": "os.devices.I2cMsg",
+  "generic": false,
+  "fields": {
+   "addr": "i64",
+   "flags": "i64",
+   "data": "List[i64]"
+  }
+ },
+ "Txn": {
+  "module": "os.devices",
+  "qualified": "os.devices.Txn",
+  "generic": false,
+  "fields": {
+   "op": "text",
+   "addr": "i64",
+   "bytes": "List[i64]"
+  }
+ },
+ "UartCfg": {
+  "module": "os.devices",
+  "qualified": "os.devices.UartCfg",
+  "generic": false,
+  "fields": {
+   "data": "i64",
+   "parity": "text",
+   "stop": "i64"
+  }
+ },
+ "Field": {
+  "module": "os.devices",
+  "qualified": "os.devices.Field",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "lsb": "i64",
+   "width": "i64",
+   "access": "text"
+  }
+ },
+ "Var": {
+  "module": "os.env",
+  "qualified": "os.env.Var",
+  "generic": false,
+  "fields": {
+   "key": "text",
+   "value": "text"
+  }
+ },
+ "Snapshot": {
+  "module": "os.env",
+  "qualified": "os.env.Snapshot",
+  "generic": false,
+  "fields": {
+   "argv": "List[text]",
+   "vars": "List[Var]"
+  }
+ },
+ "Name": {
+  "module": "os.env",
+  "qualified": "os.env.Name",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "width": "i64"
+  }
+ },
+ "Node": {
+  "module": "os.fs",
+  "qualified": "os.fs.Node",
+  "generic": false,
+  "fields": {
+   "dir": "bool",
+   "data": "List[text]",
+   "parent": "i64"
+  }
+ },
+ "Ent": {
+  "module": "os.fs",
+  "qualified": "os.fs.Ent",
+  "generic": false,
+  "fields": {
+   "dir": "i64",
+   "name": "text",
+   "nd": "i64"
+  }
+ },
+ "Desc": {
+  "module": "os.fs",
+  "qualified": "os.fs.Desc",
+  "generic": false,
+  "fields": {
+   "nd": "i64",
+   "pos": "i64",
+   "rd": "bool",
+   "wr": "bool",
+   "app": "bool",
+   "live": "bool"
+  }
+ },
+ "Fs": {
+  "module": "os.fs",
+  "qualified": "os.fs.Fs",
+  "generic": false,
+  "fields": {
+   "nodes": "List[Node]",
+   "ents": "List[Ent]",
+   "descs": "List[Desc]"
+  }
+ },
+ "Where": {
+  "module": "os.fs",
+  "qualified": "os.fs.Where",
+  "generic": false,
+  "fields": {
+   "dir": "i64",
+   "last": "text",
+   "nd": "i64",
+   "slash": "bool"
+  }
+ },
+ "NsDec": {
+  "module": "os.ipc",
+  "qualified": "os.ipc.NsDec",
+  "generic": false,
+  "fields": {
+   "buf": "List[u8]",
+   "out": "List[List[u8]]",
+   "bad": "text"
+  }
+ },
+ "LpDec": {
+  "module": "os.ipc",
+  "qualified": "os.ipc.LpDec",
+  "generic": false,
+  "fields": {
+   "buf": "List[u8]",
+   "frames": "List[List[u8]]",
+   "max": "i64",
+   "bad": "text"
+  }
+ },
+ "PBuf": {
+  "module": "os.ipc",
+  "qualified": "os.ipc.PBuf",
+  "generic": false,
+  "fields": {
+   "offset": "i64",
+   "len": "i64"
+  }
+ },
+ "Pipe": {
+  "module": "os.ipc",
+  "qualified": "os.ipc.Pipe",
+  "generic": false,
+  "fields": {
+   "bufs": "List[PBuf]",
+   "slots": "i64"
+  }
+ },
+ "Root": {
+  "module": "os.path",
+  "qualified": "os.path.Root",
+  "generic": false,
+  "fields": {
+   "drive": "text",
+   "root": "text",
+   "tail": "text"
+  }
+ },
+ "Preopen": {
+  "module": "os.path",
+  "qualified": "os.path.Preopen",
+  "generic": false,
+  "fields": {
+   "index": "i64",
+   "rel": "text"
+  }
+ },
+ "Chmod": {
+  "module": "os.perm",
+  "qualified": "os.perm.Chmod",
+  "generic": false,
+  "fields": {
+   "mode": "i64",
+   "naive": "i64"
+  }
+ },
+ "Cred": {
+  "module": "os.perm",
+  "qualified": "os.perm.Cred",
+  "generic": false,
+  "fields": {
+   "uid": "i64",
+   "gid": "i64",
+   "groups": "List[i64]"
+  }
+ },
+ "Sid": {
+  "module": "os.perm",
+  "qualified": "os.perm.Sid",
+  "generic": false,
+  "fields": {
+   "authority": "i64",
+   "subs": "List[i64]"
+  }
+ },
+ "Ace": {
+  "module": "os.perm",
+  "qualified": "os.perm.Ace",
+  "generic": false,
+  "fields": {
+   "allow": "bool",
+   "sid": "text",
+   "mask": "i64"
+  }
+ },
+ "Rule": {
+  "module": "os.perm",
+  "qualified": "os.perm.Rule",
+  "generic": false,
+  "fields": {
+   "path": "List[text]",
+   "rights": "i64"
+  }
+ },
+ "Layer": {
+  "module": "os.perm",
+  "qualified": "os.perm.Layer",
+  "generic": false,
+  "fields": {
+   "handled": "i64",
+   "rules": "List[Rule]"
+  }
+ },
+ "Version": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Version",
+  "generic": false,
+  "fields": {
+   "major": "text",
+   "minor": "text",
+   "patch": "text",
+   "pre": "text",
+   "build": "text"
+  }
+ },
+ "Comparator": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Comparator",
+  "generic": false,
+  "fields": {
+   "op": "text",
+   "major": "text",
+   "minor": "text",
+   "patch": "text",
+   "pre": "text"
+  }
+ },
+ "VersionReq": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.VersionReq",
+  "generic": false,
+  "fields": {
+   "comparators": "List[Comparator]"
+  }
+ },
+ "COut": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.COut",
+  "generic": false,
+  "fields": {
+   "c": "Comparator",
+   "p": "i64",
+   "i": "i64",
+   "err": "text"
+  }
+ },
+ "LockPkg": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.LockPkg",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "version": "text",
+   "source": "text",
+   "checksum": "text",
+   "deps": "List[text]"
+  }
+ },
+ "Lock": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Lock",
+  "generic": false,
+  "fields": {
+   "header": "List[text]",
+   "version": "i64",
+   "packages": "List[LockPkg]",
+   "extra": "List[text]"
+  }
+ },
+ "Dep": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Dep",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "version": "text",
+   "source": "text"
+  }
+ },
+ "NpmPkg": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.NpmPkg",
+  "generic": false,
+  "fields": {
+   "path": "text",
+   "name": "text",
+   "version": "text",
+   "resolved": "text",
+   "integrity": "text",
+   "dev": "bool",
+   "optional": "bool",
+   "link": "bool"
+  }
+ },
+ "Sri": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Sri",
+  "generic": false,
+  "fields": {
+   "alg": "text",
+   "val": "text"
+  }
+ },
+ "Fetch": {
+  "module": "os.pkg",
+  "qualified": "os.pkg.Fetch",
+  "generic": false,
+  "fields": {
+   "url": "text",
+   "sha256": "text"
+  }
+ },
+ "EnvVar": {
+  "module": "os.proc",
+  "qualified": "os.proc.EnvVar",
+  "generic": false,
+  "fields": {
+   "key": "text",
+   "set": "bool",
+   "val": "text"
+  }
+ },
+ "Cmd": {
+  "module": "os.proc",
+  "qualified": "os.proc.Cmd",
+  "generic": false,
+  "fields": {
+   "program": "text",
+   "args": "List[text]",
+   "clear": "bool",
+   "vars": "List[EnvVar]",
+   "has_cwd": "bool",
+   "cwd": "text",
+   "uid": "i64",
+   "gid": "i64",
+   "pgroup": "i64",
+   "stdin": "text",
+   "stdout": "text",
+   "stderr": "text"
+  }
+ },
+ "SigRow": {
+  "module": "os.signal",
+  "qualified": "os.signal.SigRow",
+  "generic": false,
+  "fields": {
+   "name": "text",
+   "linux": "text",
+   "alpha_sparc": "text",
+   "mips": "text",
+   "parisc": "text",
+   "darwin": "text",
+   "action": "text",
+   "standard": "text"
+  }
+ },
+ "Queued": {
+  "module": "os.signal",
+  "qualified": "os.signal.Queued",
+  "generic": false,
+  "fields": {
+   "sig": "i64",
+   "val": "i64"
+  }
+ },
+ "Num": {
+  "module": "os.svc",
+  "qualified": "os.svc.Num",
+  "generic": false,
+  "fields": {
+   "err": "i64",
+   "val": "i64",
+   "neg": "bool"
+  }
+ },
+ "StatusSet": {
+  "module": "os.svc",
+  "qualified": "os.svc.StatusSet",
+  "generic": false,
+  "fields": {
+   "status": "List[i64]",
+   "signal": "List[i64]"
+  }
+ },
+ "Restart": {
+  "module": "os.svc",
+  "qualified": "os.svc.Restart",
+  "generic": false,
+  "fields": {
+   "yes": "bool",
+   "reason": "text"
+  }
+ },
+ "Policy": {
+  "module": "os.svc",
+  "qualified": "os.svc.Policy",
+  "generic": false,
+  "fields": {
+   "rst": "text",
+   "stype": "text",
+   "prevent": "StatusSet",
+   "force": "StatusSet"
+  }
+ },
+ "KeepAlive": {
+  "module": "os.svc",
+  "qualified": "os.svc.KeepAlive",
+  "generic": false,
+  "fields": {
+   "form": "text",
+   "value": "bool",
+   "successful": "text",
+   "crashed": "text"
+  }
+ },
+ "ScmPolicy": {
+  "module": "os.svc",
+  "qualified": "os.svc.ScmPolicy",
+  "generic": false,
+  "fields": {
+   "actions": "List[text]",
+   "nonzero_is_failure": "bool"
+  }
+ },
+ "Op": {
+  "module": "ui.view",
+  "qualified": "ui.view.Op",
+  "generic": false,
+  "fields": {
+   "op": "i64",
+   "nd": "i64",
+   "parent": "i64",
+   "before": "i64",
+   "name": "text",
+   "value": "text"
+  }
+ },
+ "Observed": {
+  "module": "os.target",
+  "qualified": "os.target.Observed",
+  "generic": false,
+  "fields": {
+   "stdout": "text",
+   "stderr": "text",
+   "exit_code": "i64",
+   "timed_out": "bool"
+  }
+ },
+ "Entropy": {
+  "module": "rand.det",
+  "qualified": "rand.det.Entropy",
+  "generic": false,
+  "fields": {
+   "source": "text"
+  }
+ },
+ "Rng": {
+  "module": "rand.det",
+  "qualified": "rand.det.Rng",
+  "generic": false,
+  "fields": {
+   "key": "List[i64]",
+   "stream": "i64",
+   "block": "i64",
+   "buf": "List[i64]",
+   "pos": "i64"
+  }
+ },
+ "Xml": {
+  "module": "text.xml",
+  "qualified": "text.xml.Xml",
+  "generic": false,
+  "fields": {
+   "nk": "List[i64]",
+   "name": "List[text]",
+   "ns": "List[text]",
+   "an": "List[List[text]]",
+   "av": "List[List[text]]",
+   "kids": "List[List[i64]]",
+   "parl": "List[i64]",
+   "txt": "List[text]",
+   "ok": "bool",
+   "why": "text"
+  }
+ },
+ "Date": {
+  "module": "time.civil",
+  "qualified": "time.civil.Date",
+  "generic": false,
+  "fields": {
+   "year": "i64",
+   "month": "i64",
+   "day": "i64"
+  }
+ },
+ "Civil": {
+  "module": "time",
+  "qualified": "time.Civil",
+  "generic": false,
+  "fields": {
+   "y": "i64",
+   "m": "i64",
+   "d": "i64"
+  }
+ },
+ "Toks": {
+  "module": "ui.ecma",
+  "qualified": "ui.ecma.Toks",
+  "generic": false,
+  "fields": {
+   "k": "List[i64]",
+   "t": "List[text]",
+   "ok": "bool"
+  }
+ },
+ "Ast": {
+  "module": "ui.ecma",
+  "qualified": "ui.ecma.Ast",
+  "generic": false,
+  "fields": {
+   "k": "List[i64]",
+   "s": "List[text]",
+   "a": "List[i64]",
+   "b": "List[i64]",
+   "c": "List[i64]",
+   "xs": "List[List[i64]]",
+   "tk": "Toks",
+   "at": "usize",
+   "ok": "bool",
+   "why": "text"
+  }
+ },
+ "Key": {
+  "module": "ui.input",
+  "qualified": "ui.input.Key",
+  "generic": false,
+  "fields": {
+   "code": "i64",
+   "arg": "i64",
+   "mods": "i64",
+   "act": "i64",
+   "locks": "i64"
+  }
+ },
+ "Mouse": {
+  "module": "ui.input",
+  "qualified": "ui.input.Mouse",
+  "generic": false,
+  "fields": {
+   "act": "i64",
+   "button": "i64",
+   "col": "i64",
+   "row": "i64",
+   "mods": "i64"
+  }
+ },
+ "Ev": {
+  "module": "ui.input",
+  "qualified": "ui.input.Ev",
+  "generic": false,
+  "fields": {
+   "tag": "i64",
+   "key": "Key",
+   "mouse": "Mouse",
+   "paste": "List[i64]",
+   "x": "i64",
+   "y": "i64"
+  }
+ },
+ "Parsed": {
+  "module": "ui.input",
+  "qualified": "ui.input.Parsed",
+  "generic": false,
+  "fields": {
+   "st": "i64",
+   "ev": "Ev"
+  }
+ },
+ "Decoded": {
+  "module": "ui.input",
+  "qualified": "ui.input.Decoded",
+  "generic": false,
+  "fields": {
+   "events": "List[Ev]",
+   "pending": "List[i64]"
+  }
+ },
+ "DomKey": {
+  "module": "ui.input",
+  "qualified": "ui.input.DomKey",
+  "generic": false,
+  "fields": {
+   "key": "text",
+   "location": "i64",
+   "repeat": "bool",
+   "up": "bool",
+   "shift": "bool",
+   "ctrl": "bool",
+   "alt": "bool",
+   "meta": "bool",
+   "caps": "bool",
+   "num": "bool"
+  }
+ },
+ "Pointer": {
+  "module": "ui.input",
+  "qualified": "ui.input.Pointer",
+  "generic": false,
+  "fields": {
+   "act": "i64",
+   "id": "i64",
+   "ptype": "text",
+   "primary": "bool",
+   "x": "i64",
+   "y": "i64",
+   "button": "i64",
+   "buttons": "i64",
+   "shift": "bool",
+   "ctrl": "bool",
+   "alt": "bool"
+  }
+ },
+ "Wheel": {
+  "module": "ui.input",
+  "qualified": "ui.input.Wheel",
+  "generic": false,
+  "fields": {
+   "dx": "i64",
+   "dy": "i64",
+   "mode": "i64",
+   "x": "i64",
+   "y": "i64"
+  }
+ },
+ "PointerState": {
+  "module": "ui.input",
+  "qualified": "ui.input.PointerState",
+  "generic": false,
+  "fields": {
+   "buttons": "i64"
+  }
+ },
+ "Resize": {
+  "module": "ui.input",
+  "qualified": "ui.input.Resize",
+  "generic": false,
+  "fields": {
+   "cols": "i64",
+   "rows": "i64"
+  }
+ },
+ "Clipboard": {
+  "module": "ui.input",
+  "qualified": "ui.input.Clipboard",
+  "generic": false,
+  "fields": {
+   "act": "i64",
+   "mime": "text",
+   "data": "List[i64]"
+  }
+ },
+ "Mode": {
+  "module": "ui.layout",
+  "qualified": "ui.layout.Mode",
+  "generic": false,
+  "fields": {
+   "vw": "i64",
+   "scale": "i64",
+   "spacing": "bool"
+  }
+ },
+ "Layout": {
+  "module": "ui.layout",
+  "qualified": "ui.layout.Layout",
+  "generic": false,
+  "fields": {
+   "x": "List[i64]",
+   "y": "List[i64]",
+   "w": "List[i64]",
+   "h": "List[i64]",
+   "shown": "List[bool]",
+   "lines": "List[List[i64]]",
+   "lh": "List[i64]",
+   "fc": "List[i64]",
+   "clip": "List[List[i64]]",
+   "stack": "List[List[i64]]",
+   "order": "List[i64]",
+   "bad": "List[i64]",
+   "why": "List[text]"
+  }
+ },
+ "Finding": {
+  "module": "ui.rules",
+  "qualified": "ui.rules.Finding",
+  "generic": false,
+  "fields": {
+   "sc": "text",
+   "rule": "text",
+   "frame": "i64",
+   "at": "i64",
+   "outcome": "text",
+   "reason": "text"
+  }
+ },
+ "Verdict": {
+  "module": "ui.rules",
+  "qualified": "ui.rules.Verdict",
+  "generic": false,
+  "fields": {
+   "sc": "text",
+   "outcome": "text",
+   "reason": "text"
+  }
+ },
+ "Step": {
+  "module": "ui.rules",
+  "qualified": "ui.rules.Step",
+  "generic": false,
+  "fields": {
+   "ev": "text",
+   "ms": "i64",
+   "v": "View"
+  }
+ },
+ "Facts": {
+  "module": "ui.rules",
+  "qualified": "ui.rules.Facts",
+  "generic": false,
+  "fields": {
+   "ev": "text",
+   "ms": "i64",
+   "v": "View",
+   "role": "List[text]",
+   "ri": "List[i64]",
+   "hid": "List[bool]",
+   "off": "List[bool]",
+   "inter": "List[bool]",
+   "foc": "List[bool]",
+   "vis": "List[bool]",
+   "lay": "Layout",
+   "ft": "List[i64]"
+  }
+ },
+ "Criterion": {
+  "module": "ui.rules",
+  "qualified": "ui.rules.Criterion",
+  "generic": false,
+  "fields": {
+   "id": "text",
+   "level": "text",
+   "class": "text",
+   "rule": "text",
+   "human": "text"
+  }
+ },
+ "Chart": {
+  "module": "ui.states",
+  "qualified": "ui.states.Chart",
+  "generic": false,
+  "fields": {
+   "sid": "List[text]",
+   "skind": "List[i64]",
+   "spar": "List[i64]",
+   "smach": "List[i64]",
+   "sinit": "List[List[i64]]",
+   "sinitblk": "List[i64]",
+   "sentry": "List[List[i64]]",
+   "sexit": "List[List[i64]]",
+   "sinv": "List[List[i64]]",
+   "skids": "List[List[i64]]",
+   "strans": "List[List[i64]]",
+   "sdone": "List[i64]",
+   "mroot": "List[i64]",
+   "mvars": "List[List[text]]",
+   "mexpr": "List[List[text]]",
+   "mdst": "List[List[i64]]",
+   "mdsrc": "List[List[text]]",
+   "mdcont": "List[List[text]]",
+   "mdxml": "List[List[bool]]",
+   "mdhas": "List[List[bool]]",
+   "mdm": "List[i64]",
+   "mname": "List[text]",
+   "mlate": "List[bool]",
+   "mscript": "List[i64]",
+   "mdoc": "List[text]",
+   "tsrc": "List[i64]",
+   "tev": "List[List[text]]",
+   "tcond": "List[text]",
+   "tint": "List[bool]",
+   "ttgt": "List[List[i64]]",
+   "tblk": "List[i64]",
+   "blocks": "List[List[i64]]",
+   "aop": "List[i64]",
+   "aa": "List[text]",
+   "ab": "List[text]",
+   "an": "List[i64]",
+   "ak": "List[List[text]]",
+   "av": "List[List[text]]",
+   "asub": "List[i64]",
+   "apar": "List[List[i64]]",
+   "acont": "List[text]",
+   "acx": "List[bool]",
+   "ahas": "List[bool]",
+   "vk": "List[List[text]]",
+   "vv": "List[List[text]]",
+   "vpar": "List[List[i64]]",
+   "vmach": "List[i64]",
+   "vcont": "List[text]",
+   "vhas": "List[bool]",
+   "vfin": "List[i64]",
+   "vstate": "List[i64]",
+   "fname": "List[text]",
+   "fbody": "List[text]",
+   "fmach": "List[i64]",
+   "ok": "bool",
+   "why": "text",
+   "xs": "bool"
+  }
+ },
+ "Ld": {
+  "module": "ui.states",
+  "qualified": "ui.states.Ld",
+  "generic": false,
+  "fields": {
+   "nodes": "List[i64]",
+   "sts": "List[i64]",
+   "gen": "i64"
+  }
+ },
+ "Result": {
+  "module": "ui.states",
+  "qualified": "ui.states.Result",
+  "generic": false,
+  "fields": {
+   "outcome": "text",
+   "conf": "List[text]",
+   "leaves": "List[text]",
+   "trace": "List[text]",
+   "logs": "List[text]",
+   "vals": "List[i64]",
+   "isset": "List[i64]",
+   "err": "text",
+   "http": "List[text]"
+  }
+ },
+ "LbItem": {
+  "module": "ui.text",
+  "qualified": "ui.text.LbItem",
+  "generic": false,
+  "fields": {
+   "cls": "i64",
+   "raw": "i64",
+   "gcat": "i64",
+   "east": "bool",
+   "pict": "bool",
+   "cp": "i64",
+   "gone": "bool"
+  }
+ },
+ "Bidi": {
+  "module": "ui.text",
+  "qualified": "ui.text.Bidi",
+  "generic": false,
+  "fields": {
+   "para": "i64",
+   "levels": "List[i64]"
+  }
+ },
+ "View": {
+  "module": "ui.view",
+  "qualified": "ui.view.View",
+  "generic": false,
+  "fields": {
+   "tag": "List[text]",
+   "key": "List[text]",
+   "text": "List[text]",
+   "names": "List[List[text]]",
+   "values": "List[List[text]]",
+   "parent": "List[i64]",
+   "kids": "List[List[i64]]"
+  }
+ }
+}

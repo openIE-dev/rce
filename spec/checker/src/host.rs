@@ -637,7 +637,8 @@ pub(crate) fn json_expr(v: &Value, ty: Option<&Ty>, m: &Module) -> Result<Expr, 
             } else if let Some(i) = n.as_i64() {
                 Expr::Int(i as i128, 0)
             } else {
-                Expr::Int(n.as_u64().ok_or("number")? as i128, 0)
+                let v: i128 = n.to_string().parse().map_err(|_| "number out of range")?;
+                Expr::Int(v, 0)
             }
         }
         Value::String(s) => Expr::Str(s.clone(), 0),

@@ -1,0 +1,100 @@
+module data.toml
+
+# TOML serialization (domain-closure gap), key-value subset: parse "key = value"
+# lines into [key, value] pairs; strip comments (#), blank lines and [section]
+# headers; unquote double-quoted string values. Bare values kept as text.
+# Pure, total. (Full TOML — arrays, tables, dates, escapes — is follow-up.)
+
+fn unquote(v: &text) -> text
+    let c = v.chars()
+    if c.len() >= 2
+        let first = copy(c[0])
+        let last = copy(c[c.len() - 1])
+        if first == "\""
+            if last == "\""
+                var out: text = ""
+                var i: usize = 1
+                while i + 1 < c.len() bound 67108864
+                    out = out + copy(c[i])
+                    i += 1
+                return out
+    return copy(v)
+
+fn parse_line(l: &text) -> List[text]
+    let line = l.strip()
+    if line.len_chars() == 0
+        return []
+    let cs = line.chars()
+    let c0 = copy(cs[0])
+    if c0 == "#"
+        return []
+    if c0 == "["
+        return []
+    let parts = line.split("=")
+    if parts.len() < 2
+        return []
+    let k = copy(parts[0]).strip()
+    let vraw = copy(parts[1]).strip()
+    let v = unquote(&vraw)
+    return [k, v]
+
+pub fn toml_parse(doc: &text) -> List[List[text]]
+    var out: List[List[text]] = []
+    for line in doc.split("\n")
+        let pair = parse_line(&line)
+        if pair.len() == 2
+            out.append(pair)
+    return out
+
+# Parse with [section] headers: keys are qualified as "section.key".
+pub fn toml_parse_sections(doc: &text) -> List[List[text]]
+    var out: List[List[text]] = []
+    var section: text = ""
+    for line in doc.split("\n")
+        let l = line.strip()
+        if l.len_chars() == 0
+            pass
+        else
+            let cs = l.chars()
+            if copy(cs[0]) == "#"
+                pass
+            else
+                if copy(cs[0]) == "["
+                    let name = copy(copy(l.split("[")[1]).split("]")[0]).strip()
+                    section = name
+                else
+                    let pair = parse_line(&l)
+                    if pair.len() == 2
+                        var full: text = copy(pair[0])
+                        if section.len_chars() > 0
+                            full = section + "." + copy(pair[0])
+                        out.append([full, copy(pair[1])])
+    return out
+
+# ---------------- spectests ----------------
+
+const DOC: text = "name = \"hello\"\ncount = 42\n# a comment\nenabled = true\n\n[server]\nport = 8080"
+const PARSED: List[List[text]] = toml_parse(&DOC)
+
+const E0: List[text] = ["name", "hello"]
+const E1: List[text] = ["count", "42"]
+const E2: List[text] = ["enabled", "true"]
+const E3: List[text] = ["port", "8080"]
+const EXPECT: List[List[text]] = [E0, E1, E2, E3]
+
+const EMPTY_DOC: text = ""
+const ONLY_COMMENT: text = "# nothing\n\n[sec]"
+
+check PARSED == EXPECT
+check PARSED.len() == 4
+check toml_parse(&EMPTY_DOC).len() == 0
+check toml_parse(&ONLY_COMMENT).len() == 0
+
+const SEC_DOC: text = "title = \"top\"\n[server]\nport = 8080\nhost = \"localhost\"\n[db]\nname = \"main\""
+const SEC: List[List[text]] = toml_parse_sections(&SEC_DOC)
+const S0: List[text] = ["title", "top"]
+const S1: List[text] = ["server.port", "8080"]
+const S2: List[text] = ["server.host", "localhost"]
+const S3: List[text] = ["db.name", "main"]
+const SEXPECT: List[List[text]] = [S0, S1, S2, S3]
+check SEC == SEXPECT

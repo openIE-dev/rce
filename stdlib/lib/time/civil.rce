@@ -1,0 +1,107 @@
+module time.civil
+
+# Civil calendar (P1 basis gap): proleptic Gregorian date <-> epoch days
+# (1970-01-01 = 0), Howard Hinnant's chrono-compatible algorithms. Pure i64,
+# total, deterministic. Date arithmetic via epoch days. Vectors checked
+# against Python datetime.date.toordinal / fromordinal (ordinal 719163 =
+# 1970-01-01).
+
+pub struct Date
+    year: i64
+    month: i64
+    day: i64
+
+# Days from 1970-01-01 to y-m-d (Hinnant days_from_civil).
+pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64
+    var yy = y
+    if m <= 2
+        yy -= 1
+    var era = yy / 400
+    if yy < 0
+        era = (yy - 399) / 400
+    let yoe = yy - era * 400
+    var mp = m + 9
+    if m > 2
+        mp = m - 3
+    let doy = (153 * mp + 2) / 5 + d - 1
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era * 146097 + doe - 719468
+
+# Inverse: epoch days -> y-m-d (Hinnant civil_from_days).
+pub fn civil_from_days(z0: i64) -> Date
+    let z = z0 + 719468
+    var era = z / 146097
+    if z < 0
+        era = (z - 146096) / 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let y = yoe + era * 400
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let d = doy - (153 * mp + 2) / 5 + 1
+    var m = mp + 3
+    if mp < 10
+        m = mp + 3
+    else
+        m = mp - 9
+    var yy = y
+    if m <= 2
+        yy += 1
+    return Date(year: yy, month: m, day: d)
+
+pub fn date_to_days(dt: &Date) -> i64
+    return days_from_civil(dt.year, dt.month, dt.day)
+
+pub fn date_from_days(z: i64) -> Date
+    return civil_from_days(z)
+
+# Day of week: 0 = Sunday .. 6 = Saturday (1970-01-01 was Thursday = 4).
+pub fn weekday(z: i64) -> i64
+    var w = (z + 4) % 7
+    if w < 0
+        w += 7
+    return w
+
+pub fn is_leap(y: i64) -> bool
+    if y % 4 != 0
+        return false
+    if y % 100 != 0
+        return true
+    if y % 400 != 0
+        return false
+    return true
+
+# ---------------- spectests (Python date vectors) ----------------
+
+const EPOCH: Date = civil_from_days(0)
+const D2000: Date = civil_from_days(10957)
+const D2024: Date = civil_from_days(19723)
+const D1969: Date = civil_from_days(0 - 1)
+const D2024FEB29: Date = civil_from_days(19782)
+
+check days_from_civil(1970, 1, 1) == 0
+check days_from_civil(2000, 1, 1) == 10957
+check days_from_civil(2024, 1, 1) == 19723
+check days_from_civil(1969, 12, 31) == -1
+check days_from_civil(2024, 2, 29) == 19782
+check days_from_civil(2024, 3, 1) == 19783
+
+check EPOCH.year == 1970
+check EPOCH.month == 1
+check EPOCH.day == 1
+check D2000.year == 2000
+check D2000.month == 1
+check D2000.day == 1
+check D2024.year == 2024
+check D2024FEB29.month == 2
+check D2024FEB29.day == 29
+check D1969.year == 1969
+check D1969.month == 12
+check D1969.day == 31
+
+check weekday(0) == 4
+check weekday(10957) == 6
+check is_leap(2000) == true
+check is_leap(1900) == false
+check is_leap(2024) == true
+check is_leap(2023) == false

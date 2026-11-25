@@ -240,7 +240,7 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
                 let v: i128 = txt
                     .parse()
                     .map_err(|_| format!("line {line}: W-LEX-3 literal out of range"))?;
-                if v > u64::MAX as i128 {
+                if v < 0 {
                     return Err(format!("line {line}: W-LEX-3 literal out of range"));
                 }
                 out.push((Tok::Int(v), line));

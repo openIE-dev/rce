@@ -1,0 +1,199 @@
+module num.big
+
+# Arbitrary-precision integers (P1 basis gap), base 10^9 little-endian limbs.
+# Pure i64 arithmetic (no u128 needed): limb products < 10^18 < i64::MAX.
+# Sign-magnitude; zero is canonical (neg=false, mag=[0]). add/sub/mul/compare,
+# from_i64 and to_text. Vectors checked against Python int arithmetic.
+
+const BASE: i64 = 1000000000
+
+pub struct BigInt
+    neg: bool
+    mag: List[i64]
+
+fn trim(m: &List[i64]) -> List[i64]
+    var out: List[i64] = copy(m)
+    while out.len() > 1 bound 100000
+        if copy(out[out.len() - 1]) == 0
+            let _ = out.pop()
+        else
+            break
+    return out
+
+fn mag_cmp(a: &List[i64], b: &List[i64]) -> i64
+    if a.len() != b.len()
+        if a.len() < b.len()
+            return 0 - 1
+        return 1
+    var i: usize = a.len()
+    while i > 0 bound 100000
+        i -= 1
+        let av = copy(a[i])
+        let bv = copy(b[i])
+        if av != bv
+            if av < bv
+                return 0 - 1
+            return 1
+    return 0
+
+fn mag_add(a: &List[i64], b: &List[i64]) -> List[i64]
+    var out: List[i64] = []
+    var carry: i64 = 0
+    var i: usize = 0
+    let n = if a.len() > b.len() then a.len() else b.len()
+    while i < n bound 100000
+        let av = if i < a.len() then copy(a[i]) else 0
+        let bv = if i < b.len() then copy(b[i]) else 0
+        let s = av + bv + carry
+        out.append(s % BASE)
+        carry = s / BASE
+        i += 1
+    if carry > 0
+        out.append(carry)
+    return trim(&out)
+
+# a - b, requires |a| >= |b|.
+fn mag_sub(a: &List[i64], b: &List[i64]) -> List[i64]
+    var out: List[i64] = []
+    var borrow: i64 = 0
+    var i: usize = 0
+    while i < a.len() bound 100000
+        let av = copy(a[i])
+        let bv = if i < b.len() then copy(b[i]) else 0
+        var d = av - bv - borrow
+        if d < 0
+            d += BASE
+            borrow = 1
+        else
+            borrow = 0
+        out.append(d)
+        i += 1
+    return trim(&out)
+
+fn mag_mul(a: &List[i64], b: &List[i64]) -> List[i64]
+    var out: List[i64] = [0 for _ in 0..(a.len() + b.len())]
+    var i: usize = 0
+    while i < a.len() bound 100000
+        var carry: i64 = 0
+        var j: usize = 0
+        while j < b.len() bound 100000
+            let cur = copy(out[i + j]) + copy(a[i]) * copy(b[j]) + carry
+            out[i + j] = cur % BASE
+            carry = cur / BASE
+            j += 1
+        out[i + b.len()] = carry
+        i += 1
+    return trim(&out)
+
+pub fn big_from_i64(v: i64) -> BigInt
+    var neg = v < 0
+    var x = if v < 0 then 0 - v else v
+    var mag: List[i64] = []
+    if x == 0
+        return BigInt(neg: false, mag: [0])
+    while x > 0 bound 1000
+        mag.append(x % BASE)
+        x = x / BASE
+    return BigInt(neg: neg, mag: mag)
+
+pub fn big_add(a: &BigInt, b: &BigInt) -> BigInt
+    if a.neg == b.neg
+        let m = mag_add(&a.mag, &b.mag)
+        var neg = a.neg
+        if m.len() == 1
+            if copy(m[0]) == 0
+                neg = false
+        return BigInt(neg: neg, mag: m)
+    let c = mag_cmp(&a.mag, &b.mag)
+    if c == 0
+        return BigInt(neg: false, mag: [0])
+    if c > 0
+        return BigInt(neg: a.neg, mag: mag_sub(&a.mag, &b.mag))
+    return BigInt(neg: b.neg, mag: mag_sub(&b.mag, &a.mag))
+
+pub fn big_sub(a: &BigInt, b: &BigInt) -> BigInt
+    let nb = BigInt(neg: not b.neg, mag: copy(b.mag))
+    return big_add(a, &nb)
+
+pub fn big_mul(a: &BigInt, b: &BigInt) -> BigInt
+    let m = mag_mul(&a.mag, &b.mag)
+    var neg = a.neg != b.neg
+    if m.len() == 1
+        if copy(m[0]) == 0
+            neg = false
+    return BigInt(neg: neg, mag: m)
+
+pub fn big_cmp(a: &BigInt, b: &BigInt) -> i64
+    if a.neg != b.neg
+        if a.neg
+            return 0 - 1
+        return 1
+    let c = mag_cmp(&a.mag, &b.mag)
+    if a.neg
+        return 0 - c
+    return c
+
+fn limb9(v: i64) -> text
+    var s = ""
+    var x = v
+    var k: usize = 0
+    while k < 9 bound 9
+        s = copy("0123456789".chars()[(x % 10) as usize]) + s
+        x = x / 10
+        k += 1
+    return s
+
+pub fn big_to_text(a: &BigInt) -> text
+    var s = ""
+    var i: usize = a.mag.len()
+    while i > 0 bound 100000
+        i -= 1
+        let limb = copy(a.mag[i])
+        if i == a.mag.len() - 1
+            s = s + fmt_int_dec(limb)
+        else
+            s = s + limb9(limb)
+    if a.neg
+        return "-" + s
+    return s
+
+fn fmt_int_dec(v: i64) -> text
+    if v == 0
+        return "0"
+    var s = ""
+    var x = v
+    while x > 0 bound 1000
+        s = copy("0123456789".chars()[(x % 10) as usize]) + s
+        x = x / 10
+    return s
+
+# ---------------- spectests (Python int vectors) ----------------
+
+const Z: BigInt = big_from_i64(0)
+const A: BigInt = big_from_i64(123456789)
+const B: BigInt = big_from_i64(987654321)
+const BIG1: BigInt = big_from_i64(999999999999999999)
+const ONE: BigInt = big_from_i64(1)
+const NEG5: BigInt = big_from_i64(0 - 5)
+const POS3: BigInt = big_from_i64(3)
+
+const SUM_AB: BigInt = big_add(&A, &B)
+const SUM_BIG: BigInt = big_add(&BIG1, &ONE)
+const MUL_AB: BigInt = big_mul(&A, &B)
+const SUB_BA: BigInt = big_sub(&B, &A)
+const SUM_NP: BigInt = big_add(&NEG5, &POS3)
+const SUB_PN: BigInt = big_sub(&POS3, &NEG5)
+const MUL_NP: BigInt = big_mul(&NEG5, &POS3)
+
+check big_to_text(&Z) == "0"
+check big_to_text(&A) == "123456789"
+check big_to_text(&SUM_AB) == "1111111110"
+check big_to_text(&SUM_BIG) == "1000000000000000000"
+check big_to_text(&MUL_AB) == "121932631112635269"
+check big_to_text(&SUB_BA) == "864197532"
+check big_to_text(&SUM_NP) == "-2"
+check big_to_text(&SUB_PN) == "8"
+check big_cmp(&A, &B) == -1
+check big_cmp(&B, &A) == 1
+check big_cmp(&A, &A) == 0
+check big_to_text(&MUL_NP) == "-15"

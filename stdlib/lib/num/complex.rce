@@ -1,0 +1,68 @@
+module num.complex
+
+# Complex numbers (data-type closure gap): f64 re/im, add/sub/mul/div/conj/
+# norm2. Division uses Smith's method to avoid overflow. Pure, total; f64 ops
+# are correctly rounded (6.3 N3) and trap on non-finite. Vectors exact.
+
+pub struct Complex
+    re: f64
+    im: f64
+
+fn fabs(x: f64) -> f64
+    if x < 0.0
+        return 0.0 - x
+    return x
+
+pub fn cx_add(a: &Complex, b: &Complex) -> Complex
+    return Complex(re: a.re + b.re, im: a.im + b.im)
+
+pub fn cx_sub(a: &Complex, b: &Complex) -> Complex
+    return Complex(re: a.re - b.re, im: a.im - b.im)
+
+pub fn cx_mul(a: &Complex, b: &Complex) -> Complex
+    return Complex(re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re)
+
+pub fn cx_conj(a: &Complex) -> Complex
+    return Complex(re: a.re, im: 0.0 - a.im)
+
+pub fn cx_norm2(a: &Complex) -> f64
+    return a.re * a.re + a.im * a.im
+
+pub fn cx_div(a: &Complex, b: &Complex) -> Complex
+    if fabs(b.re) >= fabs(b.im)
+        let r = b.im / b.re
+        let d = b.re + b.im * r
+        return Complex(re: (a.re + a.im * r) / d, im: (a.im - a.re * r) / d)
+    else
+        let r = b.re / b.im
+        let d = b.re * r + b.im
+        return Complex(re: (a.re * r + a.im) / d, im: (a.im * r - a.re) / d)
+
+# ---------------- spectests (exact integer-valued vectors) ----------------
+
+const A: Complex = Complex(re: 1.0, im: 2.0)
+const B: Complex = Complex(re: 3.0, im: 4.0)
+const REAL: Complex = Complex(re: 1.0, im: 0.0)
+const C34: Complex = Complex(re: 3.0, im: 4.0)
+
+const SUM: Complex = cx_add(&A, &B)
+const DIFF: Complex = cx_sub(&A, &B)
+const PROD: Complex = cx_mul(&A, &B)
+const QUOT: Complex = cx_div(&A, &REAL)
+const CONJ: Complex = cx_conj(&A)
+const N2: f64 = cx_norm2(&C34)
+const DIV2: Complex = cx_div(&PROD, &B)
+
+check SUM.re == 4.0
+check SUM.im == 6.0
+check DIFF.re == -2.0
+check DIFF.im == -2.0
+check PROD.re == -5.0
+check PROD.im == 10.0
+check QUOT.re == 1.0
+check QUOT.im == 2.0
+check CONJ.re == 1.0
+check CONJ.im == -2.0
+check N2 == 25.0
+check DIV2.re == 1.0
+check DIV2.im == 2.0

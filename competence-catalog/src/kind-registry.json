@@ -1,0 +1,212 @@
+{
+ "Op": {
+  "module": "col.func",
+  "qualified": "col.func.Op",
+  "ctors": {
+   "Add": {},
+   "Mul": {},
+   "Sub": {},
+   "Max": {},
+   "Min": {},
+   "EqZero": {},
+   "GtZero": {},
+   "LtZero": {},
+   "Even": {},
+   "Odd": {},
+   "Pos": {},
+   "Neg": {},
+   "Abs": {},
+   "Not": {}
+  }
+ },
+ "PList": {
+  "module": "col.persistent",
+  "qualified": "col.persistent.PList",
+  "ctors": {
+   "Nil": {},
+   "Cons": {
+    "head": "i64",
+    "tail": "List[PList]"
+   }
+  }
+ },
+ "Jv": {
+  "module": "data.events",
+  "qualified": "data.events.Jv",
+  "ctors": {
+   "JsNull": {},
+   "JsBool": {
+    "v": "bool"
+   },
+   "JsNum": {
+    "raw": "text"
+   },
+   "JsStr": {
+    "t": "text"
+   },
+   "JsArr": {
+    "items": "List[Jv]"
+   },
+   "JsObj": {
+    "keys": "List[text]",
+    "vals": "List[Jv]"
+   }
+  }
+ },
+ "Val": {
+  "module": "data.events",
+  "qualified": "data.events.Val",
+  "ctors": {
+   "VStr": {
+    "t": "text"
+   },
+   "VInt": {
+    "v": "i64"
+   },
+   "VBool": {
+    "v": "bool"
+   }
+  }
+ },
+ "Data": {
+  "module": "data.events",
+  "qualified": "data.events.Data",
+  "ctors": {
+   "DNone": {},
+   "DJson": {
+    "v": "Jv"
+   },
+   "DText": {
+    "t": "text"
+   },
+   "DBin": {
+    "b": "List[i64]"
+   }
+  }
+ },
+ "Body": {
+  "module": "data.events",
+  "qualified": "data.events.Body",
+  "ctors": {
+   "BEmpty": {},
+   "BText": {
+    "t": "text"
+   },
+   "BBytes": {
+    "b": "List[i64]"
+   }
+  }
+ },
+ "Cbor": {
+  "module": "enc",
+  "qualified": "enc.Cbor",
+  "ctors": {
+   "CInt": {
+    "v": "i64"
+   },
+   "CBytes": {
+    "b": "List[i64]"
+   },
+   "CText": {
+    "t": "text"
+   },
+   "CArr": {
+    "items": "List[Cbor]"
+   },
+   "CMap": {
+    "keys": "List[Cbor]",
+    "vals": "List[Cbor]"
+   },
+   "CTag": {
+    "tag": "i64",
+    "item": "Box[Cbor]"
+   },
+   "CSimple": {
+    "v": "i64"
+   }
+  }
+ },
+ "JsonDoc": {
+  "module": "enc",
+  "qualified": "enc.JsonDoc",
+  "ctors": {
+   "JNull": {},
+   "JBool": {
+    "v": "bool"
+   },
+   "JInt": {
+    "v": "i64"
+   },
+   "JStr": {
+    "t": "text"
+   },
+   "JArr": {
+    "items": "List[JsonDoc]"
+   },
+   "JObj": {
+    "keys": "List[text]",
+    "vals": "List[JsonDoc]"
+   }
+  }
+ },
+ "HsState": {
+  "module": "net.tls",
+  "qualified": "net.tls.HsState",
+  "ctors": {
+   "Start": {},
+   "WaitServerHello": {},
+   "WaitEncryptedExtensions": {},
+   "WaitCertificate": {},
+   "WaitCertificateVerify": {},
+   "WaitFinished": {},
+   "Connected": {},
+   "Failed": {}
+  }
+ },
+ "PParser": {
+  "module": "text.parse",
+  "qualified": "text.parse.PParser",
+  "ctors": {
+   "PChar": {
+    "want": "text"
+   },
+   "PSeq": {
+    "a": "PParser",
+    "b": "PParser"
+   },
+   "PAlt": {
+    "a": "PParser",
+    "b": "PParser"
+   },
+   "PMany": {
+    "p": "PParser"
+   },
+   "PDigit": {},
+   "PInt": {},
+   "PFixed": {
+    "v": "i64"
+   }
+  }
+ },
+ "V": {
+  "module": "ui.ecma",
+  "qualified": "ui.ecma.V",
+  "ctors": {
+   "Und": {},
+   "Nul": {},
+   "Bo": {
+    "b": "bool"
+   },
+   "Nm": {
+    "n": "i64"
+   },
+   "NaN": {},
+   "St": {
+    "s": "text"
+   },
+   "Rf": {
+    "r": "i64"
+   }
+  }
+ }
+}
