@@ -129,6 +129,32 @@ pub fn ingest_chunks(chunks: &[Vec<Trajectory>], plant: &crate::twin::Plant, tol
     IngestReport { offered, admitted, dedup, refused, refused_twin, keys }
 }
 
+/// Identified-plant admission: choose the candidate plant dt that best explains the corpus
+/// (max admitted episodes), then gate against it. Episodes are admitted against an
+/// *identified* plant, not an assumed one; None when no candidate explains any episode.
+pub fn identify_plant(
+    eps: &[Trajectory],
+    candidates: &[f64],
+    tol: f64,
+) -> Option<(crate::twin::Plant, IngestReport)> {
+    let mut best: Option<(crate::twin::Plant, IngestReport)> = Option::None;
+    for dt in candidates {
+        if !dt.is_finite() || *dt <= 0.0 {
+            continue;
+        }
+        let plant = crate::twin::Plant { dt: *dt };
+        let r = ingest_gated(eps, &plant, tol);
+        let better = match &best {
+            Option::None => r.admitted > 0,
+            Option::Some((_, br)) => r.admitted > br.admitted,
+        };
+        if better {
+            best = Option::Some((plant, r));
+        }
+    }
+    best
+}
+
 /// Standards-style episode manifest (India consortium / AAIF interop seed): name-free
 /// content keys, counts, and refusal reasons — the receipt a dataset standard can verify.
 pub fn manifest(r: &IngestReport) -> serde_json::Value {
