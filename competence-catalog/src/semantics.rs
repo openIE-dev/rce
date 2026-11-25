@@ -124,3 +124,90 @@ pub fn preserve(e: &Expr, from: Lang, to: Lang) -> Expr {
         _ => e.clone(),
     }
 }
+
+// ---- Next stress layers: index base, layout, overflow, short-circuit ----
+
+/// Array index base: Fortran/Ada 1-based; C-family/Python 0-based.
+pub fn index_base(l: Lang) -> i128 {
+    match l { Lang::Fortran | Lang::Ada => 1, _ => 0 }
+}
+
+/// Column-major (Fortran) vs row-major (C-family) linearization.
+pub fn col_major(l: Lang) -> bool {
+    matches!(l, Lang::Fortran)
+}
+
+/// Linear offset of (i,j) in a rows×cols matrix under the language's layout (0-based i,j).
+pub fn linearize(i: i128, j: i128, rows: i128, cols: i128, l: Lang) -> i128 {
+    if col_major(l) { j * rows + i } else { i * cols + j }
+}
+
+/// Shift index expressions by the base difference so a port addresses the same element.
+pub fn preserve_index(e: &Expr, from: Lang, to: Lang) -> Expr {
+    use Expr::*;
+    match e {
+        Index(a, idx, s) => {
+            let shift = index_base(to) - index_base(from);
+            let idx2 = idx.iter().map(|i| {
+                if shift != 0 { bin("+", i.clone(), int(shift)) } else { i.clone() }
+            }).collect();
+            Index(a.clone(), idx2, *s)
+        }
+        _ => e.clone(),
+    }
+}
+
+/// Fixed-width wrap (C/Rust/Ada/OCaml/Fortran integers) vs arbitrary precision (Python/Haskell).
+pub fn wrap_bits(l: Lang) -> Option<u32> {
+    match l { Lang::Python | Lang::Haskell => None, _ => Some(64) }
+}
+
+fn wrap(v: i128, bits: u32) -> i128 {
+    let m = 1i128 << bits;
+    let r = v.rem_euclid(m);
+    if r >= (m >> 1) { r - m } else { r }
+}
+
+/// Evaluate with the language's overflow semantics (wrap at fixed width, or unbounded).
+pub fn eval_wrapped(e: &Expr, l: Lang) -> Option<i128> {
+    let v = eval(e, l)?;
+    Some(match wrap_bits(l) { Some(b) => wrap(v, b), None => v })
+}
+
+/// Short-circuit `and`/`or` (Python/Rust/C) vs eager evaluation: a dead `1/0` must not be evaluated.
+/// Strict division-by-zero yields None here so the gotcha is observable.
+pub fn eval_sc(e: &Expr, l: Lang, short_circuit: bool) -> Option<i128> {
+    use Expr::*;
+    match e {
+        Int(n, _) => Some(*n),
+        Neg(a, _) => eval_sc(a, l, short_circuit).map(|v| -v),
+        Bin(op, a, b, _) => {
+            let x = eval_sc(a, l, short_circuit)?;
+            match op.as_str() {
+                "and" if short_circuit => {
+                    if x == 0 { return Some(0); }
+                    eval_sc(b, l, short_circuit).map(|y| (y != 0) as i128)
+                }
+                "or" if short_circuit => {
+                    if x != 0 { return Some(1); }
+                    eval_sc(b, l, short_circuit).map(|y| (y != 0) as i128)
+                }
+                "/" => {
+                    let y = eval_sc(b, l, short_circuit)?;
+                    if y == 0 { return Option::None; }
+                    Some(div(x, y, l))
+                }
+                _ => {
+                    let y = eval_sc(b, l, short_circuit)?;
+                    Some(match op.as_str() {
+                        "+" => x + y, "-" => x - y, "*" => x * y, "%" => modulo(x, y, l),
+                        "and" => ((x != 0) && (y != 0)) as i128,
+                        "or" => ((x != 0) || (y != 0)) as i128,
+                        _ => return Option::None,
+                    })
+                }
+            }
+        }
+        _ => Option::None,
+    }
+}
