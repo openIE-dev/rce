@@ -84,6 +84,65 @@ pub fn pressure_limit_ok(pressures: &[f64], limit_pa: f64) -> bool {
     limit_pa.is_finite() && limit_pa >= 0.0 && pressures.iter().all(|p| p.is_finite() && *p <= limit_pa)
 }
 
+/// A richer plant for physics-fidelity sim2real: double integrator + gravity + linear drag
+/// + a floor at `wall` with coefficient of restitution. Still a seed — full rigid-body /
+/// multi-contact solving remains the open frontier.
+#[derive(Clone, Copy, Debug)]
+pub struct Plant2 {
+    pub dt: f64,
+    pub gravity: f64,
+    pub drag: f64,
+    pub wall: f64,
+    pub restitution: f64,
+}
+
+/// Simulate Plant2; returns the position trace. Contact clamps to the floor and reflects
+/// velocity by the restitution coefficient.
+pub fn simulate2(p: &Plant2, acts: &[f64]) -> Vec<f64> {
+    let (mut x, mut v) = (0.0, 0.0);
+    acts.iter()
+        .map(|a| {
+            let acc = a - p.gravity - p.drag * v;
+            v += acc * p.dt;
+            x += v * p.dt;
+            if x < p.wall {
+                x = p.wall;
+                v = -v * p.restitution;
+            }
+            x
+        })
+        .collect()
+}
+
+/// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
+/// explains the recording; None when no candidate is within tol.
+pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {
+    if !tol.is_finite() || tol < 0.0 {
+        return Option::None;
+    }
+    let mut best: Option<(Plant2, f64)> = Option::None;
+    for p in candidates {
+        if !p.dt.is_finite() || p.dt <= 0.0 {
+            continue;
+        }
+        let d = match divergence(recorded, &simulate2(p, acts)) {
+            Option::Some(d) => d,
+            Option::None => continue,
+        };
+        let better = match best {
+            Option::None => true,
+            Option::Some((_, bd)) => d < bd,
+        };
+        if better {
+            best = Option::Some((*p, d));
+        }
+    }
+    match best {
+        Option::Some((p, d)) if d <= tol => Option::Some((p, d)),
+        _ => Option::None,
+    }
+}
+
 /// Real-to-sim seed (system identification): pick the candidate dt whose simulated trace
 /// best explains the recorded trace; return (dt, divergence) only if within tol.
 /// None when no candidate explains the data — the sim2real gap stays visible, not hidden.
