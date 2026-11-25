@@ -264,6 +264,8 @@ name = "competence-catalog"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "num-bigint",
+ "num-traits",
  "rce-energy",
  "rce-spec-check",
  "rcevc-core",

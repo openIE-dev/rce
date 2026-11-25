@@ -211,3 +211,41 @@ pub fn eval_sc(e: &Expr, l: Lang, short_circuit: bool) -> Option<i128> {
         _ => Option::None,
     }
 }
+
+// ---- Bigint overflow compensation ----
+
+/// Unbounded (arbitrary-precision) evaluation — the Python/Haskell integer semantics.
+pub fn eval_big(e: &Expr) -> Option<num_bigint::BigInt> {
+    use Expr::*;
+    use num_bigint::BigInt;
+    match e {
+        Int(n, _) => Some(BigInt::from(*n)),
+        Neg(a, _) => eval_big(a).map(|v| -v),
+        Bin(op, a, b, _) => {
+            let (x, y) = (eval_big(a)?, eval_big(b)?);
+            Some(match op.as_str() {
+                "+" => x + y,
+                "-" => x - y,
+                "*" => x * y,
+                "/" => if y == BigInt::from(0) { return Option::None } else { x / y },
+                "%" => if y == BigInt::from(0) { return Option::None } else { x % y },
+                _ => return Option::None,
+            })
+        }
+        _ => Option::None,
+    }
+}
+
+/// Porting unbounded→fixed-width loses information unless the target uses a bigint type.
+pub fn needs_bigint(from: Lang, to: Lang) -> bool {
+    wrap_bits(from).is_none() && wrap_bits(to).is_some()
+}
+
+/// The overflow-compensation plan for a port: which integer type the target must use.
+pub fn overflow_plan(from: Lang, to: Lang) -> &'static str {
+    if needs_bigint(from, to) {
+        "target must use an arbitrary-precision integer type (bigint) to preserve the value"
+    } else {
+        "native fixed-width integer is sufficient; no overflow compensation needed"
+    }
+}

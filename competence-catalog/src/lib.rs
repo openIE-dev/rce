@@ -20,6 +20,7 @@
 //! and D.11 provenance supplied by `rce-energy`.
 
 pub mod bench;
+pub mod borrow;
 pub mod build;
 pub mod canonical;
 pub mod compiler;
@@ -56,6 +57,8 @@ pub mod structure;
 pub mod symbolic;
 pub mod synthesis;
 pub mod threshold;
+pub mod train;
+pub mod trust;
 pub mod unsilo;
 pub mod workflow;
 pub mod worldmodel;

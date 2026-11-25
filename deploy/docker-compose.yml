@@ -1,0 +1,22 @@
+# Turnkey dev-env / production deploy of the RCE substrate.
+#   docker compose -f deploy/docker-compose.yml up --build
+# Two federated catalog nodes (CALM merge) + the playground/IDE are served from the monorepo.
+services:
+  catalog-a:
+    build:
+      context: ..
+      dockerfile: deploy/catalog.Dockerfile
+    environment:
+      RCE_CATALOG_PORT: "8765"
+      RCE_NODE: node-a
+    ports:
+      - "8765:8765"
+  catalog-b:
+    build:
+      context: ..
+      dockerfile: deploy/catalog.Dockerfile
+    environment:
+      RCE_CATALOG_PORT: "8766"
+      RCE_NODE: node-b
+    ports:
+      - "8766:8766"
