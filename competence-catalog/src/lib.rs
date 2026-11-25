@@ -48,6 +48,7 @@ pub mod replay;
 pub mod runtime;
 pub mod spec_bridge;
 pub mod semantic;
+pub mod semantics;
 pub mod stack;
 pub mod store;
 pub mod structural;
