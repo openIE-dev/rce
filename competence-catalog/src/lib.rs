@@ -44,6 +44,7 @@ pub mod lift;
 pub mod lift_broad;
 pub mod lut_emit;
 pub mod placement;
+pub mod realtime;
 pub mod repair;
 pub mod replay;
 pub mod repo;
