@@ -432,6 +432,55 @@ fn complete_higher(l: &mut LanguageLut) {
     // Some surfaces (e.g. MATLAB) lack an expression-form conditional; complete it structurally.
     l.templates.entry("if_expr".to_string())
         .or_insert_with(|| "({cond} ? {then} : {else})".to_string());
+
+    // Statement-level constructs (the whole-program layer), completed per family as data.
+    let ml = l.template("if_expr").map(|t| t.starts_with("(if")).unwrap_or(false);
+    let stmts: &[(&str, &str)] = if lisp {
+        &[
+            ("let", "(def {name} {value})"),
+            ("assign", "(setf {name} {value})"),
+            ("return", "{value}"),
+            ("if_stmt", "(if {cond} {then} {else})"),
+            ("while", "(loop while {cond} do {body})"),
+            ("for", "(loop for {name} from {lo} below {hi} do {body})"),
+            ("import", "(require '{name})"),
+            ("type_def", "(deftype {name} ())"),
+            ("fn", "(defun {name} ({params}) {body})"),
+            ("param", "{name}"),
+            ("sep", "\n"),
+        ]
+    } else if ml {
+        &[
+            ("let", "let {name} = {value}"),
+            ("assign", "{name} <- {value};"),
+            ("return", "{value}"),
+            ("if_stmt", "(if {cond} then {then} else {else})"),
+            ("while", "while {cond} do {body} done"),
+            ("for", "for {name} = {lo} to {hi} do {body} done"),
+            ("import", "open {name}"),
+            ("type_def", "type {name}"),
+            ("fn", "let {name} ({params}) : {ret} = {body}"),
+            ("param", "{name}: {type}"),
+            ("sep", "\n"),
+        ]
+    } else {
+        &[
+            ("let", "let {name} = {value};"),
+            ("assign", "{name} = {value};"),
+            ("return", "return {value};"),
+            ("if_stmt", "if ({cond}) {{ {then} }} else {{ {else} }}"),
+            ("while", "while ({cond}) {{ {body} }}"),
+            ("for", "for (let {name} = {lo}; {name} < {hi}; {name}++) {{ {body} }}"),
+            ("import", "import {name};"),
+            ("type_def", "type {name};"),
+            ("fn", "fn {name}({params}) -> {ret} {{ {body} }}"),
+            ("param", "{name}: {type}"),
+            ("sep", "\n"),
+        ]
+    };
+    for (k, t) in stmts {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program
@@ -439,12 +488,20 @@ fn complete_higher(l: &mut LanguageLut) {
 pub enum Stmt {
     /// `let name = expr`.
     Let(String, Expr),
+    /// `name = expr` (mutation of an existing binding).
+    Assign(String, Expr),
     /// `return expr`.
     Return(Expr),
     /// `if cond then else` (single-statement branches).
     If(Expr, Box<Stmt>, Box<Stmt>),
     /// `while cond body`.
     While(Expr, Box<Stmt>),
+    /// `for name in lo..hi body`.
+    For(String, Expr, Expr, Box<Stmt>),
+    /// `import path`.
+    Import(String),
+    /// `type name` (declaration).
+    TypeDef(String),
     /// A statement sequence.
     Seq(Vec<Stmt>),
 }
@@ -470,9 +527,29 @@ pub fn render_stmt(s: &Stmt, lut: &LanguageLut) -> Result<String, String> {
             subs.insert("value".into(), render(e, lut)?);
             "let"
         }
+        Stmt::Assign(n, e) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("value".into(), render(e, lut)?);
+            "assign"
+        }
         Stmt::Return(e) => {
             subs.insert("value".into(), render(e, lut)?);
             "return"
+        }
+        Stmt::For(n, lo, hi, b) => {
+            subs.insert("name".into(), n.clone());
+            subs.insert("lo".into(), render(lo, lut)?);
+            subs.insert("hi".into(), render(hi, lut)?);
+            subs.insert("body".into(), render_stmt(b, lut)?);
+            "for"
+        }
+        Stmt::Import(p) => {
+            subs.insert("name".into(), p.clone());
+            "import"
+        }
+        Stmt::TypeDef(n) => {
+            subs.insert("name".into(), n.clone());
+            "type_def"
         }
         Stmt::If(c, t, f) => {
             subs.insert("cond".into(), render(c, lut)?);

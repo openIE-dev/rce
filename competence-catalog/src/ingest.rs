@@ -41,6 +41,23 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "scoped_type_identifier" => { out.insert("member"); }
         "list" | "array" | "array_expression" | "list_expression" | "tuple" | "list_comp"
         | "tuple_expression" | "vector_expression" => { out.insert("list"); }
+        // Whole-program (statement/declaration) layer — the IR-kind expansion.
+        "let_declaration" | "variable_declaration" | "val_declaration" | "let_binding"
+        | "let_expression" | "var_declaration" => { out.insert("let"); }
+        "assignment_expression" | "assignment" | "assign_expression" | "set_expression"
+        | "assignment_statement" => { out.insert("assign"); }
+        "return_statement" | "return_expression" | "return" => { out.insert("return"); }
+        "while_expression" | "while_statement" | "loop_expression" | "while" => { out.insert("while"); }
+        "for_expression" | "for_statement" | "for_in_expression" | "foreach_statement"
+        | "for_in_statement" | "for" => { out.insert("for"); }
+        "use_declaration" | "import_statement" | "import_declaration" | "include_directive"
+        | "require_expression" | "open_statement" | "use_item" | "import" => { out.insert("import"); }
+        "type_identifier" | "type_declaration" | "struct_item" | "enum_item" | "trait_item"
+        | "impl_item" | "class_declaration" | "interface_declaration" | "type_alias_declaration"
+        | "struct_specifier" | "enum_specifier" | "class_specifier" | "type_item" => { out.insert("type_def"); }
+        "function_item" | "function_declaration" | "function_definition" | "method_declaration"
+        | "method_definition" | "fn_item" | "function" | "def_declaration" | "fun_declaration" => { out.insert("fn"); }
+        "if_statement" | "if_expression" => { out.insert("if_stmt"); }
         _ => {}
     }
 }

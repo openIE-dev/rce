@@ -47,6 +47,31 @@ fn lex(src: &str) -> Result<Vec<Tok>, String> {
                 chars.next();
                 toks.push(Tok::Op(c.to_string()));
             }
+            '<' | '>' => {
+                chars.next();
+                if chars.peek() == Some(&'=') { chars.next(); toks.push(Tok::Op(format!("{c}="))); }
+                else { toks.push(Tok::Op(c.to_string())); }
+            }
+            '=' => {
+                chars.next();
+                if chars.peek() == Some(&'=') { chars.next(); toks.push(Tok::Op("==".into())); }
+                else { return Err("expected ==".into()); }
+            }
+            '!' => {
+                chars.next();
+                if chars.peek() == Some(&'=') { chars.next(); toks.push(Tok::Op("!=".into())); }
+                else { return Err("expected !=".into()); }
+            }
+            '&' => {
+                chars.next();
+                if chars.peek() == Some(&'&') { chars.next(); toks.push(Tok::Op("&&".into())); }
+                else { return Err("expected &&".into()); }
+            }
+            '|' => {
+                chars.next();
+                if chars.peek() == Some(&'|') { chars.next(); toks.push(Tok::Op("||".into())); }
+                else { return Err("expected ||".into()); }
+            }
             _ => return Err(format!("unexpected character {c}")),
         }
     }
@@ -56,8 +81,11 @@ fn lex(src: &str) -> Result<Vec<Tok>, String> {
 /// Operator precedence (the grammar table).
 fn precedence(op: &str) -> u8 {
     match op {
-        "+" | "-" => 1,
-        "*" | "/" | "%" => 2,
+        "||" => 1,
+        "&&" => 2,
+        "==" | "!=" | "<" | ">" | "<=" | ">=" => 3,
+        "+" | "-" => 4,
+        "*" | "/" | "%" => 5,
         _ => 0,
     }
 }
@@ -99,7 +127,7 @@ impl Parser {
             Some(Tok::Int(n)) => Ok(Expr::Int(n, 0)),
             Some(Tok::Ident(id)) => Ok(Expr::Name(id, 0)),
             Some(Tok::Op(op)) if op == "-" => {
-                let e = self.expr(3)?;
+                let e = self.expr(6)?;
                 Ok(Expr::Neg(Box::new(e), 0))
             }
             Some(Tok::LParen) => {

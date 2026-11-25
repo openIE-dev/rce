@@ -14,6 +14,8 @@ pub const CONSTRUCTS: &[&str] = &[
     "int_lit", "float_lit", "bool_lit", "str_lit", "var", "neg", "not",
     "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "gt", "le", "ge",
     "and", "or", "if_expr", "call", "index", "member", "list",
+    // Whole-program (statement) layer — the IR-kind expansion beyond expressions.
+    "let", "assign", "return", "if_stmt", "while", "for", "import", "type_def", "fn",
 ];
 
 /// Constructs a LUT covers (present templates ∩ taxonomy).
