@@ -24,7 +24,10 @@ pub struct Jit {
 
 impl Jit {
     pub fn new() -> Self {
-        let dir = std::env::temp_dir().join("rce-jit-cache");
+        // Per-instance dir: parallel tests/instances must not race on the same exe path.
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("rce-jit-cache-{n}"));
         let _ = std::fs::create_dir_all(&dir);
         Jit { cache: HashMap::new(), dir, compiles: 0, hits: 0, hot: HashMap::new(), threshold: 3 }
     }
@@ -140,6 +143,106 @@ impl DeadlineJit {
 }
 
 impl Default for DeadlineJit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Tracing-JIT seed: trace hot subtrees, compile each distinct hot subtree to native ONCE
+/// (content-keyed guard), reuse the native helper afterwards; deopt to the interpreter when
+/// a guard/compile fails. Compile energy is paid per distinct hot subtree, amortized over
+/// every occurrence — the tracing/tiering frontier in seed form.
+pub struct TracingJit {
+    pub jit: Jit,
+    hot: HashMap<String, u64>,
+    pub threshold: u64,
+    pub deopts: u64,
+    pub subtree_compiles: u64,
+}
+
+impl TracingJit {
+    pub fn new() -> Self {
+        TracingJit { jit: Jit::new(), hot: HashMap::new(), threshold: 2, deopts: 0, subtree_compiles: 0 }
+    }
+
+    /// Run a Form; returns (result, used_native). Guard misses deopt, never wrong answers.
+    pub fn run(&mut self, src: &str) -> Result<(String, bool), String> {
+        let e = crate::lift::lift_expr(src)?;
+        let (mut native, mut deopt) = (false, false);
+        let v = self.eval_traced(&e, &mut native, &mut deopt);
+        if deopt {
+            self.deopts += 1;
+        }
+        match v {
+            Some(v) => Ok((v.to_string(), native)),
+            None => Err("not a closed form".into()),
+        }
+    }
+
+    fn eval_traced(&mut self, e: &rce_spec_check::ast::Expr, native: &mut bool, deopt: &mut bool) -> Option<i128> {
+        let rendered = crate::canonical::emit(e);
+        let key = match canonical_key(&rendered) {
+            Ok(k) => k,
+            Err(_) => {
+                *deopt = true;
+                return crate::repair::eval_expr(e);
+            }
+        };
+        let n = self.hot.entry(key.clone()).or_insert(0);
+        *n += 1;
+        if *n >= self.threshold {
+            if self.jit.cache.contains_key(&key) {
+                if let Ok(out) = self.jit.run(&rendered) {
+                    if let Ok(v) = out.parse::<i128>() {
+                        *native = true;
+                        return Some(v);
+                    }
+                }
+                *deopt = true;
+                return crate::repair::eval_expr(e);
+            }
+            return match self.jit.run(&rendered) {
+                Ok(out) => {
+                    self.subtree_compiles += 1;
+                    match out.parse::<i128>() {
+                        Ok(v) => {
+                            *native = true;
+                            Some(v)
+                        }
+                        Err(_) => {
+                            *deopt = true;
+                            crate::repair::eval_expr(e)
+                        }
+                    }
+                }
+                Err(_) => {
+                    *deopt = true;
+                    crate::repair::eval_expr(e)
+                }
+            };
+        }
+        use rce_spec_check::ast::Expr::*;
+        match e {
+            Int(v, _) => Some(*v),
+            Neg(a, _) => Some(-self.eval_traced(a, native, deopt)?),
+            Bin(op, a, b, _) => {
+                let x = self.eval_traced(a, native, deopt)?;
+                let y = self.eval_traced(b, native, deopt)?;
+                match op.as_str() {
+                    "+" => Some(x + y),
+                    "-" => Some(x - y),
+                    "*" => Some(x * y),
+                    "/" => if y != 0 { Some(x / y) } else { Option::None },
+                    "%" => if y != 0 { Some(x % y) } else { Option::None },
+                    _ => crate::repair::eval_expr(e),
+                }
+            }
+            _ => crate::repair::eval_expr(e),
+        }
+    }
+}
+
+impl Default for TracingJit {
     fn default() -> Self {
         Self::new()
     }

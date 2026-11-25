@@ -152,3 +152,37 @@ impl LatentPredictor {
         p.iter().zip(y).map(|(a, c)| (a - c) * (a - c)).sum::<f64>()
     }
 }
+
+fn pool(y: &[f64], mid: usize) -> Vec<f64> {
+    (0..mid).map(|i| y.get(i).copied().unwrap_or(0.0)).collect()
+}
+
+/// Hierarchical JEPA seed: intent → mid-level summary → Form representation, two linear
+/// predictors composed. Predicts summaries at two abstraction levels, not tokens. The
+/// production hierarchical FormJEPA/FormEBM remains the open frontier.
+pub struct HierPredictor {
+    pub l1: LatentPredictor,
+    pub l2: LatentPredictor,
+}
+
+impl HierPredictor {
+    pub fn train(pairs: &[(Vec<f64>, Vec<f64>)], mid: usize, epochs: usize, lr: f64) -> HierPredictor {
+        let l1pairs: Vec<(Vec<f64>, Vec<f64>)> =
+            pairs.iter().map(|(x, y)| (x.clone(), pool(y, mid))).collect();
+        let l2pairs: Vec<(Vec<f64>, Vec<f64>)> =
+            pairs.iter().map(|(_, y)| (pool(y, mid), y.clone())).collect();
+        HierPredictor {
+            l1: LatentPredictor::train(&l1pairs, epochs, lr),
+            l2: LatentPredictor::train(&l2pairs, epochs, lr),
+        }
+    }
+
+    pub fn predict(&self, x: &[f64]) -> Vec<f64> {
+        self.l2.predict(&self.l1.predict(x))
+    }
+
+    pub fn energy(&self, x: &[f64], y: &[f64]) -> f64 {
+        let p = self.predict(x);
+        p.iter().zip(y).map(|(a, c)| (a - c) * (a - c)).sum::<f64>()
+    }
+}

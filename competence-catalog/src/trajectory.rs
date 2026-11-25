@@ -98,6 +98,37 @@ pub fn dispute(claim: usize, r: &IngestReport) -> (usize, usize) {
     (r.admitted, claim.saturating_sub(r.admitted))
 }
 
+/// Fleet-scale ingestion: chunks share one dedup set and one receipt, so a stream of
+/// episodes from many rigs/farms accumulates without re-admitting duplicates.
+pub fn ingest_chunks(chunks: &[Vec<Trajectory>], plant: &crate::twin::Plant, tol: f64) -> IngestReport {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut keys = Vec::new();
+    let (mut offered, mut admitted, mut dedup, mut refused, mut refused_twin) = (0, 0, 0, 0, 0);
+    for chunk in chunks {
+        for e in chunk {
+            offered += 1;
+            if e.ticks.is_empty() || e.ticks.iter().any(|t| !t.obs.is_finite() || !t.act.is_finite()) {
+                refused += 1;
+                continue;
+            }
+            let acts: Vec<f64> = e.ticks.iter().map(|t| t.act).collect();
+            let recorded: Vec<f64> = e.ticks.iter().map(|t| t.obs).collect();
+            if !crate::twin::admit_controller(plant, &acts, &recorded, tol) {
+                refused_twin += 1;
+                continue;
+            }
+            let k = content_key(e);
+            if seen.insert(k.clone()) {
+                admitted += 1;
+                keys.push(k);
+            } else {
+                dedup += 1;
+            }
+        }
+    }
+    IngestReport { offered, admitted, dedup, refused, refused_twin, keys }
+}
+
 /// Standards-style episode manifest (India consortium / AAIF interop seed): name-free
 /// content keys, counts, and refusal reasons — the receipt a dataset standard can verify.
 pub fn manifest(r: &IngestReport) -> serde_json::Value {

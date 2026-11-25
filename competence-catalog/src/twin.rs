@@ -69,3 +69,17 @@ pub fn contact_force(p: &Plant, acts: &[f64], wall: f64, k: f64, c: f64) -> Vec<
 pub fn force_limit_ok(forces: &[f64], limit_n: f64) -> bool {
     limit_n.is_finite() && limit_n >= 0.0 && forces.iter().all(|f| f.is_finite() && *f <= limit_n)
 }
+
+/// Contact pressure = force / contact area (Pa) — the second half of the ISO/TS 15066
+/// force/pressure pair. None if the area is not a positive finite number.
+pub fn contact_pressure(forces: &[f64], area_m2: f64) -> Option<Vec<f64>> {
+    if !area_m2.is_finite() || area_m2 <= 0.0 {
+        return Option::None;
+    }
+    Option::Some(forces.iter().map(|f| f / area_m2).collect())
+}
+
+/// Pressure-limit gate: every sample finite and <= limit (Pascals).
+pub fn pressure_limit_ok(pressures: &[f64], limit_pa: f64) -> bool {
+    limit_pa.is_finite() && limit_pa >= 0.0 && pressures.iter().all(|p| p.is_finite() && *p <= limit_pa)
+}
