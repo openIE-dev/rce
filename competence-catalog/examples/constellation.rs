@@ -18,7 +18,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("elm", "Elm"), ("racket", "Racket"), ("commonlisp", "Common Lisp"), ("elisp", "Emacs Lisp"),
     ("gleam", "Gleam"), ("moonbit", "MoonBit"), ("rescript", "ReScript"), ("reason", "Reason"),
     ("nix", "Nix"), ("fsharp", "F#"), ("idris", "Idris"), ("agda", "Agda"), ("lean", "Lean"),
-    ("fstar", "F*"),
+    ("fstar", "F*"), ("perl", "Perl"),
 ];
 
 fn main() {

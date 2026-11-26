@@ -278,6 +278,19 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "and_bang" => { out.insert("and"); }
         "rule" | "rules" | "fmrule" | "mrule" => { out.insert("match"); }
         "primitive" | "abbrev" | "def" | "theorem" | "axiom" | "example" => { out.insert("decl"); }
+        // Perl (node-types generated from tree-sitter-perl/tree-sitter-perl).
+        "postfix_deref" => { out.insert("ref"); }
+        "slices" => { out.insert("list"); }
+        "subscripted" => { out.insert("index"); }
+        "arraylen" => { out.insert("op"); }
+        "attrlist" => { out.insert("attribute"); }
+        "bareword" | "glob" => { out.insert("symbol"); }
+        "filehandle" | "scalar" => { out.insert("var"); }
+        "replacement" => { out.insert("str_lit"); }
+        "yadayada" => { out.insert("ellipsis"); }
+        "data_section" | "eof_marker" => { out.insert("directive"); }
+        "pod" => { out.insert("comment"); }
+        "prototype" => { out.insert("param"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }
