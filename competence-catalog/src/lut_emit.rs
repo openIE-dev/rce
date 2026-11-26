@@ -465,6 +465,68 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("roc", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("v", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("odin", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        // Shell / web / data / build languages (structural projections; the family completion
+        // fills the remaining constructs in each surface's own style).
+        LanguageLut::new("bash", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "${{{name}}}"), ("neg", "$(( -{a} ))"),
+            ("not", "! {a}"), ("add", "$(( {a} + {b} ))"), ("sub", "$(( {a} - {b} ))"),
+            ("mul", "$(( {a} * {b} ))"), ("div", "$(( {a} / {b} ))"), ("mod", "$(( {a} % {b} ))"),
+            ("eq", "[[ {a} -eq {b} ]]"), ("ne", "[[ {a} -ne {b} ]]"), ("lt", "[[ {a} -lt {b} ]]"),
+            ("gt", "[[ {a} -gt {b} ]]"), ("le", "[[ {a} -le {b} ]]"), ("ge", "[[ {a} -ge {b} ]]"),
+            ("and", "[[ {a} && {b} ]]"), ("or", "[[ {a} || {b} ]]"),
+            ("if_expr", "$(if {cond}; then {then}; else {else}; fi)"),
+        ]),
+        LanguageLut::new("html", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "{value}"), ("var", "{name}"), ("list", "<ul>{items}</ul>"),
+            ("dict", "<dl>{items}</dl>"), ("field", "<dt>{name}</dt><dd>{value}</dd>"),
+            ("member", "{a} > {m}"), ("index", "{a}:nth-child({i})"),
+            ("if_expr", "<template data-if=\"{cond}\">{then}</template>"),
+        ]),
+        LanguageLut::new("css", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "var(--{name})"), ("list", "{items}"),
+            ("dict", "{name} {{ {items} }}"), ("field", "{name}: {value};"),
+            ("member", "{a} {m}"), ("index", "{a}:nth-child({i})"),
+            ("if_expr", "@media {cond} {{ {then} }}"),
+        ]),
+        LanguageLut::new("json", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("list", "[{items}]"),
+            ("dict", "{{{items}}}"), ("field", "\"{name}\": {value}"),
+            ("member", "{a}.{m}"), ("index", "{a}[{i}]"),
+        ]),
+        LanguageLut::new("yaml", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "{value}"), ("var", "*{name}"), ("list", "- {items}"),
+            ("dict", "{name}:\n{items}"), ("field", "{name}: {value}"),
+            ("member", "{a}.{m}"), ("index", "{a}[{i}]"),
+        ]),
+        LanguageLut::new("toml", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("list", "[{items}]"),
+            ("dict", "[{name}]\n{items}"), ("field", "{name} = {value}"),
+            ("member", "{a}.{m}"), ("index", "{a}[{i}]"),
+        ]),
+        LanguageLut::new("dockerfile", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "${{{name}}}"), ("call", "RUN {callee} {args}"),
+            ("import", "FROM {name}"), ("let", "ARG {name}={value}"),
+            ("directive", "CMD [{args}]"), ("list", "[{items}]"),
+        ]),
+        LanguageLut::new("cmake", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "${{{name}}}"), ("neg", "-{a}"),
+            ("not", "NOT {a}"), ("add", "math(EXPR out \"{a} + {b}\")"),
+            ("eq", "{a} STREQUAL {b}"), ("and", "{a} AND {b}"), ("or", "{a} OR {b}"),
+            ("if_expr", "if({cond})\n{then}\nelse()\n{else}\nendif()"),
+            ("call", "{callee}({args})"), ("fn", "function({name} {params})\n{body}\nendfunction()"),
+            ("for", "foreach({name} {items})\n{body}\nendforeach()"),
+            ("while", "while({cond})\n{body}\nendwhile()"),
+            ("let", "set({name} {value})"), ("import", "find_package({name})"),
+            ("macro", "macro({name} {params})\n{body}\nendmacro()"),
+        ]),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);
@@ -484,6 +546,18 @@ fn complete_higher(l: &mut LanguageLut) {
         ("{callee}({args})", "{a}[{i}]", "{a}.{m}", "[{items}]")
     };
     for (k, t) in [("call", call), ("index", index), ("member", member), ("list", list)] {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
+    // Structural completion of the expression core for surfaces that do not natively express
+    // arithmetic/comparison (markup, data, build languages): a generic applicative projection
+    // so the (construct × language) matrix is filled by structure, refined per-language later.
+    for (k, t) in [
+        ("neg", "(-{a})"), ("not", "(not {a})"), ("add", "({a} + {b})"), ("sub", "({a} - {b})"),
+        ("mul", "({a} * {b})"), ("div", "({a} / {b})"), ("mod", "({a} % {b})"),
+        ("eq", "({a} == {b})"), ("ne", "({a} != {b})"), ("lt", "({a} < {b})"),
+        ("gt", "({a} > {b})"), ("le", "({a} <= {b})"), ("ge", "({a} >= {b})"),
+        ("and", "({a} && {b})"), ("or", "({a} || {b})"),
+    ] {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
     // Some surfaces (e.g. MATLAB) lack an expression-form conditional; complete it structurally.

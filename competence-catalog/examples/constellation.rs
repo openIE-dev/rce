@@ -21,6 +21,9 @@ const MEASURED: &[(&str, &str)] = &[
     ("fstar", "F*"), ("perl", "Perl"), ("coq", "Coq"), ("dhall", "Dhall"), ("unison", "Unison"),
     ("nadeshiko", "Nadeshiko"), ("ezhil", "Ezhil"), ("alusus", "Alusus"),
     ("koka", "Koka"), ("grain", "Grain"), ("roc", "Roc"), ("v", "V"), ("odin", "Odin"),
+    ("bash", "Bash"), ("typescript", "TypeScript"), ("html", "HTML"), ("css", "CSS"),
+    ("json", "JSON"), ("yaml", "YAML"), ("toml", "TOML"), ("dockerfile", "Dockerfile"),
+    ("cmake", "CMake"),
 ];
 
 fn main() {

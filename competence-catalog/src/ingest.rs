@@ -418,6 +418,68 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "build_tag" => { out.insert("directive"); }
         "struct_member" => { out.insert("field"); }
         "uninitialized" => { out.insert("ellipsis"); }
+        // Bash / shell.
+        "command_substitution" | "process_substitution" => { out.insert("call"); }
+        "concatenation" | "pipeline" => { out.insert("op"); }
+        "negated_command" => { out.insert("not"); }
+        "word" => { out.insert("var"); }
+        "file_descriptor" => { out.insert("param"); }
+        // TypeScript type-level remainder.
+        "index_type_query" | "type_predicate" | "type_query" => { out.insert("type_expr"); }
+        // HTML.
+        "end_tag" | "erroneous_end_tag" => { out.insert("token"); }
+        "script_element" | "style_element" => { out.insert("body"); }
+        "raw_text" => { out.insert("str_lit"); }
+        // CSS: selectors are patterns; at-rules directives; media queries guards.
+        "adjacent_sibling_selector" | "child_selector" | "descendant_selector" | "sibling_selector"
+        | "universal_selector" | "id_selector" | "nesting_selector" | "selectors"
+        | "selector_query" => { out.insert("pattern"); }
+        "at_rule" | "at_keyword" => { out.insert("directive"); }
+        "binary_query" | "unary_query" | "feature_query" | "keyword_query"
+        | "parenthesized_query" => { out.insert("guard"); }
+        "color_value" | "plain_value" => { out.insert("literal"); }
+        "float_value" => { out.insert("float_lit"); }
+        "integer_value" => { out.insert("int_lit"); }
+        "grid_value" => { out.insert("list"); }
+        "parenthesized_value" => { out.insert("block"); }
+        "rule_set" => { out.insert("body"); }
+        "stylesheet" => { out.insert("module"); }
+        "from" => { out.insert("keyword"); }
+        // JSON / YAML / TOML (data languages).
+        "_value" | "flow_node" => { out.insert("expr"); }
+        "anchor" => { out.insert("label"); }
+        "flow_mapping" | "inline_table" | "table" => { out.insert("dict"); }
+        "flow_sequence" | "table_array_element" => { out.insert("list"); }
+        "plain_scalar" => { out.insert("str_lit"); }
+        "stream" => { out.insert("module"); }
+        "boolean_scalar" => { out.insert("bool_lit"); }
+        "float_scalar" => { out.insert("float_lit"); }
+        "integer_scalar" => { out.insert("int_lit"); }
+        "null_scalar" => { out.insert("null_lit"); }
+        "tag_handle" | "tag_prefix" | "yaml_version" => { out.insert("directive"); }
+        "timestamp_scalar" | "local_date" | "local_date_time" | "local_time"
+        | "offset_date_time" => { out.insert("literal"); }
+        "bare_key" => { out.insert("field"); }
+        // Dockerfile: instructions are build directives; RUN executes; FROM imports; ARG/ENV bind.
+        "from_instruction" => { out.insert("import"); }
+        "arg_instruction" | "env_instruction" => { out.insert("let"); }
+        "run_instruction" | "shell_command" => { out.insert("call"); }
+        "shell_fragment" => { out.insert("str_lit"); }
+        "mount_param" | "mount_param_param" => { out.insert("param"); }
+        "image_digest" | "image_tag" => { out.insert("literal"); }
+        "add_instruction" | "copy_instruction" | "cmd_instruction" | "cross_build_instruction"
+        | "entrypoint_instruction" | "healthcheck_instruction" | "maintainer_instruction"
+        | "onbuild_instruction" | "shell_instruction" | "stopsignal_instruction"
+        | "user_instruction" | "volume_instruction" | "workdir_instruction" => { out.insert("directive"); }
+        // CMake.
+        "cache_var" | "env_var" | "normal_var" => { out.insert("var"); }
+        "foreach_command" | "foreach_loop" => { out.insert("for"); }
+        "while_command" | "while_loop" => { out.insert("while"); }
+        "function_command" | "function_def" => { out.insert("fn"); }
+        "macro_command" => { out.insert("macro"); }
+        "normal_command" => { out.insert("call"); }
+        "endforeach_command" | "endfunction_command" | "endmacro_command" | "endwhile_command"
+        | "endforeach" | "endfunction" | "endmacro" | "endwhile" => { out.insert("control"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }

@@ -28,6 +28,7 @@ fn emission_covers_every_ingested_language() {
         "gleam", "moonbit", "rescript", "reason", "nix", "fsharp", "idris", "agda", "lean",
         "fstar", "perl", "coq", "dhall", "unison", "nadeshiko", "ezhil", "alusus",
         "koka", "grain", "roc", "v", "odin",
+        "bash", "typescript", "html", "css", "json", "yaml", "toml", "dockerfile", "cmake",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", _ => k };

@@ -186,6 +186,15 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Roc" => (p(&["functional", "pure", "platform-oriented"]), Some("US"), Some(2018)),
         "V" => (p(&["systems", "compiled", "simple"]), Some("Ukraine"), Some(2019)),
         "Odin" => (p(&["systems", "imperative", "data-oriented"]), Some("US"), Some(2016)),
+        "Bash" => (p(&["imperative", "shell", "scripting"]), Some("US"), Some(1989)),
+        "TypeScript" => (p(&["object-oriented", "functional", "strong-typed"]), Some("US"), Some(2012)),
+        "HTML" => (p(&["markup", "declarative"]), Some("CH/UK"), Some(1993)),
+        "CSS" => (p(&["stylesheet", "declarative"]), Some("CH/US"), Some(1996)),
+        "JSON" => (p(&["data", "declarative"]), Some("US"), Some(2001)),
+        "YAML" => (p(&["data", "declarative"]), Some("US"), Some(2001)),
+        "TOML" => (p(&["data", "config"]), Some("US"), Some(2013)),
+        "Dockerfile" => (p(&["build", "declarative"]), Some("US"), Some(2013)),
+        "CMake" => (p(&["build", "declarative"]), Some("US"), Some(2000)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -244,6 +253,9 @@ fn family_of(name: &str, group: &str) -> String {
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",
+        "HTML" | "CSS" | "XML" | "Markdown" => "markup",
+        "JSON" | "YAML" | "TOML" | "INI" | "CSV" => "data / config",
+        "Dockerfile" | "CMake" | "Make" | "Meson" | "Bazel" | "Ninja" => "build",
         _ => "",
     };
     if !f.is_empty() {
