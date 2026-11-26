@@ -157,3 +157,72 @@ impl SynthesizedLanguage {
         replay_admit(&stmt, &self.probes)
     }
 }
+
+/// Deterministic executable model of a fabric's native ops, so automation can RUN synthesized
+/// languages now. These are labelled MODELS (Born rule, Landauer bound, hop latency, STDP,
+/// seeded sampling, Ohm/Kirchhoff MAC) — not physical simulation; production lowering is open.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NativeResult {
+    pub outputs: Vec<f64>,
+    pub energy_j: f64,
+    pub events: Vec<(u64, f64)>,
+    pub ok: bool,
+    pub err: Option<String>,
+}
+
+pub const KT_LN2_300K: f64 = 2.87e-21; // Landauer limit per erased bit at ~300K, joules
+
+fn lcg(seed: &mut u64) -> f64 {
+    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    ((*seed >> 11) as f64) / ((1u64 << 53) as f64)
+}
+
+/// Run a sequence of native ops for a fabric, deterministically (seeded where stochastic).
+pub fn run_native(fabric: &str, ops: &[(&str, Vec<f64>)], seed: u64) -> NativeResult {
+    let mut r = NativeResult { ok: true, ..Default::default() };
+    let mut s = seed;
+    let mut amps: Vec<f64> = Vec::new();
+    let mut links: Vec<(usize, usize)> = Vec::new();
+    let mut energy_stack: Vec<f64> = Vec::new();
+    let mut weight = 0.5f64;
+    for (op, a) in ops {
+        let arg = |i: usize| a.get(i).copied().unwrap_or(0.0);
+        match (fabric, *op) {
+            ("quantum", "superpose") => { amps.push(arg(0)); r.outputs.push(arg(0)); }
+            ("quantum", "entangle") => { links.push((arg(0) as usize, arg(1) as usize)); r.outputs.push(1.0); }
+            ("quantum", "measure") => {
+                let theta = amps.last().copied().unwrap_or(0.0);
+                let p0 = theta.cos().powi(2);
+                let bit = if lcg(&mut s) < p0 { 0.0 } else { 1.0 };
+                r.outputs.push(bit);
+            }
+            ("quantum", "clone") => { r.ok = false; r.err = Some("no-clone: unknown state cannot be copied".into()); }
+            ("thermodynamic", "landauer") => { let e = arg(0) * KT_LN2_300K; r.energy_j += e; energy_stack.push(e); r.outputs.push(e); }
+            ("thermodynamic", "reverse") => { if let Some(e) = energy_stack.pop() { r.energy_j -= e; r.outputs.push(r.energy_j); } }
+            ("thermodynamic", "entropy_budget") => { r.ok = r.energy_j <= arg(0); r.outputs.push(r.energy_j); }
+            ("spatial", "place") => { r.outputs.push(arg(0)); }
+            ("spatial", "route") => { r.outputs.push(arg(0)); } // hop latency model
+            ("spatial", "pipeline") => { r.outputs.push(arg(0)); }
+            ("neuromorphic", "spike") => { r.events.push((arg(0) as u64, 1.0)); r.outputs.push(1.0); }
+            ("neuromorphic", "synapse") => { weight = arg(0); r.outputs.push(weight); }
+            ("neuromorphic", "plasticity") => { let dw = (-arg(0) / 20.0).exp(); weight *= dw; r.outputs.push(dw); }
+            ("probabilistic", "sample") => { let b = if lcg(&mut s) < arg(0) { 1.0 } else { 0.0 }; r.outputs.push(b); }
+            ("probabilistic", "pbit") => { r.outputs.push(arg(0)); }
+            ("analog", "mac") => { let mut acc = 0.0; let mut i = 0; while i + 1 < a.len() { acc += a[i] * a[i + 1]; i += 2; } r.outputs.push(acc); }
+            ("analog", "crossbar") => { let mut acc = 0.0; let mut i = 0; while i + 1 < a.len() { acc += a[i] * a[i + 1]; i += 2; } r.outputs.push(acc); }
+            ("analog", "drift") => { r.outputs.push(arg(0) * (1.0 + 0.01 * lcg(&mut s))); }
+            _ => { r.ok = false; r.err = Some(format!("unknown native op {op} for {fabric}")); }
+        }
+        if !r.ok { break; }
+    }
+    r
+}
+
+/// Gap-driven synthesis: given a required capability, synthesize the missing language that
+/// provides it (the automation enabler). Falls back to quantum if no fabric declares it.
+pub fn synthesize_for_capability(cap: &str) -> SynthesizedLanguage {
+    let f = crate::langpredict::FABRICS.iter()
+        .find(|f| f.native_constructs.contains(&cap))
+        .unwrap_or(&crate::langpredict::FABRICS[0]);
+    synthesize(f)
+}
