@@ -583,6 +583,38 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }
+        // CUDA / GLSL / Objective-C / HCL / Tcl / Vim — measured-coverage expansion.
+        "kernel_call_syntax" => { out.insert("call"); }
+        "extension_behavior" => { out.insert("directive"); }
+        "objc_bridge" => { out.insert("cast"); }
+        "platform" | "bangs" | "behavior" | "default_option" | "inv_option" | "no_option"
+        | "option" | "plus_plus_opt" | "au_nested" | "au_once" | "fallback" | "file_format" => { out.insert("modifier"); }
+        "protocol_reference_list" => { out.insert("type_expr"); }
+        "version_number" | "color" | "font" | "keycode" | "pattern_offset" | "set_value" => { out.insert("literal"); }
+        "binary_operation" => {
+            for c in ["add","sub","mul","div","mod","eq","ne","lt","gt","le","ge","and","or"] { out.insert(c); }
+        }
+        "unary_operation" => { out.insert("neg"); out.insert("not"); }
+        "attr_splat" | "get_attr" => { out.insert("member"); }
+        "collection_value" => { out.insert("list"); }
+        "config_file" | "braced_word" | "braced_word_simple" | "script" | "script_file" => { out.insert("block"); }
+        "for_cond" => { out.insert("guard"); }
+        "for_intro" | "plus_cmd" => { out.insert("control"); }
+        "full_splat" | "spread" => { out.insert("splat"); }
+        "legacy_index" | "new_index" | "array_index" => { out.insert("index"); }
+        "tuple_end" | "strip_marker" | "endmarker" => { out.insert("token"); }
+        "null_lit" => { out.insert("null_lit"); }
+        "global" => { out.insert("global"); }
+        "regsub" | "filter_command" => { out.insert("call"); }
+        "word_list" | "au_event_list" | "commands" => { out.insert("seq"); }
+        "simple_word" | "current_line" | "mark" | "register" => { out.insert("var"); }
+        "dictionnary" | "scope_dict" => { out.insert("dict"); }
+        "dictionnary_entry" | "set_item" => { out.insert("field"); }
+        "for_loop" => { out.insert("for"); }
+        "map_side" => { out.insert("param"); }
+        "pattern_multi" => { out.insert("regex"); }
+        "user_command" => { out.insert("fn"); }
+        "au_event" => { out.insert("keyword"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);

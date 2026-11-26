@@ -288,6 +288,12 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("julia", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("cangjie", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("moonbit", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        // Measured-coverage expansion (grammar-ingested at 100%): C-like expression cores.
+        c_family("cuda", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("glsl", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("hcl", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("tcl", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("vim", "({a} && {b})", "({a} || {b})", "(!{a})"),
         // ML family.
         ml_family("ocaml", "({a} = {b})", "({a} <> {b})", "({a} / {b})", "({a} mod {b})"),
         ml_family("fsharp", "({a} = {b})", "({a} <> {b})", "({a} / {b})", "({a} % {b})"),

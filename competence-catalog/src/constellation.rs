@@ -201,6 +201,12 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Markdown" => (p(&["markup", "lightweight"]), Some("US"), Some(2004)),
         "GraphQL" => (p(&["query", "declarative"]), Some("US"), Some(2015)),
         "Prolog" => (p(&["logic", "declarative"]), Some("France"), Some(1972)),
+        "CUDA" => (p(&["parallel", "C++", "GPU"]), Some("US"), Some(2007)),
+        "GLSL" => (p(&["shading", "C-like", "GPU"]), Some("US"), Some(2004)),
+        "Objective-C" => (p(&["OOP", "C", "dynamic"]), Some("US"), Some(1984)),
+        "HCL" => (p(&["config", "declarative"]), Some("US"), Some(2014)),
+        "Tcl" => (p(&["scripting", "command"]), Some("US"), Some(1988)),
+        "Vim script" => (p(&["scripting", "editor"]), Some("Netherlands"), Some(1991)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -227,7 +233,7 @@ const INFLUENCES: &[(&str, &str)] = &[
 fn family_of(name: &str, group: &str) -> String {
     let f = match name {
         "C" | "C++" | "C#" | "Objective-C" | "D" | "Zig" | "Rust" | "Go" | "Ada" | "Carbon"
-        | "C++" | "Objective-C++" | "SystemVerilog" | "Verilog" | "VHDL" => "C / systems",
+        | "C++" | "Objective-C++" | "SystemVerilog" | "Verilog" | "VHDL" | "CUDA" | "GLSL" => "C / systems",
         "Java" | "Kotlin" | "Scala" | "Groovy" | "Clojure" | "JRuby" | "AspectJ" => "JVM",
         "OCaml" | "Standard ML" | "F#" | "Haskell" | "Elm" | "PureScript" | "Reason" | "ReScript"
         | "SML" | "Lazy ML" | "Miranda" | "Clean" | "Idris" | "Agda" | "Lean" | "Coq" | "F*"
@@ -245,7 +251,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
-        | "Raku" | "Perl 6" | "Tcl" | "Expect" => "Shell / scripting",
+        | "Raku" | "Perl 6" | "Tcl" | "Expect" | "Vim script" => "Shell / scripting",
         "SQL" | "PLSQL" | "TSQL" | "PLpgSQL" | "SQLPL" | "HiveQL" | "Spark SQL" => "SQL",
         "Nix" | "Dhall" | "Unison" | "HashiCorp Configuration Language" | "HCL" | "Jsonnet"
         | "CUE" | "Starlark" => "Config / functional",

@@ -30,9 +30,10 @@ fn emission_covers_every_ingested_language() {
         "koka", "grain", "roc", "v", "odin",
         "bash", "typescript", "html", "css", "json", "yaml", "toml", "dockerfile", "cmake",
         "make", "powershell", "tlaplus", "markdown", "graphql", "prolog",
+        "cuda", "glsl", "objc", "hcl", "tcl", "vim",
     ];
     for k in measured {
-        let emit = match k { "javascript" => "js", "c-sharp" => "csharp", _ => k };
+        let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };
         assert!(names.contains(emit), "ingested language {k} has no emission LUT row");
     }
 }
