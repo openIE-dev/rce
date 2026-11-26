@@ -153,6 +153,42 @@ impl TrustLayer {
         eu_machinery_controls().into_iter().filter(|c| !c.built).collect()
     }
 
+    /// EU module-A technical file (internal production control): the no-pay conformity route.
+    /// Valid because deployed safety functions are FROZEN at replay admission (learning stays
+    /// offline in the airlock), so the placed product is not self-evolving under Annex III Part A.
+    pub fn module_a_file(&self) -> serde_json::Value {
+        let log: Vec<serde_json::Value> = self.log.iter()
+            .map(|e| serde_json::json!({"action": e.action, "verified": e.verified, "provenance": e.provenance}))
+            .collect();
+        serde_json::json!({
+            "schema": "rce-module-a/1",
+            "route": "internal production control (module A); deployed safety functions frozen at replay admission",
+            "manufacturer": "Open Interface Engineering",
+            "product": "Cleanroom / RCE competence substrate",
+            "essential_requirements": eu_machinery_controls(),
+            "evidence": self.evidence_package(),
+            "frozen_admission_log": log,
+            "declaration": "self-declaration of conformity; technical file retained ten years"
+        })
+    }
+
+    /// SLSA-style provenance / self-attestation statement (in-toto Statement v1): the no-pay
+    /// assurance artifact. Subject digest binds the statement to exact content.
+    pub fn slsa_statement(&self, subject_digest: &str) -> serde_json::Value {
+        serde_json::json!({
+            "_type": "https://in-toto.io/Statement/v1",
+            "subject": [{"name": "rce-competence", "digest": {"sha256": subject_digest}}],
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "predicate": {
+                "builder": {"id": "openie-dev/rce"},
+                "buildType": "rce-replay-gated",
+                "invocation": {"configSource": {"uri": "git+https://github.com/openIE-dev/rce"}},
+                "materials": [{"uri": "git+https://github.com/openIE-dev/rce"}],
+                "runDetails": {"metadata": {"startedOn": "2026-11-26", "replay_gate": true}}
+            }
+        })
+    }
+
     /// Notified-body / auditor evidence bundle: the control maps, chain status, log size,
     /// and the honest open-gap list. The artifact a certification body consumes; the
     /// attestation itself remains a process edge.

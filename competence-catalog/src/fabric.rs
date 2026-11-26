@@ -137,6 +137,26 @@ pub fn memory_kib(name: &str) -> u64 {
     }
 }
 
+/// Real capability lookup on THIS host (living optimization): which fabrics are present.
+/// File/framework existence + cfg, not tribal flag knowledge. Used to place work on what
+/// the machine actually has.
+pub fn local_capabilities() -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = Vec::new();
+    if cfg!(target_arch = "aarch64") {
+        v.push("cpu-arm64");
+    } else {
+        v.push("cpu-x86");
+    }
+    v.push("wasm");
+    if std::path::Path::new("/System/Library/Frameworks/Metal.framework").exists() {
+        v.push("gpu-apple-metal");
+    }
+    if std::path::Path::new("/System/Library/Frameworks/Accelerate.framework").exists() {
+        v.push("apple-amx");
+    }
+    v
+}
+
 /// Memory-aware placement: argmin joules among fabric classes that can hold the act
 /// (`need_kib`) and exist inside the device budget (`cap_kib`). The FSD-Lite inversion:
 /// a memory-bound device gets the cheapest mind that FITS, not a crippled tier.

@@ -47,6 +47,60 @@ pub fn priority_dispatch(ts: &[Task], ticks: u64) -> Option<Vec<String>> {
     Option::Some(out)
 }
 
+/// Emit a Zephyr-shaped project (prj.conf + main.c) for a schedulable task set: rate-monotonic
+/// priorities (shortest period = highest priority), periodic k_msleep loops. Open-source RTOS,
+/// no licence fee. None if the set is not schedulable.
+pub fn zephyr_project(ts: &[Task]) -> Option<(String, String)> {
+    if !schedulable(ts) {
+        return Option::None;
+    }
+    let mut order: Vec<&Task> = ts.iter().collect();
+    order.sort_by(|a, b| a.period_us.cmp(&b.period_us).then_with(|| a.name.cmp(b.name)));
+    let conf = String::from("CONFIG_MULTITHREADING=y\nCONFIG_TIMESLICING=n\nCONFIG_THREAD_NAME=y\n");
+    let mut c = String::from("#include <zephyr/kernel.h>\n");
+    for (i, t) in order.iter().enumerate() {
+        c.push_str(&format!(
+            "void {name}_entry(void *a, void *b, void *c) {{ for (;;) {{ /* wcet {wcet}us */ k_msleep({period}); }} }}\n",
+            name = t.name, wcet = t.wcet_us, period = t.period_us / 1000
+        ));
+        let _ = i;
+    }
+    for i in 0..order.len() {
+        c.push_str(&format!("K_THREAD_STACK_DEFINE(stack{i}, 1024);\nstatic struct k_thread t{i};\n"));
+    }
+    c.push_str("int main(void) {\n");
+    for (i, t) in order.iter().enumerate() {
+        c.push_str(&format!(
+            "  k_thread_create(&t{i}, stack{i}, K_THREAD_STACK_SIZEOF(stack{i}), {name}_entry, NULL, NULL, NULL, {prio}, 0, K_NO_WAIT);\n",
+            i = i, name = t.name, prio = i
+        ));
+    }
+    c.push_str("  return 0;\n}\n");
+    Option::Some((conf, c))
+}
+
+/// Emit a seL4-shaped manifest (JSON): one protected thread per task with its priority,
+/// period and WCET, plus the scheduler's admission verdict. seL4 is open source with public
+/// machine-checked proofs; no licence fee.
+pub fn sel4_manifest(ts: &[Task]) -> Option<String> {
+    if !schedulable(ts) {
+        return Option::None;
+    }
+    let mut order: Vec<&Task> = ts.iter().collect();
+    order.sort_by(|a, b| a.period_us.cmp(&b.period_us).then_with(|| a.name.cmp(b.name)));
+    let threads: Vec<serde_json::Value> = order.iter().enumerate()
+        .map(|(i, t)| serde_json::json!({"name": t.name, "priority": i, "period_us": t.period_us, "wcet_us": t.wcet_us}))
+        .collect();
+    Option::Some(serde_json::json!({
+        "schema": "rce-sel4-manifest/1",
+        "kernel": "seL4 (open source, machine-checked)",
+        "scheduler": "rate-monotonic, admission-checked",
+        "utilization": utilization(ts),
+        "bound": rm_bound(ts.len()),
+        "threads": threads
+    }).to_string())
+}
+
 fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 { a } else { gcd(b, a % b) }
 }
