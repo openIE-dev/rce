@@ -51,6 +51,7 @@ pub mod replay;
 pub mod rtos;
 pub mod repo;
 pub mod runtime;
+pub mod scale;
 pub mod secure;
 pub mod spec_bridge;
 pub mod semantic;
