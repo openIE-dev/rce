@@ -49,6 +49,7 @@ pub mod learning;
 pub mod library;
 pub mod lift;
 pub mod lift_broad;
+pub mod lsp_server;
 pub mod lut_emit;
 pub mod placement;
 pub mod program;

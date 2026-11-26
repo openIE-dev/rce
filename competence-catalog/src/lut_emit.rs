@@ -561,6 +561,29 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("let", "{name} == {value}"), ("set", "{{{items}}}"), ("list", "<<{items}>>"),
             ("member", "{a}[{m}]"), ("index", "{a}[{i}]"), ("return", "{value}"),
         ]),
+        LanguageLut::new("markdown", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "{value}"), ("var", "{name}"), ("label", "# {value}"),
+            ("list", "- {items}"), ("body", "{value}"), ("field", "| {value} |"),
+            ("import", "[{name}]({value})"), ("token", "---"), ("modifier", "~~{a}~~"),
+            ("seq", "| {items} |"), ("comment", "<!-- {value} -->"),
+        ]),
+        LanguageLut::new("graphql", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "${name}"), ("list", "[{items}]"),
+            ("dict", "{{{items}}}"), ("field", "{name}: {value}"), ("member", "{a}.{m}"),
+            ("type_def", "type {name} {{ {items} }}"), ("fn", "query {name} {{ {body} }}"),
+            ("splat", "...{name}"), ("bound", "implements {name}"), ("body", "{{ {items} }}"),
+            ("comment", "# {value}"), ("null_lit", "null"), ("type_expr", "{name}"),
+        ]),
+        LanguageLut::new("prolog", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("call", "{callee}({args})"),
+            ("fn", "{name}({params}) :- {body}."), ("let", "{name} = {value}"),
+            ("dict", "{{{items}}}"), ("block", "({a})"), ("control", "!"),
+            ("param", "{args}"), ("list", "[{items}]"), ("token", "."),
+            ("literal", "{value}"), ("return", "{value}"),
+        ]),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);

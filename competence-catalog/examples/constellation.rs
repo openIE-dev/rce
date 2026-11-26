@@ -24,6 +24,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("bash", "Bash"), ("typescript", "TypeScript"), ("html", "HTML"), ("css", "CSS"),
     ("json", "JSON"), ("yaml", "YAML"), ("toml", "TOML"), ("dockerfile", "Dockerfile"),
     ("cmake", "CMake"), ("make", "Make"), ("powershell", "PowerShell"), ("tlaplus", "TLA+"),
+    ("markdown", "Markdown"), ("graphql", "GraphQL"), ("prolog", "Prolog"),
 ];
 
 fn main() {

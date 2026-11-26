@@ -543,6 +543,43 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "single_line" | "extramodular_text" => { out.insert("comment"); }
         "langle_bracket" | "rangle_bracket" | "rangle_bracket_sub" | "ld_ttile" | "ls_ttile"
         | "rd_ttile" | "rs_ttile" | "parentheses" | "qq" => { out.insert("token"); }
+        // Markdown.
+        "atx_heading" | "setext_heading" => { out.insert("label"); }
+        "atx_h1_marker" | "atx_h2_marker" | "atx_h3_marker" | "atx_h4_marker" | "atx_h5_marker"
+        | "atx_h6_marker" | "setext_h1_underline" | "setext_h2_underline" | "list_marker"
+        | "table_delimiter_row" | "thematic_break" | "hard_line_break" | "line_break"
+        | "soft_line_break" | "virtual_space" | "html_close_tag" | "html_open_tag" => { out.insert("token"); }
+        "code_span" | "email_autolink" | "uri_autolink" | "www_autolink" | "image_description"
+        | "link_destination" | "link_text" | "link_title" => { out.insert("str_lit"); }
+        "html_atrribute" | "list_item" | "table_cell" => { out.insert("field"); }
+        "html_cdata_section" => { out.insert("comment"); }
+        "html_processing_instruction" => { out.insert("directive"); }
+        "image" | "link" => { out.insert("import"); }
+        "loose_list" | "tight_list" => { out.insert("list"); }
+        "paragraph" => { out.insert("body"); }
+        "strikethrough" | "table_column_alignment" => { out.insert("modifier"); }
+        "table_data_row" => { out.insert("seq"); }
+        // GraphQL.
+        "boolean_value" => { out.insert("bool_lit"); }
+        "int_value" => { out.insert("int_lit"); }
+        "null_value" => { out.insert("null_lit"); }
+        "list_value" => { out.insert("list"); }
+        "description" => { out.insert("comment"); }
+        "enum_value" | "selection" => { out.insert("field"); }
+        "enum_type_extension" | "interface_type_extension" | "scalar_type_extension"
+        | "union_type_extension" | "schema_extension" | "type_system_extension" => { out.insert("type_def"); }
+        "fragment_spread" | "inline_fragment" => { out.insert("splat"); }
+        "implements_interfaces" => { out.insert("bound"); }
+        "selection_set" => { out.insert("body"); }
+        "union_member_types" => { out.insert("type_expr"); }
+        // Prolog.
+        "args" => { out.insert("param"); }
+        "atomic" => { out.insert("literal"); }
+        "bracketed_term" | "curly_bracket_term" => { out.insert("block"); }
+        "compound_term" | "functional_notation" => { out.insert("call"); }
+        "dict_value" => { out.insert("dict"); }
+        "bracket" | "curly_bracket" | "square_brackets" => { out.insert("token"); }
+        "cut" => { out.insert("control"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }

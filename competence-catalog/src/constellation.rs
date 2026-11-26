@@ -198,6 +198,9 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Make" => (p(&["build", "declarative"]), Some("US"), Some(1976)),
         "PowerShell" => (p(&["shell", "scripting", "object-pipeline"]), Some("US"), Some(2006)),
         "TLA+" => (p(&["spec", "formal", "temporal-logic"]), Some("US"), Some(1999)),
+        "Markdown" => (p(&["markup", "lightweight"]), Some("US"), Some(2004)),
+        "GraphQL" => (p(&["query", "declarative"]), Some("US"), Some(2015)),
+        "Prolog" => (p(&["logic", "declarative"]), Some("France"), Some(1972)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -260,6 +263,7 @@ fn family_of(name: &str, group: &str) -> String {
         "HTML" | "CSS" | "XML" | "Markdown" => "markup",
         "JSON" | "YAML" | "TOML" | "INI" | "CSV" => "data / config",
         "Dockerfile" | "CMake" | "Make" | "Meson" | "Bazel" | "Ninja" => "build",
+        "GraphQL" | "SPARQL" | "SQL" => "query",
         _ => "",
     };
     if !f.is_empty() {
