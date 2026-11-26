@@ -495,6 +495,94 @@ pub fn resolve_poly(a: &mut Poly, b: &mut Poly, rest: f64) {
     }
 }
 
+fn cross2(o: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+    (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0)
+}
+
+fn point_in_tri(p: (f64, f64), a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> bool {
+    let d1 = cross2(a, b, p);
+    let d2 = cross2(b, c, p);
+    let d3 = cross2(c, a, p);
+    let neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+    let pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+    !(neg && pos)
+}
+
+/// Ear-clipping triangulation of a simple (possibly concave) polygon into convex triangles.
+pub fn triangulate(v: &[(f64, f64)]) -> Vec<Poly> {
+    let mut pts: Vec<(f64, f64)> = v.to_vec();
+    let area: f64 = (0..pts.len())
+        .map(|i| {
+            let j = (i + 1) % pts.len();
+            pts[i].0 * pts[j].1 - pts[j].0 * pts[i].1
+        })
+        .sum();
+    if area < 0.0 {
+        pts.reverse();
+    }
+    let mut idx: Vec<usize> = (0..pts.len()).collect();
+    let mut out = Vec::new();
+    let mk = |a: usize, b: usize, c: usize| Poly {
+        v: vec![pts[a], pts[b], pts[c]],
+        m: 1.0, vx: 0.0, vy: 0.0, theta: 0.0, omega: 0.0,
+    };
+    while idx.len() > 3 {
+        let mut ear = Option::None;
+        for i in 0..idx.len() {
+            let a = idx[(i + idx.len() - 1) % idx.len()];
+            let b = idx[i];
+            let c = idx[(i + 1) % idx.len()];
+            if cross2(pts[a], pts[b], pts[c]) <= 1e-12 {
+                continue;
+            }
+            let mut contains = false;
+            for &j in &idx {
+                if j == a || j == b || j == c {
+                    continue;
+                }
+                if point_in_tri(pts[j], pts[a], pts[b], pts[c]) {
+                    contains = true;
+                    break;
+                }
+            }
+            if !contains {
+                ear = Some((i, a, b, c));
+                break;
+            }
+        }
+        match ear {
+            Some((i, a, b, c)) => {
+                out.push(mk(a, b, c));
+                idx.remove(i);
+            }
+            Option::None => break,
+        }
+    }
+    if idx.len() == 3 {
+        out.push(mk(idx[0], idx[1], idx[2]));
+    }
+    out
+}
+
+/// Circle vs a concave polygon: resolve against each convex triangle of its decomposition.
+pub fn circle_concave(b: &mut Ball, verts: &[(f64, f64)], rest: f64, fric: f64) {
+    for tri in triangulate(verts) {
+        circle_poly(b, &tri, rest, fric);
+    }
+}
+
+/// One stateful step of Plant2 (for closed-loop / hardware-in-the-loop harnesses).
+pub fn step2(p: &Plant2, x: f64, v: f64, act: f64) -> (f64, f64) {
+    let acc = act - p.gravity - p.drag * v;
+    let mut nv = v + acc * p.dt;
+    let mut nx = x + nv * p.dt;
+    if nx < p.wall {
+        nx = p.wall;
+        nv = -nv * p.restitution;
+    }
+    (nx, nv)
+}
+
 /// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
 /// explains the recording; None when no candidate is within tol.
 pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {

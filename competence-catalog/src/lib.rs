@@ -36,6 +36,7 @@ pub mod foreman;
 pub mod form;
 pub mod fullsynth;
 pub mod hd;
+pub mod hil;
 pub mod ingest;
 pub mod jepa;
 pub mod jit;

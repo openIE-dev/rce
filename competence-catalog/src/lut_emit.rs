@@ -560,6 +560,48 @@ fn complete_higher(l: &mut LanguageLut) {
     for (k, t) in attr_stmts {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
+
+    // Control-flow / value-form constructs (exotic grammar remainder), per family as data.
+    let cf_stmts: &[(&str, &str)] = if lisp {
+        &[
+            ("block", "(progn {body})"),
+            ("loop", "(loop {body})"),
+            ("break", "(return)"),
+            ("continue", "(continue)"),
+            ("try", "(handler-case {body} (error {handler}))"),
+            ("cast", "(coerce {value} '{type})"),
+            ("closure", "(lambda ({params}) {body})"),
+            ("pattern", "{name}"),
+            ("ref", "(ref {value})"),
+        ]
+    } else if ml {
+        &[
+            ("block", "({body})"),
+            ("loop", "while true do {body} done"),
+            ("break", "exit"),
+            ("continue", "continue"),
+            ("try", "try {body} with {handler}"),
+            ("cast", "({value} : {type})"),
+            ("closure", "fun {params} -> {body}"),
+            ("pattern", "{name}"),
+            ("ref", "ref {value}"),
+        ]
+    } else {
+        &[
+            ("block", "{{ {body} }}"),
+            ("loop", "loop {{ {body} }}"),
+            ("break", "break;"),
+            ("continue", "continue;"),
+            ("try", "try {{ {body} }} catch {{ {handler} }}"),
+            ("cast", "({type}){value}"),
+            ("closure", "|{params}| {body}"),
+            ("pattern", "{name}"),
+            ("ref", "&{value}"),
+        ]
+    };
+    for (k, t) in cf_stmts {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program

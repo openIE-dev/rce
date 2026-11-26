@@ -82,6 +82,28 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "where_clause" | "type_bound" => { out.insert("generic"); }
         "method_signature" | "constructor_declaration" | "destructor_declaration"
         | "operator_declaration" | "function_signature" => { out.insert("fn"); }
+        // Exotic / control-flow / value-form remainder.
+        "block" | "statement_block" | "compound_statement" | "body" | "progn"
+        | "expression_statement" | "declaration_list" => { out.insert("block"); }
+        "loop_expression" | "loop_statement" | "do_statement" | "repeat_statement"
+        | "loop" => { out.insert("loop"); }
+        "break_expression" | "break_statement" | "break" => { out.insert("break"); }
+        "continue_expression" | "continue_statement" | "continue" => { out.insert("continue"); }
+        "try_expression" | "try_statement" | "catch_clause" | "finally_clause"
+        | "except_clause" | "handler_case" | "try" => { out.insert("try"); }
+        "cast_expression" | "type_cast_expression" | "as_expression" | "coerce_expression"
+        | "cast" => { out.insert("cast"); }
+        "closure_expression" | "lambda_expression" | "arrow_function" | "function_expression"
+        | "anonymous_function" | "lambda" | "closure" => { out.insert("closure"); out.insert("fn"); }
+        "pattern" | "wildcard" | "binding_pattern" | "or_pattern" | "range_pattern"
+        | "struct_pattern" | "tuple_pattern" | "slice_pattern" | "literal_pattern"
+        | "match_pattern" | "captured_pattern" | "reference_pattern" => { out.insert("pattern"); }
+        "reference_expression" | "dereference_expression" | "borrow_expression"
+        | "ref_expression" | "pointer_expression" | "address_of_expression"
+        | "unary_expression" => { out.insert("ref"); }
+        "range_expression" | "range" | "slice_expression" => { out.insert("list"); }
+        "yield_expression" | "yield" | "await_expression" => { out.insert("await"); }
+        "match_arm" | "case_clause" | "switch_case" => { out.insert("match"); out.insert("pattern"); }
         _ => {}
     }
 }
