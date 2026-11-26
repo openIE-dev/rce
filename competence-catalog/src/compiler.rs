@@ -133,7 +133,10 @@ impl Cg {
             Name(n, _) => {
                 if let Some(sl) = &self.slots {
                     let slot = *sl.get(n).ok_or_else(|| format!("unbound name {n}"))?;
-                    self.emit(&format!("ldur {}, [sp, #{}]", d, slot * 8));
+                    match self.arch {
+                        Arch::Arm64 => self.emit(&format!("ldur {}, [sp, #{}]", d, slot * 8)),
+                        Arch::X86 => self.emit(&format!("mov {}, [rsp+{}]", d, slot * 8)),
+                    }
                 } else {
                     let src = self.param(n).ok_or_else(|| format!("unbound name {n}"))?;
                     if src != dst {

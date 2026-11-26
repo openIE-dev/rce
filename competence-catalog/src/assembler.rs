@@ -201,6 +201,14 @@ pub enum InsX86 {
     Idiv(u32),
     Setcc(u8),  // into al
     Movzx(u32), // from al
+    /// SUB RSP, imm (frame setup; imm8 form when it fits).
+    SubSp(u32),
+    /// ADD RSP, imm (frame teardown).
+    AddSp(u32),
+    /// MOV [RSP+off], r32.
+    Store(u32, i32),
+    /// MOV r32, [RSP+off].
+    Load(u32, i32),
     Ret,
 }
 
@@ -284,6 +292,37 @@ pub fn encode_x86(i: &InsX86) -> Vec<u8> {
             b.push(0xB6);
             b.push(modrm(d, 0)); // from al
         }
+        InsX86::SubSp(imm) | InsX86::AddSp(imm) => {
+            let add = matches!(i, InsX86::AddSp(_));
+            b.push(0x48); // REX.W
+            if imm <= 127 {
+                b.push(0x83);
+                b.push(if add { 0xC4 } else { 0xEC }); // /0 add, /5 sub, rm=rsp
+                b.push(imm as u8);
+            } else {
+                b.push(0x81);
+                b.push(if add { 0xC4 } else { 0xEC });
+                b.extend_from_slice(&imm.to_le_bytes());
+            }
+        }
+        InsX86::Store(reg, off) | InsX86::Load(reg, off) => {
+            let load = matches!(i, InsX86::Load(..));
+            if let Some(r) = rex(reg, 0) { b.push(r); }
+            b.push(if load { 0x8B } else { 0x89 });
+            // [rsp+off]: rm=100 (SIB), SIB=0x24 (no index, base=rsp).
+            if off == 0 {
+                b.push(((reg & 7) as u8) << 3 | 4);
+                b.push(0x24);
+            } else if (-128..=127).contains(&off) {
+                b.push(0x44 | ((reg & 7) as u8) << 3);
+                b.push(0x24);
+                b.push(off as u8);
+            } else {
+                b.push(0x84 | ((reg & 7) as u8) << 3);
+                b.push(0x24);
+                b.extend_from_slice(&off.to_le_bytes());
+            }
+        }
         InsX86::Ret => b.push(0xC3),
     }
     b
@@ -300,9 +339,22 @@ pub fn parse_line_x86(line: &str) -> Result<InsX86, String> {
         if args[0] != "al" { return Err("setcc target must be al".into()); }
         return Ok(InsX86::Setcc(cond_code_x86(cc)?));
     }
+    let memoff = |s: &str| -> Result<i32, String> {
+        let t = s.trim().trim_start_matches('[').trim_end_matches(']');
+        let rest = t.strip_prefix("rsp").ok_or_else(|| format!("only rsp-relative memrefs: {s}"))?;
+        if rest.is_empty() { return Ok(0); }
+        rest.strip_prefix('+').ok_or_else(|| format!("bad memref {s}"))?
+            .parse::<i32>().map_err(|e| e.to_string())
+    };
     match op {
+        "sub" if args[0].trim() == "rsp" => Ok(InsX86::SubSp(args[1].parse::<u32>().map_err(|e| e.to_string())?)),
+        "add" if args[0].trim() == "rsp" => Ok(InsX86::AddSp(args[1].parse::<u32>().map_err(|e| e.to_string())?)),
         "mov" => {
-            if let Ok(imm) = args[1].parse::<i32>() {
+            if args[0].trim().starts_with('[') {
+                Ok(InsX86::Store(r(1)?, memoff(args[0])?))
+            } else if args[1].trim().starts_with('[') {
+                Ok(InsX86::Load(r(0)?, memoff(args[1])?))
+            } else if let Ok(imm) = args[1].parse::<i32>() {
                 Ok(InsX86::MovImm(r(0)?, imm))
             } else {
                 Ok(InsX86::MovReg(r(0)?, r(1)?))

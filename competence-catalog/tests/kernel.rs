@@ -47,22 +47,34 @@ fn kernel_matches_replay_gate() {
 
 #[test]
 fn kernel_matches_system_toolchain() {
+    use competence_catalog::assembler::assemble_x86;
     let mut checked = 0;
     for (src, _) in PROGRAMS {
-        let asm = compile_program(src, &arm()).unwrap();
-        let ours = assemble(&asm).unwrap();
-        if let Ok(sys) = system_bytes(&asm, "arm64") {
-            assert_eq!(ours, sys, "{src}");
-            checked += 1;
+        for (t, label) in [(arm(), "arm64"), (Target { arch: Arch::X86, has_fma: false }, "x86-64")] {
+            let asm = compile_program(src, &t).unwrap();
+            let ours = if t.arch == Arch::Arm64 { assemble(&asm).unwrap() } else { assemble_x86(&asm).unwrap() };
+            if let Ok(sys) = system_bytes(&asm, label) {
+                assert_eq!(ours, sys, "{src} on {label}");
+                checked += 1;
+            }
         }
     }
     assert!(checked > 0, "expected the system toolchain on the dev host");
 }
 
 #[test]
-fn kernel_x86_refused_honestly() {
+fn x86_frame_vectors_and_kernel() {
+    use competence_catalog::assembler::{assemble_x86, encode_x86, InsX86};
+    assert_eq!(encode_x86(&InsX86::SubSp(32)), vec![0x48, 0x83, 0xEC, 0x20]);
+    assert_eq!(encode_x86(&InsX86::AddSp(32)), vec![0x48, 0x83, 0xC4, 0x20]);
+    assert_eq!(encode_x86(&InsX86::SubSp(256)), vec![0x48, 0x81, 0xEC, 0x00, 0x01, 0x00, 0x00]);
+    assert_eq!(encode_x86(&InsX86::Store(0, 0)), vec![0x89, 0x04, 0x24]); // mov [rsp], eax
+    assert_eq!(encode_x86(&InsX86::Store(1, 8)), vec![0x89, 0x4C, 0x24, 0x08]); // mov [rsp+8], ecx
+    assert_eq!(encode_x86(&InsX86::Load(0, 16)), vec![0x8B, 0x44, 0x24, 0x10]); // mov eax, [rsp+16]
     let t = Target { arch: Arch::X86, has_fma: false };
-    assert!(compile_program("return a;", &t).is_err());
+    let asm = compile_program("let s = 0; for i in 0..5 { s = s + i; } return s;", &t).unwrap();
+    assert!(asm.contains("sub rsp,"));
+    assert!(assemble_x86(&asm).unwrap().len() > 0);
 }
 
 #[cfg(target_arch = "aarch64")]
