@@ -4,8 +4,10 @@
 //! **directly** to machine primitives (ARM64 / x86-64 assembly) without LLVM/GCC/clang in the
 //! loop. The compiler is a deterministic graph→floor projection plus placement (living
 //! optimization): it emits the fused multiply-add primitive iff the capability lookup says the
-//! fabric has it — the carve-out is derived, not flagged. This is the seed of the dedicated
-//! RCE Compiler; breadth (full kernel, more arches, register allocation) is the open work.
+//! fabric has it — the carve-out is derived, not flagged. Fragment: integer arithmetic,
+//! comparisons, logicals, boolean literals, negation/not, and conditional select (If → branches),
+//! on ARM64 and x86-64, with own assemblers for both. Open breadth: loops/fn/calls (full kernel),
+//! more arches, and physical native-fabric lowering.
 
 use rce_spec_check::ast::Expr;
 
@@ -42,6 +44,7 @@ struct Cg {
     max: u32,
     arch: Arch,
     has_fma: bool,
+    lbl: u32,
 }
 
 impl Cg {
@@ -72,6 +75,51 @@ impl Cg {
         }
     }
 
+    fn new_label(&mut self) -> String {
+        let l = format!("L{}", self.lbl);
+        self.lbl += 1;
+        l
+    }
+
+    fn label(&mut self, l: &str) {
+        self.out.push_str(l);
+        self.out.push_str(":\n");
+    }
+
+    /// Test d against zero; leaves flags set (ARM64 SUBS / x86 CMP). Returns the zero temp.
+    fn gen_test(&mut self, d: u32) -> Result<u32, String> {
+        let t = self.alloc();
+        let (dd, tt) = (reg(self.arch, d), reg(self.arch, t));
+        match self.arch {
+            Arch::Arm64 => {
+                self.emit(&format!("mov {}, #0", tt));
+                self.emit(&format!("subs wzr, {}, {}", dd, tt));
+            }
+            Arch::X86 => {
+                self.emit(&format!("mov {}, 0", tt));
+                self.emit(&format!("cmp {}, {}", dd, tt));
+            }
+        }
+        Ok(t)
+    }
+
+    /// Materialize the flags as 0/1 in d (ARM64 CSET / x86 SETcc+MOVZX).
+    fn gen_flag(&mut self, d: u32, cond: &str) -> Result<(), String> {
+        let dd = reg(self.arch, d);
+        match self.arch {
+            Arch::Arm64 => self.emit(&format!("cset {}, {}", dd, cond)),
+            Arch::X86 => {
+                let cc = match cond {
+                    "eq" => "e", "ne" => "ne", "lt" => "l", "gt" => "g", "le" => "le", "ge" => "ge",
+                    _ => return Err(format!("no x86 cond for {cond}")),
+                };
+                self.emit(&format!("set{cc} al"));
+                self.emit(&format!("movzx {}, al", dd));
+            }
+        }
+        Ok(())
+    }
+
     fn gen(&mut self, e: &Expr, dst: u32) -> Result<(), String> {
         use Expr::*;
         let d = reg(self.arch, dst);
@@ -93,6 +141,38 @@ impl Cg {
                     Arch::Arm64 => self.emit(&format!("neg {}, {}", d, d)),
                     Arch::X86 => self.emit(&format!("neg {}", d)),
                 }
+            }
+            Bool(b, _) => match self.arch {
+                Arch::Arm64 => self.emit(&format!("mov {}, #{}", d, *b as u16)),
+                Arch::X86 => self.emit(&format!("mov {}, {}", d, *b as i32)),
+            },
+            Not(a, _) => {
+                self.gen(a, dst)?;
+                let z = self.gen_test(dst)?;
+                self.gen_flag(dst, "eq")?;
+                self.release(z);
+            }
+            If(c, th, el, _) => {
+                // Condition into a temp: dst may alias a param register the branches still read.
+                let cd = self.alloc();
+                self.gen(c, cd)?;
+                let z = self.gen_test(cd)?;
+                let lelse = self.new_label();
+                let lend = self.new_label();
+                match self.arch {
+                    Arch::Arm64 => self.emit(&format!("b.eq {}", lelse)),
+                    Arch::X86 => self.emit(&format!("je {}", lelse)),
+                }
+                self.release(z);
+                self.release(cd);
+                self.gen(th, dst)?;
+                match self.arch {
+                    Arch::Arm64 => self.emit(&format!("b {}", lend)),
+                    Arch::X86 => self.emit(&format!("jmp {}", lend)),
+                }
+                self.label(&lelse);
+                self.gen(el, dst)?;
+                self.label(&lend);
             }
             Bin(op, l, r, _) => {
                 // Placement-derived fusion: a*b + c -> one madd where the fabric has FMA.
@@ -118,6 +198,28 @@ impl Cg {
                 let t = self.alloc();
                 self.gen(r, t)?;
                 let s = reg(self.arch, t);
+                if matches!(op.as_str(), "==" | "!=" | "<" | ">" | "<=" | ">=") {
+                    let cond = match op.as_str() {
+                        "==" => "eq", "!=" => "ne", "<" => "lt", ">" => "gt", "<=" => "le", _ => "ge",
+                    };
+                    match self.arch {
+                        Arch::Arm64 => self.emit(&format!("subs wzr, {}, {}", d, s)),
+                        Arch::X86 => self.emit(&format!("cmp {}, {}", d, s)),
+                    }
+                    self.gen_flag(dst, cond)?;
+                    self.release(t);
+                    return Ok(());
+                }
+                if matches!(op.as_str(), "&&" | "||" | "and" | "or") {
+                    // Eager evaluation: equivalent in this side-effect-free fragment.
+                    let logical = op == "&&" || op == "and";
+                    match self.arch {
+                        Arch::Arm64 => self.emit(&format!("{} {}, {}, {}", if logical { "and" } else { "orr" }, d, d, s)),
+                        Arch::X86 => self.emit(&format!("{} {}, {}", if logical { "and" } else { "or" }, d, s)),
+                    }
+                    self.release(t);
+                    return Ok(());
+                }
                 match (self.arch, op.as_str()) {
                     (Arch::Arm64, "+") => self.emit(&format!("add {}, {}, {}", d, d, s)),
                     (Arch::Arm64, "-") => self.emit(&format!("sub {}, {}, {}", d, d, s)),
@@ -161,7 +263,7 @@ pub fn compile(e: &Expr, t: &Target) -> Result<String, String> {
 
 /// Compile returning (assembly, max register index used) — the allocator's pressure receipt.
 pub fn compile_stats(e: &Expr, t: &Target) -> Result<(String, u32), String> {
-    let mut cg = Cg { out: String::new(), tmp: 3, free: Vec::new(), max: 3, arch: t.arch, has_fma: t.has_fma };
+    let mut cg = Cg { out: String::new(), tmp: 3, free: Vec::new(), max: 3, arch: t.arch, has_fma: t.has_fma, lbl: 0 };
     cg.gen(&normalize(e.clone()), 0)?;
     cg.emit("ret");
     Ok((cg.out, cg.max))
@@ -170,6 +272,12 @@ pub fn compile_stats(e: &Expr, t: &Target) -> Result<(String, u32), String> {
 /// Compile source (any surface in the fragment) to target assembly.
 pub fn compile_src(src: &str, t: &Target) -> Result<String, String> {
     compile(&lift_expr(src)?, t)
+}
+
+/// Compile a conditional from three source fragments (the arithmetic lifter has no `if` syntax).
+pub fn compile_if_src(cond: &str, th: &str, el: &str, t: &Target) -> Result<String, String> {
+    let e = Expr::If(Box::new(lift_expr(cond)?), Box::new(lift_expr(th)?), Box::new(lift_expr(el)?), 0);
+    compile(&e, t)
 }
 
 /// A sovereign-compiler receipt: what makes RCE-Compile superior to LLVM/MLIR/tinygrad/Mojo on
@@ -192,9 +300,10 @@ pub fn compile_receipt(src: &str, t: &Target) -> Result<CompileReceipt, String> 
     let canon = normalize(lifted.clone());
     let (asm1, reg_max) = compile_stats(&lifted, t)?;
     let (asm2, _) = compile_stats(&lifted, t)?;
-    let machine_code_len = if t.arch == Arch::Arm64 {
-        crate::assembler::assemble(&asm1).map(|b| b.len()).unwrap_or(0)
-    } else { 0 };
+    let machine_code_len = match t.arch {
+        Arch::Arm64 => crate::assembler::assemble(&asm1).map(|b| b.len()).unwrap_or(0),
+        Arch::X86 => crate::assembler::assemble_x86(&asm1).map(|b| b.len()).unwrap_or(0),
+    };
     let sha = |s: &str| -> String {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
