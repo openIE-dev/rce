@@ -349,6 +349,152 @@ pub fn simulate_n(w: &WorldN, s0: &[Ball], steps: usize) -> Vec<Vec<Ball>> {
     out
 }
 
+/// A convex polygon body (arbitrary contact manifold seed): vertices in world space.
+#[derive(Clone, Debug)]
+pub struct Poly {
+    pub v: Vec<(f64, f64)>,
+    pub m: f64,
+    pub vx: f64,
+    pub vy: f64,
+    pub theta: f64,
+    pub omega: f64,
+}
+
+fn poly_edges(p: &Poly) -> Vec<((f64, f64), (f64, f64))> {
+    (0..p.v.len()).map(|i| (p.v[i], p.v[(i + 1) % p.v.len()])).collect()
+}
+
+fn closest_on_segment(px: f64, py: f64, a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    let abx = b.0 - a.0;
+    let aby = b.1 - a.1;
+    let len2 = abx * abx + aby * aby;
+    let t = if len2 > 0.0 { ((px - a.0) * abx + (py - a.1) * aby) / len2 } else { 0.0 }.clamp(0.0, 1.0);
+    (a.0 + t * abx, a.1 + t * aby)
+}
+
+fn inside_convex(px: f64, py: f64, p: &Poly) -> bool {
+    let mut sign = 0.0;
+    for (a, b) in poly_edges(p) {
+        let cross = (b.0 - a.0) * (py - a.1) - (b.1 - a.1) * (px - a.0);
+        if cross.abs() > 1e-12 {
+            if sign == 0.0 {
+                sign = cross;
+            } else if sign * cross < 0.0 {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Circle vs convex polygon: closest-point contact, push out along the boundary normal,
+/// reflect by restitution, friction induces spin. Handles the center-inside case.
+pub fn circle_poly(b: &mut Ball, p: &Poly, rest: f64, fric: f64) {
+    let mut best = (f64::INFINITY, 0.0, 0.0);
+    for (a, c) in poly_edges(p) {
+        let q = closest_on_segment(b.x, b.y, a, c);
+        let d = ((b.x - q.0) * (b.x - q.0) + (b.y - q.1) * (b.y - q.1)).sqrt();
+        if d < best.0 {
+            best = (d, q.0, q.1);
+        }
+    }
+    let (dist, qx, qy) = best;
+    let inside = inside_convex(b.x, b.y, p);
+    if !inside && dist >= b.r {
+        return;
+    }
+    let (mut nx, mut ny) = if dist > 1e-12 { ((b.x - qx) / dist, (b.y - qy) / dist) } else { (0.0, 1.0) };
+    if inside {
+        nx = -nx;
+        ny = -ny;
+    }
+    let pen = if inside { b.r + dist } else { b.r - dist };
+    b.x += nx * pen;
+    b.y += ny * pen;
+    let vn = b.vx * nx + b.vy * ny;
+    if vn < 0.0 {
+        b.vx -= (1.0 + rest) * vn * nx;
+        b.vy -= (1.0 + rest) * vn * ny;
+        let (tx, ty) = (-ny, nx);
+        let vt = b.vx * tx + b.vy * ty;
+        b.omega -= fric * vt / b.r;
+        b.vx -= fric * vt * tx;
+        b.vy -= fric * vt * ty;
+    }
+}
+
+/// Separating-axis overlap of two convex polygons: minimum translation vector (nx, ny, depth)
+/// pushing b away from a, or None if separated.
+pub fn sat_overlap(a: &Poly, b: &Poly) -> Option<(f64, f64, f64)> {
+    let mut best = (f64::INFINITY, 0.0, 0.0);
+    for p in [a, b] {
+        for (e0, e1) in poly_edges(p) {
+            let (mut nx, mut ny) = (-(e1.1 - e0.1), e1.0 - e0.0);
+            let len = (nx * nx + ny * ny).sqrt();
+            if len < 1e-12 {
+                continue;
+            }
+            nx /= len;
+            ny /= len;
+            let proj = |q: &Poly| {
+                let mut lo = f64::INFINITY;
+                let mut hi = f64::NEG_INFINITY;
+                for (x, y) in &q.v {
+                    let d = x * nx + y * ny;
+                    lo = lo.min(d);
+                    hi = hi.max(d);
+                }
+                (lo, hi)
+            };
+            let (la, ha) = proj(a);
+            let (lb, hb) = proj(b);
+            let overlap = ha.min(hb) - la.max(lb);
+            if overlap <= 0.0 {
+                return Option::None;
+            }
+            if overlap < best.0 {
+                let ca = (a.v.iter().map(|v| v.0).sum::<f64>() / a.v.len() as f64, a.v.iter().map(|v| v.1).sum::<f64>() / a.v.len() as f64);
+                let cb = (b.v.iter().map(|v| v.0).sum::<f64>() / b.v.len() as f64, b.v.iter().map(|v| v.1).sum::<f64>() / b.v.len() as f64);
+                let dir = (cb.0 - ca.0) * nx + (cb.1 - ca.1) * ny;
+                let (nx, ny) = if dir < 0.0 { (-nx, -ny) } else { (nx, ny) };
+                best = (overlap, nx, ny);
+            }
+        }
+    }
+    Option::Some((best.1, best.2, best.0))
+}
+
+/// Resolve two convex polygons by the SAT minimum translation vector + normal impulse.
+pub fn resolve_poly(a: &mut Poly, b: &mut Poly, rest: f64) {
+    if let Some((nx, ny, depth)) = sat_overlap(a, b) {
+        let total = a.m + b.m;
+        let share_a = b.m / total;
+        let share_b = a.m / total;
+        for p in a.v.iter_mut() {
+            p.0 -= nx * depth * share_a;
+            p.1 -= ny * depth * share_a;
+        }
+        for p in b.v.iter_mut() {
+            p.0 += nx * depth * share_b;
+            p.1 += ny * depth * share_b;
+        }
+        let rvx = b.vx - a.vx;
+        let rvy = b.vy - a.vy;
+        let vn = rvx * nx + rvy * ny;
+        if vn < 0.0 {
+            let imp = -(1.0 + rest) * vn / (1.0 / a.m + 1.0 / b.m);
+            a.vx -= imp * nx / a.m;
+            a.vy -= imp * ny / a.m;
+            b.vx += imp * nx / b.m;
+            b.vy += imp * ny / b.m;
+            let (tx, ty) = (-ny, nx);
+            let vt = rvx * tx + rvy * ty;
+            a.omega -= 0.1 * vt;
+            b.omega += 0.1 * vt;
+        }
+    }
+}
+
 /// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
 /// explains the recording; None when no candidate is within tol.
 pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {

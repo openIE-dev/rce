@@ -163,6 +163,36 @@ impl LatentPredictor {
         LatentPredictor { w, b }
     }
 
+    /// A zero-initialized predictor of the given shape (for federated rounds).
+    pub fn zero(dx: usize, dy: usize) -> LatentPredictor {
+        LatentPredictor { w: vec![vec![0.0; dx]; dy], b: vec![0.0; dy] }
+    }
+
+    /// One gradient epoch in place (the FedAvg local step).
+    pub fn epoch(&mut self, pairs: &[(Vec<f64>, Vec<f64>)], lr: f64) {
+        let dx = self.w.first().map(|r| r.len()).unwrap_or(0);
+        let dy = self.b.len();
+        let mut gw = vec![vec![0.0; dx]; dy];
+        let mut gb = vec![0.0; dy];
+        for (x, y) in pairs {
+            for j in 0..dy {
+                let pred: f64 = self.w[j].iter().zip(x).map(|(a, c)| a * c).sum::<f64>() + self.b[j];
+                let err = pred - y[j];
+                for k in 0..dx {
+                    gw[j][k] += err * x[k];
+                }
+                gb[j] += err;
+            }
+        }
+        let n = pairs.len().max(1) as f64;
+        for j in 0..dy {
+            for k in 0..dx {
+                self.w[j][k] -= lr * gw[j][k] / n;
+            }
+            self.b[j] -= lr * gb[j] / n;
+        }
+    }
+
     /// Predict the target (Form) representation from the intent representation.
     pub fn predict(&self, x: &[f64]) -> Vec<f64> {
         (0..self.b.len()).map(|j| self.w[j].iter().zip(x).map(|(a, c)| a * c).sum::<f64>() + self.b[j]).collect()
@@ -206,5 +236,17 @@ impl HierPredictor {
     pub fn energy(&self, x: &[f64], y: &[f64]) -> f64 {
         let p = self.predict(x);
         p.iter().zip(y).map(|(a, c)| (a - c) * (a - c)).sum::<f64>()
+    }
+
+    /// World-model rollout: repeatedly predict the next latent state. Coherence of the
+    /// rollout (error growth vs steps) is the world-model quality signal.
+    pub fn rollout(&self, x: &[f64], steps: usize) -> Vec<Vec<f64>> {
+        let mut cur = x.to_vec();
+        let mut out = Vec::new();
+        for _ in 0..steps {
+            cur = self.predict(&cur);
+            out.push(cur.clone());
+        }
+        out
     }
 }

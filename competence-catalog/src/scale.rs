@@ -31,6 +31,62 @@ pub fn accuracy(s: &Scorer, hold: &[(Vec<f64>, bool)]) -> f64 {
     c as f64 / hold.len() as f64
 }
 
+/// Federated hierarchical world-model: train each fleet shard's HierPredictor locally, then
+/// average both levels' weights deterministically. Scale on owned nodes, no raw data shared.
+pub fn federated_hier(
+    shards: &[Vec<(Vec<f64>, Vec<f64>)>],
+    mid: usize,
+    epochs: usize,
+    lr: f64,
+) -> crate::train::HierPredictor {
+    // Proper FedAvg: each round, every shard takes one local epoch from the current global
+    // weights, then weights are averaged back into the global model. Averaging only at the
+    // end (naive) loses accuracy; round-wise averaging tracks centralized training.
+    let dx = shards.first().and_then(|s| s.first()).map(|(x, _)| x.len()).unwrap_or(0);
+    let dy = shards.first().and_then(|s| s.first()).map(|(_, y)| y.len()).unwrap_or(0);
+    let mut global = crate::train::HierPredictor {
+        l1: crate::train::LatentPredictor::zero(dx, mid),
+        l2: crate::train::LatentPredictor::zero(mid, dy),
+    };
+    let pool = |y: &[f64]| -> Vec<f64> {
+        y.iter().take(mid).cloned().chain(std::iter::repeat(0.0)).take(mid).collect()
+    };
+    let l1pairs: Vec<Vec<(Vec<f64>, Vec<f64>)>> = shards
+        .iter()
+        .map(|s| s.iter().map(|(x, y)| (x.clone(), pool(y))).collect())
+        .collect();
+    let l2pairs: Vec<Vec<(Vec<f64>, Vec<f64>)>> = shards
+        .iter()
+        .map(|s| s.iter().map(|(_, y)| (pool(y), y.clone())).collect())
+        .collect();
+    let k = shards.len().max(1) as f64;
+    for _ in 0..epochs {
+        let mut acc1 = crate::train::LatentPredictor::zero(dx, mid);
+        let mut acc2 = crate::train::LatentPredictor::zero(mid, dy);
+        for (i, _) in shards.iter().enumerate() {
+            let mut m1 = crate::train::LatentPredictor { w: global.l1.w.clone(), b: global.l1.b.clone() };
+            let mut m2 = crate::train::LatentPredictor { w: global.l2.w.clone(), b: global.l2.b.clone() };
+            m1.epoch(&l1pairs[i], lr);
+            m2.epoch(&l2pairs[i], lr);
+            for j in 0..mid {
+                for d in 0..dx {
+                    acc1.w[j][d] += m1.w[j][d] / k;
+                }
+                acc1.b[j] += m1.b[j] / k;
+            }
+            for j in 0..dy {
+                for d in 0..mid {
+                    acc2.w[j][d] += m2.w[j][d] / k;
+                }
+                acc2.b[j] += m2.b[j] / k;
+            }
+        }
+        global.l1 = acc1;
+        global.l2 = acc2;
+    }
+    global
+}
+
 /// Split a corpus into k contiguous shards (one per fleet node).
 pub fn shard(corpus: &[(Vec<f64>, bool)], k: usize) -> Vec<Vec<(Vec<f64>, bool)>> {
     let k = k.max(1);
