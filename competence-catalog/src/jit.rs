@@ -247,3 +247,156 @@ impl Default for TracingJit {
         Self::new()
     }
 }
+
+/// A typed runtime value for type-feedback specialization.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Val {
+    Int(i128),
+    Real(f64),
+    Bool(bool),
+}
+
+fn eval_val(e: &rce_spec_check::ast::Expr, env: &std::collections::BTreeMap<String, Val>) -> Option<Val> {
+    use rce_spec_check::ast::Expr::*;
+    match e {
+        Int(v, _) => Some(Val::Int(*v)),
+        Name(n, _) => env.get(n).cloned(),
+        Neg(a, _) => match eval_val(a, env)? {
+            Val::Int(v) => Some(Val::Int(-v)),
+            Val::Real(v) => Some(Val::Real(-v)),
+            _ => Option::None,
+        },
+        Bin(op, a, b, _) => {
+            let x = eval_val(a, env)?;
+            let y = eval_val(b, env)?;
+            let real = matches!(x, Val::Real(_)) || matches!(y, Val::Real(_));
+            let xf = match &x { Val::Int(v) => *v as f64, Val::Real(v) => *v, Val::Bool(b) => *b as i128 as f64 };
+            let yf = match &y { Val::Int(v) => *v as f64, Val::Real(v) => *v, Val::Bool(b) => *b as i128 as f64 };
+            let xi = match &x { Val::Int(v) => *v, Val::Bool(b) => *b as i128, _ => 0 };
+            let yi = match &y { Val::Int(v) => *v, Val::Bool(b) => *b as i128, _ => 0 };
+            match op.as_str() {
+                "+" | "-" | "*" | "/" | "%" => {
+                    if real {
+                        let r = match op.as_str() {
+                            "+" => xf + yf, "-" => xf - yf, "*" => xf * yf,
+                            "/" => if yf != 0.0 { xf / yf } else { return Option::None },
+                            _ => if yf != 0.0 { xf % yf } else { return Option::None },
+                        };
+                        Some(Val::Real(r))
+                    } else {
+                        let r = match op.as_str() {
+                            "+" => xi + yi, "-" => xi - yi, "*" => xi * yi,
+                            "/" => if yi != 0 { xi / yi } else { return Option::None },
+                            _ => if yi != 0 { xi % yi } else { return Option::None },
+                        };
+                        Some(Val::Int(r))
+                    }
+                }
+                "==" => Some(Val::Bool(xf == yf)),
+                "!=" => Some(Val::Bool(xf != yf)),
+                "<" => Some(Val::Bool(xf < yf)),
+                ">" => Some(Val::Bool(xf > yf)),
+                "<=" => Some(Val::Bool(xf <= yf)),
+                ">=" => Some(Val::Bool(xf >= yf)),
+                "&&" => Some(Val::Bool(xf != 0.0 && yf != 0.0)),
+                "||" => Some(Val::Bool(xf != 0.0 || yf != 0.0)),
+                _ => Option::None,
+            }
+        }
+        _ => Option::None,
+    }
+}
+
+/// Type-feedback optimizing JIT: observe argument types per call site; after a threshold,
+/// compile a native kernel specialized to that signature; a later call with a DIFFERENT
+/// signature deopts to the interpreter (never a wrong answer).
+pub struct OptJit {
+    pub jit: Jit,
+    hits: HashMap<String, u64>,
+    spec: HashMap<String, std::path::PathBuf>,
+    pub deopts: u64,
+    pub specs: u64,
+    pub threshold: u64,
+    dir: std::path::PathBuf,
+}
+
+impl OptJit {
+    pub fn new() -> Self {
+        let dir = std::env::temp_dir().join(format!("rce-opt-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        OptJit { jit: Jit::new(), hits: HashMap::new(), spec: HashMap::new(), deopts: 0, specs: 0, threshold: 2, dir }
+    }
+
+    fn sig(args: &[(String, Val)]) -> String {
+        args.iter()
+            .map(|(n, v)| format!("{}:{}", n, match v { Val::Int(_) => "i64", Val::Real(_) => "f64", Val::Bool(_) => "bool" }))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    pub fn run(&mut self, src: &str, args: &[(String, Val)]) -> Result<(String, bool), String> {
+        let e = crate::lift::lift_expr(src)?;
+        let base = crate::canonical::canonical_key(src)?;
+        let sig = Self::sig(args);
+        let key = format!("{base}|{sig}");
+        let n = self.hits.entry(key.clone()).or_insert(0);
+        *n += 1;
+        if *n >= self.threshold {
+            let exe = if let Some(p) = self.spec.get(&key) {
+                p.clone()
+            } else {
+                let p = self.compile(&e, args, &key)?;
+                self.specs += 1;
+                self.spec.insert(key.clone(), p.clone());
+                p
+            };
+            let mut cmd = std::process::Command::new(&exe);
+            for (_, v) in args {
+                cmd.arg(match v { Val::Int(i) => i.to_string(), Val::Real(f) => f.to_string(), Val::Bool(b) => (*b as i128).to_string() });
+            }
+            let out = cmd.output().map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(String::from_utf8_lossy(&out.stderr).into_owned());
+            }
+            return Ok((String::from_utf8_lossy(&out.stdout).trim().to_string(), true));
+        }
+        // cold path: interpret; if a specialization exists for another signature, this is a deopt
+        if self.spec.keys().any(|k| k.starts_with(&format!("{base}|")) && k != &key) {
+            self.deopts += 1;
+        }
+        let env: std::collections::BTreeMap<String, Val> = args.iter().cloned().collect();
+        match eval_val(&e, &env) {
+            Some(Val::Int(i)) => Ok((i.to_string(), false)),
+            Some(Val::Real(f)) => Ok((f.to_string(), false)),
+            Some(Val::Bool(b)) => Ok(((b as i128).to_string(), false)),
+            Option::None => Err("not a closed form under args".into()),
+        }
+    }
+
+    fn compile(&self, e: &rce_spec_check::ast::Expr, args: &[(String, Val)], key: &str) -> Result<std::path::PathBuf, String> {
+        let real = args.iter().any(|(_, v)| matches!(v, Val::Real(_)));
+        let ty = if real { "double" } else { "long long" };
+        let parse = if real { "atof" } else { "atoll" };
+        let mut c = String::from("#include <stdio.h>\n#include <stdlib.h>\nint main(int argc, char** argv){\n");
+        for (i, (n, _)) in args.iter().enumerate() {
+            c.push_str(&format!("  {ty} {n} = ({ty}){parse}(argv[{}]);\n", i + 1));
+        }
+        let body = crate::canonical::emit(e);
+        c.push_str(&format!("  printf(\"%.17g\\n\", (double)({body}));\n  return 0;\n}}\n"));
+        let safe: String = key.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+        let csrc = self.dir.join(format!("{safe}.c"));
+        let exe = self.dir.join(safe);
+        std::fs::write(&csrc, c).map_err(|e| e.to_string())?;
+        let cc = std::process::Command::new("clang").arg("-O2").arg(&csrc).arg("-o").arg(&exe).output().map_err(|e| e.to_string())?;
+        if !cc.status.success() {
+            return Err(String::from_utf8_lossy(&cc.stderr).into_owned());
+        }
+        Ok(exe)
+    }
+}
+
+impl Default for OptJit {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -413,6 +413,82 @@ pub fn threaded_run(tasks: &[(String, Stmt, Env)]) -> Result<Vec<(String, Option
     Ok(out)
 }
 
+/// Real OS-event-loop IO runtime: tokio/mio (kqueue on macOS, epoll on Linux). Tasks run as
+/// async jobs; `AwaitEvent` suspends on a channel until a completion scheduled at a real
+/// timer fires. Results join and sort by id → deterministic aggregate over real async IO.
+pub fn tokio_io_run(
+    tasks: Vec<(String, Stmt, Env)>,
+    events: Vec<(u64, String, i128)>,
+) -> Result<Vec<(String, Option<i128>)>, String> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())?;
+    rt.block_on(async move {
+        let mut senders: std::collections::BTreeMap<String, tokio::sync::mpsc::Sender<i128>> =
+            std::collections::BTreeMap::new();
+        let mut receivers: std::collections::BTreeMap<String, tokio::sync::mpsc::Receiver<i128>> =
+            std::collections::BTreeMap::new();
+        for (id, _, _) in &tasks {
+            let (tx, rx) = tokio::sync::mpsc::channel(8);
+            senders.insert(id.clone(), tx);
+            receivers.insert(id.clone(), rx);
+        }
+        let mut sched = tokio::task::JoinSet::new();
+        let mut evs = events.clone();
+        evs.sort_by_key(|(ms, _, _)| *ms);
+        sched.spawn(async move {
+            for (ms, id, val) in evs {
+                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                if let Some(tx) = senders.get(&id) {
+                    let _ = tx.send(val).await;
+                }
+            }
+        });
+        let mut jobs = tokio::task::JoinSet::new();
+        for (id, stmt, env) in tasks {
+            let mut rx = receivers.remove(&id).unwrap();
+            jobs.spawn(async move {
+                let stmts = match stmt {
+                    Stmt::Seq(ss) => ss,
+                    other => vec![other],
+                };
+                let mut env = env;
+                let mut fns = FnTable::new();
+                let mut fuel = FUEL;
+                let mut result: Option<i128> = Option::None;
+                for s in stmts {
+                    match s {
+                        Stmt::AwaitEvent(_) => {
+                            if let Some(v) = rx.recv().await {
+                                env.insert("io".to_string(), v);
+                            }
+                        }
+                        other => match eval_fuel(&other, &mut env, &mut fns, &mut fuel) {
+                            Ok(Some(v)) => {
+                                result = Some(v);
+                                break;
+                            }
+                            Ok(Option::None) => {}
+                            Err(e) => return (id, Err(e)),
+                        },
+                    }
+                }
+                (id, Ok(result))
+            });
+        }
+        let mut out: Vec<(String, Option<i128>)> = Vec::new();
+        while let Some(joined) = jobs.join_next().await {
+            let (id, r) = joined.map_err(|e| e.to_string())?;
+            out.push((id, r?));
+        }
+        let _ = sched.join_next().await;
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(out)
+    })
+}
+
 /// The replay gate for whole-program Forms: admitted iff the program reproduces EVERY probe
 /// (seeded environment → expected return) under deterministic execution. Same admission law
 /// as expressions, extended to statements.
