@@ -602,6 +602,78 @@ fn complete_higher(l: &mut LanguageLut) {
     for (k, t) in cf_stmts {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
+
+    // Universal grammar-category LUT rows (per family), so every construct has a template.
+    let cat: &[(&str, &str)] = if lisp {
+        &[
+            ("comment", "; {value}"), ("directive", "# {value}"), ("char_lit", "#\\{value}"),
+            ("null_lit", "nil"), ("regex", "{value}"), ("token", "{value}"), ("modifier", "{value}"),
+            ("type_expr", "{value}"), ("param", "{name}"), ("bound", "{value}"), ("field", "{name}"),
+            ("init", "(setf {name} {value})"), ("label", "{name}:"), ("range", "(range {lo} {hi})"),
+            ("seq", "(progn {a} {b})"), ("dict", "(dict {key} {value})"), ("set", "(set {value})"),
+            ("splat", "{value}"), ("interp", "{value}"), ("jsx", "{value}"), ("module", "(module {name})"),
+            ("control", "{value}"), ("assert", "(assert {cond})"), ("throw", "(error {value})"),
+            ("with", "(with {value} {body})"), ("delete", "(delete {value})"), ("global", "(global {name})"),
+            ("pass", "nil"), ("ellipsis", "..."), ("update", "(incf {value})"), ("new", "(make-instance '{type} {args})"),
+            ("chain", "(slot-value {value} '{member})"), ("property", "{name}"), ("switch", "(case {value} {cases})"),
+            ("case", "({value} ...)"), ("guard", "(when {cond})"), ("goto", "(go {label})"), ("defer", "(defer {value})"),
+            ("go", "(go {value})"), ("send", "(send {ch} {value})"), ("receive", "(receive {ch})"),
+            ("select", "(select {cases})"), ("incdec", "(incf {value})"), ("compound_assign", "(setf {name} {value})"),
+            ("else", "(t {body})"), ("elif", "({cond} {body})"), ("comprehension", "(loop for {name} in {iter} collect {value})"),
+            ("generator", "(loop for {name} in {iter} collect {value})"), ("named_expr", "(setf {name} {value})"),
+            ("format", "(format nil \"{value}\")"), ("export", "(export '{name})"), ("record", "(defstruct {name} {params})"),
+            ("instanceof", "(typep {value} '{type})"), ("method_ref", "(function {name})"), ("literal", "{value}"),
+            ("stmt", "{value}"), ("expr", "{value}"), ("decl", "(defvar {value})"), ("clause", "{value}"), ("body", "(progn {value})"),
+            ("asm", "(asm {value})"), ("op", "({value})"),
+        ]
+    } else if ml {
+        &[
+            ("comment", "(* {value} *)"), ("directive", "# {value}"), ("char_lit", "'{value}'"),
+            ("null_lit", "()"), ("regex", "{value}"), ("token", "{value}"), ("modifier", "{value}"),
+            ("type_expr", "{value}"), ("param", "{name}: {type}"), ("bound", "{value}"), ("field", "{name}: {type};"),
+            ("init", "let {name} = {value}"), ("label", "{name}:"), ("range", "{lo}..{hi}"),
+            ("seq", "{a}; {b}"), ("dict", "[{key}, {value}]"), ("set", "[{value}]"),
+            ("splat", "{value}"), ("interp", "{value}"), ("jsx", "{value}"), ("module", "module {name}"),
+            ("control", "{value}"), ("assert", "assert {cond}"), ("throw", "raise {value}"),
+            ("with", "with {value} {body}"), ("delete", "delete {value}"), ("global", "global {name}"),
+            ("pass", "()"), ("ellipsis", "..."), ("update", "succ {value}"), ("new", "{type} {args}"),
+            ("chain", "{value}.{member}"), ("property", "{name}"), ("switch", "match {value} with {cases}"),
+            ("case", "| {value} ->"), ("guard", "when {cond}"), ("goto", "goto {label}"), ("defer", "defer {value}"),
+            ("go", "go {value}"), ("send", "send {ch} {value}"), ("receive", "recv {ch}"),
+            ("select", "select {cases}"), ("incdec", "succ {value}"), ("compound_assign", "{name} <- {value}"),
+            ("else", "else {body}"), ("elif", "else if {cond} then {body}"), ("comprehension", "[{value} | {name} <- {iter}]"),
+            ("generator", "({value} | {name} <- {iter})"), ("named_expr", "({name} := {value})"),
+            ("format", "{value}"), ("export", "export {name}"), ("record", "type {name} = {{ {params} }}"),
+            ("instanceof", "{value} :? {type}"), ("method_ref", "{type}.{name}"), ("literal", "{value}"),
+            ("stmt", "{value};"), ("expr", "{value}"), ("decl", "let {value}"), ("clause", "{value}"), ("body", "({value})"),
+            ("asm", "asm({value})"), ("op", "({value})"),
+        ]
+    } else {
+        &[
+            ("comment", "/* {value} */"), ("directive", "# {value}"), ("char_lit", "'{value}'"),
+            ("null_lit", "NULL"), ("regex", "/{value}/"), ("token", "{value}"), ("modifier", "{value}"),
+            ("type_expr", "{value}"), ("param", "{type} {name}"), ("bound", "{value}"), ("field", "{type} {name};"),
+            ("init", "{name} = {value}"), ("label", "{name}:"), ("range", "{lo}..{hi}"),
+            ("seq", "{a}, {b}"), ("dict", "{{ {key}: {value} }}"), ("set", "{{ {value} }}"),
+            ("splat", "*{value}"), ("interp", "{{ {value} }}"), ("jsx", "<{name}>{body}</{name}>"), ("module", "module {name};"),
+            ("control", "{value}"), ("assert", "assert({cond});"), ("throw", "throw {value};"),
+            ("with", "with ({value}) {{ {body} }}"), ("delete", "delete {value};"), ("global", "global {name};"),
+            ("pass", ";"), ("ellipsis", "..."), ("update", "++{value}"), ("new", "new {type}({args})"),
+            ("chain", "{value}?.{member}"), ("property", "{name}"), ("switch", "switch ({value}) {{ {cases} }}"),
+            ("case", "case {value}:"), ("guard", "if ({cond})"), ("goto", "goto {label};"), ("defer", "defer {value};"),
+            ("go", "go {value};"), ("send", "{ch} <- {value}"), ("receive", "<-{ch}"),
+            ("select", "select {{ {cases} }}"), ("incdec", "{value}++"), ("compound_assign", "{name} {op}= {value}"),
+            ("else", "else {{ {body} }}"), ("elif", "else if ({cond}) {{ {body} }}"), ("comprehension", "[{value} for {name} in {iter}]"),
+            ("generator", "({value} for {name} in {iter})"), ("named_expr", "({name} := {value})"),
+            ("format", "f\"{value}\""), ("export", "export {name};"), ("record", "record {name}({params});"),
+            ("instanceof", "{value} instanceof {type}"), ("method_ref", "{type}::{name}"), ("literal", "{value}"),
+            ("stmt", "{value};"), ("expr", "{value}"), ("decl", "{value};"), ("clause", "{value}"), ("body", "{{ {value} }}"),
+            ("asm", "asm {{ {value} }}"), ("op", "({value})"),
+        ]
+    };
+    for (k, t) in cat {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program

@@ -18,6 +18,15 @@ pub const CONSTRUCTS: &[&str] = &[
     "let", "assign", "return", "if_stmt", "while", "for", "import", "type_def", "fn",
     "match", "generic", "async", "await", "attribute", "macro",
     "block", "loop", "break", "continue", "try", "cast", "closure", "pattern", "ref",
+    // Universal grammar categories (every named node type realizes one of these).
+    "comment", "directive", "char_lit", "null_lit", "regex", "token", "modifier",
+    "type_expr", "param", "bound", "field", "init", "label", "range", "seq", "dict",
+    "set", "splat", "interp", "jsx", "module", "control", "assert", "throw", "with",
+    "delete", "global", "pass", "ellipsis", "update", "new", "chain", "property",
+    "switch", "case", "guard", "goto", "defer", "go", "send", "receive", "select",
+    "incdec", "compound_assign", "else", "elif", "comprehension", "generator",
+    "named_expr", "format", "export", "record", "instanceof", "method_ref",
+    "literal", "stmt", "expr", "decl", "clause", "body", "asm", "op",
 ];
 
 /// Constructs a LUT covers (present templates ∩ taxonomy).

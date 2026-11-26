@@ -8,7 +8,7 @@ use serde_json::json;
 
 #[test]
 fn coverage_matrix_is_complete() {
-    assert_eq!(CONSTRUCTS.len(), 49);
+    assert_eq!(CONSTRUCTS.len(), 111);
     for l in builtin_luts() {
         assert!(gaps(&l).is_empty(), "{} missing {:?}", l.name, gaps(&l));
         assert_eq!(coverage(&l), 1.0);
