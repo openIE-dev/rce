@@ -149,6 +149,68 @@ pub fn simulate3(p: &Plant3, acts: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+/// A 2D rigid body (circle) in a static box: gravity, per-wall restitution, tangential
+/// friction that induces spin. A single-body rigid-contact seed; multi-body / arbitrary
+/// manifolds stay open.
+#[derive(Clone, Copy, Debug)]
+pub struct Body2 {
+    pub dt: f64,
+    pub g: f64,
+    pub radius: f64,
+    pub lo: (f64, f64),
+    pub hi: (f64, f64),
+    pub rest: f64,
+    pub fric: f64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct State2 {
+    pub x: f64,
+    pub y: f64,
+    pub vx: f64,
+    pub vy: f64,
+    pub spin: f64,
+}
+
+/// Simulate the body under a per-step force sequence; contacts clamp to the box, reflect
+/// the normal velocity by restitution, bleed tangential velocity and add spin by friction.
+pub fn simulate_body(b: &Body2, s0: &State2, forces: &[(f64, f64)]) -> Vec<State2> {
+    let mut s = *s0;
+    let mut out = Vec::new();
+    for (fx, fy) in forces {
+        s.vx += fx * b.dt;
+        s.vy += (fy - b.g) * b.dt;
+        s.x += s.vx * b.dt;
+        s.y += s.vy * b.dt;
+        if s.x - b.radius < b.lo.0 {
+            s.x = b.lo.0 + b.radius;
+            s.vx = -s.vx * b.rest;
+            s.spin += s.vy * b.fric;
+            s.vy *= 1.0 - b.fric;
+        }
+        if s.x + b.radius > b.hi.0 {
+            s.x = b.hi.0 - b.radius;
+            s.vx = -s.vx * b.rest;
+            s.spin -= s.vy * b.fric;
+            s.vy *= 1.0 - b.fric;
+        }
+        if s.y - b.radius < b.lo.1 {
+            s.y = b.lo.1 + b.radius;
+            s.vy = -s.vy * b.rest;
+            s.spin += s.vx * b.fric;
+            s.vx *= 1.0 - b.fric;
+        }
+        if s.y + b.radius > b.hi.1 {
+            s.y = b.hi.1 - b.radius;
+            s.vy = -s.vy * b.rest;
+            s.spin -= s.vx * b.fric;
+            s.vx *= 1.0 - b.fric;
+        }
+        out.push(s);
+    }
+    out
+}
+
 /// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
 /// explains the recording; None when no candidate is within tol.
 pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {

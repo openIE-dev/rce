@@ -188,6 +188,7 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(Option::None)
         }
         Stmt::Await(inner) => eval_fuel(inner, env, fns, fuel),
+        Stmt::AwaitEvent(_) => Err("await event requires the IoRuntime".into()),
         Stmt::Attribute(_) => Ok(Option::None),
         Stmt::Macro(n, args) => {
             let e = expand_macro(n, args, &fns.macros)?;
@@ -278,6 +279,110 @@ impl Scheduler {
 }
 
 impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A deterministic preemptive + IO-async runtime seed. Tasks run one statement per tick in
+/// priority order (higher priority preempts at statement granularity); `AwaitEvent(id)`
+/// suspends a task until an IO completion scheduled at a tick arrives. Completions are
+/// delivered in tick order, so the whole interleaving is reproducible. No real IO / threads.
+pub struct IoRuntime {
+    tasks: Vec<IoTask>,
+    events: BTreeMap<u64, Vec<(String, i128)>>,
+    pub log: Vec<String>,
+    pub now: u64,
+}
+
+struct IoTask {
+    id: String,
+    prio: u8,
+    stmts: Vec<Stmt>,
+    pc: usize,
+    env: Env,
+    wait: Option<u64>,
+    done: bool,
+}
+
+impl IoRuntime {
+    pub fn new() -> Self {
+        IoRuntime { tasks: Vec::new(), events: BTreeMap::new(), log: Vec::new(), now: 0 }
+    }
+
+    pub fn spawn(&mut self, id: &str, prio: u8, body: Stmt, seed: Env) {
+        let stmts = match body {
+            Stmt::Seq(ss) => ss,
+            other => vec![other],
+        };
+        self.tasks.push(IoTask { id: id.to_string(), prio, stmts, pc: 0, env: seed, wait: Option::None, done: false });
+    }
+
+    /// Schedule an IO completion delivering `val` to task `id` at tick `t`.
+    pub fn event(&mut self, t: u64, id: &str, val: i128) {
+        self.events.entry(t).or_default().push((id.to_string(), val));
+    }
+
+    /// One tick: deliver due completions, then run one statement per ready task in priority
+    /// order (ties by id). Returns true if any task is still alive.
+    pub fn tick(&mut self, fns: &mut FnTable, fuel: &mut u64) -> Result<bool, String> {
+        self.now += 1;
+        if let Some(due) = self.events.remove(&self.now) {
+            for (id, val) in due {
+                if let Some(t) = self.tasks.iter_mut().find(|t| t.id == id) {
+                    t.wait = Option::None;
+                    t.env.insert("io".to_string(), val);
+                    self.log.push(format!("{id}:io"));
+                }
+            }
+        }
+        let mut order: Vec<usize> = (0..self.tasks.len())
+            .filter(|i| !self.tasks[*i].done && self.tasks[*i].wait.is_none())
+            .collect();
+        order.sort_by(|a, b| self.tasks[*a].prio.cmp(&self.tasks[*b].prio).then_with(|| self.tasks[*a].id.cmp(&self.tasks[*b].id)));
+        for i in order {
+            let t = &mut self.tasks[i];
+            if t.pc >= t.stmts.len() {
+                t.done = true;
+                continue;
+            }
+            if *fuel == 0 {
+                return Err("io runtime fuel exhausted".into());
+            }
+            *fuel -= 1;
+            let s = t.stmts[t.pc].clone();
+            match s {
+                Stmt::AwaitEvent(id) => {
+                    t.wait = Some(id);
+                    t.pc += 1;
+                    self.log.push(format!("{}:wait", t.id));
+                }
+                other => {
+                    if let Some(_v) = eval_fuel(&other, &mut t.env, fns, fuel)? {
+                        t.done = true;
+                        self.log.push(format!("{}:return", t.id));
+                    } else {
+                        t.pc += 1;
+                        self.log.push(format!("{}:step", t.id));
+                    }
+                }
+            }
+        }
+        Ok(self.tasks.iter().any(|t| !t.done))
+    }
+
+    pub fn run(&mut self, fns: &mut FnTable, max_ticks: u64) -> Result<(), String> {
+        let mut fuel = FUEL;
+        while self.tick(fns, &mut fuel)? {
+            if self.now >= max_ticks {
+                return Err("io runtime tick cap".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Default for IoRuntime {
     fn default() -> Self {
         Self::new()
     }

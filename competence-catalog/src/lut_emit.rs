@@ -551,11 +551,11 @@ fn complete_higher(l: &mut LanguageLut) {
 
     // Attributes / macros surface realizations, completed per family as data.
     let attr_stmts: &[(&str, &str)] = if lisp {
-        &[("attribute", "(declare {name})"), ("macro", "({name} {args})")]
+        &[("attribute", "(declare {name})"), ("macro", "({name} {args})"), ("await_event", "(wait-event {id})")]
     } else if ml {
-        &[("attribute", "[@{name}]"), ("macro", "({name} {args})")]
+        &[("attribute", "[@{name}]"), ("macro", "({name} {args})"), ("await_event", "await_event {id}")]
     } else {
-        &[("attribute", "#[{name}]"), ("macro", "{name}!({args})")]
+        &[("attribute", "#[{name}]"), ("macro", "{name}!({args})"), ("await_event", "await event({id})")]
     };
     for (k, t) in attr_stmts {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
@@ -598,6 +598,8 @@ pub enum Stmt {
     AsyncFn(String, Vec<String>, Box<Stmt>),
     /// `await stmt` — a yield point (cooperative seed; runs inner to completion).
     Await(Box<Stmt>),
+    /// `await event(id)` — suspend until an IO completion arrives (IoRuntime).
+    AwaitEvent(u64),
     /// `#[name]` / `@name` — an attribute/annotation (declaration metadata).
     Attribute(String),
     /// `name!(args)` — a macro invocation (expansion is an open frontier; execution refuses).
@@ -723,6 +725,10 @@ pub fn render_stmt(s: &Stmt, lut: &LanguageLut) -> Result<String, String> {
         Stmt::Await(inner) => {
             subs.insert("value".into(), render_stmt(inner, lut)?);
             "await"
+        }
+        Stmt::AwaitEvent(id) => {
+            subs.insert("id".into(), id.to_string());
+            "await_event"
         }
         Stmt::Attribute(n) => {
             subs.insert("name".into(), n.clone());
