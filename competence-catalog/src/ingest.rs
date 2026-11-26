@@ -803,6 +803,24 @@ pub fn structural_metrics(nt: &Value) -> (usize, usize, usize, f64, f64, f64) {
     (total, mapped, c, h, redundancy, surface)
 }
 
+/// Highlight capture for a node type, derived from its universal construct — the basis for
+/// generating tree-sitter queries (highlights.scm) from the construct IR.
+pub fn highlight_capture(t: &str) -> &'static str {
+    let mut s = BTreeSet::new();
+    node_constructs(t, &mut s);
+    if s.contains("comment") { return "comment"; }
+    if s.contains("str_lit") || s.contains("char_lit") { return "string"; }
+    if s.contains("int_lit") || s.contains("float_lit") || s.contains("bool_lit") || s.contains("null_lit") { return "number"; }
+    if s.contains("keyword") || s.contains("control") || s.contains("directive") { return "keyword"; }
+    if s.contains("fn") || s.contains("call") || s.contains("method_ref") { return "function"; }
+    if s.contains("type_expr") || s.contains("type_def") || s.contains("bound") { return "type"; }
+    if s.contains("field") || s.contains("member") || s.contains("property") { return "property"; }
+    if s.contains("param") { return "variable.parameter"; }
+    if s.contains("op") || s.contains("and") || s.contains("or") || s.contains("not") || s.contains("eq") { return "operator"; }
+    if s.contains("var") || s.contains("symbol") { return "variable"; }
+    "punctuation"
+}
+
 /// The named node types with no construct mapping yet (the honest remainder to close).
 pub fn unmapped_named(nt: &Value) -> Vec<String> {
     let mut out = Vec::new();

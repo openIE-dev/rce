@@ -79,6 +79,23 @@ pub fn dap_manifest(name: &str, adapter: &str) -> String {
     .to_string()
 }
 
+/// Generate a tree-sitter highlights.scm query set from the construct IR: each named node of
+/// the real grammar gets a highlight capture derived from its universal construct. This is the
+/// "generate one tree-sitter query set from the construct IR and drop it into an editor" proof.
+pub fn tree_sitter_queries(nt: &serde_json::Value) -> String {
+    let mut s = String::from("; Generated from the RCE construct IR (adapter_gen). Do not hand-edit.\n");
+    if let Some(arr) = nt.as_array() {
+        for n in arr {
+            if !n.get("named").and_then(|v| v.as_bool()).unwrap_or(false) { continue; }
+            if let Some(t) = n.get("type").and_then(|v| v.as_str()) {
+                let cap = crate::ingest::highlight_capture(t);
+                s.push_str(&format!("({t}) @{cap}\n"));
+            }
+        }
+    }
+    s
+}
+
 /// All generated artifacts for a built-in language, keyed by filename.
 pub fn generate_all(name: &str) -> Option<BTreeMap<String, String>> {
     let lut = builtin_luts().into_iter().find(|l| l.name == name)?;
