@@ -27,6 +27,32 @@ fn unbound_name_refused() {
     assert!(compile_receipt("a*z+c", &t).is_err());
 }
 
+#[test]
+fn own_assembler_known_vectors() {
+    use competence_catalog::assembler::{encode, Ins};
+    assert_eq!(encode(&Ins::MovImm(0, 10)), 0x5280_0140);
+    assert_eq!(encode(&Ins::MovReg(0, 1)), 0x2A01_03E0);
+    assert_eq!(encode(&Ins::Add(0, 0, 1)), 0x0B01_0000);
+    assert_eq!(encode(&Ins::Madd(0, 0, 1, 2)), 0x1B01_0800);
+    assert_eq!(encode(&Ins::Ret), 0xD65F_03C0);
+}
+
+#[test]
+fn own_assembler_encodes_compiler_output() {
+    let t = Target { arch: Arch::Arm64, has_fma: true };
+    let r = compile_receipt("a*b+c", &t).unwrap();
+    assert_eq!(r.machine_code_len, r.instruction_count * 4, "own assembler emits 4B/ins");
+    assert!(r.machine_code_len > 0);
+}
+
+#[test]
+fn free_list_allocator_bounds_register_pressure() {
+    let t = Target { arch: Arch::Arm64, has_fma: true };
+    let r = compile_receipt("(a*b+c)*(a+b)+c", &t).unwrap();
+    // naive (no reuse) would reach w7 => max 8; free-list reuse keeps it at 7.
+    assert!(r.reg_max <= 7, "free-list reuse bounds pressure below naive, got {}", r.reg_max);
+}
+
 #[cfg(target_arch = "aarch64")]
 #[test]
 fn emitted_arm64_assembles_and_runs_meaning_preserved() {

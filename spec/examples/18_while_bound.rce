@@ -1,9 +1,0 @@
-error Diverged
-
-fn collatz_steps(n: u64) -> u64 ! Diverged
-    var x = n
-    var k: u64 = 0
-    while x != 1 bound 10_000
-        x = if x % 2 == 0 then x / 2 else 3 * x + 1
-        k += 1
-    return k

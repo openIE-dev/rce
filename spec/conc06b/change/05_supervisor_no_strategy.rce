@@ -1,3 +1,0 @@
-# rce-version: 0.6
-supervisor S
-    child a: A

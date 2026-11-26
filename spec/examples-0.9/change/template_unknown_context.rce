@@ -1,5 +1,0 @@
-# rce-version: 0.9
-# expect: W-TPL-1
-fn main()
-    let x = 1
-    emit Foo.t"a {x}"

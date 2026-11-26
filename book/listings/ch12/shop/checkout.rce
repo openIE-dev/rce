@@ -1,6 +1,0 @@
-module shop.checkout
-use shop.pricing
-
-pub fn sale_price(total: i64) -> i64 = pricing.discount(total, 10)
-
-check sale_price(200) == 180

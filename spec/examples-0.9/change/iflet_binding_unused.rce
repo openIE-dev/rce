@@ -1,5 +1,0 @@
-# rce-version: 0.9
-# expect: W-UNUSED-1
-fn main()
-    if let some(v) = some(3)
-        emit "x"

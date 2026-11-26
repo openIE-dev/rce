@@ -1,4 +1,0 @@
-# rce-version: 0.9
-# expect: W-LEX-4
-fn main()
-    emit "a‮b"

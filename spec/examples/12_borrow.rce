@@ -1,9 +1,0 @@
-fn push_all(dst: &mut List[i64], src: &[i64])
-    for x in src
-        dst.append(x)
-
-fn demo() -> usize
-    var a: List[i64] = [1, 2, 3]
-    let b: List[i64] = [4, 5]
-    push_all(&mut a, &b)
-    return a.len()

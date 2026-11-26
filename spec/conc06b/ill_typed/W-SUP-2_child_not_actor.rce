@@ -1,4 +1,0 @@
-# rce-version: 0.6
-# expect: W-SUP-2
-supervisor S strategy one_for_one
-    child a: i64

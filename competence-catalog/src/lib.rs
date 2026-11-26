@@ -20,10 +20,12 @@
 //! and D.11 provenance supplied by `rce-energy`.
 
 pub mod adapter_gen;
+pub mod assembler;
 pub mod bench;
 pub mod borrow;
 pub mod build;
 pub mod canonical;
+pub mod cleanroom;
 pub mod compiler;
 pub mod components;
 pub mod conform;

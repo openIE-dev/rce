@@ -1,1 +1,0 @@
-fn page(who: &text) -> text = (Html.lit("<p>") + who).raw()

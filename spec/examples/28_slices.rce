@@ -1,5 +1,0 @@
-fn middle(xs: &[i64]) -> &[i64] = xs[1:-1]
-
-fn head(xs: &[i64]) -> List[i64] = copy(xs[:2])
-
-fn grid_get(g: &[[i64; 3]; 3], r: usize, c: usize) -> i64 = g[r][c]

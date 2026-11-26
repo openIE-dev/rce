@@ -24,4 +24,8 @@ ureq = { version = "2", features = ["json"] }
 name = "catalog-server"
 path = "src/bin/catalog_server.rs"
 
+[[bin]]
+name = "rce-lsp"
+path = "src/bin/rce_lsp.rs"
+
 [workspace]

@@ -1,7 +1,0 @@
-kind Light
-    Red
-    Green
-
-fn f(l: Light) -> u8
-    match l
-        Red -> return 1

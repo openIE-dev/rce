@@ -1,6 +1,0 @@
-const N: usize = 12
-
-fn f() -> usize
-    comptime
-        check N % 8 == 0
-    return N

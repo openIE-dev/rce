@@ -1,4 +1,0 @@
-# rce-version: 0.6
-fn f()
-    with group g
-        pass

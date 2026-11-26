@@ -1,4 +1,0 @@
-extern "stdcall" fn c_f(n: u32) -> u32
-
-fn main()
-    emit c_f(1)

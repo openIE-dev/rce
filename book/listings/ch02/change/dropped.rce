@@ -1,5 +1,0 @@
-fn double(x: i64) -> i64 = x * 2
-
-fn main()
-    double(4)
-    emit "done"

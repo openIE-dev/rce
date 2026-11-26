@@ -1,2 +1,0 @@
-fn f(s: &text) -> bool
-    return s[0] == "a"

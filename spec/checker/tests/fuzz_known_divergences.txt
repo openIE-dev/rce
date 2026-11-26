@@ -1,3 +1,0 @@
-# Fuzz mutants on which the Rust parser and tree-sitter disagree and that are triaged.
-# Format: FNV-1a hash of the mutant (hex), then a note. See tests/grammar_fuzz.rs.
-# Empty: no known divergence.

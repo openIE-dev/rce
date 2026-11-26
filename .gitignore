@@ -1,4 +1,0 @@
-target/
-spec/lean/.lake/
-node_modules/
-__pycache__/

@@ -1,3 +1,0 @@
-fn main()
-    with device gpu
-        emit 1

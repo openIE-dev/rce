@@ -1,3 +1,0 @@
-pricing.rce
-orders.rce
-checkout.rce

@@ -1,3 +1,0 @@
-emit 25
-emit "both tasks have ended"
-exit status: 0

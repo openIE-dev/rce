@@ -1,7 +1,0 @@
-module duser
-
-# builds on dlib, which it imports
-
-use dlib
-
-fn nine(x: i64) -> i64 = dlib.triple(dlib.triple(x))

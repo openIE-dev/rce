@@ -38,6 +38,8 @@ fn reg(arch: Arch, i: u32) -> String {
 struct Cg {
     out: String,
     tmp: u32,
+    free: Vec<u32>,
+    max: u32,
     arch: Arch,
     has_fma: bool,
 }
@@ -48,10 +50,18 @@ impl Cg {
         self.out.push_str(s);
         self.out.push('\n');
     }
+    /// Free-list register allocator: reuse released temps instead of growing pressure.
     fn alloc(&mut self) -> u32 {
-        let t = self.tmp;
-        self.tmp += 1;
+        let t = self.free.pop().unwrap_or_else(|| {
+            let t = self.tmp;
+            self.tmp += 1;
+            t
+        });
+        self.max = self.max.max(t + 1);
         t
+    }
+    fn release(&mut self, t: u32) {
+        self.free.push(t);
     }
     fn param(&self, n: &str) -> Option<u32> {
         match n {
@@ -98,6 +108,8 @@ impl Cg {
                             self.gen(r, t3)?;
                             let (r2, r3) = (reg(self.arch, t2), reg(self.arch, t3));
                             self.emit(&format!("madd {}, {}, {}, {}", d, d, r2, r3));
+                            self.release(t2);
+                            self.release(t3);
                             return Ok(());
                         }
                     }
@@ -134,6 +146,7 @@ impl Cg {
                     }
                     _ => return Err(format!("no primitive for {op}")),
                 }
+                self.release(t);
             }
             _ => return Err("construct outside the compiler fragment".into()),
         }
@@ -143,10 +156,15 @@ impl Cg {
 
 /// Compile a canonical Form directly to target assembly — no external compiler.
 pub fn compile(e: &Expr, t: &Target) -> Result<String, String> {
-    let mut cg = Cg { out: String::new(), tmp: 3, arch: t.arch, has_fma: t.has_fma };
+    Ok(compile_stats(e, t)?.0)
+}
+
+/// Compile returning (assembly, max register index used) — the allocator's pressure receipt.
+pub fn compile_stats(e: &Expr, t: &Target) -> Result<(String, u32), String> {
+    let mut cg = Cg { out: String::new(), tmp: 3, free: Vec::new(), max: 3, arch: t.arch, has_fma: t.has_fma };
     cg.gen(&normalize(e.clone()), 0)?;
-    cg.emit(if t.arch == Arch::Arm64 { "ret" } else { "ret" });
-    Ok(cg.out)
+    cg.emit("ret");
+    Ok((cg.out, cg.max))
 }
 
 /// Compile source (any surface in the fragment) to target assembly.
@@ -162,6 +180,8 @@ pub struct CompileReceipt {
     pub instruction_count: usize,
     pub fused_fma: bool,
     pub deterministic: bool,
+    pub reg_max: u32,
+    pub machine_code_len: usize,
     pub stages: Vec<(String, String)>,
 }
 
@@ -170,8 +190,11 @@ pub struct CompileReceipt {
 pub fn compile_receipt(src: &str, t: &Target) -> Result<CompileReceipt, String> {
     let lifted = lift_expr(src)?;
     let canon = normalize(lifted.clone());
-    let asm1 = compile(&lifted, t)?;
-    let asm2 = compile(&lifted, t)?;
+    let (asm1, reg_max) = compile_stats(&lifted, t)?;
+    let (asm2, _) = compile_stats(&lifted, t)?;
+    let machine_code_len = if t.arch == Arch::Arm64 {
+        crate::assembler::assemble(&asm1).map(|b| b.len()).unwrap_or(0)
+    } else { 0 };
     let sha = |s: &str| -> String {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
@@ -184,6 +207,8 @@ pub fn compile_receipt(src: &str, t: &Target) -> Result<CompileReceipt, String> 
         instruction_count: instr,
         fused_fma: asm1.contains("madd"),
         deterministic: asm1 == asm2,
+        reg_max,
+        machine_code_len,
         stages: vec![
             ("lift".into(), sha(src)),
             ("canonical".into(), sha(&format!("{canon:?}"))),

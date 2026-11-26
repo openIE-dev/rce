@@ -1,8 +1,0 @@
-linear struct H
-    id: i32
-
-extern "C" fn c_close(h: H) -> i32
-
-fn main()
-    let h = H(id: 3)
-    emit h.id

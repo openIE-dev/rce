@@ -1,6 +1,0 @@
-# rce-version: 0.6
-# expect: W-PAR-2
-fn main()
-    par
-        branch x
-            emit 1

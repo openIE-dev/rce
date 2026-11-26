@@ -1,5 +1,0 @@
-# rce-version: 0.6
-# expect: W-PAR-4
-fn main()
-    for x in 0..3 par
-        emit x

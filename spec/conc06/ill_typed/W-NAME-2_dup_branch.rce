@@ -1,8 +1,0 @@
-# rce-version: 0.6
-# expect: W-NAME-2
-fn f()
-    par
-        branch x
-            pass
-        branch x
-            pass

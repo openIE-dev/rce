@@ -1,1 +1,0 @@
-{"name": "wasm-playground", "cmd": ["node", "adapters/wasm_playground.mjs"], "ops": ["check"], "features": []}

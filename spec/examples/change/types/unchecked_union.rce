@@ -1,6 +1,0 @@
-error E
-
-fn g() -> i64 ! E
-    fail E
-
-fn f() -> i64 = g()

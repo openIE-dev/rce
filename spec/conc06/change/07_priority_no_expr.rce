@@ -1,3 +1,0 @@
-# rce-version: 0.6
-fn f(c: chan i64)
-    spawn f(c) priority

@@ -1,4 +1,0 @@
-fn countdown(n: u64) -> u64
-    if n == 0
-        return 0
-    return countdown(n - 1)

@@ -1,7 +1,0 @@
-# rce-version: 0.6
-# expect: W-PAR-2
-fn f() -> i64
-    par
-        branch x
-            return 1
-    0

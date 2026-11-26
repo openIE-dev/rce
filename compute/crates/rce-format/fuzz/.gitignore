@@ -1,5 +1,0 @@
-# cargo-fuzz produces large per-target build dirs and cumulative corpora.
-target
-corpus/*/!*.fg
-artifacts
-coverage

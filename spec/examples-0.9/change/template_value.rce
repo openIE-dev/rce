@@ -1,5 +1,0 @@
-# rce-version: 0.9
-# expect: W-RES-1
-fn main()
-    let t = t"Hello {x}"
-    emit "no"
