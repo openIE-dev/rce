@@ -10,8 +10,9 @@ fn coverage_counts_named_node_types_only() {
         {"type": "(", "named": false}
     ]);
     let (m, t, f) = grammar_coverage(&nt);
-    assert_eq!((m, t), (2, 3));
-    assert!((f - 2.0 / 3.0).abs() < 1e-12);
+    // comment is now a real construct, so all three named nodes map.
+    assert_eq!((m, t), (3, 3));
+    assert!((f - 1.0).abs() < 1e-12);
 }
 
 #[test]
