@@ -26,6 +26,7 @@ pub mod canonical;
 pub mod compiler;
 pub mod components;
 pub mod conform;
+pub mod constellation;
 pub mod corpus;
 pub mod costdata;
 pub mod energy;

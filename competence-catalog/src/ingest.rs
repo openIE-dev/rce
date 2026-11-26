@@ -187,6 +187,100 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "finally" => { out.insert("try"); }
         "invariant" => { out.insert("assert"); }
         "sized_allocation" => { out.insert("init"); }
+        // Functional + non-Western remainder (Ada, SML, PureScript, Mojo, Cangjie, Wenyan,
+        // Elm, Racket, Common Lisp, Elisp, Gleam, MoonBit, ReScript, Reason, Nix, F#, Idris,
+        // Agda, Lean, F*). Each name maps to the universal category it genuinely realizes.
+        "data" | "variant" | "variant_part" | "variant_list" | "known_discriminant_part"
+        | "unknown_discriminant_part" | "union_type_defn" | "enum_type_defn" | "interface_type_defn"
+        | "anon_type_defn" | "type_abbrev_defn" | "additional_constr_defn" | "type_extension"
+        | "type_extension_elements" | "types" | "interface_implementation" | "implementation"
+        | "implementation_head" | "interface_head" | "inductive" => { out.insert("type_def"); }
+        "defun" | "extended_method" | "trait_method_extension" | "extenum_extension"
+        | "function_or_value_defn" | "member_defn" | "method_or_prop_defn" => { out.insert("fn"); }
+        "call_suffix" | "function_post_call" | "function_pre_call" | "app" | "pipeline_echo" => { out.insert("call"); }
+        "selected_component" | "tuple_access" | "attrpath" | "proj" => { out.insert("member"); }
+        "index_access" => { out.insert("index"); }
+        "item_after_quest" | "quest_seperated_item" | "quest_seperated_items" => { out.insert("chain"); }
+        "macro_tokens" | "macro_with_attr_param" | "macro_without_attr_param" | "syntax"
+        | "anon_subterm" | "antiquot" | "quotation" | "pct_macro" | "syntax_alt" | "syntax_cmd"
+        | "syntax_postfix" | "macro_cmd" | "macro_rules_cmd" | "elab_rules_cmd" | "grind_pattern_cmd"
+        | "register_cmd" | "language_extension" | "extension_language" | "syntax_extension"
+        | "source_macro" => { out.insert("macro"); }
+        "preamble" | "echo" | "target" | "check" | "eval" | "print" | "reduce" | "set_option" => { out.insert("directive"); }
+        "allocator" | "static_init" | "struct_init" | "box" | "initialize"
+        | "array_delta_aggregate" | "enumeration_aggregate" | "extension_aggregate"
+        | "null_array_aggregate" | "positional_array_aggregate" => { out.insert("init"); }
+        "value_sequence" | "element" | "elements" => { out.insert("seq"); }
+        "component_choice_list" | "component_list" | "discrete_choice" | "discrete_choice_list"
+        | "membership_choice_list" | "alt" | "alts" | "of" => { out.insert("case"); }
+        "entry_barrier" => { out.insert("guard"); }
+        "exception_choice" | "exception_choice_list" | "exception_handler" | "finally_part" => { out.insert("try"); }
+        "factor_not" | "boolean_negation" | "not_operation" => { out.insert("not"); }
+        "integer_negation" => { out.insert("neg"); }
+        "factor_power" => { out.insert("pow"); }
+        "factor_abs" | "relation_membership" | "ARITH_BINARY_OP" | "LOGIC_BINARY_OP" | "IF_LOGIC_OP"
+        | "arith_binary_math" | "arith_unary_math" | "POST_MOD_MATH_OP" | "UNARY_OP" | "preposition"
+        | "PREPOSITION_LEFT" | "PREPOSITION_RIGHT" | "accumulation_verb" | "infix_op" | "prefix_op"
+        | "wildcard_active_pattern_op" | "bool_compare" | "bool_operation" | "postfix_op"
+        | "unary_op" => { out.insert("op"); }
+        "formal_part" | "generic_formal_part" | "result_profile" | "subprogram_default"
+        | "array_dimension" | "defun_keyword" | "curried_spec" | "determining_params"
+        | "using_target" | "using_targets" | "uncurry" | "formal" | "formals" => { out.insert("param"); }
+        "generic_instantiation" | "functor_use" | "generalize" | "all" => { out.insert("generic"); }
+        "global_mode" | "non_empty_mode" | "null_exclusion" | "overriding_indicator" | "mutability"
+        | "pub" | "visibility" | "quantity" | "search_options" | "totality" | "no_hints" | "port"
+        | "effect" => { out.insert("modifier"); }
+        "iteration_scheme" | "iterator_filter" | "iterator_procedure_call" | "procedural_iterator"
+        | "FOR_IF_END" | "IF" | "ELSE" | "BREAK" | "FOR_MID_ARR" | "FOR_MID_ENUM" | "FOR_START_ARR"
+        | "FOR_START_ENUM" | "FOR_START_WHILE" => { out.insert("control"); }
+        "range_g" | "range_element" | "slice_range" | "slice_ranges" => { out.insert("range"); }
+        "selective_accept" | "timed_entry_call" => { out.insert("select"); }
+        "term" | "rhs" => { out.insert("expr"); }
+        "tick" | "derive_item" | "smt_trigger" => { out.insert("attribute"); }
+        "BOOL_VALUE" => { out.insert("bool_lit"); }
+        "FLOAT_NUM" | "FLOAT_NUM_KEYWORDS" => { out.insert("float_lit"); }
+        "INT_NUM" | "INT_NUM_KEYWORDS" => { out.insert("int_lit"); }
+        "STRING_LITERAL" | "path_lit" | "path_fragment" => { out.insert("str_lit"); }
+        "IDENTIFIER" | "value_qid" | "left_value" | "funvar" | "bid" | "id" | "qid" | "fctid"
+        | "longstrid" | "strid" | "sigid" | "longvid" | "vid" | "lab" => { out.insert("var"); }
+        "TYPE" | "type_ref" | "type_apply" | "type_infix" | "type_wildcard" | "type_var"
+        | "type_braces" | "type_nested" | "polyvar" | "arrow" | "bignum" | "ieee32" | "ieee64"
+        | "int16" | "int32" | "int64" | "nativeint" | "sbyte" | "uint16" | "uint32" | "uint64"
+        | "unativeint" | "xint" | "SetN" | "PropN" | "universe" | "universe_app" | "sigma"
+        | "false_const" | "bot_const" | "empty_const" | "top_const" | "prop_const" | "sort_const"
+        | "type_const" | "tycon" | "longtycon" | "tyvar" => { out.insert("type_expr"); }
+        "bytearray" | "verbatim_bytearray" | "bit_array" | "bit_array_segment"
+        | "bit_array_segment_option" | "bit_array_segment_options" | "array_lit" | "struct_lit"
+        | "set_builder" | "subtype_lit" | "quotient_lit" | "range_lit" | "norm_lit" | "ceil_lit"
+        | "floor_lit" | "dbl_angle_lit" => { out.insert("list"); }
+        "union_variant" | "enum_constructor" | "map_element_key" | "dict_entry"
+        | "dict_pattern_entry" | "ctor" | "anon_ctor" | "ctor_alt" => { out.insert("field"); }
+        "gdpat" | "pat_apply" | "pat_array" | "pat_infix" | "pat_negation" | "pat_typed"
+        | "pat_wildcard" | "list_pattern_tail" | "pat_at_braces" | "pat_braces" | "pat_list"
+        | "pat_op" | "pat_at" | "with_arg" | "with_pat" | "lhs" | "rest_pat" => { out.insert("pattern"); }
+        "pattern_spread" | "partial_application_spread" | "type_spread" | "variant_type_spread"
+        | "unpack" => { out.insert("splat"); }
+        "panic" => { out.insert("throw"); }
+        "use" | "using" | "inherit" | "inherit_from" | "inherited_attrs" => { out.insert("with"); }
+        "hole" | "type_hole" | "unfinished" | "impossible" | "synth_hole" | "meta" => { out.insert("ellipsis"); }
+        "proof" | "rewrite" | "calc_step" | "proof_exists" | "proof_implication" | "by" | "have"
+        | "show" | "suffices" | "induction" | "exists" | "sorry" | "goal_const" | "postulate" => { out.insert("assert"); }
+        "where" | "mutual" | "where_aux_def" | "where_struct" | "section" | "end" | "public_section"
+        | "prelude" => { out.insert("body"); }
+        "purescript" | "idris" | "empty_file" | "compilation" | "source_code" => { out.insert("module"); }
+        "open" | "renaming" => { out.insert("import"); }
+        "infer_only_separator" | "colon" | "arrow_separator" | "equal" | "eq" | "graph"
+        | "nonreserved_atom" => { out.insert("token"); }
+        "bytecode" | "fun" => { out.insert("closure"); }
+        "loop_macro" => { out.insert("loop"); }
+        "list_comprehension_for" | "list_comprehension_for_in" => { out.insert("comprehension"); }
+        "reference_equality" | "structural_equality" => { out.insert("eq"); }
+        "and_bang" => { out.insert("and"); }
+        "rule" | "rules" | "fmrule" | "mrule" => { out.insert("match"); }
+        "primitive" | "abbrev" | "def" | "theorem" | "axiom" | "example" => { out.insert("decl"); }
+        "stmt" => { out.insert("stmt"); }
+        "paren" => { out.insert("block"); }
+        "true_const" => { out.insert("bool_lit"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);
@@ -307,6 +401,12 @@ fn category(t: &str) -> Option<&'static str> {
     if has("block") || has("parens") || has("parenthesized_statements") || has("indented_") || has("body") || has("equations") || has("equation") || has("declarations") || has("local_binds") || has("binding_list") || has("let") || has("bind") || has("early_defs") || has("refinement") || has("record") || has("fields") || has("group") || has("children") || has("rec") || has("unit") || has("unboxed") || has("prefix_unboxed") || has("arithmetic_sequence") || has("subshell") || has("class_declarations") || has("instance_declarations") || has("quoted_decls") || has("default_types") || has("patterns") || has("lambda_case") || has("multi_way_if") || has("prefix_list") || has("prefix_tuple") || has("empty_list") || has("matrix_row") || has("open_tuple") || has("tuple_element") || has("collection_element") || has("expression_element") || has("accessor_list") || has("switch_section") || has("switch_expression_arm") || has("case_block") || has("when_entry") || has("when_subject") || has("catch_block") || has("finally_block") || has("begin_block") || has("end_block") || has("do_block") || has("companion_object") || has("singleton_class") || has("constructor_body") || has("static_initializer") || has("class_static_block") || has("module_body") || has("enum_body") || has("interface_body") || has("annotation_type_body") || has("class_body") || has("record_pattern_body") { return Some("body"); }
     if has("definition") || has("decl") || has("instance") || has("deriving") || has("gadt") || has("type_family") || has("type_instance") || has("kind_signature") || has("forall_required") || has("function_head_parens") || has("default_signature") || has("signature") || has("fixity") || has("role_annotation") || has("top_splice") || has("th_quoted_name") || has("typed_quote") || has("splice") || has("quasiquote") || has("quote") || has("transform") || has("special") || has("via") || has("as") || has("star") || has("method_value") || has("constructor_delegation") || has("constructor_invocation") || has("explicit_delegation") || has("delegation_specifier") || has("property_delegate") || has("primary_constructor") || has("secondary_constructor") || has("base_list") || has("explicit_interface") || has("subpattern") || has("type_argument_list") || has("directive_kind") || has("directive_separator") || has("directive_value") || has("interpolation_brace") || has("interpolation_quote") || has("interpolation_start") || has("raw_string_end") || has("raw_string_start") || has("shebang") || has("xml") || has("interpolation") || has("parenthesized_variable_designation") || has("structured_binding") || has("reference_declarator") || has("pointer_type_declarator") || has("new_declarator") || has("for_range_loop") || has("template_function") || has("template_instantiation") || has("template_method") || has("operator_cast") || has("splice_specifier") || has("dependent_name") || has("destructor_name") || has("operator_name") || has("context_bound") || has("capture") { return Some("decl"); }
     if has("statement") || has("expression") || has("exp") || has("primary") || has("control") || has("guard") || has("condition") || has("when") || has("unless") || has("until") || has("elsif") || has("rescue") || has("catch") || has("ensure") || has("retry") || has("redo") || has("next") || has("case") || has("match") || has("alternative") || has("switch") || has("then") || has("else") || has("if") || has("do") || has("begin") || has("label") || has("builtin") || has("macro_identifier") || has("container_field") || has("block_label") || has("break_label") || has("implicit_variable") { return Some("control"); }
+    // ML-family (SML/OCaml) systematic naming: each suffix is a genuine linguistic category.
+    if end("_pat") || end("patrow") || end("listpat") { return Some("pattern"); }
+    if end("_ty") || end("tyrow") || end("tyseq") || end("tyvarseq") { return Some("type_expr"); }
+    if end("_dec") || end("desc") || end("_spec") || end("_strdec") || end("_sigdec")
+        || end("_fctdec") || end("_topdec") { return Some("decl"); }
+    if end("scon") { return Some("literal"); }
     None
 }
 
@@ -346,6 +446,57 @@ pub fn grammar_coverage(nt: &Value) -> (usize, usize, f64) {
     }
     let frac = if total == 0 { 0.0 } else { mapped as f64 / total as f64 };
     (mapped, total, frac)
+}
+
+/// Construct histogram over a grammar's NAMED node types: how many surface node types
+/// realize each universal construct. This is the raw distribution the structural entropy
+/// is computed from (a node realizing several constructs contributes to each).
+pub fn construct_histogram(nt: &Value) -> BTreeSet<(&'static str, usize)> {
+    let mut hist: std::collections::BTreeMap<&'static str, usize> = std::collections::BTreeMap::new();
+    if let Some(arr) = nt.as_array() {
+        for n in arr {
+            if !n.get("named").and_then(|v| v.as_bool()).unwrap_or(false) {
+                continue;
+            }
+            if let Some(t) = n.get("type").and_then(|v| v.as_str()) {
+                let mut s = BTreeSet::new();
+                node_constructs(t, &mut s);
+                for c in s {
+                    *hist.entry(c).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    hist.into_iter().collect()
+}
+
+/// Information-theoretic profile of a language's grammar, computed from real node-types:
+/// (named_nodes, mapped, distinct_constructs, H_struct_bits, redundancy, surface_per_construct).
+///
+/// H_struct is the Shannon entropy of the construct histogram — how evenly the grammar's
+/// surface forms spread across the universal taxonomy. Redundancy = 1 - H/log2(C) is the
+/// fraction of surface variety that is NOT free information (syntactic sugar the IR collapses).
+/// surface_per_construct = N/C is the mean number of surface forms per universal construct:
+/// exactly the distance the one-IR LUT must bridge for this language. These are grammar-derived
+/// (structural) measures, honestly labelled — not corpus frequencies.
+pub fn structural_metrics(nt: &Value) -> (usize, usize, usize, f64, f64, f64) {
+    let (mapped, total, _) = grammar_coverage(nt);
+    let hist = construct_histogram(nt);
+    let c = hist.len();
+    let sum: usize = hist.iter().map(|(_, n)| *n).sum();
+    let h = if sum == 0 {
+        0.0
+    } else {
+        hist.iter()
+            .map(|(_, n)| {
+                let p = *n as f64 / sum as f64;
+                if p > 0.0 { -p * p.log2() } else { 0.0 }
+            })
+            .sum::<f64>()
+    };
+    let redundancy = if c > 1 { 1.0 - h / (c as f64).log2() } else { 0.0 };
+    let surface = if c == 0 { 0.0 } else { total as f64 / c as f64 };
+    (total, mapped, c, h, redundancy, surface)
 }
 
 /// The named node types with no construct mapping yet (the honest remainder to close).
