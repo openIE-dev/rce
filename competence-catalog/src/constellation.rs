@@ -197,6 +197,7 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "CMake" => (p(&["build", "declarative"]), Some("US"), Some(2000)),
         "Make" => (p(&["build", "declarative"]), Some("US"), Some(1976)),
         "PowerShell" => (p(&["shell", "scripting", "object-pipeline"]), Some("US"), Some(2006)),
+        "TLA+" => (p(&["spec", "formal", "temporal-logic"]), Some("US"), Some(1999)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -238,7 +239,8 @@ fn family_of(name: &str, group: &str) -> String {
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
         "Fortran" | "R" | "Julia" | "MATLAB" | "APL" | "J" | "K" | "Q" | "Mathematica"
         | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" => "Scientific / array",
-        "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk" => "Logic",
+        "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
+        | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
         | "Raku" | "Perl 6" | "Tcl" | "Expect" => "Shell / scripting",
         "SQL" | "PLSQL" | "TSQL" | "PLpgSQL" | "SQLPL" | "HiveQL" | "Spark SQL" => "SQL",

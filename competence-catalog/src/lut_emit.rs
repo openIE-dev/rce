@@ -549,6 +549,18 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("while", "while ({cond}) {{ {body} }}"), ("fn", "function {name} {{ param({params}) {body} }}"),
             ("import", "Import-Module {name}"), ("return", "return {value}"),
         ]),
+        LanguageLut::new("tlaplus", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("neg", "(-{a})"), ("not", "(~{a})"),
+            ("add", "({a} + {b})"), ("sub", "({a} - {b})"), ("mul", "({a} * {b})"),
+            ("div", "({a} \\div {b})"), ("mod", "({a} % {b})"), ("eq", "({a} = {b})"),
+            ("ne", "({a} /= {b})"), ("lt", "({a} < {b})"), ("gt", "({a} > {b})"),
+            ("le", "({a} <= {b})"), ("ge", "({a} >= {b})"), ("and", "({a} /\\ {b})"),
+            ("or", "({a} \\/ {b})"), ("if_expr", "(IF {cond} THEN {then} ELSE {else})"),
+            ("call", "{callee}[{args}]"), ("fn", "{name}({params}) == {body}"),
+            ("let", "{name} == {value}"), ("set", "{{{items}}}"), ("list", "<<{items}>>"),
+            ("member", "{a}[{m}]"), ("index", "{a}[{i}]"), ("return", "{value}"),
+        ]),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);

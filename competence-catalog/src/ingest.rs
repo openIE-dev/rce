@@ -498,6 +498,51 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "member_access" => { out.insert("member"); }
         "pipeline_chain" | "pipeline_chain_tail" => { out.insert("chain"); }
         "generic_token" => { out.insert("token"); }
+        // TLA+ / PlusCal: numbers, sets, operators, temporal logic, proof steps, pcal.
+        "_number" | "binary_number" | "hex_number" | "octal_number" | "nat_number" => { out.insert("int_lit"); }
+        "real_number" => { out.insert("float_lit"); }
+        "_number_set" | "_primitive_value_set" | "int_number_set" | "nat_number_set"
+        | "real_number_set" | "boolean_set" | "set_of_functions" | "powerset" => { out.insert("set"); }
+        "set_filter" | "set_map" => { out.insert("comprehension"); }
+        "lnot" => { out.insert("not"); }
+        "negative" => { out.insert("neg"); }
+        "notin" | "sup_plus" => { out.insert("op"); }
+        "land" | "ampamp" | "conj_item" | "conj_list" => { out.insert("and"); }
+        "lor" | "disj_item" | "disj_list" => { out.insert("or"); }
+        "div" => { out.insert("div"); }
+        "_op" | "plus_arrow" | "prefixed_op" | "uplus" | "minusminus" | "plusplus" | "mulmul"
+        | "mod" | "modmod" | "pow" | "powpow" | "mul" | "amp" | "wr" | "compose" | "sim" | "simeq"
+        | "cong" | "approx" | "propto" | "geq" | "leq" | "gg" | "ll" | "lt" | "gt" | "neq"
+        | "def_eq" | "equiv" | "implies" | "cap" | "cup" | "sqcap" | "sqcup" | "sqsubset"
+        | "sqsubseteq" | "sqsupset" | "sqsupseteq" | "subseteq" | "supset" | "supseteq" | "minus"
+        | "setminus" | "oplus" | "ominus" | "otimes" | "bigcirc" | "circ" | "excl" | "vert"
+        | "vertvert" | "maps_to" | "map_from" | "map_to" | "all_map_to" | "gets" | "except"
+        | "except_update" | "except_update_fn_appl" | "function_evaluation" | "substitution"
+        | "succ" | "succeq" | "prime" | "prev_func_val" | "set_in" => { out.insert("op"); }
+        "always" | "eventually" | "leads_to" | "fair" | "fairness" | "temporal_exists"
+        | "unchanged" | "enabled" | "choose" | "pcal_end_either" | "pcal_end_while"
+        | "pcal_end_with" => { out.insert("control"); }
+        "_proof" | "have_proof_step" | "non_terminal_proof" | "proof_step" | "proof_step_id"
+        | "proof_step_ref" | "qed_step" | "suffices_proof_step" | "take_proof_step"
+        | "terminal_proof" | "witness_proof_step" | "pick_proof_step" => { out.insert("assert"); }
+        "pcal_algorithm" => { out.insert("module"); }
+        "pcal_await" => { out.insert("await"); }
+        "pcal_either" | "other_arm" => { out.insert("case"); }
+        "pcal_goto" => { out.insert("goto"); }
+        "pcal_lhs" | "child_id" | "value" => { out.insert("var"); }
+        "pcal_macro" | "pcal_macro_call" | "bnf_rule" => { out.insert("macro"); }
+        "pcal_print" | "pcal_proc_call" => { out.insert("call"); }
+        "pcal_procedure" | "pcal_process" => { out.insert("fn"); }
+        "pcal_while" => { out.insert("while"); }
+        "pcal_with" => { out.insert("with"); }
+        "pcal_return" => { out.insert("return"); }
+        "pcal_skip" => { out.insert("pass"); }
+        "extends" => { out.insert("import"); }
+        "format" => { out.insert("format"); }
+        "placeholder" => { out.insert("ellipsis"); }
+        "single_line" | "extramodular_text" => { out.insert("comment"); }
+        "langle_bracket" | "rangle_bracket" | "rangle_bracket_sub" | "ld_ttile" | "ls_ttile"
+        | "rd_ttile" | "rs_ttile" | "parentheses" | "qq" => { out.insert("token"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }
