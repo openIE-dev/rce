@@ -127,6 +127,66 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "annotated" => { out.insert("cast"); }
         "generator" => { out.insert("comprehension"); }
         "infix_id" | "prefix_id" => { out.insert("op"); }
+        // Lisp-family literals / readers.
+        "num_lit" | "signed_number" => { out.insert("literal"); }
+        "bool_lit" => { out.insert("bool_lit"); }
+        "nil_lit" | "na" | "inf" | "nan" => { out.insert("null_lit"); }
+        "str_lit" | "text" => { out.insert("str_lit"); }
+        "sym_lit" | "sym_val_lit" | "sym_ns" => { out.insert("symbol"); }
+        "kwd_lit" | "kwd_ns" | "keyword" | "atom" => { out.insert("keyword"); }
+        "list_lit" | "vec_lit" | "vector" | "byte_vector" | "array_like" | "array_construction" => { out.insert("list"); }
+        "map_lit" | "ns_map_lit" | "map" | "curly_construction" => { out.insert("dict"); }
+        "set_lit" => { out.insert("set"); }
+        "quoting_lit" | "syn_quoting_lit" | "unquoting_lit" | "var_quoting_lit" | "derefing_lit"
+        | "evaling_lit" | "meta_lit" | "old_meta_lit" | "read_cond_lit" | "splicing_read_cond_lit"
+        | "tagged_or_ctor_lit" | "auto_res_mark" | "unsyntax" | "unsyntax_splicing" | "datum_reference"
+        | "comma" | "ellipses" | "end_file" | "ocamlyacc_value" | "scannable_axis" | "pretty_printing_indication" => { out.insert("token"); }
+        "anon_fn_lit" | "anonymous_fun" | "internal_fun" | "proc" | "method_proc" => { out.insert("closure"); }
+        "source" | "php_tag" | "script_tag" | "directive_kind" | "debug" | "version" | "default" | "_desc" | "_form" | "pp_define" | "pp_undef" => { out.insert("directive"); }
+        // OCaml / R / Dart / Elixir / Erlang / Nim / Crystal / D / Fortran / PHP specifics.
+        "_kind" | "any_kind" | "constrain_kind" | "parenthesized_kind" | "product_kind"
+        | "scannable_axes_kind" | "type_constructor" | "type_constructor_path" | "typeof"
+        | "fun_type_sig" | "type_sig" | "nominal" | "opaque" | "bit_type_list" | "type_ctor"
+        | "kind" | "size" | "unlimited_polymorphic" | "traits" | "typeid" | "noreturn"
+        | "coarray_allocation" | "coarray_size" | "procedure_kind" | "procedure_interface" => { out.insert("type_expr"); }
+        "_local_structure_item" | "_structure_item" | "structure" | "item_extension" | "extension"
+        | "functor" | "interface" | "interfaces" | "mixin" | "mixin_application" | "mixins"
+        | "struct" | "c_struct_def" | "struct_def" | "union_def" | "enum_def" | "lib_def" | "type_def"
+        | "enum" | "union" | "const_section" | "type_section" | "var_section" | "using_section"
+        | "equivalence_set" | "derived_type_procedures" | "internal_procedures" => { out.insert("type_def"); }
+        "comprehension" | "comprehension_iterator" | "b_generator" | "map_generator"
+        | "binary_comprehension" | "map_comprehension" | "for_element" | "for_loop_parts"
+        | "foreach" | "foreach_reverse" => { out.insert("comprehension"); }
+        "constructor_path" | "value_path" | "remote" | "relative_scope" | "constructor_tearoff"
+        | "callable_reference" | "index_selector" | "nullable_selector" | "access_call" | "index_call"
+        | "subset" | "subset2" | "multiple_subscript" | "coarray_index" | "element_reference" => { out.insert("member"); }
+        "tag" | "field" | "type_member" | "const_element" | "enum_member" | "anonymous_enum_member"
+        | "data_set" | "data_value" | "container_field" => { out.insert("field"); }
+        "modality" | "mode" | "abstract" | "sealed" | "private" | "protected" | "public" | "final"
+        | "override" | "pure" | "nothrow" | "ref" | "scope" | "shared" | "static" | "synchronized"
+        | "immutable" | "inout" | "gshared" | "lazy" | "out" | "const" | "align" | "concurrent_locality"
+        | "by_ref" | "splat" | "splat_param" | "var_args" | "variadic" | "_arity_value" | "arity" | "fa"
+        | "constructor_param" | "fun_param" | "param" | "param_list" | "keywords" | "var" | "ann_var"
+        | "global_var" | "macro_var" | "uninitialized_var" | "underscore" | "macro_lhs" => { out.insert("param"); }
+        "sigil" | "regex" => { out.insert("regex"); }
+        "configurable_uri" | "configuration_uri" | "uri" | "uri_test" | "require" | "extend" => { out.insert("import"); }
+        "abstract_method_def" | "method_def" | "fun_def" | "destructor" | "postblit" | "subroutine"
+        | "subroutine_call" | "function_result" | "procedure" | "defined_io_procedure" | "print_intrinsic" => { out.insert("fn"); }
+        "alignof" | "offsetof" | "sizeof" | "pointerof" | "and" | "or" | "not" | "binary_op" | "pipe"
+        | "combinator" | "is" | "not_in" | "not_is" | "operator" => { out.insert("op"); }
+        "command" | "select" | "try_after" | "try_stack" | "except_branch" | "finally_branch"
+        | "of_branch" | "goto" | "throw" | "with" | "defer" | "mixin" | "new" | "dynamic" => { out.insert("control"); }
+        "macro_def" | "macro_for" | "macro_verbatim" | "_macro_def_replacement" | "macro_call_args"
+        | "replacement_cr_clauses" | "replacement_function_clauses" | "ssr_replacement" | "ssr_where" => { out.insert("macro"); }
+        "dyn_pattern_marker" | "callback" | "spec" | "context_bound" | "type_parameter_constraint" => { out.insert("bound"); }
+        "bin_element" | "_concatable" | "concatables" | "tuple_construction" | "input_item_list"
+        | "output_item_list" | "transfer_items" | "edit_descriptor" | "implicit_range" | "parenthesized"
+        | "block" | "vector" => { out.insert("seq"); }
+        "bool" | "byte" | "cent" | "cfloat" | "creal" | "ireal" | "long" | "real" | "short" | "size_t"
+        | "ubyte" | "ucent" | "uint" | "ulong" | "ushort" | "void" | "floating_point_type" | "integral_type" => { out.insert("type_expr"); }
+        "finally" => { out.insert("try"); }
+        "invariant" => { out.insert("assert"); }
+        "sized_allocation" => { out.insert("init"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);

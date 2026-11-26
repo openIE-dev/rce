@@ -26,7 +26,7 @@ pub const CONSTRUCTS: &[&str] = &[
     "switch", "case", "guard", "goto", "defer", "go", "send", "receive", "select",
     "incdec", "compound_assign", "else", "elif", "comprehension", "generator",
     "named_expr", "format", "export", "record", "instanceof", "method_ref",
-    "literal", "stmt", "expr", "decl", "clause", "body", "asm", "op",
+    "literal", "stmt", "expr", "decl", "clause", "body", "asm", "op", "keyword", "symbol",
 ];
 
 /// Constructs a LUT covers (present templates ∩ taxonomy).

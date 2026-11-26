@@ -571,6 +571,118 @@ pub fn circle_concave(b: &mut Ball, verts: &[(f64, f64)], rest: f64, fric: f64) 
     }
 }
 
+/// A triangle mesh (non-polygon contact manifold): a soup of convex triangles.
+#[derive(Clone, Debug)]
+pub struct Mesh {
+    pub tris: Vec<[(f64, f64); 3]>,
+}
+
+fn tri_poly(t: &[(f64, f64); 3]) -> Poly {
+    Poly { v: t.to_vec(), m: 1.0, vx: 0.0, vy: 0.0, theta: 0.0, omega: 0.0 }
+}
+
+/// Boundary edges of a mesh (edges used by exactly one triangle) — internal triangle edges
+/// are not contact surfaces.
+fn mesh_boundary(m: &Mesh) -> Vec<((f64, f64), (f64, f64))> {
+    let mut count: std::collections::BTreeMap<(u64, u64, u64, u64), usize> = std::collections::BTreeMap::new();
+    let key = |a: (f64, f64), b: (f64, f64)| {
+        let ka = (a.0.to_bits(), a.1.to_bits());
+        let kb = (b.0.to_bits(), b.1.to_bits());
+        if ka <= kb { (ka.0, ka.1, kb.0, kb.1) } else { (kb.0, kb.1, ka.0, ka.1) }
+    };
+    let mut edges: Vec<((f64, f64), (f64, f64))> = Vec::new();
+    for t in &m.tris {
+        for i in 0..3 {
+            let a = t[i];
+            let c = t[(i + 1) % 3];
+            *count.entry(key(a, c)).or_insert(0) += 1;
+            edges.push((a, c));
+        }
+    }
+    edges.into_iter().filter(|(a, c)| count[&key(*a, *c)] == 1).collect()
+}
+
+fn point_in_mesh(px: f64, py: f64, boundary: &[((f64, f64), (f64, f64))]) -> bool {
+    let mut ins = false;
+    for (a, c) in boundary {
+        if (a.1 > py) != (c.1 > py) {
+            let xin = a.0 + (py - a.1) * (c.0 - a.0) / (c.1 - a.1);
+            if px < xin {
+                ins = !ins;
+            }
+        }
+    }
+    ins
+}
+
+/// Circle vs mesh: contact only on the mesh's outer boundary (not internal triangle edges).
+pub fn circle_mesh(b: &mut Ball, m: &Mesh, rest: f64, fric: f64) {
+    let boundary = mesh_boundary(m);
+    let mut best = (f64::INFINITY, 0.0, 0.0);
+    for (a, c) in &boundary {
+        let q = closest_on_segment(b.x, b.y, *a, *c);
+        let d = ((b.x - q.0) * (b.x - q.0) + (b.y - q.1) * (b.y - q.1)).sqrt();
+        if d < best.0 {
+            best = (d, q.0, q.1);
+        }
+    }
+    let (dist, qx, qy) = best;
+    let inside = point_in_mesh(b.x, b.y, &boundary);
+    if !inside && dist >= b.r {
+        return;
+    }
+    let (mut nx, mut ny) = if dist > 1e-12 { ((b.x - qx) / dist, (b.y - qy) / dist) } else { (0.0, 1.0) };
+    if inside {
+        nx = -nx;
+        ny = -ny;
+    }
+    let pen = if inside { b.r + dist } else { b.r - dist };
+    b.x += nx * pen;
+    b.y += ny * pen;
+    let vn = b.vx * nx + b.vy * ny;
+    if vn < 0.0 {
+        b.vx -= (1.0 + rest) * vn * nx;
+        b.vy -= (1.0 + rest) * vn * ny;
+        let (tx, ty) = (-ny, nx);
+        let vt = b.vx * tx + b.vy * ty;
+        b.omega -= fric * vt / b.r;
+        b.vx -= fric * vt * tx;
+        b.vy -= fric * vt * ty;
+    }
+}
+
+/// First overlapping triangle pair between two meshes (SAT), as an MTV.
+pub fn mesh_overlap(a: &Mesh, b: &Mesh) -> Option<(f64, f64, f64)> {
+    for ta in &a.tris {
+        for tb in &b.tris {
+            if let Some(o) = sat_overlap(&tri_poly(ta), &tri_poly(tb)) {
+                return Some(o);
+            }
+        }
+    }
+    Option::None
+}
+
+/// Separate two meshes: iteratively apply the first overlapping triangle pair's MTV until
+/// no triangle pair overlaps (bounded iterations).
+pub fn resolve_mesh(a: &mut Mesh, b: &mut Mesh, _rest: f64) {
+    for _ in 0..16 {
+        let Some((nx, ny, depth)) = mesh_overlap(a, b) else { break };
+        for t in a.tris.iter_mut() {
+            for p in t.iter_mut() {
+                p.0 -= nx * (depth / 2.0 + 1e-9);
+                p.1 -= ny * (depth / 2.0 + 1e-9);
+            }
+        }
+        for t in b.tris.iter_mut() {
+            for p in t.iter_mut() {
+                p.0 += nx * (depth / 2.0 + 1e-9);
+                p.1 += ny * (depth / 2.0 + 1e-9);
+            }
+        }
+    }
+}
+
 /// One stateful step of Plant2 (for closed-loop / hardware-in-the-loop harnesses).
 pub fn step2(p: &Plant2, x: f64, v: f64, act: f64) -> (f64, f64) {
     let acc = act - p.gravity - p.drag * v;

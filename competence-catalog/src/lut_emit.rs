@@ -624,7 +624,7 @@ fn complete_higher(l: &mut LanguageLut) {
             ("format", "(format nil \"{value}\")"), ("export", "(export '{name})"), ("record", "(defstruct {name} {params})"),
             ("instanceof", "(typep {value} '{type})"), ("method_ref", "(function {name})"), ("literal", "{value}"),
             ("stmt", "{value}"), ("expr", "{value}"), ("decl", "(defvar {value})"), ("clause", "{value}"), ("body", "(progn {value})"),
-            ("asm", "(asm {value})"), ("op", "({value})"),
+            ("asm", "(asm {value})"), ("op", "({value})"), ("keyword", ":{value}"), ("symbol", "'{value}"),
         ]
     } else if ml {
         &[
@@ -646,7 +646,7 @@ fn complete_higher(l: &mut LanguageLut) {
             ("format", "{value}"), ("export", "export {name}"), ("record", "type {name} = {{ {params} }}"),
             ("instanceof", "{value} :? {type}"), ("method_ref", "{type}.{name}"), ("literal", "{value}"),
             ("stmt", "{value};"), ("expr", "{value}"), ("decl", "let {value}"), ("clause", "{value}"), ("body", "({value})"),
-            ("asm", "asm({value})"), ("op", "({value})"),
+            ("asm", "asm({value})"), ("op", "({value})"), ("keyword", ":{value}"), ("symbol", "{value}"),
         ]
     } else {
         &[
@@ -668,7 +668,7 @@ fn complete_higher(l: &mut LanguageLut) {
             ("format", "f\"{value}\""), ("export", "export {name};"), ("record", "record {name}({params});"),
             ("instanceof", "{value} instanceof {type}"), ("method_ref", "{type}::{name}"), ("literal", "{value}"),
             ("stmt", "{value};"), ("expr", "{value}"), ("decl", "{value};"), ("clause", "{value}"), ("body", "{{ {value} }}"),
-            ("asm", "asm {{ {value} }}"), ("op", "({value})"),
+            ("asm", "asm {{ {value} }}"), ("op", "({value})"), ("keyword", ":{value}"), ("symbol", "{value}"),
         ]
     };
     for (k, t) in cat {
