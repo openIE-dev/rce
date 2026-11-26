@@ -21,6 +21,9 @@ const PROGRAMS: &[(&str, i128)] = &[
     ("let x = a; if x < b { x = c; } else { x = 0; } return x;", 4),
     ("return a + b * c;", 14),
     ("let x = a; while x < c { x = x + 1; } return x;", 4),
+    ("fn add(x, y) { return x + y; } let r = add(a, b); return r * c;", 20),
+    ("fn fib(n) { if n < 2 { return n; } let x = fib(n - 1); let y = fib(n - 2); return x + y; } return fib(a + 3);", 5),
+    ("fn noop(x) { return x; } noop(a); return b;", 3),
 ];
 
 fn probe_env() -> Env {

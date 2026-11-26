@@ -91,6 +91,24 @@ pub fn eval_program(s: &Stmt, env: &mut Env, fns: &mut FnTable) -> Result<Option
     eval_fuel(s, env, fns, &mut fuel)
 }
 
+/// Evaluate a local-function call: arity check, args in the caller scope, own callee scope
+/// (recursion cannot clobber the caller's bindings), returns the body's value.
+fn eval_call(n: &str, args: &[Expr], env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Result<Option<i128>, String> {
+    let (params, body) = fns.fns.get(n).cloned().ok_or_else(|| format!("unknown fn {n}"))?;
+    if params.len() != args.len() {
+        return Err(format!("arity mismatch calling {n}"));
+    }
+    let vals: Vec<i128> = args
+        .iter()
+        .map(|a| eval_expr_env(a, env).ok_or_else(|| format!("unbound arg to {n}")))
+        .collect::<Result<_, _>>()?;
+    let mut callee_env = env.clone();
+    for (p, v) in params.iter().zip(vals) {
+        callee_env.insert(p.clone(), v);
+    }
+    eval_fuel(&body, &mut callee_env, fns, fuel)
+}
+
 fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Result<Option<i128>, String> {
     if *fuel == 0 {
         return Err("loop fuel exhausted".into());
@@ -162,20 +180,9 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(Option::None)
         }
         Stmt::Call(n, args) => {
-            let (params, body) = fns.fns.get(n).cloned().ok_or_else(|| format!("unknown fn {n}"))?;
-            if params.len() != args.len() {
-                return Err(format!("arity mismatch calling {n}"));
-            }
-            let vals: Vec<i128> = args
-                .iter()
-                .map(|a| eval_expr_env(a, env).ok_or_else(|| format!("unbound arg to {n}")))
-                .collect::<Result<_, _>>()?;
-            // Own scope per call so recursion cannot clobber the caller's bindings.
-            let mut callee_env = env.clone();
-            for (p, v) in params.iter().zip(vals) {
-                callee_env.insert(p.clone(), v);
-            }
-            eval_fuel(&body, &mut callee_env, fns, fuel)
+            // A bare call statement discards its value; execution continues.
+            eval_call(n, args, env, fns, fuel)?;
+            Ok(Option::None)
         }
         Stmt::GenericFn(n, _tp, params, body) => {
             // Monomorphization seed: type params erased at execution (i128 core).
@@ -195,7 +202,7 @@ fn eval_fuel(s: &Stmt, env: &mut Env, fns: &mut FnTable, fuel: &mut u64) -> Resu
             Ok(eval_expr_env(&e, env))
         }
         Stmt::LetCall(n, f, args) => {
-            let v = eval_fuel(&Stmt::Call(f.clone(), args.clone()), env, fns, fuel)?
+            let v = eval_call(f, args, env, fns, fuel)?
                 .ok_or_else(|| format!("call {f} returned no value"))?;
             env.insert(n.clone(), v);
             Ok(Option::None)
@@ -595,11 +602,46 @@ impl<'a> Cursor<'a> {
             "let" => {
                 let n = self.ident();
                 self.expect('=')?;
+                // let n = f(args);  → LetCall (calls bind their result; seed has no expr-calls)
+                let save = self.i;
+                let f = self.ident();
+                if self.peek() == Some('(') && !f.is_empty() {
+                    let args = self.parse_call_args()?;
+                    self.expect(';')?;
+                    return Ok(Stmt::LetCall(n, f, args));
+                }
+                self.i = save;
                 let e = self.expr_until(';')?;
                 self.expect(';')?;
                 Ok(Stmt::Let(n, e))
             }
+            "fn" => {
+                let n = self.ident();
+                self.expect('(')?;
+                let mut params = Vec::new();
+                if self.peek() != Some(')') {
+                    loop {
+                        params.push(self.ident());
+                        if self.peek() == Some(',') { self.i += 1; } else { break; }
+                    }
+                }
+                self.expect(')')?;
+                let body = Stmt::Seq(self.parse_block_body(true)?);
+                Ok(Stmt::LetFn(n, params, Box::new(body)))
+            }
             "return" => {
+                // return f(args);  →  let __return = f(args); return __return;
+                let start = self.i;
+                let f = self.ident();
+                if self.peek() == Some('(') && !f.is_empty() {
+                    let args = self.parse_call_args()?;
+                    self.expect(';')?;
+                    return Ok(Stmt::Seq(vec![
+                        Stmt::LetCall("__return".into(), f, args),
+                        Stmt::Return(Expr::Name("__return".into(), 0)),
+                    ]));
+                }
+                self.i = start;
                 let e = self.expr_until(';')?;
                 self.expect(';')?;
                 Ok(Stmt::Return(e))
@@ -642,15 +684,17 @@ impl<'a> Cursor<'a> {
                 Ok(Stmt::For(n, lo, hi, Box::new(b)))
             }
             _ => {
-                // assign `name = expr;` or bare expression statement
+                // assign `name = expr;`, bare call `f(args);`, or unsupported
                 if self.peek() == Some('=') {
                     self.expect('=')?;
                     let e = self.expr_until(';')?;
                     self.expect(';')?;
                     Ok(Stmt::Assign(kw, e))
+                } else if self.peek() == Some('(') {
+                    let args = self.parse_call_args()?;
+                    self.expect(';')?;
+                    Ok(Stmt::Call(kw, args))
                 } else {
-                    // re-parse the whole statement as an expression: rewind not available,
-                    // so treat kw as start of an expression by re-reading from ident start.
                     Err(format!("unsupported statement start {kw}"))
                 }
             }
@@ -661,5 +705,35 @@ impl<'a> Cursor<'a> {
         let id = self.ident();
         self.i = save;
         id
+    }
+
+    /// Parse `(e1, e2, …)` — comma-separated expressions, paren-aware. Consumes the parens.
+    fn parse_call_args(&mut self) -> Result<Vec<Expr>, String> {
+        self.expect('(')?;
+        let mut args = Vec::new();
+        if self.peek() == Some(')') {
+            self.i += 1;
+            return Ok(args);
+        }
+        loop {
+            self.ws();
+            let start = self.i;
+            let mut depth = 0i32;
+            while self.i < self.s.len() {
+                let c = self.s[self.i] as char;
+                if depth == 0 && (c == ',' || c == ')') { break; }
+                if c == '(' { depth += 1; }
+                if c == ')' { depth -= 1; }
+                self.i += 1;
+            }
+            let text = String::from_utf8_lossy(&self.s[start..self.i]).trim().to_string();
+            args.push(crate::lift::lift_expr(&text)?);
+            match self.peek() {
+                Some(',') => { self.i += 1; }
+                Some(')') => { self.i += 1; break; }
+                _ => return Err("expected , or ) in call args".into()),
+            }
+        }
+        Ok(args)
     }
 }

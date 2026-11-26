@@ -27,7 +27,7 @@ pub struct Target {
     pub has_fma: bool,
 }
 
-fn reg(arch: Arch, i: u32) -> String {
+pub(crate) fn reg(arch: Arch, i: u32) -> String {
     match arch {
         Arch::Arm64 => format!("w{}", i),
         Arch::X86 => {

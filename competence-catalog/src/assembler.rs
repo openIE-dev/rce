@@ -30,17 +30,25 @@ pub enum Ins {
     Stur(u32, u32, i16),
     /// LDUR Wt, [Xn, #off].
     Ldur(u32, u32, i16),
+    /// STUR Xt, [Xn, #off] (64-bit — for the link register).
+    Stur64(u32, u32, i16),
+    /// LDUR Xt, [Xn, #off].
+    Ldur64(u32, u32, i16),
     Ret,
 }
 
 fn regnum(s: &str) -> Result<u32, String> {
     let s = s.trim();
     if s == "wzr" || s == "sp" { return Ok(31); }
-    if let Some(n) = s.strip_prefix('w') {
+    if let Some(n) = s.strip_prefix('w').or_else(|| s.strip_prefix('x')) {
         n.parse::<u32>().map_err(|e| e.to_string())
     } else {
-        Err(format!("not a W register: {s}"))
+        Err(format!("not a W/X register: {s}"))
     }
+}
+
+fn is_xreg(s: &str) -> bool {
+    s.trim().starts_with('x')
 }
 
 /// Parse `[sp, #8]` (already split on commas: base part and offset part).
@@ -99,8 +107,14 @@ pub fn parse_line(line: &str) -> Result<Ins, String> {
             }
         }
         "subs" => Ok(Ins::Subs(r(0)?, r(1)?, r(2)?)),
-        "stur" => { let (rn, off) = memref(args[1], args[2])?; Ok(Ins::Stur(r(0)?, rn, off)) }
-        "ldur" => { let (rn, off) = memref(args[1], args[2])?; Ok(Ins::Ldur(r(0)?, rn, off)) }
+        "stur" => {
+            let (rn, off) = memref(args[1], args[2])?;
+            if is_xreg(args[0]) { Ok(Ins::Stur64(r(0)?, rn, off)) } else { Ok(Ins::Stur(r(0)?, rn, off)) }
+        }
+        "ldur" => {
+            let (rn, off) = memref(args[1], args[2])?;
+            if is_xreg(args[0]) { Ok(Ins::Ldur64(r(0)?, rn, off)) } else { Ok(Ins::Ldur(r(0)?, rn, off)) }
+        }
         "neg" => Ok(Ins::Neg(r(0)?, r(1)?)),
         "mul" => Ok(Ins::Mul(r(0)?, r(1)?, r(2)?)),
         "madd" => Ok(Ins::Madd(r(0)?, r(1)?, r(2)?, r(3)?)),
@@ -134,6 +148,8 @@ pub fn encode(i: &Ins) -> u32 {
         Ins::AddImm(d, n, imm) => 0x1100_0000 | ((imm as u32) << 10) | (n << 5) | d,
         Ins::Stur(t, n, off) => 0xB800_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
         Ins::Ldur(t, n, off) => 0xB840_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
+        Ins::Stur64(t, n, off) => 0xF800_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
+        Ins::Ldur64(t, n, off) => 0xF840_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
         Ins::Ret => 0xD65F_03C0,
     }
 }
@@ -142,6 +158,7 @@ enum P {
     Ins(Ins),
     B(String),
     Bcond(u8, String),
+    Bl(String),
 }
 
 /// Assemble RCE-Compile ARM64 output to little-endian machine code (two-pass label resolution).
@@ -158,6 +175,8 @@ pub fn assemble(asm: &str) -> Result<Vec<u8>, String> {
         if let Some(rest) = t.strip_prefix("b.") {
             let (cond, lbl) = rest.split_once(' ').ok_or_else(|| format!("bad branch {t}"))?;
             prog.push(P::Bcond(cond_code(cond.trim())?, lbl.trim().to_string()));
+        } else if let Some(lbl) = t.strip_prefix("bl ") {
+            prog.push(P::Bl(lbl.trim().to_string()));
         } else if let Some(lbl) = t.strip_prefix("b ") {
             prog.push(P::B(lbl.trim().to_string()));
         } else {
@@ -175,6 +194,10 @@ pub fn assemble(asm: &str) -> Result<Vec<u8>, String> {
             P::Bcond(c, lbl) => {
                 let t = *labels.get(lbl).ok_or_else(|| format!("undefined label {lbl}"))?;
                 0x5400_0000 | ((((t as i64 - i as i64) as u32) & 0x7_FFFF) << 5) | *c as u32
+            }
+            P::Bl(lbl) => {
+                let t = *labels.get(lbl).ok_or_else(|| format!("undefined label {lbl}"))?;
+                0x9400_0000 | (((t as i64 - i as i64) as u32) & 0x03FF_FFFF)
             }
         };
         out.extend_from_slice(&w.to_le_bytes());
@@ -380,11 +403,12 @@ enum XP {
     Ins(InsX86),
     Je(String),
     Jmp(String),
+    Call(String),
 }
 
 impl XP {
     fn lbl(&self) -> Option<&str> {
-        match self { XP::Je(l) | XP::Jmp(l) => Some(l), _ => None }
+        match self { XP::Je(l) | XP::Jmp(l) | XP::Call(l) => Some(l), _ => None }
     }
 }
 
@@ -405,6 +429,8 @@ pub fn assemble_x86(asm: &str) -> Result<Vec<u8>, String> {
             XP::Je(lbl.trim().to_string())
         } else if let Some(lbl) = t.strip_prefix("jmp ") {
             XP::Jmp(lbl.trim().to_string())
+        } else if let Some(lbl) = t.strip_prefix("call ") {
+            XP::Call(lbl.trim().to_string())
         } else {
             XP::Ins(parse_line_x86(t)?)
         };
@@ -418,6 +444,7 @@ pub fn assemble_x86(asm: &str) -> Result<Vec<u8>, String> {
             addr.push(at);
             at += match p {
                 XP::Ins(ins) => encode_x86(ins).len(),
+                XP::Call(_) => 5,
                 _ => if relaxed[i] { 2 } else { 6 },
             };
         }
@@ -427,7 +454,7 @@ pub fn assemble_x86(asm: &str) -> Result<Vec<u8>, String> {
         let addr = addr_of(&relaxed);
         let mut changed = false;
         for (i, p) in prog.iter().enumerate() {
-            if relaxed[i] { continue; }
+            if relaxed[i] || matches!(p, XP::Call(_)) { continue; }
             if let Some(lbl) = p.lbl() {
                 let ti = *labels.get(lbl).ok_or_else(|| format!("undefined label {lbl}"))?;
                 let rel = addr[ti] as i64 - (addr[i] as i64 + 6);
@@ -444,6 +471,12 @@ pub fn assemble_x86(asm: &str) -> Result<Vec<u8>, String> {
     for (i, p) in prog.iter().enumerate() {
         match p {
             XP::Ins(ins) => out.extend_from_slice(&encode_x86(ins)),
+            XP::Call(lbl) => {
+                let ti = *labels.get(lbl).ok_or_else(|| format!("undefined label {lbl}"))?;
+                let rel = (addr[ti] as i64 - (addr[i] as i64 + 5)) as i32;
+                out.push(0xE8);
+                out.extend_from_slice(&rel.to_le_bytes());
+            }
             XP::Je(lbl) | XP::Jmp(lbl) => {
                 let ti = *labels.get(lbl).ok_or_else(|| format!("undefined label {lbl}"))?;
                 let je = matches!(p, XP::Je(_));
@@ -494,6 +527,36 @@ pub fn system_bytes(asm: &str, arch: &str) -> Result<Vec<u8>, String> {
             8 => bytes.extend_from_slice(&u32::from_str_radix(h, 16).map_err(|e| e.to_string())?.to_le_bytes()),
             2 => bytes.push(u8::from_str_radix(h, 16).map_err(|e| e.to_string())?),
             _ => {}
+        }
+    }
+    // The macOS x86 assembler leaves local calls as link-time BRANCH relocations (displacement
+    // 0 in the object). Resolve them the way the linker would, so the cross-check compares
+    // final code: rel32 = target - (reloc_field_addr + 4).
+    if arch != "arm64" {
+        let rv = std::process::Command::new("otool").args(["-rv", o.to_str().unwrap()])
+            .output().map_err(|e| e.to_string())?;
+        let nm = std::process::Command::new("nm").args(["-n", o.to_str().unwrap()])
+            .output().map_err(|e| e.to_string())?;
+        let mut syms: BTreeMap<String, usize> = BTreeMap::new();
+        for line in String::from_utf8_lossy(&nm.stdout).lines() {
+            let t: Vec<&str> = line.split_whitespace().collect();
+            if t.len() == 3 {
+                if let Ok(addr) = usize::from_str_radix(t[0], 16) {
+                    syms.insert(t[2].to_string(), addr);
+                }
+            }
+        }
+        for line in String::from_utf8_lossy(&rv.stdout).lines() {
+            let t: Vec<&str> = line.split_whitespace().collect();
+            if t.len() >= 7 && t[4] == "BRANCH" && t[1] == "True" {
+                let field = usize::from_str_radix(t[0], 16).map_err(|e| e.to_string())?;
+                if let Some(&target) = syms.get(t[6]) {
+                    let rel = (target as i64 - (field as i64 + 4)) as i32;
+                    if field + 4 <= bytes.len() {
+                        bytes[field..field + 4].copy_from_slice(&rel.to_le_bytes());
+                    }
+                }
+            }
         }
     }
     let _ = std::fs::remove_file(&s);
