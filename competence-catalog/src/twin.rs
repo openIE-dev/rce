@@ -230,6 +230,66 @@ pub struct Ball {
     pub vy: f64,
     pub r: f64,
     pub m: f64,
+    /// Orientation (rad) and angular velocity (rad/s) — rigid rotation.
+    pub theta: f64,
+    pub omega: f64,
+}
+
+impl Ball {
+    /// A non-rotating ball (convenience for earlier tests).
+    pub fn new(x: f64, y: f64, vx: f64, vy: f64, r: f64, m: f64) -> Ball {
+        Ball { x, y, vx, vy, r, m, theta: 0.0, omega: 0.0 }
+    }
+}
+
+/// An oriented box obstacle (arbitrary contact manifold seed): closest-point contact in the
+/// box's local frame, so the normal follows the box's orientation, not the world axes.
+#[derive(Clone, Copy, Debug)]
+pub struct Obb {
+    pub cx: f64,
+    pub cy: f64,
+    pub hx: f64,
+    pub hy: f64,
+    pub angle: f64,
+}
+
+/// Resolve a ball vs an oriented box: push out along the local closest-point normal and
+/// reflect the normal velocity by restitution; friction spins the ball.
+pub fn collide_obb(b: &mut Ball, o: &Obb, rest: f64, fric: f64) {
+    let (s, c) = (o.angle.sin(), o.angle.cos());
+    let dx = b.x - o.cx;
+    let dy = b.y - o.cy;
+    // world -> local
+    let lx = dx * c + dy * s;
+    let ly = -dx * s + dy * c;
+    let qx = lx.clamp(-o.hx, o.hx);
+    let qy = ly.clamp(-o.hy, o.hy);
+    let mut nx = lx - qx;
+    let mut ny = ly - qy;
+    let dist = (nx * nx + ny * ny).sqrt();
+    if dist >= b.r || dist < 1e-12 {
+        return;
+    }
+    nx /= dist;
+    ny /= dist;
+    // local -> world normal
+    let wnx = nx * c - ny * s;
+    let wny = nx * s + ny * c;
+    let pen = b.r - dist;
+    b.x += wnx * pen;
+    b.y += wny * pen;
+    let vn = b.vx * wnx + b.vy * wny;
+    if vn < 0.0 {
+        b.vx -= (1.0 + rest) * vn * wnx;
+        b.vy -= (1.0 + rest) * vn * wny;
+        // tangential friction -> torque
+        let tx = -wny;
+        let ty = wnx;
+        let vt = b.vx * tx + b.vy * ty;
+        b.omega -= fric * vt / b.r;
+        b.vx -= fric * vt * tx;
+        b.vy -= fric * vt * ty;
+    }
 }
 
 /// Simulate N bodies: integrate, resolve pairwise contacts by impulse, clamp to bounds.
@@ -241,6 +301,7 @@ pub fn simulate_n(w: &WorldN, s0: &[Ball], steps: usize) -> Vec<Vec<Ball>> {
             b.vy -= w.g * w.dt;
             b.x += b.vx * w.dt;
             b.y += b.vy * w.dt;
+            b.theta += b.omega * w.dt;
         }
         for i in 0..s.len() {
             for j in i + 1..s.len() {
@@ -267,6 +328,12 @@ pub fn simulate_n(w: &WorldN, s0: &[Ball], steps: usize) -> Vec<Vec<Ball>> {
                         s[i].vy -= imp * ny / mi;
                         s[j].vx += imp * nx / mj;
                         s[j].vy += imp * ny / mj;
+                        // tangential friction induces opposite spin on the two bodies
+                        let tx = -ny;
+                        let ty = nx;
+                        let vt = rvx * tx + rvy * ty;
+                        s[i].omega -= 0.1 * vt / s[i].r;
+                        s[j].omega += 0.1 * vt / s[j].r;
                     }
                 }
             }

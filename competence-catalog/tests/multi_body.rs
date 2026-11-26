@@ -6,8 +6,8 @@ fn w(rest: f64) -> WorldN {
 
 fn head_on() -> Vec<Ball> {
     vec![
-        Ball { x: 2.0, y: 5.0, vx: 1.0, vy: 0.0, r: 0.5, m: 1.0 },
-        Ball { x: 4.0, y: 5.0, vx: -1.0, vy: 0.0, r: 0.5, m: 1.0 },
+        Ball::new(2.0, 5.0, 1.0, 0.0, 0.5, 1.0),
+        Ball::new(4.0, 5.0, -1.0, 0.0, 0.5, 1.0),
     ]
 }
 
@@ -42,9 +42,9 @@ fn restitution_below_one_dissipates_kinetic_energy() {
 #[test]
 fn three_body_pile_stays_in_bounds() {
     let s0 = vec![
-        Ball { x: 3.0, y: 3.0, vx: 0.5, vy: 0.2, r: 0.4, m: 1.0 },
-        Ball { x: 3.6, y: 3.2, vx: -0.3, vy: 0.1, r: 0.4, m: 2.0 },
-        Ball { x: 3.3, y: 3.8, vx: 0.1, vy: -0.4, r: 0.4, m: 1.5 },
+        Ball::new(3.0, 3.0, 0.5, 0.2, 0.4, 1.0),
+        Ball::new(3.6, 3.2, -0.3, 0.1, 0.4, 2.0),
+        Ball::new(3.3, 3.8, 0.1, -0.4, 0.4, 1.5),
     ];
     let tr = simulate_n(&w(0.6), &s0, 2000);
     for f in &tr {

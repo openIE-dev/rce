@@ -44,6 +44,25 @@ pub fn shard(corpus: &[(Vec<f64>, bool)], k: usize) -> Vec<Vec<(Vec<f64>, bool)>
         .collect()
 }
 
+/// The Law-of-Coding falsifier, measured: as owned competence grows, hit-rate rises and
+/// cost/act falls. Hits are real key lookups over the owned prefix; the per-act cost uses the
+/// gear prior (G0 = 1 µJ, miss = 5 MµJ) and is labelled Modelled. Returns (corpus_size,
+/// hit_rate, cost_uj_per_act) checkpoints.
+pub fn reuse_curve(owned: &[String], tasks: &[String], checkpoints: &[usize]) -> Vec<(usize, f64, f64)> {
+    let owned_set: std::collections::BTreeSet<&str> = owned.iter().map(|s| s.as_str()).collect();
+    let mut out = Vec::new();
+    for &k in checkpoints {
+        let k = k.min(owned.len());
+        let prefix: std::collections::BTreeSet<&str> = owned[..k].iter().map(|s| s.as_str()).collect();
+        let hits = tasks.iter().filter(|t| prefix.contains(t.as_str())).count();
+        let rate = if tasks.is_empty() { 0.0 } else { hits as f64 / tasks.len() as f64 };
+        let cost = (hits as f64 * 1.0 + (tasks.len() - hits) as f64 * 5_000_000.0) / tasks.len().max(1) as f64;
+        let _ = owned_set;
+        out.push((k, rate, cost));
+    }
+    out
+}
+
 /// One shard's placement on a hybrid fabric.
 #[derive(Clone, Debug)]
 pub struct HybridAssign {
