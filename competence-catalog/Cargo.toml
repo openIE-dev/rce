@@ -12,6 +12,7 @@ rce-energy = { path = "../compute/crates/rce-energy" }
 rce-spec-check = { path = "../spec/checker" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 num-bigint = "0.4"
 num-traits = "0.2"
 aes-gcm = "0.10"
