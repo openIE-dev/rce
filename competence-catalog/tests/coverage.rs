@@ -17,6 +17,24 @@ fn coverage_matrix_is_complete() {
 }
 
 #[test]
+fn emission_covers_every_ingested_language() {
+    let names: std::collections::BTreeSet<String> =
+        builtin_luts().iter().map(|l| l.name.clone()).collect();
+    let measured = [
+        "rust", "python", "go", "javascript", "java", "c", "cpp", "c-sharp", "ruby", "swift",
+        "kotlin", "scala", "haskell", "julia", "lua", "zig", "ocaml", "r", "dart", "elixir",
+        "erlang", "clojure", "scheme", "nim", "crystal", "d", "fortran", "php", "ada", "sml",
+        "purescript", "mojo", "cangjie", "wenyan", "elm", "racket", "commonlisp", "elisp",
+        "gleam", "moonbit", "rescript", "reason", "nix", "fsharp", "idris", "agda", "lean",
+        "fstar", "perl", "coq", "dhall", "unison", "nadeshiko", "ezhil", "alusus",
+    ];
+    for k in measured {
+        let emit = match k { "javascript" => "js", "c-sharp" => "csharp", _ => k };
+        assert!(names.contains(emit), "ingested language {k} has no emission LUT row");
+    }
+}
+
+#[test]
 fn higher_constructs_render() {
     let rust = builtin_luts().into_iter().find(|l| l.name == "rust").unwrap();
     assert!(emit_expr("f(1, 2)", &rust).is_ok());

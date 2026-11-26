@@ -291,6 +291,91 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "data_section" | "eof_marker" => { out.insert("directive"); }
         "pod" => { out.insert("comment"); }
         "prototype" => { out.insert("param"); }
+        // Coq / Rocq (node-types generated from aruzdh/tree-sitter-rocq).
+        "require_command" => { out.insert("import"); }
+        "inductive_command" | "fixpoint_command" | "theorem_command" | "defined_command" => { out.insert("decl"); }
+        "proof_command" | "qed_command" | "abort_command" | "admitted_command" => { out.insert("assert"); }
+        "notation_command" | "reserved_notation_command" => { out.insert("macro"); }
+        "section_command" | "end_command" => { out.insert("body"); }
+        "add_command" | "remove_command" | "set_command" | "unset_command" | "open_scope_command"
+        | "close_scope_command" | "create_hintdb_command" | "create_rewrite_hintdb_command"
+        | "hint_command" | "coercion_command" | "extract_command" | "extraction_command"
+        | "evaluation_command" | "show_proof_command" | "test_command" | "save_command"
+        | "discriminated_db" => { out.insert("directive"); }
+        "logical_conjunction" => { out.insert("and"); }
+        "logical_disjunction" => { out.insert("or"); }
+        "logical_equivalence" => { out.insert("eq"); }
+        "negation_operation" => { out.insert("not"); }
+        "app_operation" | "application" | "pattern_application" => { out.insert("call"); }
+        "additive_operation" | "multiplicative_operation" | "comparison_operation"
+        | "custom_operation" | "imp_evaluation_operation" | "cons_operation" => { out.insert("op"); }
+        "arrow_term" | "level" => { out.insert("type_expr"); }
+        "of_type_inst" => { out.insert("cast"); }
+        "scoped_term" => { out.insert("expr"); }
+        "parenthesized_term" => { out.insert("block"); }
+        "at_level" | "at_level_num" | "notation_scope" | "fixannot" => { out.insert("modifier"); }
+        "attr_value" | "legacy_attr" => { out.insert("attribute"); }
+        "generic_tactic" | "intros_tactic" | "rewrite_tactic" | "parenthesized_tactic"
+        | "tactic_branch" | "tactic_invocation" | "tactic_or" | "tactic_sequence" | "tactical"
+        | "goal_branch" | "goal_selector" | "range_selector" | "neg_selection"
+        | "oriented_rewriter" => { out.insert("control"); }
+        "pattern_option" => { out.insert("pattern"); }
+        "imp_program" | "language" => { out.insert("module"); }
+        "reference" => { out.insert("var"); }
+        "sentence" => { out.insert("stmt"); }
+        "decnat" | "hexnat" => { out.insert("int_lit"); }
+        "fail" => { out.insert("throw"); }
+        // Dhall (node-types generated from jmitchell/tree-sitter-dhall).
+        "http" | "http_raw" | "env" | "local" | "local_raw" | "path_component" | "using_raw" => { out.insert("import"); }
+        "IPv4address" | "IPv6address" | "IPvFuture" | "dec_octet" | "h16" | "ls32" | "pct_encoded"
+        | "sub_delims" | "unreserved" | "reserved" | "reserved_raw" | "scheme" | "at"
+        | "close_angle" | "close_brace" | "close_bracket" | "open_angle" | "open_brace"
+        | "open_bracket" => { out.insert("token"); }
+        "List" | "Optional" | "Text" | "non_empty_optional" => { out.insert("type_expr"); }
+        "Some" => { out.insert("var"); }
+        "plus" | "times" | "bar" | "combine" | "combine_types" | "merge" | "merge_raw" | "prefer"
+        | "list_append" | "text_append" => { out.insert("op"); }
+        "empty_collection" => { out.insert("list"); }
+        "missing" | "missing_raw" => { out.insert("ellipsis"); }
+        "in_raw" => { out.insert("let"); }
+        "not_equal" => { out.insert("ne"); }
+        // Unison (node-types generated from kylegoetz/tree-sitter-unison).
+        "bang" | "force" | "concat" | "cons" | "snoc" => { out.insert("op"); }
+        "delayed" => { out.insert("closure"); }
+        "effect_pure" | "effect_arrow" => { out.insert("type_expr"); }
+        "handler" => { out.insert("with"); }
+        "rewrite_term" => { out.insert("cast"); }
+        "tuple_or_parenthesized" => { out.insert("block"); }
+        "unison" => { out.insert("module"); }
+        "var_or_nullary_ctor" | "fold" => { out.insert("var"); }
+        "cyclic_index" => { out.insert("index"); }
+        "nat" => { out.insert("int_lit"); }
+        "path" => { out.insert("member"); }
+        // Authored seed grammars for grammar-less non-Western languages:
+        // Nadeshiko (Japanese), Ezhil (Tamil), Alusus (Arabic). Native keyword nodes.
+        "代入" | "மாறி" | "إسناد" => { out.insert("assign"); }
+        "表示" | "பதிப்பி" => { out.insert("call"); }
+        "関数" | "செயல்" | "دالة" => { out.insert("fn"); }
+        "引数" | "உள்ளீடு" | "معامل" => { out.insert("param"); }
+        "もし" | "ஆனால்" | "إذا" => { out.insert("if_stmt"); }
+        "繰り返し" => { out.insert("loop"); }
+        "抜ける" => { out.insert("break"); }
+        "戻る" | "திருப்பு" | "أرجع" => { out.insert("return"); }
+        "取り込む" | "இறக்கு" | "استورد" => { out.insert("import"); }
+        "配列" | "பட்டியல்" | "مصفوفة" => { out.insert("list"); }
+        "ハッシュ" | "அகராதி" => { out.insert("dict"); }
+        "演算" | "比較" | "செயலி" | "ஒப்பீடு" | "عملية" | "مقارنة" => { out.insert("op"); }
+        "かつ" | "மற்றும்" | "و" => { out.insert("and"); }
+        "または" | "அல்லது" | "أو" => { out.insert("or"); }
+        "否定" | "அல்ல" | "ليس" => { out.insert("not"); }
+        "ブロック" | "தொகுதி" | "كتلة" => { out.insert("block"); }
+        "定数" => { out.insert("init"); }
+        "இல்லை" | "وإلا" => { out.insert("else"); }
+        "வரை" | "طالما" => { out.insert("while"); }
+        "மடக்கு" | "لكل" => { out.insert("for"); }
+        "سجل" => { out.insert("record"); }
+        "متغير" => { out.insert("var"); }
+        "صنف" => { out.insert("type_def"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }
@@ -420,6 +505,8 @@ fn category(t: &str) -> Option<&'static str> {
     if end("_dec") || end("desc") || end("_spec") || end("_strdec") || end("_sigdec")
         || end("_fctdec") || end("_topdec") { return Some("decl"); }
     if end("scon") { return Some("literal"); }
+    // Dhall builtin identifiers (`Natural/build`, `Text/show`, … as `*_raw` nodes).
+    if end("_raw") { return Some("var"); }
     None
 }
 

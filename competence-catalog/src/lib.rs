@@ -41,6 +41,7 @@ pub mod hil;
 pub mod ingest;
 pub mod jepa;
 pub mod jit;
+pub mod langpredict;
 pub mod learning;
 pub mod library;
 pub mod lift;

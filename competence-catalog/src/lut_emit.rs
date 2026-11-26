@@ -408,6 +408,58 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("le", "({a} <= {b})"), ("ge", "({a} >= {b})"), ("and", "({a} And {b})"),
             ("or", "({a} Or {b})"), ("if_expr", "(If({cond}, {then}, {else}))"),
         ]),
+        // Emission ⊇ ingestion: every measured language is emit-able. These are structural
+        // family seeds (the same method as the 47); exact per-language surface is refined
+        // from its grammar via `ingest`. Closes the ingestion↔emission gap.
+        ml_family("sml", "({a} = {b})", "({a} <> {b})", "({a} div {b})", "({a} mod {b})"),
+        c_family("mojo", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        lisp_family("elisp", "(not (= {a} {b}))", "(mod {a} {b})", "(/ {a} {b})"),
+        c_family("rescript", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("reason", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("nix", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        ml_family("idris", "({a} == {b})", "({a} /= {b})", "(div {a} {b})", "(mod {a} {b})"),
+        ml_family("agda", "({a} == {b})", "({a} /= {b})", "(div {a} {b})", "(mod {a} {b})"),
+        ml_family("lean", "({a} == {b})", "({a} != {b})", "({a} / {b})", "({a} % {b})"),
+        ml_family("fstar", "({a} = {b})", "({a} <> {b})", "({a} / {b})", "({a} % {b})"),
+        LanguageLut::new("wenyan", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "「{value}」"), ("var", "{name}"), ("neg", "負{a}"), ("not", "非{a}"),
+            ("add", "加{a}以{b}"), ("sub", "減{a}以{b}"), ("mul", "乘{a}以{b}"),
+            ("div", "除{a}以{b}"), ("mod", "除{a}以{b}所餘"), ("eq", "{a}等於{b}"),
+            ("ne", "{a}不等於{b}"), ("lt", "{a}小於{b}"), ("gt", "{a}大於{b}"),
+            ("le", "{a}不大於{b}"), ("ge", "{a}不小於{b}"), ("and", "{a}且{b}"),
+            ("or", "{a}或{b}"), ("if_expr", "若{cond}者{then}不然{else}"),
+        ]),
+        ml_family("coq", "({a} = {b})", "({a} <> {b})", "(div {a} {b})", "(mod {a} {b})"),
+        c_family("dhall", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("unison", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        LanguageLut::new("nadeshiko", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "「{value}」"), ("var", "{name}"), ("neg", "(-{a})"), ("not", "(否定{a})"),
+            ("add", "({a}+{b})"), ("sub", "({a}-{b})"), ("mul", "({a}*{b})"),
+            ("div", "({a}/{b})"), ("mod", "({a}%{b})"), ("eq", "({a}=={b})"),
+            ("ne", "({a}!={b})"), ("lt", "({a}<{b})"), ("gt", "({a}>{b})"),
+            ("le", "({a}<={b})"), ("ge", "({a}>={b})"), ("and", "({a}かつ{b})"),
+            ("or", "({a}または{b})"), ("if_expr", "(もし{cond}ならば{then}違えば{else})"),
+        ]),
+        LanguageLut::new("ezhil", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("neg", "(-{a})"), ("not", "(அல்ல {a})"),
+            ("add", "({a}+{b})"), ("sub", "({a}-{b})"), ("mul", "({a}*{b})"),
+            ("div", "({a}/{b})"), ("mod", "({a}%{b})"), ("eq", "({a}=={b})"),
+            ("ne", "({a}!={b})"), ("lt", "({a}<{b})"), ("gt", "({a}>{b})"),
+            ("le", "({a}<={b})"), ("ge", "({a}>={b})"), ("and", "({a} மற்றும் {b})"),
+            ("or", "({a} அல்லது {b})"), ("if_expr", "(ஆனால் {cond} எனில் {then} இல்லை {else})"),
+        ]),
+        LanguageLut::new("alusus", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "\"{value}\""), ("var", "{name}"), ("neg", "(-{a})"), ("not", "(ليس {a})"),
+            ("add", "({a}+{b})"), ("sub", "({a}-{b})"), ("mul", "({a}*{b})"),
+            ("div", "({a}/{b})"), ("mod", "({a}%{b})"), ("eq", "({a}=={b})"),
+            ("ne", "({a}!={b})"), ("lt", "({a}<{b})"), ("gt", "({a}>{b})"),
+            ("le", "({a}<={b})"), ("ge", "({a}>={b})"), ("and", "({a} و {b})"),
+            ("or", "({a} أو {b})"), ("if_expr", "(إذا {cond} {then} وإلا {else})"),
+        ]),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);

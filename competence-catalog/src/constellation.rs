@@ -176,6 +176,11 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Smalltalk" => (p(&["object-oriented", "pure"]), Some("US"), Some(1972)),
         "Pascal" => (p(&["imperative", "structured", "strong-typed"]), Some("Switzerland"), Some(1970)),
         "Perl" => (p(&["imperative", "scripting", "text-processing"]), Some("US"), Some(1987)),
+        "Dhall" => (p(&["functional", "pure", "total", "config"]), Some("US"), Some(2016)),
+        "Unison" => (p(&["functional", "pure", "content-addressed"]), Some("US"), Some(2019)),
+        "Nadeshiko" => (p(&["scripting", "japanese", "imperative"]), Some("Japan"), Some(2004)),
+        "Ezhil" => (p(&["scripting", "tamil", "imperative"]), Some("India"), Some(2007)),
+        "Alusus" => (p(&["systems", "arabic", "compiled"]), Some("West Asia"), Some(2018)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -230,7 +235,9 @@ fn family_of(name: &str, group: &str) -> String {
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
         "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" => "Modern systems",
-        "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" => "East Asian new",
+        "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
+        "Ezhil" => "South Asian",
+        "Alusus" => "West Asian",
         _ => "",
     };
     if !f.is_empty() {
