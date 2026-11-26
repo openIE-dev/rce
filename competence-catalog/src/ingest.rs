@@ -480,6 +480,24 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "normal_command" => { out.insert("call"); }
         "endforeach_command" | "endfunction_command" | "endmacro_command" | "endwhile_command"
         | "endforeach" | "endfunction" | "endmacro" | "endwhile" => { out.insert("control"); }
+        // Make.
+        "archive" => { out.insert("member"); }
+        "makefile" => { out.insert("module"); }
+        "paths" => { out.insert("list"); }
+        "prerequisites" => { out.insert("param"); }
+        "shell_function" => { out.insert("call"); }
+        "shell_text" => { out.insert("str_lit"); }
+        "substitution_reference" => { out.insert("op"); }
+        // PowerShell.
+        "command_elements" | "data_commands_list" => { out.insert("seq"); }
+        "data_command" | "stop_parsing" => { out.insert("directive"); }
+        "data_commands_allowed" => { out.insert("modifier"); }
+        "dimension" => { out.insert("int_lit"); }
+        "element_access" => { out.insert("index"); }
+        "for_iterator" => { out.insert("for"); }
+        "member_access" => { out.insert("member"); }
+        "pipeline_chain" | "pipeline_chain_tail" => { out.insert("chain"); }
+        "generic_token" => { out.insert("token"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }

@@ -195,6 +195,8 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "TOML" => (p(&["data", "config"]), Some("US"), Some(2013)),
         "Dockerfile" => (p(&["build", "declarative"]), Some("US"), Some(2013)),
         "CMake" => (p(&["build", "declarative"]), Some("US"), Some(2000)),
+        "Make" => (p(&["build", "declarative"]), Some("US"), Some(1976)),
+        "PowerShell" => (p(&["shell", "scripting", "object-pipeline"]), Some("US"), Some(2006)),
         _ => (Vec::new(), None, None),
     }
 }

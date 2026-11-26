@@ -19,16 +19,19 @@
 //! `jcp/2` receipt (`stdlib/lib/energy`) sealing a checked Form, with `cost_uj`
 //! and D.11 provenance supplied by `rce-energy`.
 
+pub mod adapter_gen;
 pub mod bench;
 pub mod borrow;
 pub mod build;
 pub mod canonical;
+pub mod cleanroom;
 pub mod compiler;
 pub mod components;
 pub mod conform;
 pub mod constellation;
 pub mod corpus;
 pub mod costdata;
+pub mod editor_loop;
 pub mod energy;
 pub mod engine;
 pub mod fabric;
@@ -42,6 +45,7 @@ pub mod ingest;
 pub mod jepa;
 pub mod jit;
 pub mod langpredict;
+pub mod lang_synth;
 pub mod learning;
 pub mod library;
 pub mod lift;

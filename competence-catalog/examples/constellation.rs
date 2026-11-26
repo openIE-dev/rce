@@ -23,7 +23,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("koka", "Koka"), ("grain", "Grain"), ("roc", "Roc"), ("v", "V"), ("odin", "Odin"),
     ("bash", "Bash"), ("typescript", "TypeScript"), ("html", "HTML"), ("css", "CSS"),
     ("json", "JSON"), ("yaml", "YAML"), ("toml", "TOML"), ("dockerfile", "Dockerfile"),
-    ("cmake", "CMake"),
+    ("cmake", "CMake"), ("make", "Make"), ("powershell", "PowerShell"),
 ];
 
 fn main() {

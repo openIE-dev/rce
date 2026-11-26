@@ -527,6 +527,28 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("let", "set({name} {value})"), ("import", "find_package({name})"),
             ("macro", "macro({name} {params})\n{body}\nendmacro()"),
         ]),
+        LanguageLut::new("make", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "{value}"),
+            ("str_lit", "{value}"), ("var", "$({name})"), ("call", "$(shell {callee} {args})"),
+            ("let", "{name} = {value}"), ("assign", "{name} := {value}"),
+            ("fn", "{name}:\n\t{body}"), ("for", "$(foreach {name},{items},{body})"),
+            ("if_expr", "$(if {cond},{then},{else})"), ("import", "include {name}"),
+            ("list", "{items}"), ("member", "{a}({m})"),
+        ]),
+        LanguageLut::new("powershell", &[
+            ("int_lit", "{value}"), ("float_lit", "{value}"), ("bool_lit", "${value}"),
+            ("str_lit", "\"{value}\""), ("var", "${name}"), ("neg", "(-{a})"), ("not", "(-not {a})"),
+            ("add", "({a} + {b})"), ("sub", "({a} - {b})"), ("mul", "({a} * {b})"),
+            ("div", "({a} / {b})"), ("mod", "({a} % {b})"), ("eq", "({a} -eq {b})"),
+            ("ne", "({a} -ne {b})"), ("lt", "({a} -lt {b})"), ("gt", "({a} -gt {b})"),
+            ("le", "({a} -le {b})"), ("ge", "({a} -ge {b})"), ("and", "({a} -and {b})"),
+            ("or", "({a} -or {b})"), ("if_expr", "(if ({cond}) {{ {then} }} else {{ {else} }})"),
+            ("call", "{callee} {args}"), ("member", "{a}.{m}"), ("index", "{a}[{i}]"),
+            ("list", "@({items})"), ("dict", "@{{{items}}}"), ("let", "${name} = {value}"),
+            ("for", "foreach (${name} in {items}) {{ {body} }}"),
+            ("while", "while ({cond}) {{ {body} }}"), ("fn", "function {name} {{ param({params}) {body} }}"),
+            ("import", "Import-Module {name}"), ("return", "return {value}"),
+        ]),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);
