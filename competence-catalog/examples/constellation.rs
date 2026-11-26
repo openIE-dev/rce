@@ -20,6 +20,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("nix", "Nix"), ("fsharp", "F#"), ("idris", "Idris"), ("agda", "Agda"), ("lean", "Lean"),
     ("fstar", "F*"), ("perl", "Perl"), ("coq", "Coq"), ("dhall", "Dhall"), ("unison", "Unison"),
     ("nadeshiko", "Nadeshiko"), ("ezhil", "Ezhil"), ("alusus", "Alusus"),
+    ("koka", "Koka"), ("grain", "Grain"), ("roc", "Roc"), ("v", "V"), ("odin", "Odin"),
 ];
 
 fn main() {

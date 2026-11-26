@@ -181,6 +181,11 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Nadeshiko" => (p(&["scripting", "japanese", "imperative"]), Some("Japan"), Some(2004)),
         "Ezhil" => (p(&["scripting", "tamil", "imperative"]), Some("India"), Some(2007)),
         "Alusus" => (p(&["systems", "arabic", "compiled"]), Some("West Asia"), Some(2018)),
+        "Koka" => (p(&["functional", "effect-typed", "algebraic-effects"]), Some("US/NZ"), Some(2012)),
+        "Grain" => (p(&["functional", "wasm", "strong-typed"]), Some("US"), Some(2017)),
+        "Roc" => (p(&["functional", "pure", "platform-oriented"]), Some("US"), Some(2018)),
+        "V" => (p(&["systems", "compiled", "simple"]), Some("Ukraine"), Some(2019)),
+        "Odin" => (p(&["systems", "imperative", "data-oriented"]), Some("US"), Some(2016)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -211,7 +216,8 @@ fn family_of(name: &str, group: &str) -> String {
         "Java" | "Kotlin" | "Scala" | "Groovy" | "Clojure" | "JRuby" | "AspectJ" => "JVM",
         "OCaml" | "Standard ML" | "F#" | "Haskell" | "Elm" | "PureScript" | "Reason" | "ReScript"
         | "SML" | "Lazy ML" | "Miranda" | "Clean" | "Idris" | "Agda" | "Lean" | "Coq" | "F*"
-        | "Isabelle" | "HOL" | "Twelf" | "Beluga" | "ATS" | "Dependent ML" => "ML / functional / proof",
+        | "Isabelle" | "HOL" | "Twelf" | "Beluga" | "ATS" | "Dependent ML" | "Koka" | "Grain"
+        | "Roc" => "ML / functional / proof",
         "Lisp" | "Scheme" | "Racket" | "Common Lisp" | "Emacs Lisp" | "NewLISP" | "Hy"
         | "Clojure" | "Fennel" | "Janet" | "Guile" => "Lisp",
         "Erlang" | "Elixir" | "Gleam" | "LFE" | "Alpaca" | "Hamler" => "BEAM / concurrent",

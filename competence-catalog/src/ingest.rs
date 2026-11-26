@@ -376,6 +376,48 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "سجل" => { out.insert("record"); }
         "متغير" => { out.insert("var"); }
         "صنف" => { out.insert("type_def"); }
+        // Koka (effect-typed functional).
+        "OP" | "op" => { out.insert("op"); }
+        "annot" | "kannot" | "annotres" | "tatomic" | "tresult" | "typecon" | "typescheme"
+        | "katom" => { out.insert("type_expr"); }
+        "behindmod" | "effectmod" | "fiplimit" | "fipmod" | "inlinemod" | "structmod" | "tailmod"
+        | "typemod" => { out.insert("modifier"); }
+        "conparams" | "opparam" | "opparams" | "sconparams" | "tparam" | "tparams" | "typeparams" => { out.insert("param"); }
+        "constructors" | "con" => { out.insert("type_def"); }
+        "conid" | "qconid" | "paramid" | "varid" | "qvarid" | "qimplicit" => { out.insert("var"); }
+        "ctxhole" => { out.insert("ellipsis"); }
+        "operation" | "operations" => { out.insert("fn"); }
+        "opclause" | "opclauses" | "opclausex" => { out.insert("case"); }
+        "patarg" | "patargs" => { out.insert("pattern"); }
+        "predicate" => { out.insert("guard"); }
+        "witheff" | "withstat" => { out.insert("with"); }
+        "borrow" => { out.insert("ref"); }
+        // Roc (platform-oriented functional).
+        "apply_type_arg" => { out.insert("generic"); }
+        "hosted" | "targets" => { out.insert("module"); }
+        "negative_number" => { out.insert("int_lit"); }
+        "nominal_methods" | "nominal_type_def" | "opaque_type_def" => { out.insert("type_def"); }
+        "platform_ref" | "requires" | "requires_entries" | "requires_entry" => { out.insert("import"); }
+        "provides" | "provides_list" => { out.insert("export"); }
+        "static_dispatch" | "static_dispatch_list" | "static_dispatch_target" => { out.insert("method_ref"); }
+        "typed_ident" => { out.insert("var"); }
+        "where_implements" => { out.insert("bound"); }
+        "colon_equals" | "fat_arrow" | "to" => { out.insert("token"); }
+        "default_value" => { out.insert("init"); }
+        "number_with_suffix" => { out.insert("literal"); }
+        "optional_access" => { out.insert("chain"); }
+        // V.
+        "fixed_array" | "matrix" => { out.insert("list"); }
+        "interface_spec_list" => { out.insert("type_def"); }
+        "option_propagator" => { out.insert("chain"); }
+        "select_branch" | "select_default_branch" => { out.insert("case"); }
+        "type_placeholder" => { out.insert("type_expr"); }
+        // Odin.
+        "address" => { out.insert("ref"); }
+        "bit_set" => { out.insert("set"); }
+        "build_tag" => { out.insert("directive"); }
+        "struct_member" => { out.insert("field"); }
+        "uninitialized" => { out.insert("ellipsis"); }
         "stmt" => { out.insert("stmt"); }
         "paren" => { out.insert("block"); }
         "true_const" => { out.insert("bool_lit"); }

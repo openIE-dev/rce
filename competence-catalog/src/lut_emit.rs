@@ -460,6 +460,11 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
             ("le", "({a}<={b})"), ("ge", "({a}>={b})"), ("and", "({a} و {b})"),
             ("or", "({a} أو {b})"), ("if_expr", "(إذا {cond} {then} وإلا {else})"),
         ]),
+        c_family("koka", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("grain", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("roc", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("v", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("odin", "({a} && {b})", "({a} || {b})", "(!{a})"),
     ];
     for l in luts.iter_mut() {
         complete_higher(l);
