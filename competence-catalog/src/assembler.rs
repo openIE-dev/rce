@@ -20,17 +20,35 @@ pub enum Ins {
     And(u32, u32, u32),
     Orr(u32, u32, u32),
     Cset(u32, u8),
+    /// ADD SP, SP, #imm (64-bit immediate, for frame teardown).
+    AddSp(u16),
+    /// SUB SP, SP, #imm (64-bit immediate, for frame setup).
+    SubSp(u16),
+    /// ADD Wd, Wn, #imm (32-bit immediate).
+    AddImm(u32, u32, u16),
+    /// STUR Wt, [Xn, #off] (unscaled signed 9-bit offset).
+    Stur(u32, u32, i16),
+    /// LDUR Wt, [Xn, #off].
+    Ldur(u32, u32, i16),
     Ret,
 }
 
 fn regnum(s: &str) -> Result<u32, String> {
     let s = s.trim();
-    if s == "wzr" { return Ok(31); }
+    if s == "wzr" || s == "sp" { return Ok(31); }
     if let Some(n) = s.strip_prefix('w') {
         n.parse::<u32>().map_err(|e| e.to_string())
     } else {
         Err(format!("not a W register: {s}"))
     }
+}
+
+/// Parse `[sp, #8]` (already split on commas: base part and offset part).
+fn memref(base: &str, off: &str) -> Result<(u32, i16), String> {
+    let rn = regnum(base.trim().trim_start_matches('['))?;
+    let o = off.trim().trim_end_matches(']').strip_prefix('#')
+        .ok_or_else(|| format!("bad memref offset {off}"))?;
+    Ok((rn, o.parse::<i16>().map_err(|e| e.to_string())?))
 }
 
 /// ARM64 condition codes (the encoding's cond field).
@@ -64,9 +82,25 @@ pub fn parse_line(line: &str) -> Result<Ins, String> {
                 Ok(Ins::MovReg(r(0)?, r(1)?))
             }
         }
-        "add" => Ok(Ins::Add(r(0)?, r(1)?, r(2)?)),
-        "sub" => Ok(Ins::Sub(r(0)?, r(1)?, r(2)?)),
+        "add" => {
+            if args[2].starts_with('#') {
+                let imm = args[2][1..].parse::<u16>().map_err(|e| e.to_string())?;
+                if args[0].trim() == "sp" { Ok(Ins::AddSp(imm)) } else { Ok(Ins::AddImm(r(0)?, r(1)?, imm)) }
+            } else {
+                Ok(Ins::Add(r(0)?, r(1)?, r(2)?))
+            }
+        }
+        "sub" => {
+            if args[2].starts_with('#') {
+                let imm = args[2][1..].parse::<u16>().map_err(|e| e.to_string())?;
+                if args[0].trim() == "sp" { Ok(Ins::SubSp(imm)) } else { Err("sub immediate only for sp".into()) }
+            } else {
+                Ok(Ins::Sub(r(0)?, r(1)?, r(2)?))
+            }
+        }
         "subs" => Ok(Ins::Subs(r(0)?, r(1)?, r(2)?)),
+        "stur" => { let (rn, off) = memref(args[1], args[2])?; Ok(Ins::Stur(r(0)?, rn, off)) }
+        "ldur" => { let (rn, off) = memref(args[1], args[2])?; Ok(Ins::Ldur(r(0)?, rn, off)) }
         "neg" => Ok(Ins::Neg(r(0)?, r(1)?)),
         "mul" => Ok(Ins::Mul(r(0)?, r(1)?, r(2)?)),
         "madd" => Ok(Ins::Madd(r(0)?, r(1)?, r(2)?, r(3)?)),
@@ -95,6 +129,11 @@ pub fn encode(i: &Ins) -> u32 {
         Ins::Orr(d, n, m) => 0x2A00_0000 | (m << 16) | (n << 5) | d,
         // CSET Wd,cond = CSINC Wd,WZR,WZR,invert(cond)
         Ins::Cset(d, c) => 0x1A80_0400 | ((cond_invert(c) as u32) << 12) | (31 << 16) | (31 << 5) | d,
+        Ins::AddSp(imm) => 0x9100_0000 | ((imm as u32) << 10) | (31 << 5) | 31,
+        Ins::SubSp(imm) => 0xD100_0000 | ((imm as u32) << 10) | (31 << 5) | 31,
+        Ins::AddImm(d, n, imm) => 0x1100_0000 | ((imm as u32) << 10) | (n << 5) | d,
+        Ins::Stur(t, n, off) => 0xB800_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
+        Ins::Ldur(t, n, off) => 0xB840_0000 | (((off as u32) & 0x1FF) << 12) | (n << 5) | t,
         Ins::Ret => 0xD65F_03C0,
     }
 }

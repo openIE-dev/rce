@@ -44,6 +44,7 @@ pub mod hil;
 pub mod ingest;
 pub mod jepa;
 pub mod jit;
+pub mod kernel;
 pub mod langpredict;
 pub mod lang_synth;
 pub mod learning;

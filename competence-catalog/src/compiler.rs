@@ -37,24 +37,26 @@ fn reg(arch: Arch, i: u32) -> String {
     }
 }
 
-struct Cg {
-    out: String,
-    tmp: u32,
-    free: Vec<u32>,
-    max: u32,
-    arch: Arch,
-    has_fma: bool,
-    lbl: u32,
+pub(crate) struct Cg {
+    pub(crate) out: String,
+    pub(crate) tmp: u32,
+    pub(crate) free: Vec<u32>,
+    pub(crate) max: u32,
+    pub(crate) arch: Arch,
+    pub(crate) has_fma: bool,
+    pub(crate) lbl: u32,
+    /// When set, names resolve to stack slots (kernel lowering) instead of param registers.
+    pub(crate) slots: Option<std::collections::BTreeMap<String, u32>>,
 }
 
 impl Cg {
-    fn emit(&mut self, s: &str) {
+    pub(crate) fn emit(&mut self, s: &str) {
         self.out.push_str("    ");
         self.out.push_str(s);
         self.out.push('\n');
     }
     /// Free-list register allocator: reuse released temps instead of growing pressure.
-    fn alloc(&mut self) -> u32 {
+    pub(crate) fn alloc(&mut self) -> u32 {
         let t = self.free.pop().unwrap_or_else(|| {
             let t = self.tmp;
             self.tmp += 1;
@@ -63,10 +65,10 @@ impl Cg {
         self.max = self.max.max(t + 1);
         t
     }
-    fn release(&mut self, t: u32) {
+    pub(crate) fn release(&mut self, t: u32) {
         self.free.push(t);
     }
-    fn param(&self, n: &str) -> Option<u32> {
+    pub(crate) fn param(&self, n: &str) -> Option<u32> {
         match n {
             "a" => Some(0),
             "b" => Some(1),
@@ -75,19 +77,19 @@ impl Cg {
         }
     }
 
-    fn new_label(&mut self) -> String {
+    pub(crate) fn new_label(&mut self) -> String {
         let l = format!("L{}", self.lbl);
         self.lbl += 1;
         l
     }
 
-    fn label(&mut self, l: &str) {
+    pub(crate) fn label(&mut self, l: &str) {
         self.out.push_str(l);
         self.out.push_str(":\n");
     }
 
     /// Test d against zero; leaves flags set (ARM64 SUBS / x86 CMP). Returns the zero temp.
-    fn gen_test(&mut self, d: u32) -> Result<u32, String> {
+    pub(crate) fn gen_test(&mut self, d: u32) -> Result<u32, String> {
         let t = self.alloc();
         let (dd, tt) = (reg(self.arch, d), reg(self.arch, t));
         match self.arch {
@@ -104,7 +106,7 @@ impl Cg {
     }
 
     /// Materialize the flags as 0/1 in d (ARM64 CSET / x86 SETcc+MOVZX).
-    fn gen_flag(&mut self, d: u32, cond: &str) -> Result<(), String> {
+    pub(crate) fn gen_flag(&mut self, d: u32, cond: &str) -> Result<(), String> {
         let dd = reg(self.arch, d);
         match self.arch {
             Arch::Arm64 => self.emit(&format!("cset {}, {}", dd, cond)),
@@ -120,7 +122,7 @@ impl Cg {
         Ok(())
     }
 
-    fn gen(&mut self, e: &Expr, dst: u32) -> Result<(), String> {
+    pub(crate) fn gen(&mut self, e: &Expr, dst: u32) -> Result<(), String> {
         use Expr::*;
         let d = reg(self.arch, dst);
         match e {
@@ -129,10 +131,15 @@ impl Cg {
                 Arch::X86 => self.emit(&format!("mov {}, {}", d, n)),
             },
             Name(n, _) => {
-                let src = self.param(n).ok_or_else(|| format!("unbound name {n}"))?;
-                if src != dst {
-                    let s = reg(self.arch, src);
-                    self.emit(&format!("mov {}, {}", d, s));
+                if let Some(sl) = &self.slots {
+                    let slot = *sl.get(n).ok_or_else(|| format!("unbound name {n}"))?;
+                    self.emit(&format!("ldur {}, [sp, #{}]", d, slot * 8));
+                } else {
+                    let src = self.param(n).ok_or_else(|| format!("unbound name {n}"))?;
+                    if src != dst {
+                        let s = reg(self.arch, src);
+                        self.emit(&format!("mov {}, {}", d, s));
+                    }
                 }
             }
             Neg(a, _) => {
@@ -263,7 +270,7 @@ pub fn compile(e: &Expr, t: &Target) -> Result<String, String> {
 
 /// Compile returning (assembly, max register index used) — the allocator's pressure receipt.
 pub fn compile_stats(e: &Expr, t: &Target) -> Result<(String, u32), String> {
-    let mut cg = Cg { out: String::new(), tmp: 3, free: Vec::new(), max: 3, arch: t.arch, has_fma: t.has_fma, lbl: 0 };
+    let mut cg = Cg { out: String::new(), tmp: 3, free: Vec::new(), max: 3, arch: t.arch, has_fma: t.has_fma, lbl: 0, slots: None };
     cg.gen(&normalize(e.clone()), 0)?;
     cg.emit("ret");
     Ok((cg.out, cg.max))
