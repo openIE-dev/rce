@@ -388,6 +388,31 @@ impl Default for IoRuntime {
     }
 }
 
+/// Real OS threads, deterministic commit order: each task runs on its own thread with its
+/// own environment; results are joined and sorted by id, so the aggregate is reproducible
+/// even though execution is concurrent. Real concurrency, deterministic output.
+pub fn threaded_run(tasks: &[(String, Stmt, Env)]) -> Result<Vec<(String, Option<i128>)>, String> {
+    let handles: Vec<_> = tasks
+        .iter()
+        .map(|(id, stmt, env)| {
+            let id = id.clone();
+            let stmt = stmt.clone();
+            let mut env = env.clone();
+            std::thread::spawn(move || {
+                let r = eval_program(&stmt, &mut env, &mut FnTable::new());
+                (id, r)
+            })
+        })
+        .collect();
+    let mut out = Vec::new();
+    for h in handles {
+        let (id, r) = h.join().map_err(|_| "thread panicked".to_string())?;
+        out.push((id, r?));
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(out)
+}
+
 /// The replay gate for whole-program Forms: admitted iff the program reproduces EVERY probe
 /// (seeded environment → expected return) under deterministic execution. Same admission law
 /// as expressions, extended to statements.

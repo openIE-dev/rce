@@ -70,6 +70,18 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "inner_attribute_item" => { out.insert("attribute"); }
         "macro_invocation" | "macro_definition" | "macro_rules" | "macro_call"
         | "macro" => { out.insert("macro"); }
+        // Language-specific declaration remainder (measured coverage climb).
+        "class_definition" | "class_declaration" | "interface_declaration" | "enum_declaration"
+        | "record_declaration" | "struct_type" | "interface_type" | "type_spec"
+        | "annotation_type_declaration" | "template_declaration" | "concept_definition"
+        | "namespace_definition" | "sealed_modifier" | "permits_clause" => { out.insert("type_def"); }
+        "import_declaration" | "package_clause" | "export_statement" | "using_directive"
+        | "include_declaration" | "require_clause" => { out.insert("import"); }
+        "decorator" | "annotation_argument_list" | "attribute_list" => { out.insert("attribute"); }
+        "requires_clause" | "type_parameter_list" | "generic_param_list" | "template_parameter_list"
+        | "where_clause" | "type_bound" => { out.insert("generic"); }
+        "method_signature" | "constructor_declaration" | "destructor_declaration"
+        | "operator_declaration" | "function_signature" => { out.insert("fn"); }
         _ => {}
     }
 }

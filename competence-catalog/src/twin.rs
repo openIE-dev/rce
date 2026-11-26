@@ -211,6 +211,77 @@ pub fn simulate_body(b: &Body2, s0: &State2, forces: &[(f64, f64)]) -> Vec<State
     out
 }
 
+/// A multi-body world: N circles with mass, pairwise impulse contact (restitution) and
+/// box bounds. A multi-contact seed; arbitrary manifolds / rotation stay open.
+#[derive(Clone, Copy, Debug)]
+pub struct WorldN {
+    pub dt: f64,
+    pub g: f64,
+    pub rest: f64,
+    pub lo: (f64, f64),
+    pub hi: (f64, f64),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Ball {
+    pub x: f64,
+    pub y: f64,
+    pub vx: f64,
+    pub vy: f64,
+    pub r: f64,
+    pub m: f64,
+}
+
+/// Simulate N bodies: integrate, resolve pairwise contacts by impulse, clamp to bounds.
+pub fn simulate_n(w: &WorldN, s0: &[Ball], steps: usize) -> Vec<Vec<Ball>> {
+    let mut s = s0.to_vec();
+    let mut out = Vec::new();
+    for _ in 0..steps {
+        for b in &mut s {
+            b.vy -= w.g * w.dt;
+            b.x += b.vx * w.dt;
+            b.y += b.vy * w.dt;
+        }
+        for i in 0..s.len() {
+            for j in i + 1..s.len() {
+                let dx = s[j].x - s[i].x;
+                let dy = s[j].y - s[i].y;
+                let dist = (dx * dx + dy * dy).sqrt();
+                let min = s[i].r + s[j].r;
+                if dist < min && dist > 1e-12 {
+                    let nx = dx / dist;
+                    let ny = dy / dist;
+                    let overlap = (min - dist) / 2.0;
+                    s[i].x -= nx * overlap;
+                    s[i].y -= ny * overlap;
+                    s[j].x += nx * overlap;
+                    s[j].y += ny * overlap;
+                    let rvx = s[j].vx - s[i].vx;
+                    let rvy = s[j].vy - s[i].vy;
+                    let vn = rvx * nx + rvy * ny;
+                    if vn < 0.0 {
+                        let mi = s[i].m;
+                        let mj = s[j].m;
+                        let imp = -(1.0 + w.rest) * vn / (1.0 / mi + 1.0 / mj);
+                        s[i].vx -= imp * nx / mi;
+                        s[i].vy -= imp * ny / mi;
+                        s[j].vx += imp * nx / mj;
+                        s[j].vy += imp * ny / mj;
+                    }
+                }
+            }
+        }
+        for b in &mut s {
+            if b.x - b.r < w.lo.0 { b.x = w.lo.0 + b.r; b.vx = -b.vx * w.rest; }
+            if b.x + b.r > w.hi.0 { b.x = w.hi.0 - b.r; b.vx = -b.vx * w.rest; }
+            if b.y - b.r < w.lo.1 { b.y = w.lo.1 + b.r; b.vy = -b.vy * w.rest; }
+            if b.y + b.r > w.hi.1 { b.y = w.hi.1 - b.r; b.vy = -b.vy * w.rest; }
+        }
+        out.push(s.clone());
+    }
+    out
+}
+
 /// Real-to-sim over the richer parameter set: pick the candidate plant whose trace best
 /// explains the recording; None when no candidate is within tol.
 pub fn identify2(acts: &[f64], recorded: &[f64], candidates: &[Plant2], tol: f64) -> Option<(Plant2, f64)> {
