@@ -96,6 +96,42 @@ pub fn tree_sitter_queries(nt: &serde_json::Value) -> String {
     s
 }
 
+/// AGENTS.md generated from the admitted construct set: tells any agent the language's constructs,
+/// the gate discipline, and how to run — the SDD/agent-interop surface derived from the IR.
+pub fn agents_md(name: &str) -> String {
+    let lut = builtin_luts().into_iter().find(|l| l.name == name);
+    let constructs = lut.map(|l| l.templates.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_default();
+    format!("# AGENTS.md — {name}\n\nAdmitted constructs: {constructs}.\n\nDiscipline: every edit is replay-gated before it is served; a form that does not reproduce its probes is refused at edit time. Reuse is a content-addressed G0 lookup, not re-derivation.\n\nRun: `rcecli run <file>`; resolve an intent: `rcecli resolve`; emit to {name}: one IR, lookup-table emission.\n")
+}
+
+/// MCP tools/list descriptors exposing the competence surface (resolve/emit/admit) to any MCP client.
+pub fn mcp_tools() -> String {
+    json!({ "tools": [
+        { "name": "resolve_intent", "description": "Resolve a spec (type shape + probes) to admitted competence at the G0 lookup floor.", "inputSchema": { "type": "object", "properties": { "shape": { "type": "string" }, "probes": { "type": "array" } }, "required": ["shape", "probes"] } },
+        { "name": "emit", "description": "Emit an admitted Form to a target language via the lookup table.", "inputSchema": { "type": "object", "properties": { "form": { "type": "string" }, "target": { "type": "string" } }, "required": ["form", "target"] } },
+        { "name": "admit", "description": "Replay-gate a candidate form against its probes; crystallize on success, harvest to negative-space on failure.", "inputSchema": { "type": "object", "properties": { "src": { "type": "string" }, "probes": { "type": "array" } }, "required": ["src", "probes"] } }
+    ] }).to_string()
+}
+
+/// ACP agent card so editors/hosts can attach the competence server as an external agent.
+pub fn acp_agent_card(name: &str) -> String {
+    json!({ "name": format!("rce-{name}"), "version": "0.1.0", "protocol": "ACP",
+            "capabilities": { "resolve": true, "emit": true, "admit": true, "replay_gate": true },
+            "description": "Competence-backed agent: understands code as measured, admitted, content-addressed Form; not next-token prediction." }).to_string()
+}
+
+/// Agent Skills (SKILL.md) generated from the construct set — reusable admitted procedures.
+pub fn agent_skills(name: &str) -> String {
+    let lut = builtin_luts().into_iter().find(|l| l.name == name);
+    let mut s = format!("---\nname: {name}-constructs\ndescription: Admitted {name} constructs, replay-verified.\n---\n\n");
+    if let Some(l) = lut {
+        for (k, t) in &l.templates {
+            s.push_str(&format!("## {k}\n\n`{t}`\n\n"));
+        }
+    }
+    s
+}
+
 /// All generated artifacts for a built-in language, keyed by filename.
 pub fn generate_all(name: &str) -> Option<BTreeMap<String, String>> {
     let lut = builtin_luts().into_iter().find(|l| l.name == name)?;
@@ -106,5 +142,9 @@ pub fn generate_all(name: &str) -> Option<BTreeMap<String, String>> {
     m.insert("semanticTokens.json".into(), semantic_tokens_legend(&lut));
     m.insert("extension.toml".into(), zed_extension_toml(name, &format!("https://github.com/tree-sitter/tree-sitter-{name}"), name));
     m.insert("dap.json".into(), dap_manifest(name, &format!("{name}-debug")));
+    m.insert("AGENTS.md".into(), agents_md(name));
+    m.insert("mcp.json".into(), mcp_tools());
+    m.insert("agent.json".into(), acp_agent_card(name));
+    m.insert("SKILL.md".into(), agent_skills(name));
     Some(m)
 }

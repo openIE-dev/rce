@@ -7,6 +7,34 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn standards_emission_from_ir() {
+    let m = competence_catalog::adapter_gen::generate_all("rust").expect("rust lut");
+    for k in ["AGENTS.md", "mcp.json", "agent.json", "SKILL.md"] {
+        assert!(m.contains_key(k), "missing {k}");
+    }
+    assert!(m["AGENTS.md"].contains("replay-gated"));
+    let mcp: serde_json::Value = serde_json::from_str(&m["mcp.json"]).unwrap();
+    assert!(mcp["tools"].as_array().unwrap().len() >= 3);
+    let acp: serde_json::Value = serde_json::from_str(&m["agent.json"]).unwrap();
+    assert_eq!(acp["protocol"], "ACP");
+    assert!(m["SKILL.md"].contains("## add"));
+}
+
+#[test]
+fn generative_property_probes_catch_weak_spec_impostor() {
+    use competence_catalog::program::{lift_program, generative_probes, replay_admit, Env};
+    let good = lift_program("return x + 1;").unwrap();
+    let battery = generative_probes(&good);
+    assert!(battery.len() >= 6, "property battery over free input");
+    assert!(replay_admit(&good, &battery));
+    // A constant form matches the single weak probe (x=0 -> 1) but fails the battery.
+    let weak = vec![(Env::new(), 1)];
+    let impostor = lift_program("return 1;").unwrap();
+    assert!(replay_admit(&impostor, &weak), "weak spec is underdetermined");
+    assert!(!replay_admit(&impostor, &battery), "generative battery refuses the impostor");
+}
+
+#[test]
 fn coverage_matrix_is_complete() {
     assert_eq!(CONSTRUCTS.len(), 113);
     for l in builtin_luts() {

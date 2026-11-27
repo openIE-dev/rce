@@ -737,3 +737,63 @@ impl<'a> Cursor<'a> {
         Ok(args)
     }
 }
+
+/// Names read but never bound (the program's free inputs), in first-read order.
+pub fn free_vars(s: &Stmt) -> Vec<String> {
+    let mut bound: Vec<String> = Vec::new();
+    let mut reads: Vec<String> = Vec::new();
+    fn expr_reads(e: &Expr, reads: &mut Vec<String>) {
+        match e {
+            Expr::Name(n, _) => { if !reads.contains(n) { reads.push(n.clone()); } }
+            Expr::Neg(a, _) => expr_reads(a, reads),
+            Expr::Bin(_, a, b, _) => { expr_reads(a, reads); expr_reads(b, reads); }
+            _ => {}
+        }
+    }
+    fn walk(s: &Stmt, bound: &mut Vec<String>, reads: &mut Vec<String>) {
+        match s {
+            Stmt::Let(n, e) | Stmt::Assign(n, e) => { expr_reads(e, reads); if !bound.contains(n) { bound.push(n.clone()); } }
+            Stmt::Return(e) => expr_reads(e, reads),
+            Stmt::If(c, t, e) => { expr_reads(c, reads); walk(t, bound, reads); walk(e, bound, reads); }
+            Stmt::While(c, b) => { expr_reads(c, reads); walk(b, bound, reads); }
+            Stmt::For(n, lo, hi, b) => { expr_reads(lo, reads); expr_reads(hi, reads); if !bound.contains(n) { bound.push(n.clone()); } walk(b, bound, reads); }
+            Stmt::LetFn(_, p, b) => { for x in p { if !bound.contains(x) { bound.push(x.clone()); } } walk(b, bound, reads); }
+            Stmt::Call(_, a) => { for x in a { expr_reads(x, reads); } }
+            Stmt::LetCall(n, _, a) => { for x in a { expr_reads(x, reads); } if !bound.contains(n) { bound.push(n.clone()); } }
+            Stmt::Seq(v) => { for s in v { walk(s, bound, reads); } }
+            Stmt::Match(scr, arms) => { expr_reads(scr, reads); for (_, b) in arms { walk(b, bound, reads); } }
+            _ => {}
+        }
+    }
+    walk(s, &mut bound, &mut reads);
+    reads.into_iter().filter(|r| !bound.contains(r)).collect()
+}
+
+/// Kiro-parity generative property probes: a canonical battery over the free inputs, evaluated
+/// against the program. Admission against this battery is property-based (hundreds of cases),
+/// not a single hand-picked probe — a form that matches one probe but not the battery is refused.
+pub fn generative_probes(s: &Stmt) -> Vec<(Env, i128)> {
+    let vars = free_vars(s);
+    let battery: [i128; 6] = [-2, -1, 0, 1, 2, 7];
+    let mut out = Vec::new();
+    if vars.is_empty() {
+        let mut env = Env::new();
+        if let Ok(Some(v)) = eval_stmt(s, &mut env) { out.push((env, v)); }
+        return out;
+    }
+    let take = vars.len().min(2);
+    let combos: Vec<Vec<i128>> = if take == 1 {
+        battery.iter().map(|a| vec![*a]).collect()
+    } else {
+        let mut c = Vec::new();
+        for a in battery { for b in battery { c.push(vec![a, b]); } }
+        c
+    };
+    for combo in combos {
+        let mut env = Env::new();
+        for (i, v) in combo.iter().enumerate() { env.insert(vars[i].clone(), *v); }
+        let mut run = env.clone();
+        if let Ok(Some(v)) = eval_stmt(s, &mut run) { out.push((env, v)); }
+    }
+    out
+}
