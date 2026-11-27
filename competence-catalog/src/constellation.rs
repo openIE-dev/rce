@@ -233,6 +233,8 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Cap'n Proto" => (p(&["IDL", "serialization"]), Some("US"), Some(2013)),
         "SQL" => (p(&["query", "declarative"]), Some("US"), Some(1974)),
         "Solidity" => (p(&["smart-contract", "OOP", "C-like"]), Some("Ethereum"), Some(2014)),
+        "LaTeX" => (p(&["typesetting", "markup", "declarative"]), Some("US"), Some(1984)),
+        "Typst" => (p(&["typesetting", "markup", "scripting"]), Some("Germany"), Some(2023)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -297,7 +299,7 @@ fn family_of(name: &str, group: &str) -> String {
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",
-        "HTML" | "CSS" | "XML" | "Markdown" => "markup",
+        "HTML" | "CSS" | "XML" | "Markdown" | "LaTeX" | "Typst" => "markup",
         "JSON" | "YAML" | "TOML" | "INI" | "CSV" => "data / config",
         "Dockerfile" | "CMake" | "Make" | "Meson" | "Bazel" | "Ninja" => "build",
         "GraphQL" | "SPARQL" | "SQL" => "query",

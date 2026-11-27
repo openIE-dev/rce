@@ -284,6 +284,8 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("d", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("crystal", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("solidity", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("latex", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("typst", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("move", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("julia", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("cangjie", "({a} && {b})", "({a} || {b})", "(!{a})"),

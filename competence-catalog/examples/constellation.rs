@@ -35,6 +35,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("basic", "BASIC"), ("verilog", "Verilog"), ("thrift", "Thrift"), ("scss", "SCSS"),
     ("slang", "Slang"), ("capnp", "Cap'n Proto"),
     ("sql", "SQL"), ("solidity", "Solidity"),
+    ("latex", "LaTeX"), ("typst", "Typst"),
 ];
 
 fn main() {

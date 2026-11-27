@@ -819,6 +819,25 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "marginalia" => { out.insert("comment"); }
         "op_other" => { for c in ["add","sub","mul","div","mod","eq","ne","lt","gt","le","ge","and","or"] { out.insert(c); } }
         "op_unary_other" => { out.insert("neg"); out.insert("not"); }
+        // LaTeX / Typst (typesetting + markup-as-code).
+        "acronym_reference" | "citation" | "color_reference" | "glossary_entry_reference" => { out.insert("member"); }
+        "author" | "caption" | "counter_typesetting" | "counter_value" | "url" | "blob"
+        | "raw_blck" | "raw_span" => { out.insert("literal"); }
+        "changes_replaced" | "emph" | "strong" | "tagged" | "superscript" => { out.insert("modifier"); }
+        "chapter" | "part" | "subparagraph" | "subsection" | "subsubsection" | "counter_addition"
+        | "counter_increment" | "branch" | "elude" | "flow" | "heading" => { out.insert("control"); }
+        "generic_command" | "hyperlink" | "fac" => { out.insert("call"); }
+        "generic_environment" | "inline_formula" | "listing_environment" | "luacode_environment"
+        | "math_environment" | "minted_environment" | "pycode_environment" | "sagesilent_environment"
+        | "verbatim_environment" | "text_mode" | "code" | "formula" | "math" => { out.insert("block"); }
+        "math_delimiter" | "delimiter" | "shorthand" | "linebreak" | "parbreak" => { out.insert("token"); }
+        "argc" => { out.insert("var"); }
+        "add" => { out.insert("add"); }
+        "cmp" => { out.insert("eq"); }
+        "fraction" => { out.insert("div"); }
+        "sign" => { out.insert("neg"); }
+        "item" => { out.insert("field"); }
+        "sub" => { out.insert("index"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);
