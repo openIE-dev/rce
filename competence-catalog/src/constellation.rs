@@ -257,6 +257,7 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Ante" => (p(&["systems", "functional", "linear-types"]), Some("US"), Some(2020)),
         "Magma" => (p(&["symbolic", "computer-algebra", "algebra"]), Some("Australia"), Some(1993)),
         "Carbon" => (p(&["systems", "C++-successor", "generic"]), Some("US"), Some(2022)),
+        "Austral" => (p(&["systems", "linear-types", "capability"]), Some("Australia"), Some(2020)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -282,51 +283,55 @@ const INFLUENCES: &[(&str, &str)] = &[
 /// broad buckets rather than one undifferentiated pile.
 fn family_of(name: &str, group: &str) -> String {
     let f = match name {
-        "C" | "C++" | "C#" | "Objective-C" | "D" | "Zig" | "Rust" | "Go" | "Ada" | "Carbon"
-        | "C++" | "Objective-C++" | "SystemVerilog" | "Verilog" | "VHDL" | "CUDA" | "GLSL"
-        | "Odin" | "Hare" | "Cairo" | "ISPC" | "HLSL" | "FIRRTL" => "C / systems",
-        "Java" | "Kotlin" | "Scala" | "Groovy" | "Clojure" | "JRuby" | "AspectJ" | "Smali" => "JVM",
-        "OCaml" | "Standard ML" | "F#" | "Haskell" | "Elm" | "PureScript" | "Reason" | "ReScript"
-        | "SML" | "Lazy ML" | "Miranda" | "Clean" | "Idris" | "Agda" | "Lean" | "Coq" | "F*"
-        | "Isabelle" | "HOL" | "Twelf" | "Beluga" | "ATS" | "Dependent ML" | "Koka" | "Grain"
-        | "Roc" => "ML / functional / proof",
-        "Lisp" | "Scheme" | "Racket" | "Common Lisp" | "Emacs Lisp" | "NewLISP" | "Hy"
-        | "Clojure" | "Fennel" | "Janet" | "Guile" => "Lisp",
+        // Fine-grained subgroups (less density than the old coarse buckets).
+        "C" | "C++" | "C#" | "Objective-C" | "Objective-C++" | "D" => "C family",
+        "Rust" | "Go" | "Ada" | "Zig" | "Odin" | "Hare" | "Jai" | "C3" | "Vale" | "Ante"
+        | "Carbon" | "Goose" | "Nim" | "V" | "Pony" | "Austral" | "Forth" => "Modern systems",
+        "SystemVerilog" | "Verilog" | "VHDL" | "FIRRTL" | "Bluespec" => "Hardware HDL",
+        "CUDA" | "GLSL" | "HLSL" | "ISPC" | "Slang" => "GPU / shading",
+        "Solidity" | "Cairo" | "Move" => "Smart contract",
+        "Java" | "Kotlin" | "Scala" | "Groovy" | "JRuby" | "AspectJ" | "Smali" => "JVM",
+        "OCaml" | "Standard ML" | "SML" | "F#" | "Reason" | "ReScript" | "Lazy ML" | "Miranda"
+        | "Clean" => "ML family",
+        "Haskell" | "Elm" | "PureScript" | "Grain" | "Roc" | "Koka" => "Haskell family",
+        "Idris" | "Agda" | "Lean" | "Coq" | "F*" | "Isabelle" | "HOL" | "Twelf" | "Beluga"
+        | "ATS" | "Dependent ML" => "Proof assistants",
+        "Lisp" | "Common Lisp" | "Emacs Lisp" | "NewLISP" | "Hy" | "Guile" => "Common Lisp family",
+        "Scheme" | "Racket" | "Fennel" | "Janet" => "Scheme family",
+        "Clojure" => "Clojure family",
         "Erlang" | "Elixir" | "Gleam" | "LFE" | "Alpaca" | "Hamler" => "BEAM / concurrent",
         "JavaScript" | "TypeScript" | "CoffeeScript" | "LiveScript" | "Dart" | "ActionScript"
-        | "ECMAScript" | "Flow" | "PureScript" => "JavaScript family",
+        | "ECMAScript" | "Flow" => "JavaScript family",
         "Python" | "Mojo" | "Cython" | "Starlark" | "Boo" | "Cobra" => "Python family",
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
-        "Fortran" | "R" | "Julia" | "MATLAB" | "APL" | "J" | "K" | "Q" | "Mathematica"
-        | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" | "BQN" | "Uiua"
-        | "Maple" | "Maxima" | "GAP" | "SageMath" | "Macaulay2" | "Magma" => "Scientific / array",
+        "Fortran" | "R" | "Julia" | "MATLAB" | "Octave" | "SAS" | "Stata" | "LabVIEW" | "Gnuplot"
+        | "APL" | "J" | "K" | "Q" | "BQN" | "Uiua" => "Numeric / array",
+        "Mathematica" | "Wolfram Language" | "Maple" | "Maxima" | "GAP" | "SageMath"
+        | "Macaulay2" | "Magma" => "Computer algebra",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
-        "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
-        | "Raku" | "Perl 6" | "Tcl" | "Expect" | "Vim script" | "Squirrel" => "Shell / scripting",
+        "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" => "Shell",
+        "Perl" | "Raku" | "Perl 6" | "Tcl" | "Expect" | "Vim script" | "Squirrel" => "Scripting",
         "SQL" | "PLSQL" | "TSQL" | "PLpgSQL" | "SQLPL" | "HiveQL" | "Spark SQL" => "SQL",
         "Nix" | "Dhall" | "Unison" | "HashiCorp Configuration Language" | "HCL" | "Jsonnet"
-        | "CUE" | "Starlark" | "Puppet" | "RON" | "Xcompose" | "SSH Config" => "Config / functional",
+        | "CUE" | "Puppet" | "RON" | "Xcompose" | "SSH Config" => "Config / functional",
         "Wenyan" | "Brainfuck" | "Whitespace" | "Malbolge" | "Befunge" | "Piet" | "Shakespeare"
         | "Chef" | "LOLCODE" | "Ook!" | "Chicken" | "FALSE" | "INTERCAL" => "Esoteric",
         "Smalltalk" | "Self" | "Newspeak" | "Pharo" | "Squeak" => "Smalltalk",
-        "COBOL" | "PL/I" | "RPG" | "Fortran" | "ALGOL" | "JOVIAL" => "Legacy / business",
-        "Pascal" | "Delphi" | "Object Pascal" | "Modula-2" | "Modula-3" | "Oberon" | "Ada" | "BASIC" => "Pascal / structured",
+        "COBOL" | "PL/I" | "RPG" | "ALGOL" | "JOVIAL" => "Legacy / business",
+        "Pascal" | "Delphi" | "Object Pascal" | "Modula-2" | "Modula-3" | "Oberon" | "BASIC" => "Pascal / structured",
         "Thrift" | "Cap'n Proto" | "Protocol Buffers" | "Avro" => "IDL / serialization",
         "SCSS" | "Sass" | "Less" | "Stylus" => "styling",
-        "Slang" | "Solidity" => "C / systems",
-        "Swift" | "Objective-C" | "Objective-C++" => "Apple / Swift",
+        "Swift" => "Apple / Swift",
         "PHP" | "Hack" | "Zephir" => "PHP family",
-        "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
-        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" | "Forth"
-        | "Goose" | "Vale" | "Ante" | "Carbon" => "Modern systems",
-        "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
+        "Lua" | "MoonScript" | "Terra" => "Lua family",
+        "MoonBit" | "Cangjie" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",
         "HTML" | "CSS" | "XML" | "Markdown" | "LaTeX" | "Typst" => "markup",
         "JSON" | "YAML" | "TOML" | "INI" | "CSV" => "data / config",
         "Dockerfile" | "CMake" | "Make" | "Meson" | "Bazel" | "Ninja" => "build",
-        "GraphQL" | "SPARQL" | "SQL" => "query",
+        "GraphQL" | "SPARQL" => "query",
         _ => "",
     };
     if !f.is_empty() {

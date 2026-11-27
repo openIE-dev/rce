@@ -42,7 +42,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("maple", "Maple"), ("maxima", "Maxima"), ("gap", "GAP"), ("sage", "SageMath"),
     ("macaulay2", "Macaulay2"),
     ("goose", "Goose"), ("jai", "Jai"), ("c3", "C3"), ("vale", "Vale"), ("ante", "Ante"),
-    ("magma", "Magma"), ("carbon", "Carbon"),
+    ("magma", "Magma"), ("carbon", "Carbon"), ("austral", "Austral"),
 ];
 
 fn main() {
