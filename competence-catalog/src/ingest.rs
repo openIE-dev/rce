@@ -986,6 +986,18 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "macro_param_list" | "param_default" | "param_path" | "param_path_element" => { out.insert("param"); }
         "generic_arg_list" | "generic_type_ident" | "type_suffix" | "path_at_type_ident"
         | "path_type_ident" | "at_type_ident" | "ct_type_ident" | "type_ident" => { out.insert("type_expr"); }
+        // Survey-batch remainder curation (honest categories, climb to 100%).
+        "array_size" | "errorcode" => { out.insert("type_expr"); }
+        "interface_member" | "setget" => { out.insert("field"); }
+        "value_access" => { out.insert("member"); }
+        "comprehension_for" | "comprehension_while" => { out.insert("comprehension"); }
+        "function_arg" => { out.insert("param"); }
+        "metadata" => { out.insert("attribute"); }
+        "reserved_keyword" | "node_path" => { out.insert("var"); }
+        "get_node" => { out.insert("call"); }
+        "pattern_open_ending" | "pattern_section" => { out.insert("pattern"); }
+        "region_end" => { out.insert("directive"); }
+        "static_keyword" => { out.insert("modifier"); }
         t if t.ends_with("_stmt") => { out.insert("control"); }
         t if t.ends_with("_cond") => { out.insert("guard"); }
         t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }
