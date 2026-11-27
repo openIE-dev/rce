@@ -38,6 +38,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("latex", "LaTeX"), ("typst", "Typst"),
     ("groovy", "Groovy"), ("matlab", "MATLAB"), ("vhdl", "VHDL"), ("proto", "Protocol Buffers"),
     ("forth", "Forth"), ("smalltalk", "Smalltalk"), ("octave", "Octave"),
+    ("bqn", "BQN"), ("uiua", "Uiua"), ("wolfram", "Wolfram Language"),
 ];
 
 fn main() {

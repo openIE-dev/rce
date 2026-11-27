@@ -242,6 +242,9 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Forth" => (p(&["stack", "concatenative"]), Some("US"), Some(1970)),
         "Smalltalk" => (p(&["OOP", "live", "message-passing"]), Some("US"), Some(1972)),
         "Octave" => (p(&["scientific", "array", "numeric"]), Some("US"), Some(1988)),
+        "BQN" => (p(&["array", "tacit", "functional"]), Some("US"), Some(2020)),
+        "Uiua" => (p(&["array", "stack", "tacit"]), Some("US"), Some(2023)),
+        "Wolfram Language" => (p(&["symbolic", "multi-paradigm", "rule-based"]), Some("US"), Some(1988)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -283,7 +286,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Python" | "Mojo" | "Cython" | "Starlark" | "Boo" | "Cobra" => "Python family",
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
         "Fortran" | "R" | "Julia" | "MATLAB" | "APL" | "J" | "K" | "Q" | "Mathematica"
-        | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" => "Scientific / array",
+        | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" | "BQN" | "Uiua" => "Scientific / array",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"

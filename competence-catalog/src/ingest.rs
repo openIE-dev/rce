@@ -896,6 +896,43 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "ignored_output" => { out.insert("var"); }
         "validator_list" => { out.insert("block"); }
         "end_index" => { out.insert("index"); }
+        // BQN / Uiua (tacit array + stack languages).
+        "CASE_end" | "sep" | "branchSeparator" | "closeBracket" | "closeCurly" | "closeParen"
+        | "openBracket" | "openCurly" | "openParen" | "tripleMinus" => { out.insert("token"); }
+        "CASE_opt" => { out.insert("modifier"); }
+        "Derv" | "mod_1" | "mod_2_" | "system_F" | "system__c_" | "system__m" | "system_s"
+        | "formatter" | "system" => { out.insert("call"); }
+        "Fork" | "Train" => { out.insert("control"); }
+        "Func" | "FuncExpr" | "inlineFunction" => { out.insert("fn"); }
+        "GuardedSTMT" => { out.insert("guard"); }
+        "HeadedBODY" | "m1_Expr" | "m2_Expr_" | "subExpr" | "compound" | "segment" => { out.insert("block"); }
+        "Operand" | "arg" | "lhsStr" | "subject" | "placeHolder" => { out.insert("var"); }
+        "lhsArray" | "lhsList" => { out.insert("list"); }
+        "lhsComp" => { out.insert("member"); }
+        "nothing" => { out.insert("null_lit"); }
+        "otherConstant" => { out.insert("literal"); }
+        "emptyMultiLineString" | "multiLineString" => { out.insert("str_lit"); }
+        "leftArrow" => { out.insert("assign"); }
+        // Wolfram Language operators (base forms; *_top variants handled by the guard below).
+        "circle_plus" | "increment" | "plus_top" | "positive" | "plus_minus" | "pre_increment" => { out.insert("add"); }
+        "circle_minus" | "decrement" | "minus_top" | "negative_top" | "pre_decrement" | "negative_positive" => { out.insert("sub"); }
+        "circle_times" | "non_commutative_multiply" | "times_cross" => { out.insert("mul"); }
+        "divide" | "divide_box" | "per" => { out.insert("div"); }
+        "wedge" => { out.insert("and"); }
+        "vee" => { out.insert("or"); }
+        "set_delayed" | "set_top" | "up_set" | "up_set_delayed" | "tag_set" | "tag_set_delayed"
+        | "tag_unset" | "unset" => { out.insert("assign"); }
+        "composition" | "coproduct" | "del" | "derivative" | "diamond" | "factorial" | "factorial2"
+        | "function_arrow" | "get" | "map_all" | "map_top" | "power" | "power_subscript"
+        | "subscript_power" | "right_composition" | "small_circle" | "sqrt" | "tilde"
+        | "vertical_tilde" | "apply_at" | "apply_atat" | "apply_atatat" | "any_root" => { out.insert("call"); }
+        "function_anonymous" => { out.insert("fn"); }
+        "pattern_test" => { out.insert("guard"); }
+        "subscript_top" => { out.insert("index"); }
+        "overscript" | "overunderscript" | "underoverscript" | "underscript" => { out.insert("modifier"); }
+        "blank" | "blank_null_sequence" | "blank_sequence" => { out.insert("pattern"); }
+        "list_bracket_end" | "parenthesis_end" | "part_bracket_end" | "apply_bracket_end" => { out.insert("token"); }
+        t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);
