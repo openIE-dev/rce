@@ -1115,6 +1115,49 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "Proposition" | "SpecAction" | "SpecRefinedActionForAtomicAction"
         | "SpecRefinedActionForYieldProcedure" => { out.insert("control"); }
         "QSep" => { out.insert("token"); }
+        // Pass 69 curation: dafny/tact/wit/zeek/brightscript/magik/ohm/dbml/rst/clarity.
+        "bitvector_factor" | "subnet" | "ipv4" | "ipv6" | "buffer_lit" | "contract_principal_lit"
+        | "response_lit" | "some_lit" | "standard_principal_lit" => { out.insert("literal"); }
+        "calc_line" | "allresults" | "gather" | "scatter" | "lock" | "override_top_level_term"
+        | "top_level_term" | "partial_injection" | "_inline_markup" => { out.insert("control"); }
+        "calc_op" | "rel_op" | "one_or_more" | "zero_or_more" | "zero_or_one" => { out.insert("op"); }
+        "datatype_ctor" | "contract" | "trait" | "typedef_item" | "resource_item" | "world_item"
+        | "grammar" | "trait_implementation" | "element_kind" => { out.insert("type_def"); }
+        "datatype_formal" | "formal_arg" | "formal_args" | "func_params" | "params" | "options" => { out.insert("param"); }
+        "ghost_call_chain" | "clone" | "invoke" | "codeOf" | "initOf" | "contract_function_call" => { out.insert("call"); }
+        "ktype" | "future" | "handle" | "kt" | "ty" | "tuple_type_for_trait" => { out.insert("type_expr"); }
+        "map_display" | "multiset_construction" | "multiset_display" | "seq_construction"
+        | "seq_display" | "trait_list" | "enum_items" | "flags_items" | "result_list" | "tuple_list"
+        | "variant_items" | "checks" | "column_list" | "indexes" | "_list" | "enumerated_list"
+        | "allowance_list" | "list_lit_token" | "tuple_lit" | "unsafe_allowance_list" => { out.insert("list"); }
+        "map_display_entry" | "inline_dep" | "inline_ref" | "ref_endpoint" | "relationship"
+        | "allowance" | "unsafe_allowance" => { out.insert("field"); }
+        "set_display" => { out.insert("set"); }
+        "variance" | "maybe" | "gate_item" | "since_gate" | "unstable_gate" | "diagram_view_filter" => { out.insert("modifier"); }
+        "bounced_function" | "global_function" | "init_function" | "native_function"
+        | "storage_function" | "func_item" | "resource_method" | "event_hdr" | "func" | "func_hdr"
+        | "hook" | "annonymous_function" | "annonymous_sub" | "private_function" | "public_function"
+        | "read_only_function" => { out.insert("fn"); }
+        "message_value" => { out.insert("new"); }
+        "tlb_serialization" | "attr_list" => { out.insert("attribute"); }
+        "tvm_instruction" => { out.insert("asm"); }
+        "index_slice" | "indexed_access" | "composite_index" => { out.insert("index"); }
+        "stmt_list" | "fragment" | "settings" => { out.insert("body"); }
+        "floatp" => { out.insert("float_lit"); }
+        "nl" | "end_for" | "left_paren" | "right_paren" | "end_function" | "end_sub" | "end_try"
+        | "end_while" | "transition" => { out.insert("token"); }
+        "for_each" | "for_in" | "for_to" => { out.insert("for"); }
+        "invalid" | "none_lit" => { out.insert("null_lit"); }
+        "m" | "global_reference" => { out.insert("var"); }
+        "handling" | "protect" => { out.insert("try"); }
+        "leave" => { out.insert("break"); }
+        "rule_descr" | "attribution" | "interpreted_text" | "title" => { out.insert("str_lit"); }
+        "seq" => { out.insert("seq"); }
+        "super_grammar" | "trait_usage" | "citation_reference" | "footnote_reference"
+        | "inline_target" | "standalone_hyperlink" => { out.insert("import"); }
+        "define" => { out.insert("let"); }
+        "lookahead" | "negative_lookahead" => { out.insert("guard"); }
+        "uint_lit" => { out.insert("int_lit"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
