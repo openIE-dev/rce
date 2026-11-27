@@ -615,6 +615,35 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "pattern_multi" => { out.insert("regex"); }
         "user_command" => { out.insert("fn"); }
         "au_event" => { out.insert("keyword"); }
+        // Immediate-win expansion: Odin/Starlark (100% as-is) + Pony/Hare/HLSL/Cairo/Squirrel/
+        // Smali/FIRRTL/ISPC/RON/Puppet/Xcompose/SSH-config.
+        "capability" | "integer_suffix" | "dir" | "mdir" | "rdwr" | "ruw" => { out.insert("modifier"); }
+        "compile_error" | "hint" | "info" | "semantics" => { out.insert("attribute"); }
+        "ffi_method" => { out.insert("fn"); }
+        "members" | "call_args" | "table_slots" | "code_line" | "result" | "sequence" => { out.insert("seq"); }
+        "partial_application" => { out.insert("closure"); }
+        "type_args" | "litType" | "short_vector" => { out.insert("type_expr"); }
+        "with_elem" | "table_slot" | "map_entry" | "struct_entry" | "sub_access" | "enum_reference"
+        | "method_handle" => { out.insert("field"); }
+        "compile_intrinsic" | "call_instruction" | "custom_invoke" | "primitive_operation"
+        | "primop" | "printf" | "inst" | "resource_collector" => { out.insert("call"); }
+        "error" | "token" => { out.insert("token"); }
+        "location" | "rune" | "inst_data_word" | "const_value" | "number_str" | "hex" | "keysym"
+        | "octal" | "bytes" | "time" => { out.insert("literal"); }
+        "Infinity" | "NaN" => { out.insert("float_lit"); }
+        "static_operation" | "alloc_locals" | "inst_add_ap" | "inst_jmp_abs" | "inst_jmp_rel"
+        | "inst_jnz" | "instruction" | "attach" | "is_invalid" | "reset" | "skip" | "stop"
+        | "relation" => { out.insert("control"); }
+        "cairo_0_file" | "cairo_1_file" | "python_code" | "circuit" | "suite" | "config" => { out.insert("block"); }
+        "inst_ret" => { out.insert("return"); }
+        "opcode" | "event" | "cipher" | "facility" | "ipqos" | "kex" | "key_sig" | "mac" | "sig"
+        | "verbosity" => { out.insert("keyword"); }
+        "cmem" | "memory" | "smem" | "wire" | "resource_default" => { out.insert("decl"); }
+        "connection" | "partial_connection" => { out.insert("assign"); }
+        "mux" => { out.insert("if_expr"); }
+        "node" => { out.insert("let"); }
+        "sub_index" => { out.insert("index"); }
+        "resource_reference" => { out.insert("var"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);

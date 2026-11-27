@@ -31,6 +31,8 @@ fn emission_covers_every_ingested_language() {
         "bash", "typescript", "html", "css", "json", "yaml", "toml", "dockerfile", "cmake",
         "make", "powershell", "tlaplus", "markdown", "graphql", "prolog",
         "cuda", "glsl", "objc", "hcl", "tcl", "vim",
+        "pony", "starlark", "hare", "hlsl", "cairo", "squirrel", "smali",
+        "firrtl", "ispc", "ron", "puppet", "xcompose", "ssh-config",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

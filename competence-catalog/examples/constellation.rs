@@ -27,6 +27,10 @@ const MEASURED: &[(&str, &str)] = &[
     ("markdown", "Markdown"), ("graphql", "GraphQL"), ("prolog", "Prolog"),
     ("cuda", "CUDA"), ("glsl", "GLSL"), ("objc", "Objective-C"), ("hcl", "HCL"),
     ("tcl", "Tcl"), ("vim", "Vim script"),
+    ("pony", "Pony"), ("starlark", "Starlark"), ("hare", "Hare"),
+    ("hlsl", "HLSL"), ("cairo", "Cairo"), ("squirrel", "Squirrel"), ("smali", "Smali"),
+    ("firrtl", "FIRRTL"), ("ispc", "ISPC"), ("ron", "RON"), ("puppet", "Puppet"),
+    ("xcompose", "Xcompose"), ("ssh-config", "SSH Config"),
 ];
 
 fn main() {

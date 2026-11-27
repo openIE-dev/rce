@@ -207,6 +207,20 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "HCL" => (p(&["config", "declarative"]), Some("US"), Some(2014)),
         "Tcl" => (p(&["scripting", "command"]), Some("US"), Some(1988)),
         "Vim script" => (p(&["scripting", "editor"]), Some("Netherlands"), Some(1991)),
+        "Odin" => (p(&["systems", "imperative"]), Some("Norway"), Some(2016)),
+        "Pony" => (p(&["actor", "OOP", "capability"]), Some("UK"), Some(2015)),
+        "Starlark" => (p(&["config", "scripting"]), Some("US"), Some(2018)),
+        "Hare" => (p(&["systems", "imperative"]), Some("US"), Some(2022)),
+        "HLSL" => (p(&["shading", "C-like", "GPU"]), Some("US"), Some(2002)),
+        "Cairo" => (p(&["systems", "proof", "ZK"]), Some("Israel"), Some(2020)),
+        "Squirrel" => (p(&["OOP", "scripting"]), Some("Italy"), Some(2003)),
+        "Smali" => (p(&["bytecode", "assembly"]), Some("US"), Some(2010)),
+        "FIRRTL" => (p(&["hardware", "IR"]), Some("US"), Some(2016)),
+        "ISPC" => (p(&["parallel", "C", "SPMD"]), Some("US"), Some(2011)),
+        "RON" => (p(&["config", "data"]), Some("US"), Some(2017)),
+        "Puppet" => (p(&["config", "declarative"]), Some("US"), Some(2005)),
+        "Xcompose" => (p(&["config", "input"]), Some("US"), Some(1990)),
+        "SSH Config" => (p(&["config"]), Some("US"), Some(1995)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -233,8 +247,9 @@ const INFLUENCES: &[(&str, &str)] = &[
 fn family_of(name: &str, group: &str) -> String {
     let f = match name {
         "C" | "C++" | "C#" | "Objective-C" | "D" | "Zig" | "Rust" | "Go" | "Ada" | "Carbon"
-        | "C++" | "Objective-C++" | "SystemVerilog" | "Verilog" | "VHDL" | "CUDA" | "GLSL" => "C / systems",
-        "Java" | "Kotlin" | "Scala" | "Groovy" | "Clojure" | "JRuby" | "AspectJ" => "JVM",
+        | "C++" | "Objective-C++" | "SystemVerilog" | "Verilog" | "VHDL" | "CUDA" | "GLSL"
+        | "Odin" | "Hare" | "Cairo" | "ISPC" | "HLSL" | "FIRRTL" => "C / systems",
+        "Java" | "Kotlin" | "Scala" | "Groovy" | "Clojure" | "JRuby" | "AspectJ" | "Smali" => "JVM",
         "OCaml" | "Standard ML" | "F#" | "Haskell" | "Elm" | "PureScript" | "Reason" | "ReScript"
         | "SML" | "Lazy ML" | "Miranda" | "Clean" | "Idris" | "Agda" | "Lean" | "Coq" | "F*"
         | "Isabelle" | "HOL" | "Twelf" | "Beluga" | "ATS" | "Dependent ML" | "Koka" | "Grain"
@@ -251,10 +266,10 @@ fn family_of(name: &str, group: &str) -> String {
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
-        | "Raku" | "Perl 6" | "Tcl" | "Expect" | "Vim script" => "Shell / scripting",
+        | "Raku" | "Perl 6" | "Tcl" | "Expect" | "Vim script" | "Squirrel" => "Shell / scripting",
         "SQL" | "PLSQL" | "TSQL" | "PLpgSQL" | "SQLPL" | "HiveQL" | "Spark SQL" => "SQL",
         "Nix" | "Dhall" | "Unison" | "HashiCorp Configuration Language" | "HCL" | "Jsonnet"
-        | "CUE" | "Starlark" => "Config / functional",
+        | "CUE" | "Starlark" | "Puppet" | "RON" | "Xcompose" | "SSH Config" => "Config / functional",
         "Wenyan" | "Brainfuck" | "Whitespace" | "Malbolge" | "Befunge" | "Piet" | "Shakespeare"
         | "Chef" | "LOLCODE" | "Ook!" | "Chicken" | "FALSE" | "INTERCAL" => "Esoteric",
         "Smalltalk" | "Self" | "Newspeak" | "Pharo" | "Squeak" => "Smalltalk",
@@ -262,7 +277,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Swift" | "Objective-C" | "Objective-C++" => "Apple / Swift",
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
-        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" => "Modern systems",
+        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" => "Modern systems",
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",
