@@ -44,6 +44,9 @@ fn emission_covers_every_ingested_language() {
         "supercollider", "gnuplot", "sas", "picat", "pkl", "kcl", "nickel", "cue", "rego",
         "noir", "circom", "tact", "clarity", "mlir", "wit", "usd", "openscad", "zeek",
         "sourcepawn", "sqf", "brightscript", "vba", "qml",
+        "alloy", "arduino", "apex", "al", "magik", "p", "ohm", "penrose", "ink", "vcl",
+        "cfengine", "json5", "kdl", "ini", "devicetree", "dbml", "just", "meson", "batch",
+        "sed", "restructuredtext", "svelte", "vue", "templ", "liquid", "jinja", "twig",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

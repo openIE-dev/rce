@@ -352,6 +352,21 @@ fn family_of(name: &str, group: &str) -> String {
         "Zeek" => "Security / network",
         "VBA" => "Legacy / business",
         "QML" => "UI / declarative",
+        // Second survey batch families.
+        "Alloy" => "Logic",
+        "Arduino" => "C family",
+        "Apex" => "C family",
+        "AL" => "Legacy / business",
+        "Magik" => "Scripting",
+        "P" => "Modern systems",
+        "Ohm" => "IR / interface",
+        "Penrose" | "Ink" => "Domain / modeling",
+        "VCL" | "CFEngine" => "Config / functional",
+        "JSON5" | "KDL" | "INI" | "DeviceTree" | "DBML" => "data / config",
+        "Just" | "Meson" | "Batch" => "build",
+        "Sed" => "Shell",
+        "reStructuredText" | "Templ" | "Liquid" | "Jinja" | "Twig" => "markup",
+        "Svelte" | "Vue" => "JavaScript family",
         _ => "",
     };
     if !f.is_empty() {

@@ -55,6 +55,13 @@ const MEASURED: &[(&str, &str)] = &[
     ("mlir", "MLIR"), ("wit", "WIT"), ("usd", "USD"), ("openscad", "OpenSCAD"),
     ("zeek", "Zeek"), ("sourcepawn", "SourcePawn"), ("sqf", "SQF"), ("brightscript", "BrightScript"),
     ("vba", "VBA"), ("qml", "QML"),
+    ("alloy", "Alloy"), ("arduino", "Arduino"), ("apex", "Apex"), ("al", "AL"),
+    ("magik", "Magik"), ("p", "P"), ("ohm", "Ohm"), ("penrose", "Penrose"),
+    ("ink", "Ink"), ("vcl", "VCL"), ("cfengine", "CFEngine"), ("json5", "JSON5"),
+    ("kdl", "KDL"), ("ini", "INI"), ("devicetree", "DeviceTree"), ("dbml", "DBML"),
+    ("just", "Just"), ("meson", "Meson"), ("batch", "Batch"), ("sed", "Sed"),
+    ("restructuredtext", "reStructuredText"), ("svelte", "Svelte"), ("vue", "Vue"),
+    ("templ", "Templ"), ("liquid", "Liquid"), ("jinja", "Jinja"), ("twig", "Twig"),
 ];
 
 fn main() {
