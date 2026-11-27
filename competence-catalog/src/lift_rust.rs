@@ -246,3 +246,43 @@ pub fn lift_rust(src: &str) -> Result<Stmt, String> {
 pub fn lift_c(src: &str) -> Result<Stmt, String> {
     lift_rust(src)
 }
+
+/// Normalize Python indentation to braces so the same grammar-table lifter applies.
+fn py_to_braces(src: &str) -> String {
+    let mut out = String::new();
+    let mut stack: Vec<usize> = vec![0];
+    for line in src.lines() {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') { continue; }
+        let indent = line.len() - line.trim_start().len();
+        while indent < *stack.last().unwrap() { out.push_str("}\n"); stack.pop(); }
+        let opener = t.starts_with("def ") || t.starts_with("if ") || t.starts_with("while ")
+            || t.starts_with("else");
+        let mut s = t.to_string();
+        if opener {
+            if s.ends_with(':') { s.pop(); }
+            if s.starts_with("def ") { s = format!("fn {}", &s[4..]); }
+            out.push_str(&s);
+            out.push_str(" {\n");
+            stack.push(indent + 1);
+        } else {
+            // Python assignment is a declaration/rebind: name = expr  ->  let name = expr
+            if let Some(pos) = s.find(" = ") {
+                let lhs = s[..pos].trim();
+                if !lhs.is_empty() && lhs.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    s = format!("let {s}");
+                }
+            }
+            if !s.ends_with(';') { s.push(';'); }
+            out.push_str(&s);
+            out.push('\n');
+        }
+    }
+    while stack.len() > 1 { out.push_str("}\n"); stack.pop(); }
+    out
+}
+
+/// Lift a Python-subset program (def/if/while/else/return/assign) into the same Form IR.
+pub fn lift_python(src: &str) -> Result<Stmt, String> {
+    lift_rust(&py_to_braces(src))
+}

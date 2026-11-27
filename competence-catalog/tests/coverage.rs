@@ -19,6 +19,20 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn python_subset_lift_replays() {
+    use competence_catalog::lift_rust::lift_python;
+    use competence_catalog::program::{replay_admit, Env};
+    let p = lift_python("def add(a, b):\n    return a + b\nx = add(1, 2)\nreturn x\n").unwrap();
+    let mut e = Env::new();
+    let v = competence_catalog::program::eval_stmt(&p, &mut e);
+    assert_eq!(v.unwrap(), Some(3), "Python def + call replays to 3");
+    let w = lift_python("x = 0\nwhile x < 3:\n    x = x + 1\nreturn x\n").unwrap();
+    assert!(replay_admit(&w, &[(Env::new(), 3)]), "Python while replays to 3");
+    let i = lift_python("x = 5\nif x > 3:\n    return 1\nelse:\n    return 0\n").unwrap();
+    assert!(replay_admit(&i, &[(Env::new(), 1)]), "Python if/else replays to 1");
+}
+
+#[test]
 fn behavior_statechart_and_mcp_surface() {
     use competence_catalog::lift_rust::lift_rust;
     let p = lift_rust("let x = 0; while x < 3 { x = x + 1; } return x;").unwrap();
