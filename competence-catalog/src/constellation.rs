@@ -235,6 +235,13 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Solidity" => (p(&["smart-contract", "OOP", "C-like"]), Some("Ethereum"), Some(2014)),
         "LaTeX" => (p(&["typesetting", "markup", "declarative"]), Some("US"), Some(1984)),
         "Typst" => (p(&["typesetting", "markup", "scripting"]), Some("Germany"), Some(2023)),
+        "Groovy" => (p(&["JVM", "OOP", "scripting"]), Some("US"), Some(2003)),
+        "MATLAB" => (p(&["scientific", "array", "numeric"]), Some("US"), Some(1984)),
+        "VHDL" => (p(&["hardware", "HDL"]), Some("US"), Some(1987)),
+        "Protocol Buffers" => (p(&["IDL", "serialization"]), Some("US"), Some(2008)),
+        "Forth" => (p(&["stack", "concatenative"]), Some("US"), Some(1970)),
+        "Smalltalk" => (p(&["OOP", "live", "message-passing"]), Some("US"), Some(1972)),
+        "Octave" => (p(&["scientific", "array", "numeric"]), Some("US"), Some(1988)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -295,7 +302,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Swift" | "Objective-C" | "Objective-C++" => "Apple / Swift",
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
-        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" => "Modern systems",
+        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" | "Forth" => "Modern systems",
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",

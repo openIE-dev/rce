@@ -36,6 +36,8 @@ const MEASURED: &[(&str, &str)] = &[
     ("slang", "Slang"), ("capnp", "Cap'n Proto"),
     ("sql", "SQL"), ("solidity", "Solidity"),
     ("latex", "LaTeX"), ("typst", "Typst"),
+    ("groovy", "Groovy"), ("matlab", "MATLAB"), ("vhdl", "VHDL"), ("proto", "Protocol Buffers"),
+    ("forth", "Forth"), ("smalltalk", "Smalltalk"), ("octave", "Octave"),
 ];
 
 fn main() {

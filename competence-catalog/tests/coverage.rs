@@ -35,6 +35,7 @@ fn emission_covers_every_ingested_language() {
         "firrtl", "ispc", "ron", "puppet", "xcompose", "ssh-config",
         "cobol", "pli", "rpgle", "pascal", "basic", "verilog", "thrift", "scss", "slang", "capnp",
         "sql", "solidity", "latex", "typst",
+        "groovy", "erlang", "matlab", "vhdl", "proto", "forth", "smalltalk", "octave",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

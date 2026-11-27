@@ -838,6 +838,64 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "sign" => { out.insert("neg"); }
         "item" => { out.insert("field"); }
         "sub" => { out.insert("index"); }
+        // Groovy / MATLAB / Protobuf / Forth / Smalltalk.
+        "access_op" | "full_ident" | "binary_selector" | "unary_selector" => { out.insert("member"); }
+        "for_in_loop" => { out.insert("for"); }
+        "generic_param" | "type_with_generics" => { out.insert("type_expr"); }
+        "increment_op" => { out.insert("add"); }
+        "juxt_function_call" | "binary_message" | "unary_message" | "io" => { out.insert("call"); }
+        "map_item" => { out.insert("field"); }
+        "ternary_op" => { out.insert("if_expr"); }
+        "first_line" => { out.insert("token"); }
+        "cell" | "byte_array" | "dynamic_array" => { out.insert("list"); }
+        "end_keyword" => { out.insert("keyword"); }
+        "enumeration" => { out.insert("enum"); }
+        "events" | "methods" | "properties" | "validation_functions" | "parenthesis" | "core" => { out.insert("block"); }
+        "function_output" => { out.insert("param"); }
+        "iterator" => { out.insert("var"); }
+        "parfor_options" | "enum_value_option" => { out.insert("modifier"); }
+        "row" => { out.insert("seq"); }
+        "formatting_sequence" | "float_number" => { out.insert("float_lit"); }
+        "int_lit" | "decimal_lit" | "hex_lit" | "octal_lit" => { out.insert("int_lit"); }
+        "float_lit" => { out.insert("float_lit"); }
+        "oneof" => { out.insert("union"); }
+        "ranges" => { out.insert("range"); }
+        "rpc" => { out.insert("fn"); }
+        "service" => { out.insert("class"); }
+        "stack_effect" => { out.insert("comment"); }
+        "temporaries" => { out.insert("let"); }
+        // VHDL + PSL (hardware description + property specification).
+        t if t.starts_with("PSL_") && (t.ends_with("_FL_Property") || t.ends_with("_SERE")) => { out.insert("control"); }
+        "PSL_Actual_Parameter" | "PSL_Formal_Parameter" => { out.insert("param"); }
+        "PSL_Actual_Parameter_List" | "PSL_Formal_Parameter_List" | "PSL_Parameters_Definition"
+        | "choices" | "instantiation_list" | "selected_waveforms" | "waveforms" | "waveform_element"
+        | "sensitivity_list" | "signal_list" => { out.insert("seq"); }
+        "PSL_Ambiguous_Instance" | "PSL_Property_Instance" | "PSL_Sequence_Instance"
+        | "PSL_Built_In_Function_Call" | "component_configuration" | "component_instantiation"
+        | "configuration_instantiation" | "reduction" => { out.insert("call"); }
+        "PSL_Any_Type" | "PSL_HDL_Type" | "subtype_indication" | "type_mark" => { out.insert("type_expr"); }
+        "PSL_Boolean" => { out.insert("bool_lit"); }
+        "PSL_Clock_Declaration" | "PSL_Property_Declaration" | "PSL_Sequence_Declaration" => { out.insert("decl"); }
+        "PSL_Count" | "PSL_Number" | "integer_decimal" => { out.insert("int_lit"); }
+        "real_decimal" => { out.insert("float_lit"); }
+        "PSL_Expression" | "PSL_Union_Expression" | "design_file" | "parenthesized_resolution"
+        | "factor" => { out.insert("block"); }
+        "PSL_Hierarchical_HDL_Name" => { out.insert("member"); }
+        "PSL_Index_Range" | "descending_range" => { out.insert("range"); }
+        "PSL_Inherit_Spec" | "PSL_Property_Replicator" | "PSL_VMode" | "PSL_VProp" | "PSL_VUnit"
+        | "delay_mechanism" | "inertial" | "transport" | "force_mode" | "file_open_information"
+        | "file_open_kind" | "interface_subprogram_default" | "signal_kind" => { out.insert("modifier"); }
+        "PSL_Parameterized_Property" | "resolution_function" => { out.insert("fn"); }
+        "PSL_Value_Set" => { out.insert("set"); }
+        "aggregate" => { out.insert("list"); }
+        "context_list" | "context_reference" => { out.insert("import"); }
+        "others" | "unaffected" | "any" | "same" => { out.insert("keyword"); }
+        "semicolon" => { out.insert("token"); }
+        // Octave.
+        "function_handle" => { out.insert("closure"); }
+        "ignored_output" => { out.insert("var"); }
+        "validator_list" => { out.insert("block"); }
+        "end_index" => { out.insert("index"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);
