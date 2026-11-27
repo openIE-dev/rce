@@ -932,6 +932,18 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "overscript" | "overunderscript" | "underoverscript" | "underscript" => { out.insert("modifier"); }
         "blank" | "blank_null_sequence" | "blank_sequence" => { out.insert("pattern"); }
         "list_bracket_end" | "parenthesis_end" | "part_bracket_end" | "apply_bracket_end" => { out.insert("token"); }
+        // Symbolic-math languages: Maple / Maxima / GAP / Macaulay2 (Sage is Python-based, already 100%).
+        "option_item" | "empty_component" => { out.insert("field"); }
+        "option_list" | "naked_sequence" => { out.insert("seq"); }
+        "array_ref" | "list_selector" | "positional_selector" | "sublist_selector" => { out.insert("index"); }
+        "atomic_function" => { out.insert("fn"); }
+        "component_selector" | "help_selector" => { out.insert("member"); }
+        "function_call_option" | "muted" => { out.insert("modifier"); }
+        "locals" => { out.insert("let"); }
+        "help_book" | "help_topic" => { out.insert("literal"); }
+        "angle_bar_list" => { out.insert("list"); }
+        "binary_installation" | "postfix_installation" | "prefix_installation" => { out.insert("call"); }
+        "iteration_range" => { out.insert("range"); }
         t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }
         _ => {
             if let Some(c) = category(t) {

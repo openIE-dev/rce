@@ -39,6 +39,8 @@ const MEASURED: &[(&str, &str)] = &[
     ("groovy", "Groovy"), ("matlab", "MATLAB"), ("vhdl", "VHDL"), ("proto", "Protocol Buffers"),
     ("forth", "Forth"), ("smalltalk", "Smalltalk"), ("octave", "Octave"),
     ("bqn", "BQN"), ("uiua", "Uiua"), ("wolfram", "Wolfram Language"),
+    ("maple", "Maple"), ("maxima", "Maxima"), ("gap", "GAP"), ("sage", "SageMath"),
+    ("macaulay2", "Macaulay2"),
 ];
 
 fn main() {

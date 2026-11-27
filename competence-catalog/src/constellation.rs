@@ -245,6 +245,11 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "BQN" => (p(&["array", "tacit", "functional"]), Some("US"), Some(2020)),
         "Uiua" => (p(&["array", "stack", "tacit"]), Some("US"), Some(2023)),
         "Wolfram Language" => (p(&["symbolic", "multi-paradigm", "rule-based"]), Some("US"), Some(1988)),
+        "Maple" => (p(&["symbolic", "computer-algebra"]), Some("Canada"), Some(1982)),
+        "Maxima" => (p(&["symbolic", "computer-algebra"]), Some("US"), Some(1968)),
+        "GAP" => (p(&["computational", "group-theory"]), Some("Germany"), Some(1986)),
+        "SageMath" => (p(&["symbolic", "computer-algebra", "Python"]), Some("US"), Some(2005)),
+        "Macaulay2" => (p(&["symbolic", "algebraic-geometry"]), Some("US"), Some(1993)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -286,7 +291,8 @@ fn family_of(name: &str, group: &str) -> String {
         "Python" | "Mojo" | "Cython" | "Starlark" | "Boo" | "Cobra" => "Python family",
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
         "Fortran" | "R" | "Julia" | "MATLAB" | "APL" | "J" | "K" | "Q" | "Mathematica"
-        | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" | "BQN" | "Uiua" => "Scientific / array",
+        | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" | "BQN" | "Uiua"
+        | "Maple" | "Maxima" | "GAP" | "SageMath" | "Macaulay2" => "Scientific / array",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
