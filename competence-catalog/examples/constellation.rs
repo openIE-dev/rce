@@ -34,6 +34,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("cobol", "COBOL"), ("pli", "PL/I"), ("rpgle", "RPG"), ("pascal", "Pascal"),
     ("basic", "BASIC"), ("verilog", "Verilog"), ("thrift", "Thrift"), ("scss", "SCSS"),
     ("slang", "Slang"), ("capnp", "Cap'n Proto"),
+    ("sql", "SQL"), ("solidity", "Solidity"),
 ];
 
 fn main() {

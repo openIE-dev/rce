@@ -789,6 +789,36 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "varAssignDef" | "varDef" => { out.insert("let"); }
         "library" | "root" | "pp" => { out.insert("block"); }
         t if t.starts_with('k') && t.len() > 1 && t.as_bytes()[1].is_ascii_uppercase() => { out.insert("keyword"); }
+        // Solidity / Yul.
+        "slice_access" => { out.insert("index"); }
+        "state_location" | "state_mutability" | "unchecked" | "virtual" => { out.insert("modifier"); }
+        "yul_boolean" => { out.insert("bool_lit"); }
+        "yul_break" | "yul_continue" | "yul_leave" => { out.insert("control"); }
+        "yul_function_call" => { out.insert("call"); }
+        "yul_path" => { out.insert("member"); }
+        "solidity_version" | "yul_decimal_number" | "yul_hex_number" => { out.insert("literal"); }
+        // SQL: reserved words, DDL/DML statements, types, clauses.
+        t if t.starts_with("keyword_") => { out.insert("keyword"); }
+        t if t.starts_with("create_") || t.starts_with("alter_") || t.starts_with("drop_")
+            || t.starts_with("refresh_") => { out.insert("control"); }
+        "insert" | "update" | "transaction" | "having" | "limit" | "offset" | "order_by"
+        | "partition_by" | "join" | "cross_join" | "lateral_join" | "lateral_cross_join"
+        | "set_operation" | "pivot" | "unpivot" | "subquery" | "cte" | "values" | "returning"
+        | "table_partition" | "table_sort" | "ordered_set_aggregate" | "set_configuration"
+        | "set_schema" | "change_ownership" | "add_column" | "alter_column" | "change_column"
+        | "drop_column" => { out.insert("control"); }
+        "bigint" | "bit" | "datetime" | "datetimeoffset" | "interval" | "mediumint" | "smallint"
+        | "timestamp" | "tinyint" | "varbinary" | "column" | "enum_elements" | "storage_location"
+        | "tablespace" | "row_format" | "table_option" => { out.insert("type_expr"); }
+        "distinct_from" | "not_distinct_from" | "is_not" | "not_like" | "not_rlike" | "not_similar_to"
+        | "similar_to" | "null_treatment" => { out.insert("eq"); }
+        "index_hint" | "covering_columns" | "exclude_columns" | "ordered_columns" | "column_position"
+        | "function_cost" | "function_language" | "function_leakproof" | "function_rows"
+        | "function_security" | "function_set" | "function_support" | "function_volatility"
+        | "table_privilege" | "order_target" => { out.insert("modifier"); }
+        "marginalia" => { out.insert("comment"); }
+        "op_other" => { for c in ["add","sub","mul","div","mod","eq","ne","lt","gt","le","ge","and","or"] { out.insert(c); } }
+        "op_unary_other" => { out.insert("neg"); out.insert("not"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);

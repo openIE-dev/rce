@@ -231,6 +231,8 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "SCSS" => (p(&["styling", "CSS"]), Some("US"), Some(2006)),
         "Slang" => (p(&["shading", "GPU"]), Some("US"), Some(2023)),
         "Cap'n Proto" => (p(&["IDL", "serialization"]), Some("US"), Some(2013)),
+        "SQL" => (p(&["query", "declarative"]), Some("US"), Some(1974)),
+        "Solidity" => (p(&["smart-contract", "OOP", "C-like"]), Some("Ethereum"), Some(2014)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -287,7 +289,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Pascal" | "Delphi" | "Object Pascal" | "Modula-2" | "Modula-3" | "Oberon" | "Ada" | "BASIC" => "Pascal / structured",
         "Thrift" | "Cap'n Proto" | "Protocol Buffers" | "Avro" => "IDL / serialization",
         "SCSS" | "Sass" | "Less" | "Stylus" => "styling",
-        "Slang" => "C / systems",
+        "Slang" | "Solidity" => "C / systems",
         "Swift" | "Objective-C" | "Objective-C++" => "Apple / Swift",
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
