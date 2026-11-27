@@ -59,6 +59,9 @@ fn lex(s: &str) -> Result<Vec<T>, String> {
     Ok(t)
 }
 
+const TYPES: &[&str] = &["int", "float", "double", "char", "void", "long", "short", "unsigned",
+    "signed", "const", "static", "auto", "register", "bool", "i32", "i64", "u32", "u64", "f32", "f64"];
+
 fn prec(op: &str) -> u8 {
     match op {
         "||" => 1, "&&" => 2,
@@ -75,6 +78,13 @@ impl P {
     fn next(&mut self) -> Option<T> { let x = self.t.get(self.i).cloned(); self.i += 1; x }
     fn eat(&mut self, w: &T) -> bool { if self.peek() == Some(w) { self.i += 1; true } else { false } }
     fn expect(&mut self, w: &T) -> Result<(), String> { if self.eat(w) { Ok(()) } else { Err(format!("expected {w:?}")) } }
+    fn skip_types(&mut self) -> bool {
+        let mut any = false;
+        while let Some(T::Id(w)) = self.peek().cloned() {
+            if TYPES.contains(&w.as_str()) { self.next(); any = true; } else { break; }
+        }
+        any
+    }
 
     fn expr(&mut self, min: u8) -> Result<Expr, String> {
         let mut lhs = self.primary()?;
@@ -127,6 +137,7 @@ impl P {
     }
 
     fn stmt(&mut self) -> Result<Stmt, String> {
+        let decl = self.skip_types();
         match self.peek().cloned() {
             Some(T::Id(w)) if w == "let" => {
                 self.next();
@@ -184,16 +195,33 @@ impl P {
             Some(T::Id(n)) => {
                 self.next();
                 if self.eat(&T::Eq) {
+                    // n = f(args);  ->  LetCall (keeps the call's value), for Rust assign & C decl
+                    if let (Some(T::Id(f)), Some(T::LP)) = (self.peek().cloned(), self.t.get(self.i + 1).cloned()) {
+                        self.next(); self.next();
+                        let mut args = Vec::new();
+                        if !matches!(self.peek(), Some(T::RP)) {
+                            loop { args.push(self.expr(1)?); if !self.eat(&T::Comma) { break; } }
+                        }
+                        self.expect(&T::RP)?;
+                        self.expect(&T::Semi)?;
+                        return Ok(Stmt::LetCall(n, f, args));
+                    }
                     let e = self.expr(1)?;
                     self.expect(&T::Semi)?;
-                    return Ok(Stmt::Assign(n, e));
+                    return Ok(if decl { Stmt::Let(n, e) } else { Stmt::Assign(n, e) });
                 }
                 if self.eat(&T::LP) {
                     let mut args = Vec::new();
                     if !matches!(self.peek(), Some(T::RP)) {
-                        loop { args.push(self.expr(1)?); if !self.eat(&T::Comma) { break; } }
+                        loop { self.skip_types(); args.push(self.expr(1)?); if !self.eat(&T::Comma) { break; } }
                     }
                     self.expect(&T::RP)?;
+                    // C-style definition: name(params) { ... }  ->  LetFn
+                    if matches!(self.peek(), Some(T::LB)) {
+                        let params: Vec<String> = args.iter().filter_map(|e| match e { Expr::Name(p, _) => Some(p.clone()), _ => None }).collect();
+                        let b = self.block()?;
+                        return Ok(Stmt::LetFn(n, params, Box::new(b)));
+                    }
                     self.expect(&T::Semi)?;
                     return Ok(Stmt::Call(n, args));
                 }
@@ -211,4 +239,10 @@ pub fn lift_rust(src: &str) -> Result<Stmt, String> {
     let mut v = Vec::new();
     while p.peek().is_some() { v.push(p.stmt()?); }
     Ok(if v.len() == 1 { v.pop().unwrap() } else { Stmt::Seq(v) })
+}
+
+/// Lift a C-subset program (type decls, fn definitions, if/while/return/call) into the same Form IR.
+/// One grammar-table lifter for both surfaces; emission (LUT) is the per-language inverse.
+pub fn lift_c(src: &str) -> Result<Stmt, String> {
+    lift_rust(src)
 }

@@ -7,6 +7,18 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn c_subset_lift_replays() {
+    use competence_catalog::lift_rust::lift_c;
+    use competence_catalog::program::{replay_admit, Env};
+    let p = lift_c("int add(int a, int b) { return a + b; } int r = add(1, 2); return r;").unwrap();
+    assert!(replay_admit(&p, &[(Env::new(), 3)]), "C fn + decl + call replays to 3");
+    let w = lift_c("int x = 0; while (x < 3) { x = x + 1; } return x;").unwrap();
+    let mut env = Env::new();
+    let v = competence_catalog::program::eval_stmt(&w, &mut env);
+    assert_eq!(v.unwrap(), Some(3), "C while replays to 3");
+}
+
+#[test]
 fn behavior_statechart_and_mcp_surface() {
     use competence_catalog::lift_rust::lift_rust;
     let p = lift_rust("let x = 0; while x < 3 { x = x + 1; } return x;").unwrap();
