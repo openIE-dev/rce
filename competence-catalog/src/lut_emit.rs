@@ -395,6 +395,7 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("vento", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("wikitext", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("topaz", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("wasm", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("move", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("julia", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("cangjie", "({a} && {b})", "({a} || {b})", "(!{a})"),

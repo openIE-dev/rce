@@ -67,6 +67,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("m68k", "Motorola 68K Assembly"), ("nginx", "Nginx"), ("plum", "Plumlang"),
     ("ros-interface", "ROS Interface"), ("soong", "Soong"), ("typespec", "TypeSpec"),
     ("vento", "Vento"), ("wikitext", "Wikitext"), ("topaz", "Topaz"),
+    ("wasm", "WebAssembly"),
 ];
 
 fn main() {

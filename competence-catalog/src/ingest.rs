@@ -1021,6 +1021,54 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "filter" => { out.insert("call"); }
         "c_function_pointer" | "exception_value" | "fused" => { out.insert("type_expr"); }
         "for_from_loop" | "for_from_relation" => { out.insert("for"); }
+        // Pass 67 curation: small remainders + WebAssembly (wat), honest categories.
+        "hexidecimal" | "hexinteger" | "align_value" | "offset_value" | "align_offset_value"
+        | "dec_nat" | "hex_nat" => { out.insert("int_lit"); }
+        "dec_float" | "hex_float" => { out.insert("float_lit"); }
+        "duration" | "dur" | "polar" | "op_const" | "op_simd_const" => { out.insert("literal"); }
+        "setting_value" | "local_var" | "set_keyword" => { out.insert("let"); }
+        "fn_call" | "debug_print" | "cmd" | "component_render" | "flush" | "output"
+        | "instr_call" | "op_table_copy" | "op_table_init" => { out.insert("call"); }
+        "kwarg" | "ds_options" | "macro_options" | "command_option" | "for_options"
+        | "anonymous_inputs" | "func_locals" | "func_locals_many" | "func_locals_one" => { out.insert("param"); }
+        "define_macro" | "undef_macro" | "macro_end" => { out.insert("macro"); }
+        "macro_path" | "table_reference" | "fileref_source" | "environment_var"
+        | "reference_values" | "quant_target" => { out.insert("var"); }
+        "acl_entries" | "collection" | "types_list" | "elem_list" => { out.insert("list"); }
+        "acl_entry" | "config_entry" | "config_shorthand" | "main_component_public_signals"
+        | "types_key" => { out.insert("field"); }
+        "backend_properties" | "probe_properties" | "data_step" | "proc_sql_step" | "proc_step"
+        | "instr_list" | "instr_list_call" | "source_elements" | "config_entries" => { out.insert("body"); }
+        "optional" | "required" | "mutable" | "unconstrained" | "viewer" | "signal_visibility"
+        | "parallel" | "global_type_mut" | "question_marker" | "share" => { out.insert("modifier"); }
+        "top" | "bottom" | "elem_kind" | "func_type_results" | "global_type_imm" | "limits"
+        | "ref_type_ref" | "type_use" | "ref_kind" | "ref_type_funcref" | "constructor_subset"
+        | "type_function" | "type_paren" => { out.insert("type_expr"); }
+        t if t.starts_with("num_type_") => { out.insert("type_expr"); }
+        "attr_path" | "signal_tags" | "custom" | "decorators" => { out.insert("attribute"); }
+        "multiplier" | "chuck_operation" | "comparison_op" | "quant_op" | "op_nullary" => { out.insert("op"); }
+        "generic" => { out.insert("generic"); }
+        "struct_function" | "partial" => { out.insert("fn"); }
+        "struct_initialization" => { out.insert("init"); }
+        "for_each_loop" | "for_set" => { out.insert("for"); }
+        "circom_version" | "echo_off" => { out.insert("directive"); }
+        "script_tag_end" | "style_tag_end" | "tag_end" | "void_element" | "command_sep"
+        | "array_generator_sep" | "comprehension_sep" | "generator_sep" => { out.insert("token"); }
+        "element_text" | "script_element_text" | "style_element_text" | "verbatim" => { out.insert("str_lit"); }
+        "arithmetic_series" | "index_subrange" => { out.insert("range"); }
+        "indexed_collection" | "memory_use" | "table_use" | "op_index" | "op_index_opt"
+        | "op_index_opt_offset_opt_align_opt" | "op_simd_lane" | "op_simd_offset_opt_align_opt" => { out.insert("index"); }
+        "nil_check" => { out.insert("guard"); }
+        "config_splat" => { out.insert("splat"); }
+        "schema_instantiation" => { out.insert("new"); }
+        "select_suffix" => { out.insert("member"); }
+        "config_comprehension" | "array_comprehension" => { out.insert("comprehension"); }
+        "foreign_code_item" | "abc_instruction" => { out.insert("asm"); }
+        "instr" | "instr_plain" | "cond_exec" | "cache" | "sandbox" | "op_select" => { out.insert("control"); }
+        "bracketed_value" => { out.insert("block"); }
+        "omitted" => { out.insert("ellipsis"); }
+        "embed" => { out.insert("import"); }
+        "pat00" | "pat01" => { out.insert("pattern"); }
         t if t.ends_with("_stmt") => { out.insert("control"); }
         t if t.ends_with("_cond") => { out.insert("guard"); }
         t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }

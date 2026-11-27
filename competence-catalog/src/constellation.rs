@@ -347,7 +347,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Picat" => "Logic",
         "Pkl" | "KCL" | "Nickel" => "Config / functional",
         "Noir" | "Circom" | "Tact" | "Clarity" => "Smart contract",
-        "MLIR" | "WIT" => "IR / interface",
+        "MLIR" | "WIT" | "WebAssembly" => "IR / interface",
         "USD" | "OpenSCAD" => "Domain / modeling",
         "Zeek" => "Security / network",
         "VBA" => "Legacy / business",

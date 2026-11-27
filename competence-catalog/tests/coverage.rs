@@ -49,6 +49,7 @@ fn emission_covers_every_ingested_language() {
         "sed", "restructuredtext", "svelte", "vue", "templ", "liquid", "jinja", "twig",
         "caddyfile", "editorconfig", "git-commit", "go-template", "heex", "liquidsoap", "m68k",
         "nginx", "plum", "ros-interface", "soong", "typespec", "vento", "wikitext", "topaz",
+        "wasm",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };
