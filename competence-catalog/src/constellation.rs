@@ -250,6 +250,12 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "GAP" => (p(&["computational", "group-theory"]), Some("Germany"), Some(1986)),
         "SageMath" => (p(&["symbolic", "computer-algebra", "Python"]), Some("US"), Some(2005)),
         "Macaulay2" => (p(&["symbolic", "algebraic-geometry"]), Some("US"), Some(1993)),
+        "Goose" => (p(&["systems", "concurrent", "experimental"]), Some("Netherlands"), Some(2024)),
+        "Jai" => (p(&["systems", "game", "metaprogramming"]), Some("US"), Some(2014)),
+        "C3" => (p(&["systems", "C-like"]), Some("Sweden"), Some(2019)),
+        "Vale" => (p(&["systems", "memory-safe", "generational"]), Some("US"), Some(2020)),
+        "Ante" => (p(&["systems", "functional", "linear-types"]), Some("US"), Some(2020)),
+        "Magma" => (p(&["symbolic", "computer-algebra", "algebra"]), Some("Australia"), Some(1993)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -292,7 +298,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
         "Fortran" | "R" | "Julia" | "MATLAB" | "APL" | "J" | "K" | "Q" | "Mathematica"
         | "Wolfram Language" | "SAS" | "Stata" | "Octave" | "LabVIEW" | "Gnuplot" | "BQN" | "Uiua"
-        | "Maple" | "Maxima" | "GAP" | "SageMath" | "Macaulay2" => "Scientific / array",
+        | "Maple" | "Maxima" | "GAP" | "SageMath" | "Macaulay2" | "Magma" => "Scientific / array",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" | "Perl"
@@ -311,7 +317,8 @@ fn family_of(name: &str, group: &str) -> String {
         "Swift" | "Objective-C" | "Objective-C++" => "Apple / Swift",
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
-        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" | "Forth" => "Modern systems",
+        "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" | "Forth"
+        | "Goose" | "Vale" | "Ante" => "Modern systems",
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",

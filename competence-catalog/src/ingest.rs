@@ -944,6 +944,45 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "angle_bar_list" => { out.insert("list"); }
         "binary_installation" | "postfix_installation" | "prefix_installation" => { out.insert("call"); }
         "iteration_range" => { out.insert("range"); }
+        // New entrants: Goose / Jai / C3 / Vale / Ante.
+        "const_for_arms" | "const_for_types" | "interface_impl_list" => { out.insert("seq"); }
+        "const_query" => { out.insert("guard"); }
+        "function_value" => { out.insert("closure"); }
+        "load" => { out.insert("call"); }
+        "member_type_in_procedure_returns" | "procedure_returns" | "returns" => { out.insert("type_expr"); }
+        "postfix_dereference" => { out.insert("member"); }
+        "quick_procedure" | "func_proto" => { out.insert("fn"); }
+        "struct_or_union" => { out.insert("struct"); }
+        "tagged_union_kind" => { out.insert("union"); }
+        "note" => { out.insert("attribute"); }
+        "augment" | "comptime" => { out.insert("modifier"); }
+        "destruct" | "try_unwrap" => { out.insert("control"); }
+        "ability_impl" => { out.insert("impl"); }
+        "handler_arm" => { out.insert("match_arm"); }
+        // Magma (computer algebra).
+        "anonymous_constructor" | "cycle_or_commutator" | "cycle_or_commutator_product"
+        | "map_constructor" => { out.insert("call"); }
+        "constructor_elements" | "iter_vars" | "seqenum" => { out.insert("seq"); }
+        "constructor_options" | "freeze" => { out.insert("modifier"); }
+        "formal_set" | "indexed_set" | "multiset" => { out.insert("set"); }
+        "forward" => { out.insert("decl"); }
+        "iter_var" => { out.insert("var"); }
+        "representative_of_set" => { out.insert("member"); }
+        "seq_slice" => { out.insert("index"); }
+        "two_tuple" => { out.insert("list"); }
+        "clear" => { out.insert("control"); }
+        // C3 statements / params / types / idents.
+        "var_stmt" => { out.insert("let"); }
+        "return_stmt" => { out.insert("return"); }
+        "compound_stmt" => { out.insert("block"); }
+        "access_eval" | "access_ident" | "path_ident" => { out.insert("member"); }
+        "foreach_var" | "at_ident" | "const_ident" | "ct_const_ident" | "ct_ident" => { out.insert("var"); }
+        "call_arg" | "call_arg_list" | "enum_param" | "enum_param_list" | "func_param_list"
+        | "macro_param_list" | "param_default" | "param_path" | "param_path_element" => { out.insert("param"); }
+        "generic_arg_list" | "generic_type_ident" | "type_suffix" | "path_at_type_ident"
+        | "path_type_ident" | "at_type_ident" | "ct_type_ident" | "type_ident" => { out.insert("type_expr"); }
+        t if t.ends_with("_stmt") => { out.insert("control"); }
+        t if t.ends_with("_cond") => { out.insert("guard"); }
         t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }
         _ => {
             if let Some(c) = category(t) {
