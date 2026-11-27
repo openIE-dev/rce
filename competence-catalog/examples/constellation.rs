@@ -62,6 +62,11 @@ const MEASURED: &[(&str, &str)] = &[
     ("just", "Just"), ("meson", "Meson"), ("batch", "Batch"), ("sed", "Sed"),
     ("restructuredtext", "reStructuredText"), ("svelte", "Svelte"), ("vue", "Vue"),
     ("templ", "Templ"), ("liquid", "Liquid"), ("jinja", "Jinja"), ("twig", "Twig"),
+    ("caddyfile", "Caddyfile"), ("editorconfig", "EditorConfig"), ("git-commit", "Git Commit"),
+    ("go-template", "Go Template"), ("heex", "HTML+EEX"), ("liquidsoap", "Liquidsoap"),
+    ("m68k", "Motorola 68K Assembly"), ("nginx", "Nginx"), ("plum", "Plumlang"),
+    ("ros-interface", "ROS Interface"), ("soong", "Soong"), ("typespec", "TypeSpec"),
+    ("vento", "Vento"), ("wikitext", "Wikitext"), ("topaz", "Topaz"),
 ];
 
 fn main() {

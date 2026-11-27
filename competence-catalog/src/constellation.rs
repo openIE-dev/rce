@@ -367,6 +367,15 @@ fn family_of(name: &str, group: &str) -> String {
         "Sed" => "Shell",
         "reStructuredText" | "Templ" | "Liquid" | "Jinja" | "Twig" => "markup",
         "Svelte" | "Vue" => "JavaScript family",
+        // Third survey batch families.
+        "Caddyfile" | "Nginx" => "Config / functional",
+        "EditorConfig" | "Git Commit" => "data / config",
+        "Go Template" | "HTML+EEX" | "Vento" | "Wikitext" | "Topaz" => "markup",
+        "Liquidsoap" => "Audio / music",
+        "Motorola 68K Assembly" => "Assembly",
+        "Plumlang" => "Modern systems",
+        "ROS Interface" | "TypeSpec" => "IDL / serialization",
+        "Soong" => "build",
         _ => "",
     };
     if !f.is_empty() {
