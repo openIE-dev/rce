@@ -20,6 +20,7 @@
 //! and D.11 provenance supplied by `rce-energy`.
 
 pub mod adapter_gen;
+pub mod genui;
 pub mod assembler;
 pub mod bench;
 pub mod borrow;

@@ -7,6 +7,17 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn genui_constrained_catalog_and_renderer_gate() {
+    let spec = competence_catalog::genui::ui_spec("let x = 1; return x + 1;").unwrap();
+    assert!(competence_catalog::genui::validate(&spec).is_ok());
+    let v: serde_json::Value = serde_json::from_str(&spec).unwrap();
+    assert!(v["catalog"].as_array().unwrap().len() >= 8);
+    // a renderer must refuse any component outside the admitted catalog
+    let bad = spec.replace("\"bind\"", "\"raw_html\"");
+    assert!(competence_catalog::genui::validate(&bad).is_err());
+}
+
+#[test]
 fn standards_emission_from_ir() {
     let m = competence_catalog::adapter_gen::generate_all("rust").expect("rust lut");
     for k in ["AGENTS.md", "mcp.json", "agent.json", "SKILL.md"] {
