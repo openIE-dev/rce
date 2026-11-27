@@ -305,6 +305,7 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("vale", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("ante", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("magma", "({a} and {b})", "({a} or {b})", "(not {a})"),
+        c_family("carbon", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("move", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("julia", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("cangjie", "({a} && {b})", "({a} || {b})", "(!{a})"),

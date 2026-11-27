@@ -38,7 +38,7 @@ fn emission_covers_every_ingested_language() {
         "groovy", "erlang", "matlab", "vhdl", "proto", "forth", "smalltalk", "octave",
         "bqn", "uiua", "wolfram",
         "maple", "maxima", "gap", "sage", "macaulay2",
-        "goose", "jai", "c3", "vale", "ante", "magma",
+        "goose", "jai", "c3", "vale", "ante", "magma", "carbon",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

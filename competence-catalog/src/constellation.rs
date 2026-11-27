@@ -256,6 +256,7 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Vale" => (p(&["systems", "memory-safe", "generational"]), Some("US"), Some(2020)),
         "Ante" => (p(&["systems", "functional", "linear-types"]), Some("US"), Some(2020)),
         "Magma" => (p(&["symbolic", "computer-algebra", "algebra"]), Some("Australia"), Some(1993)),
+        "Carbon" => (p(&["systems", "C++-successor", "generic"]), Some("US"), Some(2022)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -318,7 +319,7 @@ fn family_of(name: &str, group: &str) -> String {
         "PHP" | "Hack" | "Zephir" => "PHP family",
         "Lua" | "MoonScript" | "Terra" | "Fennel" => "Lua family",
         "Nim" | "Crystal" | "V" | "Odin" | "Jai" | "Hare" | "C3" | "Pony" | "Forth"
-        | "Goose" | "Vale" | "Ante" => "Modern systems",
+        | "Goose" | "Vale" | "Ante" | "Carbon" => "Modern systems",
         "MoonBit" | "Cangjie" | "Wenyan" | "ReScript" | "Reason" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",

@@ -971,6 +971,8 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "seq_slice" => { out.insert("index"); }
         "two_tuple" => { out.insert("list"); }
         "clear" => { out.insert("control"); }
+        "positional_param" => { out.insert("param"); }
+        "tuple_index" => { out.insert("index"); }
         // C3 statements / params / types / idents.
         "var_stmt" => { out.insert("let"); }
         "return_stmt" => { out.insert("return"); }
