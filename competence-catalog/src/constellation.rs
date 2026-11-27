@@ -351,7 +351,7 @@ fn family_of(name: &str, group: &str) -> String {
         "USD" | "OpenSCAD" => "Domain / modeling",
         "Zeek" => "Security / network",
         "VBA" => "Legacy / business",
-        "QML" => "UI / declarative",
+        "QML" | "Slint" => "UI / declarative",
         // Second survey batch families.
         "Alloy" => "Logic",
         "Arduino" => "C family",
@@ -376,6 +376,18 @@ fn family_of(name: &str, group: &str) -> String {
         "Plumlang" => "Modern systems",
         "ROS Interface" | "TypeSpec" => "IDL / serialization",
         "Soong" => "build",
+        // Pass 70 families (complete active universe).
+        "M3U" | "Diff" | "Unified Diff" | "robots.txt" | "Desktop Entry" | "Git Config" => "data / config",
+        "Blade" | "Handlebars" | "Slim" | "Razor" | "TypoScript" | "CFML" => "markup",
+        "Dash" | "Djot" | "XML" | "DTD" | "Pod" => "markup",
+        "Hurl" | "TQL" | "SOQL" | "SOSL" => "query",
+        "IDL" | "RBS" | "RPM Spec" => "IDL / serialization",
+        "LilyPond" => "Audio / music",
+        "MCFunction" => "Game / domain scripting",
+        "Sh" | "Zsh" => "Shell",
+        "CFScript" => "Scripting",
+        "TPTP" => "Proof assistants",
+        "Wing" => "Modern systems",
         _ => "",
     };
     if !f.is_empty() {

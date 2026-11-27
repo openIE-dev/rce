@@ -69,6 +69,14 @@ const MEASURED: &[(&str, &str)] = &[
     ("vento", "Vento"), ("wikitext", "Wikitext"), ("topaz", "Topaz"),
     ("wasm", "WebAssembly"),
     ("boogie", "Boogie"), ("scilab", "Scilab"), ("stan", "Stan"), ("asciidoc", "AsciiDoc"),
+    ("m3u", "M3U"), ("blade", "Blade"), ("dash", "Dash"), ("desktop", "Desktop Entry"),
+    ("diff", "Diff"), ("djot", "Djot"), ("git-config", "Git Config"), ("handlebars", "Handlebars"),
+    ("hurl", "Hurl"), ("idl", "IDL"), ("lilypond", "LilyPond"), ("mcfunction", "MCFunction"),
+    ("razor", "Razor"), ("rbs", "RBS"), ("robots", "robots.txt"), ("sh", "Sh"),
+    ("slim", "Slim"), ("tql", "TQL"), ("typoscript", "TypoScript"), ("unified-diff", "Unified Diff"),
+    ("zsh", "Zsh"), ("cfml", "CFML"), ("cfscript", "CFScript"), ("pod", "Pod"),
+    ("soql", "SOQL"), ("sosl", "SOSL"), ("tptp", "TPTP"), ("xml", "XML"),
+    ("dtd", "DTD"), ("wing", "Wing"), ("rpmspec", "RPM Spec"), ("slint", "Slint"),
 ];
 
 fn main() {

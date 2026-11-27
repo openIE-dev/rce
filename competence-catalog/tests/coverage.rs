@@ -50,6 +50,10 @@ fn emission_covers_every_ingested_language() {
         "caddyfile", "editorconfig", "git-commit", "go-template", "heex", "liquidsoap", "m68k",
         "nginx", "plum", "ros-interface", "soong", "typespec", "vento", "wikitext", "topaz",
         "wasm", "boogie", "scilab", "stan", "asciidoc",
+        "m3u", "blade", "dash", "desktop", "diff", "djot", "git-config", "handlebars", "hurl",
+        "idl", "lilypond", "mcfunction", "razor", "rbs", "robots", "sh", "slim", "tql",
+        "typoscript", "unified-diff", "zsh", "cfml", "cfscript", "pod", "soql", "sosl", "tptp",
+        "xml", "dtd", "wing", "rpmspec", "slint",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

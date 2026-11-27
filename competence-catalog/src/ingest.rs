@@ -1158,6 +1158,25 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "define" => { out.insert("let"); }
         "lookahead" | "negative_lookahead" => { out.insert("guard"); }
         "uint_lit" => { out.insert("int_lit"); }
+        // Pass 70: Slint curation.
+        "angle_value" | "conic_gradient_color" | "duration_value" | "gradient_color"
+        | "length_value" | "percent_value" | "physical_length_value"
+        | "relative_font_size_value" => { out.insert("literal"); }
+        "animate_option" | "function_visibility" | "in_out_transition" | "purity"
+        | "testable" => { out.insert("modifier"); }
+        "bool_value" => { out.insert("bool_lit"); }
+        "callback_event" | "changed_event" => { out.insert("field"); }
+        "component" => { out.insert("type_def"); }
+        "for_range" => { out.insert("for"); }
+        "gradient_call" | "image_call" | "tr" => { out.insert("call"); }
+        "index_op" => { out.insert("index"); }
+        "keys" | "value_list" => { out.insert("list"); }
+        "radial_gradient_kind" => { out.insert("type_expr"); }
+        "rust_attr" => { out.insert("attribute"); }
+        "slot_forwarding" => { out.insert("import"); }
+        "sourcefile" => { out.insert("control"); }
+        "logical_and" => { out.insert("and"); }
+        "logical_or" => { out.insert("or"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
