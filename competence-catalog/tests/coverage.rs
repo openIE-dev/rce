@@ -7,6 +7,19 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn xref_call_graph_from_admitted_form() {
+    use competence_catalog::lift_rust::lift_rust;
+    use competence_catalog::xref::{xref, call_graph};
+    let p = lift_rust("fn add(a, b) { return a + b; } let r = add(1, 2); return r;").unwrap();
+    let x = xref(&p);
+    assert!(x.calls.contains(&("top".to_string(), "add".to_string())));
+    assert!(x.defs.contains(&"r".to_string()) && x.defs.contains(&"add".to_string()));
+    assert!(x.uses.iter().any(|(n, c)| n == "r" && *c >= 1));
+    let g = call_graph(&p);
+    assert!(g["edges"].as_array().unwrap().iter().any(|e| e["from"] == "top" && e["to"] == "add"));
+}
+
+#[test]
 fn rust_subset_lift_round_trips_and_replays() {
     use competence_catalog::lift_rust::lift_rust;
     use competence_catalog::program::{replay_admit, Env};
