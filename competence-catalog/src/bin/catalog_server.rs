@@ -262,6 +262,20 @@ struct EmitReq {
 
 /// LUT-driven deterministic emission: the target language is a data table, not
 /// hand-written emitter code. Same IR + same LUT → byte-identical output.
+/// MCP tools/list: the deterministic understanding/state-backend surface for agents.
+async fn mcp_tools_ep() -> Json<Value> {
+    Json(competence_catalog::mcp::tools_list())
+}
+
+/// MCP tools/call: dispatch an understanding tool (admit/xref/call_graph/statechart/ui_spec/probes).
+async fn mcp_call_ep(Json(req): Json<Value>) -> Json<Value> {
+    let tool = req["tool"].as_str().unwrap_or("");
+    match competence_catalog::mcp::call(tool, &req["args"]) {
+        Ok(v) => Json(json!({ "ok": true, "result": v })),
+        Err(e) => Json(json!({ "ok": false, "error": e })),
+    }
+}
+
 async fn emit_ep(Json(req): Json<EmitReq>) -> Json<Value> {
     let luts = builtin_luts();
     match luts.iter().find(|l| l.name == req.lang) {
@@ -742,6 +756,8 @@ async fn main() {
         .route("/fleet", get(fleet_ep))
         .route("/emit", post(emit_ep))
         .route("/languages", get(languages_ep))
+        .route("/mcp/tools", get(mcp_tools_ep))
+        .route("/mcp", post(mcp_call_ep))
         .with_state(state);
 
     let port = std::env::var("RCE_CATALOG_PORT").ok()
