@@ -68,6 +68,7 @@ const MEASURED: &[(&str, &str)] = &[
     ("ros-interface", "ROS Interface"), ("soong", "Soong"), ("typespec", "TypeSpec"),
     ("vento", "Vento"), ("wikitext", "Wikitext"), ("topaz", "Topaz"),
     ("wasm", "WebAssembly"),
+    ("boogie", "Boogie"), ("scilab", "Scilab"), ("stan", "Stan"), ("asciidoc", "AsciiDoc"),
 ];
 
 fn main() {

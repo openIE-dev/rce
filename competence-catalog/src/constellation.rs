@@ -296,7 +296,7 @@ fn family_of(name: &str, group: &str) -> String {
         | "Clean" => "ML family",
         "Haskell" | "Elm" | "PureScript" | "Grain" | "Roc" | "Koka" => "Haskell family",
         "Idris" | "Agda" | "Lean" | "Coq" | "F*" | "Isabelle" | "HOL" | "Twelf" | "Beluga"
-        | "ATS" | "Dependent ML" => "Proof assistants",
+        | "ATS" | "Dependent ML" | "Boogie" => "Proof assistants",
         "Lisp" | "Common Lisp" | "Emacs Lisp" | "NewLISP" | "Hy" | "Guile" => "Common Lisp family",
         "Scheme" | "Racket" | "Fennel" | "Janet" => "Scheme family",
         "Clojure" => "Clojure family",
@@ -306,7 +306,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Python" | "Mojo" | "Cython" | "Starlark" | "Boo" | "Cobra" => "Python family",
         "Ruby" | "Crystal" | "Mirah" | "Opal" => "Ruby family",
         "Fortran" | "R" | "Julia" | "MATLAB" | "Octave" | "SAS" | "Stata" | "LabVIEW" | "Gnuplot"
-        | "APL" | "J" | "K" | "Q" | "BQN" | "Uiua" => "Numeric / array",
+        | "APL" | "J" | "K" | "Q" | "BQN" | "Uiua" | "Scilab" | "Stan" => "Numeric / array",
         "Mathematica" | "Wolfram Language" | "Maple" | "Maxima" | "GAP" | "SageMath"
         | "Macaulay2" | "Magma" | "PARI/GP" => "Computer algebra",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
@@ -329,7 +329,7 @@ fn family_of(name: &str, group: &str) -> String {
         "MoonBit" | "Cangjie" | "Nadeshiko" => "East Asian new",
         "Ezhil" => "South Asian",
         "Alusus" => "West Asian",
-        "HTML" | "CSS" | "XML" | "Markdown" | "LaTeX" | "Typst" => "markup",
+        "HTML" | "CSS" | "XML" | "Markdown" | "LaTeX" | "Typst" | "AsciiDoc" => "markup",
         "JSON" | "YAML" | "TOML" | "INI" | "CSV" => "data / config",
         "Dockerfile" | "CMake" | "Make" | "Meson" | "Bazel" | "Ninja" => "build",
         "GraphQL" | "SPARQL" | "CodeQL" | "Rego" => "query",

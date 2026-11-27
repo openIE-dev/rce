@@ -1069,6 +1069,58 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "omitted" => { out.insert("ellipsis"); }
         "embed" => { out.insert("import"); }
         "pat00" | "pat01" => { out.insert("pattern"); }
+        // Pass 68: stan / asciidoc curation + Boogie (PascalCase) systematic suffixes.
+        "arr_dims" | "unsized_dims" => { out.insert("type_expr"); }
+        "empty_truncation" | "lower_truncation" | "lower_upper_truncation" | "upper_truncation" => { out.insert("range"); }
+        "indexed_lhs" | "tuple_proj_lhs" => { out.insert("index"); }
+        "tuple_pack_lhs" => { out.insert("list"); }
+        "attr" | "role" | "footnote" => { out.insert("attribute"); }
+        "autolink" | "labled_uri" | "link_url" | "xref" => { out.insert("import"); }
+        "counter" | "counter_function" => { out.insert("call"); }
+        "hard_wrap" => { out.insert("token"); }
+        "highlight" | "italic" | "monospace" => { out.insert("modifier"); }
+        "index_term" | "index_term2" => { out.insert("field"); }
+        "inline" | "inline_element" | "roled_text" => { out.insert("control"); }
+        "inline_macro" | "stem_macro" => { out.insert("macro"); }
+        "positional_attr" => { out.insert("param"); }
+        "reftext" | "email" => { out.insert("str_lit"); }
+        "initial_value" => { out.insert("let"); }
+        "Ident" | "Idents" | "Consts" | "GlobalVars" | "BoundVars" => { out.insert("var"); }
+        "Function" => { out.insert("fn"); }
+        "Constructor" | "Constructors" | "Datatype" => { out.insert("type_def"); }
+        "Forall" | "Exists" => { out.insert("bound"); }
+        "Guard" => { out.insert("guard"); }
+        "Float" => { out.insert("float_lit"); }
+        "FieldAccess" => { out.insert("member"); }
+        "CallParams" => { out.insert("param"); }
+        "Dec" | "Axiom" => { out.insert("decl"); }
+        "BoogiePL" | "Expressions" | "Factor" => { out.insert("control"); }
+        "Attribute" | "AttributeOrTrigger" | "AttributeParameter"
+        | "AttributesIdsTypeWhere" | "AttributesIdsTypeWheres" => { out.insert("attribute"); }
+        "IdsType" | "IdsTypeWhere" | "IdsTypeWheres" | "MapType" | "Type" | "TypeAtom"
+        | "Types" | "UserDefinedType" | "UserDefinedTypes" | "VarOrType" => { out.insert("type_expr"); }
+        "TypeArgs" | "TypeParams" => { out.insert("generic"); }
+        "ImplBody" | "Spec" | "SpecBlock" | "StmtList" => { out.insert("body"); }
+        "Implementation" | "Lambda" | "ProcSignature" | "Procedure" => { out.insert("fn"); }
+        "Invariant" | "SpecAsserts" | "SpecPrePost" | "SpecYieldEnsures" | "SpecYieldPrePost"
+        | "SpecYieldPreserves" | "SpecYieldRequires" => { out.insert("assert"); }
+        "IsConstructor" | "Pure" => { out.insert("modifier"); }
+        "LabelOrAssign" => { out.insert("assign"); }
+        "LetExpr" | "LetVar" => { out.insert("let"); }
+        "LocalVars" | "WhiteSpaceIdents" => { out.insert("var"); }
+        "MapAssignIndex" => { out.insert("index"); }
+        "Nat" | "bvlit" | "digits" => { out.insert("int_lit"); }
+        "Power" => { out.insert("op"); }
+        "ProcFormals" => { out.insert("param"); }
+        "Proposition" | "SpecAction" | "SpecRefinedActionForAtomicAction"
+        | "SpecRefinedActionForYieldProcedure" => { out.insert("control"); }
+        "QSep" => { out.insert("token"); }
+        t if t.ends_with("Expression") => { out.insert("control"); }
+        t if t.ends_with("Op") => { out.insert("op"); }
+        t if t.ends_with("Cmd") => { out.insert("control"); }
+        t if t.ends_with("Decl") => { out.insert("decl"); }
+        t if t.ends_with("Lit") => { out.insert("literal"); }
+        t if t.ends_with("Term") => { out.insert("control"); }
         t if t.ends_with("_stmt") => { out.insert("control"); }
         t if t.ends_with("_cond") => { out.insert("guard"); }
         t if t.ends_with("_top") => { node_constructs(&t[..t.len() - 4], out); }
