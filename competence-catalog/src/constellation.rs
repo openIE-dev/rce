@@ -258,6 +258,7 @@ fn identity(name: &str) -> (Vec<&'static str>, Option<&'static str>, Option<i32>
         "Magma" => (p(&["symbolic", "computer-algebra", "algebra"]), Some("Australia"), Some(1993)),
         "Carbon" => (p(&["systems", "C++-successor", "generic"]), Some("US"), Some(2022)),
         "Austral" => (p(&["systems", "linear-types", "capability"]), Some("Australia"), Some(2020)),
+        "PARI/GP" => (p(&["computer-algebra", "number-theory"]), Some("France"), Some(1985)),
         _ => (Vec::new(), None, None),
     }
 }
@@ -307,7 +308,7 @@ fn family_of(name: &str, group: &str) -> String {
         "Fortran" | "R" | "Julia" | "MATLAB" | "Octave" | "SAS" | "Stata" | "LabVIEW" | "Gnuplot"
         | "APL" | "J" | "K" | "Q" | "BQN" | "Uiua" => "Numeric / array",
         "Mathematica" | "Wolfram Language" | "Maple" | "Maxima" | "GAP" | "SageMath"
-        | "Macaulay2" | "Magma" => "Computer algebra",
+        | "Macaulay2" | "Magma" | "PARI/GP" => "Computer algebra",
         "Prolog" | "Mercury" | "Datalog" | "ASP" | "Answer Set Programming" | "Logtalk"
         | "TLA+" | "PlusCal" | "Alloy" => "Logic",
         "Shell" | "Bash" | "Zsh" | "Fish" | "PowerShell" | "Tcsh" | "Awk" | "Sed" => "Shell",
