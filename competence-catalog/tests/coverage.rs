@@ -7,6 +7,25 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn behavior_statechart_and_mcp_surface() {
+    use competence_catalog::lift_rust::lift_rust;
+    let p = lift_rust("let x = 0; while x < 3 { x = x + 1; } return x;").unwrap();
+    let sc = competence_catalog::behavior::statechart(&p);
+    assert!(sc["states"].as_array().unwrap().len() >= 3);
+    assert!(sc["transitions"].as_array().unwrap().iter().any(|t| t["event"] == "loop"));
+    assert!(sc["transitions"].as_array().unwrap().iter().any(|t| t["event"] == "repeat"));
+    // MCP dispatcher: deterministic understanding tools
+    let args = serde_json::json!({ "src": "let x = 1; return x + 1;" });
+    let cg = competence_catalog::mcp::call("call_graph", &args).unwrap();
+    assert!(cg["nodes"].as_array().is_some());
+    let ui = competence_catalog::mcp::call("ui_spec", &args).unwrap();
+    assert!(ui["catalog"].as_array().is_some());
+    let ad = competence_catalog::mcp::call("admit", &serde_json::json!({ "src": "return 2;", "probes": [ { "env": {}, "result": 2 } ] })).unwrap();
+    assert_eq!(ad["admitted"], true);
+    assert!(competence_catalog::mcp::tools_list()["tools"].as_array().unwrap().len() >= 6);
+}
+
+#[test]
 fn xref_call_graph_from_admitted_form() {
     use competence_catalog::lift_rust::lift_rust;
     use competence_catalog::xref::{xref, call_graph};

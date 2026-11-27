@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use crate::lut_emit::Stmt;
 use rce_spec_check::ast::Expr;
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
 pub struct Xref {
     /// (enclosing function or "top", callee)
     pub calls: Vec<(String, String)>,

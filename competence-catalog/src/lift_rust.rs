@@ -153,6 +153,12 @@ impl P {
                 self.expect(&T::Semi)?;
                 Ok(Stmt::Return(e))
             }
+            Some(T::Id(w)) if w == "while" => {
+                self.next();
+                let c = self.expr(1)?;
+                let b = self.block()?;
+                Ok(Stmt::While(c, Box::new(b)))
+            }
             Some(T::Id(w)) if w == "if" => {
                 self.next();
                 let c = self.expr(1)?;
