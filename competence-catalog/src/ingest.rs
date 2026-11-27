@@ -644,6 +644,151 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "node" => { out.insert("let"); }
         "sub_index" => { out.insert("index"); }
         "resource_reference" => { out.insert("var"); }
+        // Build-generated expansion (tree-sitter generate): Thrift / Slang / Cap'n Proto / Verilog.
+        "sink" | "bins_keyword" | "bins_or_empty" | "bins_or_options" | "bins_selection"
+        | "bins_selection_or_option" | "cover_cross" | "cover_point" | "coverage_event"
+        | "coverage_option" | "coverage_spec_or_option" | "list_of_cross_items" | "dist_item"
+        | "dist_list" | "dist_weight" | "solve_before_list" | "drive_strength" | "pullup_strength"
+        | "strength0" | "strength1" | "unconnected_drive" | "edge_descriptor" | "edge_indicator"
+        | "edge_input_list" | "level_input_list" | "end_edge_offset" | "full_edge_sensitive_path_description"
+        | "full_path_description" | "parallel_edge_sensitive_path_description" | "parallel_path_description"
+        | "list_of_path_inputs" | "list_of_path_outputs" | "remain_active_flag" | "trans_item"
+        | "trans_list" | "trans_set" | "unique_priority" => { out.insert("modifier"); }
+        "xsd_attrs" => { out.insert("attribute"); }
+        "type_hint" | "generics" | "implicit_generics" | "data_type_or_implicit1" | "data_type_or_void"
+        | "function_data_type_or_implicit1" | "implicit_data_type1" | "net_port_type1"
+        | "sequence_formal_type1" | "type_reference" | "indexed_range" | "packed_dimension"
+        | "queue_dimension" | "unpacked_dimension" | "unsized_dimension" | "slice_size" => { out.insert("type_expr"); }
+        "const_list" | "empty_unpacked_array_concatenation" | "multiple_concatenation"
+        | "stream_concatenation" | "streaming_concatenation" => { out.insert("list"); }
+        "embedded_file" | "replace_using" => { out.insert("import"); }
+        "local_const" => { out.insert("let"); }
+        "message" | "nested_enum" | "nested_struct" | "nested_union" | "struct_union" => { out.insert("decl"); }
+        "struct_shorthand" => { out.insert("struct"); }
+        "struct_union_member" => { out.insert("field"); }
+        "data_hex" | "unique_id" | "cycle_delay" | "cycle_delay_range" | "delay2" | "delay3"
+        | "delay_value" | "path_delay_value" | "decimal_number" | "finish_number" | "integral_number"
+        | "unsigned_number" | "fixed_point_number" | "error_limit_value" | "reject_limit_value"
+        | "limit_value" | "threshold" | "init_val" | "timing_check_limit" => { out.insert("literal"); }
+        "always_keyword" | "join_keyword" | "default_nettype_value" | "default_text" | "macro_text"
+        | "enable_gatetype" | "enable_terminal" | "inout_terminal" | "input_terminal" | "output_terminal"
+        | "n_input_gatetype" | "n_output_gatetype" => { out.insert("keyword"); }
+        "always_construct" | "final_construct" | "initial_construct" | "clocking_drive" | "clocking_event"
+        | "clocking_item" | "clocking_skew" | "clockvar" | "default_skew" | "consecutive_repetition"
+        | "goto_repetition" | "non_consecutive_repetition" | "repeat_range" | "data_event"
+        | "reference_event" | "event_trigger" | "timing_check_event" | "for_initialization" | "for_step"
+        | "genvar_initialization" | "genvar_iteration" | "generate_region" | "loop_generate_construct"
+        | "interface_or_generate_item" | "sequence_abbrev" => { out.insert("control"); }
+        "cond_predicate" => { out.insert("guard"); }
+        "array_manipulation_call" | "method_call" | "function_subroutine_call" | "sequence_method_call"
+        | "system_tf_call" | "tf_call" | "dpi_function_proto" | "dynamic_array_new" | "checker_instantiation"
+        | "gate_instantiation" | "interface_instantiation" | "program_instantiation" | "udp_instantiation" => { out.insert("call"); }
+        "bit_select1" | "select1" | "nonrange_select1" => { out.insert("index"); }
+        "checker_port_item" | "checker_port_list" | "list_of_ports" | "list_of_port_connections"
+        | "ordered_port_connection" | "port_reference" | "modport_item" | "modport_simple_port"
+        | "tf_port_item1" | "tf_port_list" | "sequence_port_item" | "sequence_port_list" | "udp_port_list" => { out.insert("param"); }
+        "combinational_entry" | "sequential_entry" => { out.insert("field"); }
+        "anonymous_program" | "anonymous_program_item" | "interface_item" | "non_port_program_item"
+        | "program_item" => { out.insert("block"); }
+        "delayed_data" | "delayed_reference" | "net_lvalue" => { out.insert("var"); }
+        "function_prototype" | "overload_proto_formals" => { out.insert("fn"); }
+        "open_range_list" | "open_value_range" | "value_range" | "trans_range_list" => { out.insert("range"); }
+        "simple_text_macro_usage" | "text_macro_usage" => { out.insert("macro"); }
+        t if t.ends_with("_timing_check") => { out.insert("call"); }
+        // Legacy-infrastructure expansion: BASIC / RPG / PL-I / COBOL / Pascal / Fortran.
+        "line_number" | "level_number" | "column_number" | "YYYYDDD" | "YYYYMMDD" => { out.insert("literal"); }
+        "dcl_c" | "dcl_s" => { out.insert("let"); }
+        "dcl_ds" => { out.insert("struct"); }
+        "dcl_pi" | "dcl_pr" | "procedure_heading" => { out.insert("fn"); }
+        "fully_free" | "operation_extender" | "indicator" | "call_option" | "file_option"
+        | "io_option" | "read_option" | "write_option" | "alter_option" | "close_option"
+        | "perform_option" | "write_option" | "lock_mode" | "disp_attr" => { out.insert("modifier"); }
+        "psds_types" | "type_keyword" => { out.insert("type_expr"); }
+        "allocate_item" | "data_list_item" | "format_item" | "init_item" | "value_item"
+        | "replacing_item" | "initialize_replacing_item" | "generic_member" | "ordinal_member" => { out.insert("field"); }
+        "format_list" => { out.insert("seq"); }
+        "isub" => { out.insert("var"); }
+        // COBOL intrinsic functions, picture clauses, divisions/sections, phrase nodes.
+        t if t.ends_with("_FUNC") || t.ends_with("_FUNCTION") => { out.insert("call"); }
+        "CONCATENATE_FUNC" | "CURRENT_DATE_FUNC" | "LOCALE_DT_FUNC" | "NUMVALC_FUNC" | "LOWER_CASE_FUNC"
+        | "REVERSE_FUNC" | "SUBSTITUTE_CASE_FUNC" | "SUBSTITUTE_FUNC" | "TRIM_FUNCTION" | "UPPER_CASE_FUNC"
+        | "WHEN_COMPILED_FUNC" | "function_" | "func_args" | "func_refmod" => { out.insert("call"); }
+        "picture_9" | "picture_a" | "picture_edit" | "picture_n" | "picture_x" | "data_description"
+        | "BINARY" | "BINARY_CHAR" | "BINARY_C_LONG" | "BINARY_DOUBLE" | "BINARY_LONG" | "BINARY_SHORT"
+        | "COMP" | "COMPUTATIONAL" | "COMP_1" | "COMP_2" | "COMP_3" | "COMP_4" | "COMP_5" | "COMP_X"
+        | "PACKED_DECIMAL" | "SIGNED" | "SIGNED_INT" | "SIGNED_LONG" | "SIGNED_SHORT" | "UNSIGNED"
+        | "UNSIGNED_INT" | "UNSIGNED_LONG" | "UNSIGNED_SHORT" | "NATIONAL" | "NATIONAL_EDITED"
+        | "ALPHABETIC" | "ALPHABETIC_LOWER" | "ALPHABETIC_UPPER" | "ALPHANUMERIC" | "ALPHANUMERIC_EDITED"
+        | "NUMERIC" | "NUMERIC_EDITED" | "POINTER" | "PROGRAM_POINTER" | "INDEX" => { out.insert("type_expr"); }
+        "TRUE" | "FALSE" => { out.insert("bool_lit"); }
+        "SPACE" | "QUOTE" | "HIGH_VALUE" | "LOW_VALUE" | "ZERO" | "ZEROS" | "LITERAL" | "ALL" => { out.insert("literal"); }
+        "PERFORM" | "READ" | "WRITE" | "REWRITE" | "DELETE" | "START" | "RETURN" | "SORT" | "SORT_MERGE"
+        | "ACCEPT" | "DISPLAY" | "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE" | "COMPUTE" | "STRING"
+        | "UNSTRING" | "SEARCH" | "EVALUATE" | "MOVE" | "OPEN" | "CLOSE" | "STOP" | "GO" | "EXIT"
+        | "CONTINUE" | "INITIALIZED" | "INITIALIZED" | "INSPECT" | "CALL" | "CYCLE" | "FOREVER" => { out.insert("control"); }
+        "ge" | "le" | "ne" | "AND_EQ" | "AND_GE" | "AND_GT" | "AND_LE" | "AND_LT" | "AND_NE"
+        | "OR_EQ" | "OR_GE" | "OR_GT" | "OR_LE" | "OR_LT" | "OR_NE" => { out.insert("eq"); }
+        "data_division" | "environment_division" | "procedure_division" | "working_storage_section"
+        | "linkage_section" | "local_storage_section" | "file_section" | "report_section" | "screen_section"
+        | "configuration_section" | "input_output_section" | "author_section" | "date_compiled_section"
+        | "date_written_section" | "installation_section" | "security_section" | "repository_paragraph"
+        | "source_computer_paragraph" | "file_description" | "file_description_entry" | "end_program" => { out.insert("block"); }
+        "perform_procedure" | "perform_test" | "perform_varying" | "sort_input_procedure"
+        | "sort_output_procedure" | "sort_input_using" | "sort_output_giving" | "sort_key"
+        | "evaluate_subject" | "inspect_converting" | "inspect_region" | "inspect_replacing"
+        | "inspect_tallying" | "replacing_region" | "occurs_indexed" | "occurs_key" | "refmod"
+        | "subref" | "func_refmod" | "at_end" | "at_line_column" | "invalid_key" | "on_exception"
+        | "on_overflow" | "on_size_error" | "not_at_end" | "not_eop" | "not_invalid_key"
+        | "not_on_exception" | "not_on_overflow" | "not_on_size_error" | "eop" | "event_status" => { out.insert("control"); }
+        "by_reference" | "by_value" | "call_param_arg" | "call_param_omitted" | "procedure_param"
+        | "procedure_returning" | "procedure_using_chaining" | "close_arg" | "open_arg" => { out.insert("param"); }
+        "all_to_value" | "initialize_category_to_value" | "set_to" | "set_to_on_off" | "set_to_true_false"
+        | "set_environment" | "arithmetic_x" | "size_is" | "size_is_auto" | "size_is_default"
+        | "unsigned_size_is" | "with_accp_attr" | "with_debugging_mode" | "with_dups" | "with_lock"
+        | "with_pointer" | "write_lock" | "write_no_lock" | "is_common" | "is_initial" | "multiple_file"
+        | "linage_bottom" | "linage_counter" | "linage_footing" | "linage_lines" | "linage_top"
+        | "line_or_lines" | "scroll_lines" | "period" => { out.insert("modifier"); }
+        // COBOL remaining uppercase reserved words are keywords.
+        t if t.len() > 1 && t.chars().all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit())
+            && t.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false) => { out.insert("keyword"); }
+        // Pascal / Delphi: k-prefixed reserved words.
+        "kAdd" => { out.insert("add"); } "kSub" => { out.insert("sub"); }
+        "kMul" => { out.insert("mul"); } "kDiv" | "kFdiv" => { out.insert("div"); }
+        "kMod" => { out.insert("mod"); } "kEq" => { out.insert("eq"); } "kNeq" => { out.insert("ne"); }
+        "kLt" => { out.insert("lt"); } "kGt" => { out.insert("gt"); } "kLte" => { out.insert("le"); }
+        "kGte" => { out.insert("ge"); } "kAnd" => { out.insert("and"); } "kOr" => { out.insert("or"); }
+        "kNot" => { out.insert("not"); } "kXor" => { out.insert("xor"); }
+        "kShl" => { out.insert("shl"); } "kShr" => { out.insert("shr"); }
+        "kAssign" | "kAssignAdd" | "kAssignSub" | "kAssignMul" | "kAssignDiv" => { out.insert("assign"); }
+        "kTrue" | "kFalse" => { out.insert("bool_lit"); } "kNil" => { out.insert("null_lit"); }
+        "kArray" => { out.insert("array"); } "kRecord" => { out.insert("struct"); }
+        "kSet" => { out.insert("set"); } "kObject" => { out.insert("class"); }
+        "kString" | "kFile" | "kType" | "kHelper" => { out.insert("type_expr"); }
+        "kFunction" | "kProcedure" | "kConstructor" | "kDestructor" | "kOperator" => { out.insert("fn"); }
+        "kConst" | "kConstref" | "kVar" | "kThreadvar" | "kLabel" | "kProperty" => { out.insert("let"); }
+        "kIf" | "kThen" | "kElse" | "kFor" | "kWhile" | "kDo" | "kRepeat" | "kUntil" | "kBegin"
+        | "kEnd" | "kGoto" | "kTry" | "kExcept" | "kFinally" | "kRaise" | "kWith" | "kCase"
+        | "kDownto" | "kTo" | "kOn" | "kInherited" => { out.insert("control"); }
+        "kPublic" | "kPrivate" | "kProtected" | "kPublished" | "kVirtual" | "kOverride" | "kOverload"
+        | "kAbstract" | "kStatic" | "kExternal" | "kForward" | "kInline" | "kAssembler" | "kAsm"
+        | "kStdcall" | "kSafecall" | "kRegister" | "kPacked" | "kPlatform" | "kDeprecated" | "kExperimental"
+        | "kSealed" | "kReintroduce" | "kDispId" | "kDispInterface" | "kMessage" | "kIndex" | "kRead"
+        | "kWrite" | "kStored" | "kDefault" | "kNodefault" | "kImplements" | "kExport" | "kExports"
+        | "kName" | "kLocal" | "kFar" | "kNear" | "kInterrupt" | "kIocheck" | "kHardfloat" | "kSoftfloat"
+        | "kMs_abi_default" | "kSysv_abi_default" | "kVectorcall" | "kWinapi" | "kNoreturn" | "kNostackframe"
+        | "kSaveregisters" | "kVarargs" | "kOptional" | "kRequired" | "kDelayed" | "kCvar" | "kAbsolute"
+        | "kSpecialize" | "kGeneric" | "kObjccategory" | "kObjcprotocol" | "kUnimplemented" | "kStrict"
+        | "kReference" | "kOut" | "kIs" | "kAs" | "kOf" | "kAt" | "kHat" | "kDynamic" => { out.insert("modifier"); }
+        "arrInitializer" => { out.insert("list"); }
+        "defProc" | "procAttribute" | "procExternal" => { out.insert("fn"); }
+        "defaultValue" | "guid" | "legacyFormat" => { out.insert("literal"); }
+        "exceptionElse" | "exceptionHandler" | "raise" | "repeat" | "finalization" | "initialization" => { out.insert("control"); }
+        "genericArg" | "genericArgs" | "genericTpl" | "typeref" | "typerefArgs" | "typerefPtr"
+        | "typerefTpl" | "rttiAttributes" => { out.insert("type_expr"); }
+        "genericDot" | "typerefDot" | "kDot" | "kEndDot" | "inherited" => { out.insert("member"); }
+        "varAssignDef" | "varDef" => { out.insert("let"); }
+        "library" | "root" | "pp" => { out.insert("block"); }
+        t if t.starts_with('k') && t.len() > 1 && t.as_bytes()[1].is_ascii_uppercase() => { out.insert("keyword"); }
         _ => {
             if let Some(c) = category(t) {
                 out.insert(c);

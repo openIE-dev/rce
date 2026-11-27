@@ -31,6 +31,9 @@ const MEASURED: &[(&str, &str)] = &[
     ("hlsl", "HLSL"), ("cairo", "Cairo"), ("squirrel", "Squirrel"), ("smali", "Smali"),
     ("firrtl", "FIRRTL"), ("ispc", "ISPC"), ("ron", "RON"), ("puppet", "Puppet"),
     ("xcompose", "Xcompose"), ("ssh-config", "SSH Config"),
+    ("cobol", "COBOL"), ("pli", "PL/I"), ("rpgle", "RPG"), ("pascal", "Pascal"),
+    ("basic", "BASIC"), ("verilog", "Verilog"), ("thrift", "Thrift"), ("scss", "SCSS"),
+    ("slang", "Slang"), ("capnp", "Cap'n Proto"),
 ];
 
 fn main() {

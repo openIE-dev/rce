@@ -308,6 +308,17 @@ pub fn builtin_luts() -> Vec<LanguageLut> {
         c_family("puppet", "({a} and {b})", "({a} or {b})", "(!{a})"),
         c_family("xcompose", "({a} && {b})", "({a} || {b})", "(!{a})"),
         c_family("ssh-config", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        // Legacy-infrastructure + build-generated expansion (expression-core projections).
+        c_family("cobol", "({a} AND {b})", "({a} OR {b})", "(NOT {a})"),
+        c_family("pli", "({a} & {b})", "({a} | {b})", "(¬{a})"),
+        c_family("rpgle", "({a} AND {b})", "({a} OR {b})", "(NOT {a})"),
+        c_family("pascal", "({a} and {b})", "({a} or {b})", "(not {a})"),
+        c_family("basic", "({a} AND {b})", "({a} OR {b})", "(NOT {a})"),
+        c_family("verilog", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("thrift", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("scss", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("slang", "({a} && {b})", "({a} || {b})", "(!{a})"),
+        c_family("capnp", "({a} && {b})", "({a} || {b})", "(!{a})"),
         // ML family.
         ml_family("ocaml", "({a} = {b})", "({a} <> {b})", "({a} / {b})", "({a} mod {b})"),
         ml_family("fsharp", "({a} = {b})", "({a} <> {b})", "({a} / {b})", "({a} % {b})"),
