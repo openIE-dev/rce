@@ -39,6 +39,11 @@ fn emission_covers_every_ingested_language() {
         "bqn", "uiua", "wolfram",
         "maple", "maxima", "gap", "sage", "macaulay2",
         "goose", "jai", "c3", "vale", "ante", "magma", "carbon", "austral", "pari",
+        "vala", "haxe", "gdscript", "fennel", "janet", "inko", "koto", "nu", "fish", "luau",
+        "teal", "systemverilog", "dafny", "codeql", "cython", "clean", "gren", "faust", "chuck",
+        "supercollider", "gnuplot", "sas", "picat", "pkl", "kcl", "nickel", "cue", "rego",
+        "noir", "circom", "tact", "clarity", "mlir", "wit", "usd", "openscad", "zeek",
+        "sourcepawn", "sqf", "brightscript", "vba", "qml",
     ];
     for k in measured {
         let emit = match k { "javascript" => "js", "c-sharp" => "csharp", "objc" => "objectivec", _ => k };

@@ -43,6 +43,18 @@ const MEASURED: &[(&str, &str)] = &[
     ("macaulay2", "Macaulay2"),
     ("goose", "Goose"), ("jai", "Jai"), ("c3", "C3"), ("vale", "Vale"), ("ante", "Ante"),
     ("magma", "Magma"), ("carbon", "Carbon"), ("austral", "Austral"), ("pari", "PARI/GP"),
+    // Survey-driven expansion (27 Nov 2026): active tree-sitter languages, honest coverage.
+    ("vala", "Vala"), ("haxe", "Haxe"), ("gdscript", "GDScript"), ("fennel", "Fennel"),
+    ("janet", "Janet"), ("inko", "Inko"), ("koto", "Koto"), ("nu", "Nushell"),
+    ("fish", "Fish"), ("luau", "Luau"), ("teal", "Teal"), ("systemverilog", "SystemVerilog"),
+    ("dafny", "Dafny"), ("codeql", "CodeQL"), ("cython", "Cython"), ("clean", "Clean"),
+    ("gren", "Gren"), ("faust", "Faust"), ("chuck", "ChucK"), ("supercollider", "SuperCollider"),
+    ("gnuplot", "Gnuplot"), ("sas", "SAS"), ("picat", "Picat"), ("pkl", "Pkl"),
+    ("kcl", "KCL"), ("nickel", "Nickel"), ("cue", "CUE"), ("rego", "Rego"),
+    ("noir", "Noir"), ("circom", "Circom"), ("tact", "Tact"), ("clarity", "Clarity"),
+    ("mlir", "MLIR"), ("wit", "WIT"), ("usd", "USD"), ("openscad", "OpenSCAD"),
+    ("zeek", "Zeek"), ("sourcepawn", "SourcePawn"), ("sqf", "SQF"), ("brightscript", "BrightScript"),
+    ("vba", "VBA"), ("qml", "QML"),
 ];
 
 fn main() {
