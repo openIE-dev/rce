@@ -7,6 +7,21 @@ use competence_catalog::structure::{coverage, gaps, overall, CONSTRUCTS};
 use serde_json::json;
 
 #[test]
+fn rust_subset_lift_round_trips_and_replays() {
+    use competence_catalog::lift_rust::lift_rust;
+    use competence_catalog::program::{replay_admit, Env};
+    let f = lift_rust("fn add(a, b) { return a + b; } let r = add(1, 2); return r;").unwrap();
+    assert!(replay_admit(&f, &[(Env::new(), 3)]), "fn + let-call + return replays to 3");
+    let p = lift_rust("let x = 1; return x + 1;").unwrap();
+    assert!(replay_admit(&p, &[(Env::new(), 2)]));
+    // emission is the inverse: render then re-lift still replays
+    let lut = competence_catalog::lut_emit::builtin_luts().into_iter().find(|l| l.name == "rust").unwrap();
+    let code = competence_catalog::lut_emit::render_stmt(&p, &lut).unwrap();
+    let back = lift_rust(&code).unwrap();
+    assert!(replay_admit(&back, &[(Env::new(), 2)]));
+}
+
+#[test]
 fn genui_constrained_catalog_and_renderer_gate() {
     let spec = competence_catalog::genui::ui_spec("let x = 1; return x + 1;").unwrap();
     assert!(competence_catalog::genui::validate(&spec).is_ok());

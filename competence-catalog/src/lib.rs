@@ -52,6 +52,7 @@ pub mod learning;
 pub mod library;
 pub mod lift;
 pub mod lift_broad;
+pub mod lift_rust;
 pub mod lowering_trace;
 pub mod lsp_server;
 pub mod lut_emit;
