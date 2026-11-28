@@ -22,8 +22,8 @@ fn c_subset_lift_replays() {
 fn flowg_core_kernel_ingests_fully() {
     // best-case lift: flowg's core compute kernel maps 1:1 onto the universal taxonomy
     let (m, t) = competence_catalog::flowg_ingest::core_coverage();
-    assert_eq!((m, t), (22, 22), "flowg core kernel lifts 100%");
-    assert!(!competence_catalog::flowg_ingest::near_frontier().is_empty());
+    assert_eq!((m, t), (40, 40), "flowg core kernel + near frontier lifts 100%");
+    assert!(competence_catalog::flowg_ingest::near_frontier().is_empty());
     assert!(!competence_catalog::flowg_ingest::frontier_groups().is_empty());
 }
 
@@ -172,7 +172,7 @@ fn generative_property_probes_catch_weak_spec_impostor() {
 
 #[test]
 fn coverage_matrix_is_complete() {
-    assert_eq!(CONSTRUCTS.len(), 113);
+    assert_eq!(CONSTRUCTS.len(), 131);
     for l in builtin_luts() {
         assert!(gaps(&l).is_empty(), "{} missing {:?}", l.name, gaps(&l));
         assert_eq!(coverage(&l), 1.0);

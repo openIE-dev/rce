@@ -1042,6 +1042,31 @@ fn complete_higher(l: &mut LanguageLut) {
     for (k, t) in cat {
         l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
     }
+
+    // Near-frontier constructs (flowg ingest): rounding/bitwise/shift/pointer/(de)serialization,
+    // completed per family so the (construct × language) matrix stays full as the taxonomy grows.
+    let bit: &[(&str, &str)] = if lisp {
+        &[
+            ("abs", "(abs {a})"), ("pow", "(expt {a} {b})"), ("xor", "(logxor {a} {b})"),
+            ("bitand", "(logand {a} {b})"), ("bitor", "(logior {a} {b})"), ("bitxor", "(logxor {a} {b})"),
+            ("bitnot", "(lognot {a})"), ("shl", "(ash {a} {b})"), ("shr", "(ash {a} (- {b}))"),
+            ("rotl", "(rotl {a} {b})"), ("rotr", "(rotr {a} {b})"), ("deref", "(deref {a})"),
+            ("addressof", "(addr {a})"), ("parse", "(parse {a})"), ("serialize", "(serialize {a})"),
+            ("deserialize", "(deserialize {a})"), ("encode", "(encode {a})"), ("decode", "(decode {a})"),
+        ]
+    } else {
+        &[
+            ("abs", "abs({a})"), ("pow", "pow({a}, {b})"), ("xor", "({a} ^ {b})"),
+            ("bitand", "({a} & {b})"), ("bitor", "({a} | {b})"), ("bitxor", "({a} ^ {b})"),
+            ("bitnot", "(~{a})"), ("shl", "({a} << {b})"), ("shr", "({a} >> {b})"),
+            ("rotl", "rotl({a}, {b})"), ("rotr", "rotr({a}, {b})"), ("deref", "(*{a})"),
+            ("addressof", "(&{a})"), ("parse", "parse({a})"), ("serialize", "serialize({a})"),
+            ("deserialize", "deserialize({a})"), ("encode", "encode({a})"), ("decode", "decode({a})"),
+        ]
+    };
+    for (k, t) in bit {
+        l.templates.entry(k.to_string()).or_insert_with(|| t.to_string());
+    }
 }
 
 /// A statement in the canonical IR (the unit above expressions). Whole-program

@@ -27,6 +27,9 @@ pub const CONSTRUCTS: &[&str] = &[
     "incdec", "compound_assign", "else", "elif", "comprehension", "generator",
     "named_expr", "format", "export", "record", "instanceof", "method_ref",
     "literal", "stmt", "expr", "decl", "clause", "body", "asm", "op", "keyword", "symbol",
+    // Near-frontier expansion (flowg ingest): rounding/bitwise/shift/pointer/(de)serialization.
+    "abs", "pow", "xor", "bitand", "bitor", "bitxor", "bitnot", "shl", "shr", "rotl", "rotr",
+    "deref", "addressof", "parse", "serialize", "deserialize", "encode", "decode",
 ];
 
 /// Constructs a LUT covers (present templates ∩ taxonomy).

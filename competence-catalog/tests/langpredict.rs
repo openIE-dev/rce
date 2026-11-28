@@ -28,8 +28,8 @@ fn predicted_language_carries_the_missing_capability() {
 
 #[test]
 fn prediction_does_not_mutate_the_measured_taxonomy() {
-    // analysis only: the 113-construct matrix stays truthful
-    assert_eq!(CONSTRUCTS.len(), 113);
+    // analysis only: the measured matrix (131 constructs after the flowg expansion) stays truthful
+    assert_eq!(CONSTRUCTS.len(), 131);
     let all = langpredict::predict_all();
     assert_eq!(all.len(), FABRICS.len());
 }

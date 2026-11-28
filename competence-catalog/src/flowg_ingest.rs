@@ -15,14 +15,20 @@ pub fn core_kernel() -> Vec<(&'static str, &'static str)> {
         ("FieldAccess", "member"), ("IndexAccess", "index"),
         ("Call", "call"), ("MethodCall", "call"), ("ClosureCall", "call"),
         ("Cast", "cast"), ("StructCreate", "record"),
+        // near-frontier constructs added to the taxonomy (pass 87): now lifted
+        ("Pow", "pow"), ("Abs", "abs"), ("Xor", "xor"),
+        ("BitAnd", "bitand"), ("BitOr", "bitor"), ("BitXor", "bitxor"), ("BitNot", "bitnot"),
+        ("Shl", "shl"), ("Shr", "shr"), ("RotL", "rotl"), ("RotR", "rotr"),
+        ("Deref", "deref"), ("AddressOf", "addressof"),
+        ("Parse", "parse"), ("Serialize", "serialize"), ("Deserialize", "deserialize"),
+        ("Encode", "encode"), ("Decode", "decode"),
     ]
 }
 
-/// Core-kernel ops with no current construct (the near frontier): rounding, bitwise, shift,
-/// pointer, and (de)serialization. These locate where the taxonomy must expand.
+/// Core-kernel ops with no current construct. Empty after the pass-87 taxonomy expansion;
+/// the remaining frontier is the domain groups (frontier_groups).
 pub fn near_frontier() -> Vec<&'static str> {
-    vec!["Pow", "Abs", "Xor", "BitAnd", "BitOr", "BitXor", "BitNot", "Shl", "Shr", "RotL", "RotR",
-         "Deref", "AddressOf", "Parse", "Serialize", "Deserialize", "Encode", "Decode"]
+    vec![]
 }
 
 /// (mapped, total) over the core kernel, measured against the real taxonomy.
