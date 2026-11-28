@@ -1391,6 +1391,29 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
             || t.starts_with("cnf_") || t.starts_with("tcf_") || t.starts_with("tpi_")
             || t.starts_with("txf_") || t.starts_with("nhf_") || t.starts_with("ntf_")
             || t.starts_with("nxf_") || t.starts_with("th1_") => { out.insert("control"); }
+        // Pass 80: lilypond (music notation) curation.
+        "acciaccatura" | "addlyrics" | "appoggiatura" | "articulation_command" | "break_command"
+        | "cadenza_command" | "change" | "grace" | "lyricsto" | "markup_command" | "tag_command"
+        | "voice_command" => { out.insert("call"); }
+        "accidental" | "articulation" | "articulation_mark" | "chord_inversion" | "chord_mode"
+        | "chord_quality" | "clef" | "context_def_mod" | "dynamic_mark" | "fingering" | "hairpin"
+        | "key_mode" | "lyric_mode" | "figure_mode" | "octave" | "ottava" | "post_event"
+        | "post_event_markup" | "tempo" | "arpeggio" => { out.insert("modifier"); }
+        "bar_check" | "beam_close" | "beam_open" | "slur_close" | "slur_open" | "breathe"
+        | "coda" | "fine" | "lyric_extender" | "lyric_hyphen" | "repeat_tie" | "segno" | "tie"
+        | "voice_separator" => { out.insert("token"); }
+        "bare_number" | "figure_number" | "scheme_number" | "unsigned" | "fingering_number" => { out.insert("int_lit"); }
+        "chord" => { out.insert("list"); }
+        "chord_element" | "figure" => { out.insert("field"); }
+        "embedded_scm" => { out.insert("asm"); }
+        "figure_rest" | "figure_skip" | "lyric_skip" | "number_term" | "rest" => { out.insert("literal"); }
+        "lilypond" | "music" => { out.insert("control"); }
+        "markup" | "lyric_word" | "markup_word" => { out.insert("str_lit"); }
+        "music_function" => { out.insert("fn"); }
+        "number_factor" | "octave_up" => { out.insert("op"); }
+        "pitch" => { out.insert("var"); }
+        "scheme_boolean" => { out.insert("bool_lit"); }
+        "simultaneous_music" => { out.insert("seq"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
