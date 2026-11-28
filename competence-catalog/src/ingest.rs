@@ -1335,6 +1335,45 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         t if t.starts_with("pattern_bracket_") || t == "pattern_question_source" => { out.insert("pattern"); }
         "simple_command" => { out.insert("call"); }
         "wordlist" => { out.insert("list"); }
+        // Pass 78: idl / hurl / rpmspec curation (systematic suffixes + explicit remainder).
+        t if t.ends_with("_dcl") => { out.insert("decl"); }
+        t if t.ends_with("_def") => { out.insert("type_def"); }
+        t if t.ends_with("_kind") => { out.insert("modifier"); }
+        t if t.starts_with("signed_") || t.starts_with("unsigned_") => { out.insert("type_expr"); }
+        "dec_number" | "oct_number" | "bin_number" | "positive_int_const" | "bit_value"
+        | "hexdigit" | "status" => { out.insert("int_lit"); }
+        "integer_sign" | "fixed_array_size" | "file_trigger_priority" | "arch" | "elf_arch"
+        | "os" => { out.insert("modifier"); }
+        "exception_list" | "factory_param_dcls" | "init_param_dcls" | "file_trigger_paths"
+        | "files" | "patchlist" | "sourcelist" | "json_array" => { out.insert("list"); }
+        "state_member" | "value_element" | "arg_key" | "json_key_value" | "simple_filter_key"
+        | "changelog_entry" | "macro_patch" | "macro_source" => { out.insert("field"); }
+        "port_ref" => { out.insert("member"); }
+        "verbatim_language" | "script_line" | "script_code" | "oneline_file" | "oneline_hex" => { out.insert("str_lit"); }
+        "system_lib_path" | "url_with_macro" => { out.insert("import"); }
+        "try_construct_fail_action" | "request" | "response" | "hurl_file" | "file_trigger"
+        | "trigger" | "generate_buildrequires" | "changelog" => { out.insert("control"); }
+        "service_platform" | "topic_platform" => { out.insert("type_expr"); }
+        "json_boolean" => { out.insert("bool_lit"); }
+        "json_number" => { out.insert("int_lit"); }
+        "json_value" | "predicate_value" => { out.insert("literal"); }
+        t if t.ends_with("_option") => { out.insert("modifier"); }
+        t if t.ends_with("_option_key") => { out.insert("field"); }
+        t if t.ends_with("_predicate") => { out.insert("guard"); }
+        t if t.ends_with("_query") || t.ends_with("_filter") => { out.insert("call"); }
+        t if t.ends_with("_section") => { out.insert("body"); }
+        "predicate_func" => { out.insert("fn"); }
+        "file_param" | "file_value" | "multipart_form_data_param" | "config_option"
+        | "macro_option" | "parametric_options" => { out.insert("param"); }
+        t if t.starts_with("section_") => { out.insert("body"); }
+        t if t.ends_with("_macro") => { out.insert("macro"); }
+        t if t.ends_with("_dependency") => { out.insert("import"); }
+        t if t.ends_with("_tag") => { out.insert("field"); }
+        "defattr" => { out.insert("attribute"); }
+        "script_interpreter" | "interpreter_program" => { out.insert("var"); }
+        "macro_option_terminator" | "patch_legacy_token" => { out.insert("token"); }
+        "op_with_context" => { out.insert("fn"); }
+        "value_inheritance" | "value_supports" => { out.insert("import"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
