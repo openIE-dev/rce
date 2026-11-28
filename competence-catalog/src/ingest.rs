@@ -1374,6 +1374,23 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "macro_option_terminator" | "patch_legacy_token" => { out.insert("token"); }
         "op_with_context" => { out.insert("fn"); }
         "value_inheritance" | "value_supports" => { out.insert("import"); }
+        // Pass 79: tptp (theorem-proving) curation via systematic formula/term guards.
+        t if t.ends_with("_and_formula") => { out.insert("and"); }
+        t if t.ends_with("_or_formula") => { out.insert("or"); }
+        t if t.contains("connective") || t.ends_with("_infix_unary") || t.ends_with("_prefix_unary") => { out.insert("op"); }
+        t if t.ends_with("_atom_typing") || t.ends_with("_subtype") => { out.insert("type_expr"); }
+        t if t.ends_with("_tuple") || t.ends_with("_list") || t == "general_list"
+            || t == "general_terms" || t == "parents" || t == "parent_list" || t == "sources" => { out.insert("list"); }
+        t if t.ends_with("_functor") || t == "general_function" => { out.insert("fn"); }
+        t if t.ends_with("_info") || t == "optional_info" || t == "parent_details" => { out.insert("field"); }
+        t if t.ends_with("_source") || t == "internal_source" => { out.insert("import"); }
+        t if t == "formula_role" || t == "formula_selection" || t == "inference_rule" => { out.insert("modifier"); }
+        t if t == "lower_word" || t == "upper_word" || t.starts_with("general_term") => { out.insert("var"); }
+        t if t.ends_with("_annotated") || t.ends_with("_sequent") || t == "TPTP_file" => { out.insert("control"); }
+        t if t.starts_with("fof_") || t.starts_with("tff_") || t.starts_with("thf_")
+            || t.starts_with("cnf_") || t.starts_with("tcf_") || t.starts_with("tpi_")
+            || t.starts_with("txf_") || t.starts_with("nhf_") || t.starts_with("ntf_")
+            || t.starts_with("nxf_") || t.starts_with("th1_") => { out.insert("control"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
