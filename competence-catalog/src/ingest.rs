@@ -1414,6 +1414,27 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "pitch" => { out.insert("var"); }
         "scheme_boolean" => { out.insert("bool_lit"); }
         "simultaneous_music" => { out.insert("seq"); }
+        // Pass 81: gnuplot curation (cmd_* commands, def_* definitions, set-options).
+        t if t.starts_with("cmd_") => { out.insert("call"); }
+        "def_array" | "def_var" => { out.insert("let"); }
+        "def_func" => { out.insert("fn"); }
+        "plot_element" => { out.insert("field"); }
+        "datafile" | "loadpath" => { out.insert("import"); }
+        "fit" => { out.insert("call"); }
+        "hull" => { out.insert("list"); }
+        "angles" | "arrow_opts" | "autoscale" | "background" | "binary_options" | "border"
+        | "boxdepth" | "boxwidth" | "clip" | "cntrparam" | "colorbox" | "colormap"
+        | "colorsequence" | "colorspec" | "contour" | "contourfill" | "cornerpoles"
+        | "decimalsign" | "dgrid3d" | "dummy" | "ellipse" | "errorbars" | "fill_style"
+        | "fontspec" | "grid" | "hidden3d" | "history" | "isosamples" | "isosurface"
+        | "jitter" | "line_drawing_method" | "line_style" | "linetype" | "logscale"
+        | "mapping" | "margin" | "matrix_options" | "micro" | "mono_color" | "monochrome"
+        | "mouse" | "multiplot" | "mxtics" | "nonlinear" | "offsets" | "origin" | "overflow"
+        | "paxis" | "pixmap" | "plot_style" | "pm3d" | "pointintervalbox" | "pointsize"
+        | "position" | "psdir" | "rgbmax" | "samples" | "smooth_options" | "style"
+        | "style_opts" | "surface" | "t_opts" | "terminal" | "termoption" | "theta"
+        | "tics" | "tics_opts" | "timefmt" | "vgrid" | "view" | "walls" | "xdata"
+        | "xdtics" | "xmtics" | "xrange" | "xtics" | "xyplane" | "zero" | "zeroaxis" => { out.insert("modifier"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
