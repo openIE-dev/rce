@@ -100,3 +100,30 @@ pub fn fma_saving(t: &Target) -> f64 {
     let derived = t.model.energy(Prim::Fma);
     ignorant - derived
 }
+
+/// Numeric determinism under placement (handoff open question): lowest-joule choice and
+/// bit-for-bit replay pull against each other. Policy: **logged placement**. The first run chooses
+/// the min-joule backend and records it; replay reuses the logged backend, so the trace is
+/// bit-identical even if costs or hardware change. (Alternatives: pinned numerics, or a declared
+/// tolerance; logged placement keeps identity exact.)
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PlacementLog {
+    pub choices: std::collections::BTreeMap<String, String>,
+}
+
+impl PlacementLog {
+    /// First run: choose min-joule and log it. Replay: return the logged backend unchanged.
+    pub fn place(&mut self, op: &str, targets: &[Target]) -> Option<String> {
+        if let Some(b) = self.choices.get(op) {
+            return Some(b.clone());
+        }
+        let (t, _) = place_muladd(targets)?;
+        self.choices.insert(op.to_string(), t.name.to_string());
+        Some(t.name.to_string())
+    }
+
+    /// Replay never re-chooses: the logged backend is returned regardless of new costs.
+    pub fn replay(&self, op: &str) -> Option<&str> {
+        self.choices.get(op).map(|s| s.as_str())
+    }
+}

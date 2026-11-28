@@ -19,6 +19,19 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn logged_placement_keeps_replay_bit_identical() {
+    use competence_catalog::placement::{PlacementLog, builtin_targets};
+    let mut log = PlacementLog::default();
+    let t = builtin_targets();
+    let first = log.place("muladd", &t).unwrap();
+    // hardware/costs change (drop the cheap tensor backend); replay must reuse the logged backend
+    let changed: Vec<_> = t.into_iter().filter(|x| x.name != "amx-tensor").collect();
+    let replayed = log.place("muladd", &changed).unwrap();
+    assert_eq!(first, replayed, "logged placement: replay reuses backend, bit-identical");
+    assert_eq!(log.replay("muladd"), Some(first.as_str()));
+}
+
+#[test]
 fn two_spellings_one_canonical_identity() {
     // The convergence claim: different surface spellings of one behaviour collapse to one
     // canonical identity (decidable polynomial fragment). Identity is name-free.
