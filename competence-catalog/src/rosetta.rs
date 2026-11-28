@@ -79,11 +79,91 @@ fn is_ident(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
 
+/// Find a top-level (paren-depth 0) occurrence of `needle`.
+fn find_top_level(s: &str, needle: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    let mut depth = 0i32;
+    for i in 0..b.len() {
+        match b[i] { b'(' => depth += 1, b')' => depth -= 1, _ => {} }
+        if depth == 0 && s[i..].starts_with(needle) { return Some(i); }
+    }
+    None
+}
+
+/// The multiplicative term ending just before `pos` (ident, number, or balanced paren group).
+fn term_back(s: &str, pos: usize) -> (usize, usize) {
+    let b = s.as_bytes();
+    let mut e = pos;
+    while e > 0 && b[e - 1].is_ascii_whitespace() { e -= 1; }
+    let mut i = e;
+    if i > 0 && b[i - 1] == b')' {
+        let mut depth = 1; i -= 1;
+        while i > 0 && depth > 0 { i -= 1; if b[i] == b')' { depth += 1; } else if b[i] == b'(' { depth -= 1; } }
+        (i, e)
+    } else {
+        while i > 0 && (b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_') { i -= 1; }
+        (i, e)
+    }
+}
+
+/// The multiplicative term starting at/after `start` (ident, number, or balanced paren group).
+fn term_fwd(s: &str, start: usize) -> (usize, usize) {
+    let b = s.as_bytes();
+    let mut i = start;
+    while i < b.len() && b[i].is_ascii_whitespace() { i += 1; }
+    let s0 = i;
+    if i < b.len() && b[i] == b'(' {
+        let mut depth = 1; i += 1;
+        while i < b.len() && depth > 0 { if b[i] == b'(' { depth += 1; } else if b[i] == b')' { depth -= 1; } i += 1; }
+        (s0, i)
+    } else {
+        while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') { i += 1; }
+        (s0, i)
+    }
+}
+
+/// Desugar Python floor-div `A // B` to trunc-div minus the sign adjustment, using only existing
+/// core binops (no new IR variant): floor(A/B) = A/B - ((A%B != 0) && ((A<0) != (B<0))).
+fn desugar_floordiv(expr: &str) -> String {
+    let mut s = expr.to_string();
+    while let Some(pos) = find_top_level(&s, "//") {
+        let (ls, le) = term_back(&s, pos);
+        let (rs, re) = term_fwd(&s, pos + 2);
+        let a = s[ls..le].trim().to_string();
+        let b = s[rs..re].trim().to_string();
+        if a.is_empty() || b.is_empty() { break; }
+        let repl = format!("({a} / {b} - (({a} % {b} != 0) && (({a} < 0) != ({b} < 0))))");
+        s = format!("{}{}{}", &s[..ls], repl, &s[re..]);
+    }
+    s
+}
+
+/// Join Python continuation lines inside open parens into one logical line (keeps first indent).
+fn join_continuations(py: &str) -> String {
+    let mut out = String::new();
+    let mut buf = String::new();
+    let mut depth = 0i32;
+    for line in py.lines() {
+        let t = line.trim();
+        if buf.is_empty() { buf.push_str(line); } else { buf.push(' '); buf.push_str(t); }
+        for c in t.chars() { match c { '(' => depth += 1, ')' => depth -= 1, _ => {} } }
+        if depth <= 0 { out.push_str(&buf); out.push('\n'); buf.clear(); depth = 0; }
+    }
+    if !buf.is_empty() { out.push_str(&buf); out.push('\n'); }
+    out
+}
+
+fn strip_outer_parens(s: &str) -> String {
+    let t = s.trim();
+    if t.starts_with('(') && t.ends_with(')') { t[1..t.len() - 1].trim().to_string() } else { t.to_string() }
+}
+
 /// Hoist expression-level calls `f(args)` into statement-level let-calls (A-normal form),
-/// replacing each with a fresh temp; nested calls in args are hoisted first. Deterministic and
-/// local to the source rewrite — the core expression IR and the replay gate are untouched.
-/// `prefix` receives the emitted `let` lines (evaluate calls before the consuming expression).
+/// replacing each with a fresh temp; nested calls in args are hoisted first. Floor-div `//` is
+/// desugared first. Deterministic and local to the source rewrite — the core expression IR and
+/// the replay gate are untouched. `prefix` receives the emitted `let` lines.
 fn hoist_calls(expr: &str, prefix: &mut String, ctr: &mut usize) -> String {
+    let expr = desugar_floordiv(expr);
     let b = expr.as_bytes();
     let mut out = String::new();
     let mut i = 0;
@@ -142,7 +222,8 @@ pub fn normalize(py: &str) -> String {
     let mut out = String::new();
     let mut stack: Vec<usize> = vec![0];
     let mut ctr = 0usize;
-    for line in py.lines() {
+    let joined = join_continuations(py);
+    for line in joined.lines() {
         let t = line.trim();
         if t.is_empty() || t.starts_with('#') { continue; }
         let indent = line.len() - line.trim_start().len();
@@ -208,13 +289,25 @@ pub fn normalize(py: &str) -> String {
             let lhs = lhs.trim();
             let rhs = rhs.trim();
             if lhs.contains(',') && split_commas(lhs).iter().all(|s| is_ident(s)) {
-                // simultaneous tuple assignment: hoist RHS calls, then temps, then rebind
+                // simultaneous tuple assignment: evaluate RHS (calls, floor-div, nested ternaries)
+                // with old values, hoist into temps, then rebind the targets.
                 let ls = split_commas(lhs);
-                let rs = split_commas(rhs);
+                let rs = split_commas(&strip_outer_parens(rhs));
                 let mut p = String::new();
-                let rh: Vec<String> = rs.iter().map(|r| hoist_calls(r, &mut p, &mut ctr)).collect();
+                let mut vals: Vec<String> = Vec::new();
+                for r in &rs {
+                    if let Some((a, c, b)) = split_ternary(r) {
+                        let v = format!("__v{}", ctr); ctr += 1;
+                        let mut pa = String::new(); let ah = hoist_calls(&a, &mut pa, &mut ctr);
+                        let mut pb = String::new(); let bh = hoist_calls(&b, &mut pb, &mut ctr);
+                        p.push_str(&format!("let {v} = 0;\nif ({c}) != 0 {{ {pa}let {v} = {ah}; }} else {{ {pb}let {v} = {bh}; }}\n"));
+                        vals.push(v);
+                    } else {
+                        vals.push(hoist_calls(r, &mut p, &mut ctr));
+                    }
+                }
                 out.push_str(&p);
-                for (i, r) in rh.iter().enumerate() { out.push_str(&format!("let __t{i} = {r};\n")); }
+                for (i, v) in vals.iter().enumerate() { out.push_str(&format!("let __t{i} = {v};\n")); }
                 for (i, l) in ls.iter().enumerate() { out.push_str(&format!("let {l} = __t{i};\n")); }
             } else if is_ident(lhs) {
                 let mut p = String::new(); let rh = hoist_calls(rhs, &mut p, &mut ctr);
@@ -251,7 +344,7 @@ pub fn def_signature(py: &str) -> Option<(String, usize)> {
 /// inputs (a, b), so the generative battery exercises the third-party behavior.
 pub fn request(py: &str) -> Option<String> {
     let (name, arity) = def_signature(py)?;
-    let args = match arity { 0 => "", 1 => "a", _ => "a, b" };
+    let args = match arity { 0 => "", 1 => "a", 2 => "a, b", _ => "a, b, c" };
     Some(format!(
         "fn abs(x) {{ if x < 0 {{ return 0 - x; }} return x; }}\n{}\nlet r = {name}({args}); return r;",
         normalize(py)
@@ -294,10 +387,16 @@ let r = p(a); return r;"
         .to_string()
 }
 
+pub fn canonical_modpow() -> String {
+    "fn mp(b, e, m) { let x = 1; while e > 0 { if (e % 2) != 0 { let x = (b * x) % m; } let b = (b * b) % m; let e = e / 2; } return x; }
+let r = mp(a, b, c); return r;"
+        .to_string()
+}
+
 /// External holdout: admit the canonical library, issue real Rosetta snippets as held-out
 /// requests. Returns (hits, total) by name-free behavior key. Novel behavior misses.
 pub fn external_holdout() -> (usize, usize) {
-    let admitted = [canonical_gcd(), canonical_factorial(), canonical_parity()];
+    let admitted = [canonical_gcd(), canonical_factorial(), canonical_parity(), canonical_modpow()];
     let admitted_refs: Vec<&str> = admitted.iter().map(|s| s.as_str()).collect();
     let reqs: Vec<String> = CORPUS.iter().filter_map(|(_, _, src)| request(src)).collect();
     let req_refs: Vec<&str> = reqs.iter().map(|s| s.as_str()).collect();

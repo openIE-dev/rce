@@ -21,13 +21,13 @@ fn c_subset_lift_replays() {
 #[test]
 fn external_corpus_rosetta_lift_and_holdout() {
     // Verbatim third-party Rosetta Code (fetched 28 Nov 2026), not hand-built to match.
-    // 7/8 lift: gcd/factorial/fibonacci (iterative + recursive) and parity lift; modpow is the
-    // floor-div + nested-ternary frontier (lift_ok=false). Recursive lifts use A-normal-form
-    // call hoisting + ternary rewrite (core IR untouched).
-    assert_eq!(competence_catalog::rosetta::lift_coverage(), (7, 8));
-    // Admit canonical gcd+factorial+parity; the five real same-behavior snippets hit by
-    // name-free behavior key; novel fibonacci (x2) and beyond-frontier modpow miss.
-    assert_eq!(competence_catalog::rosetta::external_holdout(), (5, 8));
+    // 8/8 lift: gcd/factorial/fibonacci (iterative + recursive), parity, and modpow all lift.
+    // modpow needs floor-div desugaring + continuation joining + nested-ternary hoisting + a
+    // 3-variable battery + scope-aware free_vars (core IR untouched).
+    assert_eq!(competence_catalog::rosetta::lift_coverage(), (8, 8));
+    // Admit canonical gcd+factorial+parity+modpow; the six real same-behavior snippets hit by
+    // name-free behavior key; novel fibonacci (x2) misses to the proposer.
+    assert_eq!(competence_catalog::rosetta::external_holdout(), (6, 8));
 }
 
 #[test]
@@ -56,6 +56,10 @@ fn real_rosetta_snippets_replay_known_values() {
     assert_eq!(run(src("fibonacci", "recursive"), &[("a", 7)]), Some(13));
     assert_eq!(run(src("parity", "modular-congruence"), &[("a", 2)]), Some(1));
     assert_eq!(run(src("parity", "modular-congruence"), &[("a", 7)]), Some(0));
+    // modpow: 2^3 mod 7 = 1; 3^4 mod 5 = 1; exponent 0 -> 1.
+    assert_eq!(run(src("modpow", "iterative-frontier"), &[("a", 2), ("b", 3), ("c", 7)]), Some(1));
+    assert_eq!(run(src("modpow", "iterative-frontier"), &[("a", 3), ("b", 4), ("c", 5)]), Some(1));
+    assert_eq!(run(src("modpow", "iterative-frontier"), &[("a", 5), ("b", 0), ("c", 7)]), Some(1));
 }
 
 #[test]

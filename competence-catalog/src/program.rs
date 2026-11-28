@@ -757,7 +757,18 @@ pub fn free_vars(s: &Stmt) -> Vec<String> {
             Stmt::If(c, t, e) => { expr_reads(c, reads); walk(t, bound, reads); walk(e, bound, reads); }
             Stmt::While(c, b) => { expr_reads(c, reads); walk(b, bound, reads); }
             Stmt::For(n, lo, hi, b) => { expr_reads(lo, reads); expr_reads(hi, reads); if !bound.contains(n) { bound.push(n.clone()); } walk(b, bound, reads); }
-            Stmt::LetFn(_, p, b) => { for x in p { if !bound.contains(x) { bound.push(x.clone()); } } walk(b, bound, reads); }
+            Stmt::LetFn(name, p, b) => {
+                // fn body is a nested scope: params bind locally, never in the outer scope,
+                // so a param sharing a name with a top-level free input does not hide it.
+                if !bound.contains(name) { bound.push(name.clone()); }
+                let mut inner = bound.clone();
+                for x in p { if !inner.contains(x) { inner.push(x.clone()); } }
+                let mut inner_reads: Vec<String> = Vec::new();
+                walk(b, &mut inner, &mut inner_reads);
+                for r in inner_reads {
+                    if !inner.contains(&r) && !bound.contains(&r) && !reads.contains(&r) { reads.push(r); }
+                }
+            }
             Stmt::Call(_, a) => { for x in a { expr_reads(x, reads); } }
             Stmt::LetCall(n, _, a) => { for x in a { expr_reads(x, reads); } if !bound.contains(n) { bound.push(n.clone()); } }
             Stmt::Seq(v) => { for s in v { walk(s, bound, reads); } }
@@ -781,12 +792,16 @@ pub fn generative_probes(s: &Stmt) -> Vec<(Env, i128)> {
         if let Ok(Some(v)) = eval_stmt(s, &mut env) { out.push((env, v)); }
         return out;
     }
-    let take = vars.len().min(2);
+    let take = vars.len().min(3);
     let combos: Vec<Vec<i128>> = if take == 1 {
         battery.iter().map(|a| vec![*a]).collect()
-    } else {
+    } else if take == 2 {
         let mut c = Vec::new();
         for a in battery { for b in battery { c.push(vec![a, b]); } }
+        c
+    } else {
+        let mut c = Vec::new();
+        for a in battery { for b in battery { for d in battery { c.push(vec![a, b, d]); } } }
         c
     };
     for combo in combos {

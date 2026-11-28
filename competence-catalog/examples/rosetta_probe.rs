@@ -10,5 +10,5 @@ fn main() {
     let (l, t) = rosetta::lift_coverage();
     println!("lift_coverage = {l}/{t}");
     let (h, n) = rosetta::external_holdout();
-    println!("external_holdout (admitted gcd+factorial+parity; requests all 8 real snippets) = {h}/{n}");
+    println!("external_holdout (admitted gcd+factorial+parity+modpow; requests all 8 real snippets) = {h}/{n}");
 }
