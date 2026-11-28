@@ -1435,6 +1435,26 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "style_opts" | "surface" | "t_opts" | "terminal" | "termoption" | "theta"
         | "tics" | "tics_opts" | "timefmt" | "vgrid" | "view" | "walls" | "xdata"
         | "xdtics" | "xmtics" | "xrange" | "xtics" | "xyplane" | "zero" | "zeroaxis" => { out.insert("modifier"); }
+        // Pass 82: small-remainder batch (plum/soong/editorconfig/heex/nginx/devicetree/caddyfile/inko/topaz/typespec/ros).
+        "supertypes" | "required_traits" | "array_value" => { out.insert("list"); }
+        "relative_path" | "incbin" | "implement_trait" | "interface_heritage"
+        | "model_extends_heritage" | "model_is_heritage" | "scalar_extends" => { out.insert("import"); }
+        "select_value" | "editorconfig" | "concurrent_arm" => { out.insert("control"); }
+        "integer_range" => { out.insert("range"); }
+        "end_component" | "end_slot" | "forbidden_increment_line" | "forbidden_keyword_line"
+        | "forbidden_unknown_token" => { out.insert("token"); }
+        "slot" | "array_element" | "enum_member_value" | "action" | "feedback" | "goal" => { out.insert("field"); }
+        "connection_method" | "integer_cells" | "plugin" | "copy" | "mut" => { out.insert("modifier"); }
+        "location_route" | "path_node" | "single_site" | "site_address"
+        | "pipeline_placeholder" => { out.insert("var"); }
+        "off" | "on" => { out.insert("bool_lit"); }
+        "file_version" | "ip_address_or_cidr" | "network_address" => { out.insert("literal"); }
+        "memory_reservation" | "global_options" => { out.insert("body"); }
+        "status_code_fallback" => { out.insert("int_lit"); }
+        "replace_local" => { out.insert("assign"); }
+        "tags" => { out.insert("attribute"); }
+        "comprehension_clauses" => { out.insert("comprehension"); }
+        "enum_spread_member" => { out.insert("splat"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
