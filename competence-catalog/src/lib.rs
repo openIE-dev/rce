@@ -56,6 +56,7 @@ pub mod lift_rust;
 pub mod xref;
 pub mod behavior;
 pub mod mcp;
+pub mod sql;
 pub mod lowering_trace;
 pub mod lsp_server;
 pub mod lut_emit;

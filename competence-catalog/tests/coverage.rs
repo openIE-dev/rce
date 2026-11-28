@@ -19,6 +19,22 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn db_as_competence_sql_lift() {
+    let s = competence_catalog::sql::schema("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER);");
+    let t = &s["tables"][0];
+    assert_eq!(t["name"], "USERS");
+    assert_eq!(t["columns"].as_array().unwrap().len(), 3);
+    assert_eq!(t["columns"][0]["name"], "id");
+    let q = competence_catalog::sql::query("SELECT name, age FROM users WHERE age > 18;");
+    assert_eq!(q["projection"].as_array().unwrap().len(), 2);
+    assert_eq!(q["source"], "USERS");
+    assert!(q["filter"].as_str().unwrap().contains("AGE > 18"));
+    // exposed via MCP
+    let m = competence_catalog::mcp::call("sql_schema", &serde_json::json!({ "src": "CREATE TABLE t (a INT);" })).unwrap();
+    assert_eq!(m["tables"][0]["name"], "T");
+}
+
+#[test]
 fn python_subset_lift_replays() {
     use competence_catalog::lift_rust::lift_python;
     use competence_catalog::program::{replay_admit, Env};

@@ -14,13 +14,20 @@ pub fn tools_list() -> Value {
         { "name": "call_graph", "description": "Call graph {nodes,edges} from the Form." },
         { "name": "statechart", "description": "Deterministic behavior statechart {states,transitions} from the Form." },
         { "name": "ui_spec", "description": "Constrained declarative UI (allow-listed catalog) from the Form." },
-        { "name": "property_probes", "description": "Generative property battery over the program's free inputs." }
+        { "name": "property_probes", "description": "Generative property battery over the program's free inputs." },
+        { "name": "sql_schema", "description": "DB-as-competence: lift CREATE TABLE into {tables,columns,types}." },
+        { "name": "sql_query", "description": "Lift SELECT into {projection,source,filter}." }
     ] })
 }
 
 /// tools/call dispatcher. args: {src, probes?}. Deterministic; errors are returned, never guessed.
 pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
     let src = args["src"].as_str().ok_or("args.src required")?;
+    match tool {
+        "sql_schema" => return Ok(crate::sql::schema(src)),
+        "sql_query" => return Ok(crate::sql::query(src)),
+        _ => {}
+    }
     let stmt = lift_program(src).or_else(|_| crate::lift_rust::lift_rust(src))?;
     match tool {
         "admit" => {
