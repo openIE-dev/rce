@@ -19,6 +19,15 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn held_out_requests_generalize_by_behavior() {
+    // admitted library; held-out requests = one paraphrase (hit) + one novel (miss)
+    let admitted = ["return a+b;"];
+    let requests = ["return b+a;", "return a*b;"];
+    let (hits, total) = competence_catalog::holdout::hit_rate(&admitted, &requests);
+    assert_eq!((hits, total), (1, 2), "paraphrase hits via behavior key; novel misses to proposer");
+}
+
+#[test]
 fn resolve_name_free_behavior_key() {
     let a = competence_catalog::mcp::call("resolve", &serde_json::json!({ "src": "return (a+b)*(a-b);" })).unwrap();
     let b = competence_catalog::mcp::call("resolve", &serde_json::json!({ "src": "return a*a - b*b;" })).unwrap();

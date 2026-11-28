@@ -58,6 +58,7 @@ pub mod behavior;
 pub mod mcp;
 pub mod sql;
 pub mod flowg_ingest;
+pub mod holdout;
 pub mod lowering_trace;
 pub mod lsp_server;
 pub mod lut_emit;
