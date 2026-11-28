@@ -1177,6 +1177,34 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "sourcefile" => { out.insert("control"); }
         "logical_and" => { out.insert("and"); }
         "logical_or" => { out.insert("or"); }
+        // Pass 71: small-remainder curation (soql/zsh/m3u/desktop/handlebars/robots/blade/sosl/cfscript/pod/razor/tql).
+        "comparable_list" => { out.insert("list"); }
+        "with_data_cat_filter" | "using_advanced_search" | "with_highlight"
+        | "zsh_extended_glob_flags" | "zsh_array_subscript_flags" | "locale" | "country"
+        | "razor_rendermode" | "taghelper_wildcard" => { out.insert("modifier"); }
+        "date" | "date_time" | "resolution" | "date_time_msec" | "ip" => { out.insert("literal"); }
+        "dec" => { out.insert("int_lit"); }
+        "arithmetic_call" | "helper_invocation" | "query_tag" => { out.insert("call"); }
+        "array_at" => { out.insert("index"); }
+        "desktop_entry" => { out.insert("type_def"); }
+        "entry" | "frontmatter_line" => { out.insert("field"); }
+        "element_node" | "once" | "php_only" | "command_paragraph" | "cut_paragraph"
+        | "for_paragraph" | "interior_sequence" | "pod_paragraph" | "razor_finally"
+        | "razor_lock" | "razor_section" => { out.insert("control"); }
+        "element_node_end" | "element_node_void" | "php_end_tag" | "term_separator_end"
+        | "tag_linefeed" | "frontmatter_close" | "frontmatter_open" => { out.insert("token"); }
+        "text_node" | "query_text" | "plain_paragraph" | "verbatim_paragraph"
+        | "format_replacement" | "format_text" => { out.insert("str_lit"); }
+        "allow" | "crawlDelay" | "disallow" | "host" | "sitemap" | "userAgent" | "envoy"
+        | "livewire" | "stack" | "cut_command" | "for_command" | "pod_command" => { out.insert("directive"); }
+        "ordered_struct" | "frontmatter" => { out.insert("dict"); }
+        "array_return_suffix" | "type_prefix" => { out.insert("type_expr"); }
+        "static_chain" | "meta_selector" => { out.insert("member"); }
+        "razor_compound_using" => { out.insert("import"); }
+        "razor_for" | "razor_foreach" => { out.insert("for"); }
+        "razor_try" => { out.insert("try"); }
+        "razor_while" => { out.insert("while"); }
+        "global_sigil" | "metadata_sigil" => { out.insert("var"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
