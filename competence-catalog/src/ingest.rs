@@ -1289,6 +1289,20 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "sequential" | "par" => { out.insert("seq"); }
         "unary_number" => { out.insert("literal"); }
         "key" => { out.insert("var"); }
+        // Pass 75: xml / dtd curation (shared DTD vocabulary).
+        "_AttType" | "_EnumeratedType" | "Mixed" | "NotationType" | "StringType"
+        | "TokenizedType" => { out.insert("type_expr"); }
+        "_Reference" | "EntityRef" | "ExternalID" | "PEReference" => { out.insert("import"); }
+        "AttDef" | "EncName" => { out.insert("field"); }
+        "AttValue" | "CharRef" | "EntityValue" | "PubidLiteral" | "PublicID" | "SystemLiteral"
+        | "VersionNum" => { out.insert("literal"); }
+        "CDSect" | "CData" | "CharData" => { out.insert("str_lit"); }
+        "CDStart" | "ETag" | "EmptyElemTag" | "STag" => { out.insert("token"); }
+        "Enumeration" => { out.insert("list"); }
+        "StyleSheetPI" | "XmlModelPI" => { out.insert("directive"); }
+        "prolog" | "extSubset" => { out.insert("body"); }
+        "Comment" => { out.insert("comment"); }
+        "Name" | "Nmtoken" | "PITarget" => { out.insert("var"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
