@@ -19,6 +19,16 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn resolve_name_free_behavior_key() {
+    let a = competence_catalog::mcp::call("resolve", &serde_json::json!({ "src": "return (a+b)*(a-b);" })).unwrap();
+    let b = competence_catalog::mcp::call("resolve", &serde_json::json!({ "src": "return a*a - b*b;" })).unwrap();
+    assert_eq!(a["key"], b["key"], "equal behaviour -> equal name-free key");
+    assert!(a["probes"].as_u64().unwrap() >= 6);
+    let c = competence_catalog::mcp::call("resolve", &serde_json::json!({ "src": "return a+b;" })).unwrap();
+    assert_ne!(a["key"], c["key"], "different behaviour -> different key");
+}
+
+#[test]
 fn flowg_core_kernel_ingests_fully() {
     // best-case lift: flowg's core compute kernel maps 1:1 onto the universal taxonomy
     let (m, t) = competence_catalog::flowg_ingest::core_coverage();

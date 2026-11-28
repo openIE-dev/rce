@@ -16,7 +16,8 @@ pub fn tools_list() -> Value {
         { "name": "ui_spec", "description": "Constrained declarative UI (allow-listed catalog) from the Form." },
         { "name": "property_probes", "description": "Generative property battery over the program's free inputs." },
         { "name": "sql_schema", "description": "DB-as-competence: lift CREATE TABLE into {tables,columns,types}." },
-        { "name": "sql_query", "description": "Lift SELECT into {projection,source,filter}." }
+        { "name": "sql_query", "description": "Lift SELECT into {projection,source,filter}." },
+        { "name": "resolve", "description": "Ask-the-map: name-free behavior key of a program over its generative probe battery; equal behaviour -> equal key." }
     ] })
 }
 
@@ -42,6 +43,14 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "property_probes" => {
             let p = generative_probes(&stmt);
             Ok(json!({ "count": p.len() }))
+        }
+        "resolve" => {
+            // name-free behavior key: outputs over the generative battery, order-independent.
+            let p = generative_probes(&stmt);
+            let mut outs: Vec<i128> = p.iter().map(|(_, r)| *r).collect();
+            outs.sort_unstable();
+            let key = rcevc_core::sha256(format!("{outs:?}").as_bytes()).hex();
+            Ok(json!({ "key": key, "probes": p.len() }))
         }
         _ => Err(format!("unknown tool {tool}")),
     }
