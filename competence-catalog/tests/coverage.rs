@@ -19,6 +19,20 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn two_spellings_one_canonical_identity() {
+    // The convergence claim: different surface spellings of one behaviour collapse to one
+    // canonical identity (decidable polynomial fragment). Identity is name-free.
+    let a = "(a+b)*(a-b)";
+    let b = "a*a - b*b";
+    assert_eq!(competence_catalog::symbolic::symbolically_equivalent(a, b), Some(true));
+    assert_eq!(
+        competence_catalog::symbolic::canonical_poly(a).unwrap(),
+        competence_catalog::symbolic::canonical_poly(b).unwrap(),
+        "two spellings, one canonical key"
+    );
+}
+
+#[test]
 fn db_as_competence_sql_lift() {
     let s = competence_catalog::sql::schema("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER);");
     let t = &s["tables"][0];
