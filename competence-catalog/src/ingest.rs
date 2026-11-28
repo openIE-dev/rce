@@ -1455,6 +1455,36 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "tags" => { out.insert("attribute"); }
         "comprehension_clauses" => { out.insert("comprehension"); }
         "enum_spread_member" => { out.insert("splat"); }
+        // Pass 83: git-commit/go-template/janet/vento/teal/slim/fennel curation.
+        "summary" | "trailer_value" | "yaml_no_injection_text" | "qq_lit" | "buf_lit"
+        | "long_buf_lit" | "long_str_lit" | "text_inline" => { out.insert("str_lit"); }
+        "trailer" | "trailer_key" | "table_entry" | "child" => { out.insert("field"); }
+        "commit" | "parenthesized_pipeline" | "with_action" => { out.insert("control"); }
+        "scissors" | "front_matter_delimiter" | "inline_tag_close" => { out.insert("token"); }
+        t if t.ends_with("_tag_end") => { out.insert("token"); }
+        "user" | "tag_id" => { out.insert("var"); }
+        "break_action" => { out.insert("break"); }
+        "continue_action" => { out.insert("continue"); }
+        "chained_pipeline" => { out.insert("seq"); }
+        "define_action" | "short_fn_lit" | "anon_function" | "metamethod" | "fn_form" => { out.insert("fn"); }
+        "range_action" | "each_form" | "for_form" => { out.insert("for"); }
+        "par_arr_lit" | "par_tup_lit" | "sqr_arr_lit" | "sqr_tup_lit" => { out.insert("list"); }
+        "tbl_lit" => { out.insert("dict"); }
+        "anon_interface" => { out.insert("type_def"); }
+        "bin_op" => { out.insert("op"); }
+        "method_index" => { out.insert("index"); }
+        "type_union" | "userdata" => { out.insert("type_expr"); }
+        "typearg" | "typeargs" => { out.insert("generic"); }
+        "optional_marker" => { out.insert("modifier"); }
+        "coffee_lang" | "css_lang" | "less_lang" | "ruby_lang" | "scss_lang" | "textile_lang"
+        | "ruby_inline" => { out.insert("asm"); }
+        "injector" => { out.insert("call"); }
+        "splat_tags" => { out.insert("splat"); }
+        "accumulate_form" | "collect_form" | "icollect_form" | "fcollect_form"
+        | "faccumulate_form" => { out.insert("comprehension"); }
+        "global_form" | "local_form" | "var_form" | "set_form" => { out.insert("let"); }
+        "macro_form" => { out.insert("macro"); }
+        "table_metadata" => { out.insert("attribute"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
