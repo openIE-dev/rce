@@ -1272,6 +1272,23 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "annotName" => { out.insert("attribute"); }
         "datatype" | "datatypeBranch" => { out.insert("type_def"); }
         "memberPredicate" | "super_ref" => { out.insert("member"); }
+        // Pass 74: faust (audio DSP) curation.
+        "bargraph" | "one_sample_delay" | "route" | "soundfile" | "split" | "waveform"
+        | "delay" | "mem" => { out.insert("call"); }
+        "button" | "checkbox" => { out.insert("field"); }
+        "environment" | "substitutions" | "with_environment" => { out.insert("body"); }
+        "fconst" => { out.insert("let"); }
+        "ffunction" | "modulator" => { out.insert("fn"); }
+        "function_metadata" | "global_metadata" => { out.insert("attribute"); }
+        "inputs" => { out.insert("param"); }
+        "iteration" => { out.insert("for"); }
+        "modulation" | "negate_id" | "prim1" | "prim2" | "prim3" | "prim4" | "prim5" | "mult"
+        | "prod" | "sum" | "xor" => { out.insert("op"); }
+        "modulators" | "variants" => { out.insert("list"); }
+        "outputs" => { out.insert("return"); }
+        "sequential" | "par" => { out.insert("seq"); }
+        "unary_number" => { out.insert("literal"); }
+        "key" => { out.insert("var"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
