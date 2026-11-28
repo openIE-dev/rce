@@ -21,12 +21,13 @@ fn c_subset_lift_replays() {
 #[test]
 fn external_corpus_rosetta_lift_and_holdout() {
     // Verbatim third-party Rosetta Code (fetched 28 Nov 2026), not hand-built to match.
-    // All six variants lift: iterative directly, recursive via A-normal-form call hoisting
-    // + ternary rewrite (expression-level calls become statement-level let-calls).
-    assert_eq!(competence_catalog::rosetta::lift_coverage(), (6, 6));
-    // Admit canonical gcd+factorial; all four real gcd/factorial spellings (iterative AND
-    // recursive) hit by name-free behavior key; novel real fibonacci misses to the proposer.
-    assert_eq!(competence_catalog::rosetta::external_holdout(), (4, 6));
+    // 7/8 lift: gcd/factorial/fibonacci (iterative + recursive) and parity lift; modpow is the
+    // floor-div + nested-ternary frontier (lift_ok=false). Recursive lifts use A-normal-form
+    // call hoisting + ternary rewrite (core IR untouched).
+    assert_eq!(competence_catalog::rosetta::lift_coverage(), (7, 8));
+    // Admit canonical gcd+factorial+parity; the five real same-behavior snippets hit by
+    // name-free behavior key; novel fibonacci (x2) and beyond-frontier modpow miss.
+    assert_eq!(competence_catalog::rosetta::external_holdout(), (5, 8));
 }
 
 #[test]
@@ -53,6 +54,8 @@ fn real_rosetta_snippets_replay_known_values() {
     assert_eq!(run(src("factorial", "recursive"), &[("a", 5)]), Some(120));
     assert_eq!(run(src("fibonacci", "iterative"), &[("a", 7)]), Some(13));
     assert_eq!(run(src("fibonacci", "recursive"), &[("a", 7)]), Some(13));
+    assert_eq!(run(src("parity", "modular-congruence"), &[("a", 2)]), Some(1));
+    assert_eq!(run(src("parity", "modular-congruence"), &[("a", 7)]), Some(0));
 }
 
 #[test]

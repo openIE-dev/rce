@@ -46,6 +46,16 @@ pub const CORPUS: &[(&str, &str, &str)] = &[
         "recursive",
         "def fib_rec(n):\n    if n < 2:\n        return n\n    return fib_rec(n-1) + fib_rec(n-2)\n",
     ),
+    (
+        "parity",
+        "modular-congruence",
+        "def is_even(i):\n    return (i % 2) == 0\n",
+    ),
+    (
+        "modpow",
+        "iterative-frontier",
+        "def power_mod(b, e, m):\n    x = 1\n    while e > 0:\n        b, e, x = (\n            b * b % m,\n            e // 2,\n            b * x % m if e % 2 else x\n        )\n    return x\n",
+    ),
 ];
 
 /// Split on a top-level comma (paren-aware).
@@ -278,10 +288,16 @@ let r = f(a); return r;"
         .to_string()
 }
 
+pub fn canonical_parity() -> String {
+    "fn p(n) { return (n / 2) * 2 == n; }
+let r = p(a); return r;"
+        .to_string()
+}
+
 /// External holdout: admit the canonical library, issue real Rosetta snippets as held-out
 /// requests. Returns (hits, total) by name-free behavior key. Novel behavior misses.
 pub fn external_holdout() -> (usize, usize) {
-    let admitted = [canonical_gcd(), canonical_factorial()];
+    let admitted = [canonical_gcd(), canonical_factorial(), canonical_parity()];
     let admitted_refs: Vec<&str> = admitted.iter().map(|s| s.as_str()).collect();
     let reqs: Vec<String> = CORPUS.iter().filter_map(|(_, _, src)| request(src)).collect();
     let req_refs: Vec<&str> = reqs.iter().map(|s| s.as_str()).collect();
