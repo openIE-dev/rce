@@ -69,13 +69,69 @@ fn is_ident(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
 
+/// Hoist expression-level calls `f(args)` into statement-level let-calls (A-normal form),
+/// replacing each with a fresh temp; nested calls in args are hoisted first. Deterministic and
+/// local to the source rewrite — the core expression IR and the replay gate are untouched.
+/// `prefix` receives the emitted `let` lines (evaluate calls before the consuming expression).
+fn hoist_calls(expr: &str, prefix: &mut String, ctr: &mut usize) -> String {
+    let b = expr.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c.is_ascii_alphabetic() || c == b'_' {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') { i += 1; }
+            let name = &expr[start..i];
+            if i < b.len() && b[i] == b'(' {
+                let open = i;
+                let mut depth = 1;
+                let mut j = i + 1;
+                while j < b.len() && depth > 0 {
+                    if b[j] == b'(' { depth += 1; } else if b[j] == b')' { depth -= 1; }
+                    j += 1;
+                }
+                let args_h = hoist_calls(&expr[open + 1..j - 1], prefix, ctr);
+                let t = format!("__c{}", *ctr); *ctr += 1;
+                prefix.push_str(&format!("let {t} = {name}({args_h});\n"));
+                out.push_str(&t);
+                i = j;
+            } else {
+                out.push_str(name);
+            }
+        } else {
+            out.push(c as char);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Split a Python conditional expression `A if C else B` at top level (paren-aware).
+fn split_ternary(e: &str) -> Option<(String, String, String)> {
+    let b = e.as_bytes();
+    let mut depth = 0i32;
+    let mut if_pos = None;
+    let mut else_pos = None;
+    for i in 0..b.len() {
+        match b[i] { b'(' => depth += 1, b')' => depth -= 1, _ => {} }
+        if depth == 0 {
+            if if_pos.is_none() && e[i..].starts_with(" if ") { if_pos = Some(i); }
+            if if_pos.is_some() && else_pos.is_none() && e[i..].starts_with(" else ") { else_pos = Some(i); }
+        }
+    }
+    let (ip, ep) = (if_pos?, else_pos?);
+    Some((e[..ip].trim().to_string(), e[ip + 4..ep].trim().to_string(), e[ep + 6..].trim().to_string()))
+}
+
 /// Deterministic Python-subset -> brace statement language rewrite (targets `lift_program`).
 /// Handles: def/if/while/else, truthy conditions, range-for, tuple assignment (simultaneous,
-/// temp-hoisted), augmented assignment, plain assignment, return, and `return abs(x)` hoisted
-/// to a let-call. Expression-level calls / ternaries are left as-is (they fail lift = frontier).
+/// temp-hoisted), augmented assignment, plain assignment, return, Python ternaries, and
+/// expression-level calls hoisted to statement-level let-calls (A-normal form).
 pub fn normalize(py: &str) -> String {
     let mut out = String::new();
     let mut stack: Vec<usize> = vec![0];
+    let mut ctr = 0usize;
     for line in py.lines() {
         let t = line.trim();
         if t.is_empty() || t.starts_with('#') { continue; }
@@ -116,10 +172,16 @@ pub fn normalize(py: &str) -> String {
             out.push_str(&format!("{t};\n"));
         } else if let Some(rest) = t.strip_prefix("return ") {
             let e = rest.trim();
-            if let Some(arg) = e.strip_prefix("abs(").and_then(|s| s.strip_suffix(')')) {
-                out.push_str(&format!("let __r = abs({arg}); return __r;\n"));
+            if let Some((a, c, b)) = split_ternary(e) {
+                // hoist within each branch so a recursive call is not evaluated eagerly
+                let mut pa = String::new(); let ah = hoist_calls(&a, &mut pa, &mut ctr);
+                let mut pb = String::new(); let bh = hoist_calls(&b, &mut pb, &mut ctr);
+                let cc = if is_ident(&c) { format!("{c} != 0") } else { c.clone() };
+                out.push_str(&format!("if {cc} {{ {pa}return {ah}; }} else {{ {pb}return {bh}; }}\n"));
             } else {
-                out.push_str(&format!("return {e};\n"));
+                let mut p = String::new(); let eh = hoist_calls(e, &mut p, &mut ctr);
+                out.push_str(&p);
+                out.push_str(&format!("return {eh};\n"));
             }
         } else if let Some((idx, op)) = ["+=", "-=", "*=", "/=", "%="]
             .iter()
@@ -129,18 +191,25 @@ pub fn normalize(py: &str) -> String {
             let n = t[..idx].trim();
             let rhs = t[idx + 2..].trim();
             let o = &op[..1];
-            out.push_str(&format!("let {n} = {n} {o} {rhs};\n"));
+            let mut p = String::new(); let rh = hoist_calls(rhs, &mut p, &mut ctr);
+            out.push_str(&p);
+            out.push_str(&format!("let {n} = {n} {o} {rh};\n"));
         } else if let Some((lhs, rhs)) = t.split_once('=') {
             let lhs = lhs.trim();
             let rhs = rhs.trim();
             if lhs.contains(',') && split_commas(lhs).iter().all(|s| is_ident(s)) {
-                // simultaneous tuple assignment: hoist RHS into temps first
+                // simultaneous tuple assignment: hoist RHS calls, then temps, then rebind
                 let ls = split_commas(lhs);
                 let rs = split_commas(rhs);
-                for (i, r) in rs.iter().enumerate() { out.push_str(&format!("let __t{i} = {r};\n")); }
+                let mut p = String::new();
+                let rh: Vec<String> = rs.iter().map(|r| hoist_calls(r, &mut p, &mut ctr)).collect();
+                out.push_str(&p);
+                for (i, r) in rh.iter().enumerate() { out.push_str(&format!("let __t{i} = {r};\n")); }
                 for (i, l) in ls.iter().enumerate() { out.push_str(&format!("let {l} = __t{i};\n")); }
             } else if is_ident(lhs) {
-                out.push_str(&format!("let {lhs} = {rhs};\n"));
+                let mut p = String::new(); let rh = hoist_calls(rhs, &mut p, &mut ctr);
+                out.push_str(&p);
+                out.push_str(&format!("let {lhs} = {rh};\n"));
             } else {
                 out.push_str(&format!("{t};\n"));
             }
@@ -214,12 +283,7 @@ let r = f(a); return r;"
 pub fn external_holdout() -> (usize, usize) {
     let admitted = [canonical_gcd(), canonical_factorial()];
     let admitted_refs: Vec<&str> = admitted.iter().map(|s| s.as_str()).collect();
-    let reqs: Vec<String> = CORPUS
-        .iter()
-        .filter(|(task, _, _)| *task == "gcd" || *task == "factorial" || *task == "fibonacci")
-        .filter(|(_, variant, _)| *variant == "iterative-euclid" || *variant == "iterative")
-        .filter_map(|(_, _, src)| request(src))
-        .collect();
+    let reqs: Vec<String> = CORPUS.iter().filter_map(|(_, _, src)| request(src)).collect();
     let req_refs: Vec<&str> = reqs.iter().map(|s| s.as_str()).collect();
     holdout::hit_rate(&admitted_refs, &req_refs)
 }

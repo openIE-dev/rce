@@ -21,12 +21,12 @@ fn c_subset_lift_replays() {
 #[test]
 fn external_corpus_rosetta_lift_and_holdout() {
     // Verbatim third-party Rosetta Code (fetched 28 Nov 2026), not hand-built to match.
-    // Measured lift frontier: the three iterative pure-integer variants lift; the three
-    // recursive / ternary variants (expression-level calls) remain the frontier.
-    assert_eq!(competence_catalog::rosetta::lift_coverage(), (3, 6));
-    // Admit canonical gcd+factorial; real same-behavior spellings hit by name-free behavior
-    // key, novel real fibonacci misses and falls to the proposer.
-    assert_eq!(competence_catalog::rosetta::external_holdout(), (2, 3));
+    // All six variants lift: iterative directly, recursive via A-normal-form call hoisting
+    // + ternary rewrite (expression-level calls become statement-level let-calls).
+    assert_eq!(competence_catalog::rosetta::lift_coverage(), (6, 6));
+    // Admit canonical gcd+factorial; all four real gcd/factorial spellings (iterative AND
+    // recursive) hit by name-free behavior key; novel real fibonacci misses to the proposer.
+    assert_eq!(competence_catalog::rosetta::external_holdout(), (4, 6));
 }
 
 #[test]
@@ -48,8 +48,11 @@ fn real_rosetta_snippets_replay_known_values() {
     };
     // The Rosetta page's own Knuth check: gcd(40902, 24140) = 34.
     assert_eq!(run(src("gcd", "iterative-euclid"), &[("a", 40902), ("b", 24140)]), Some(34));
+    assert_eq!(run(src("gcd", "recursive-euclid"), &[("a", 40902), ("b", 24140)]), Some(34));
     assert_eq!(run(src("factorial", "iterative"), &[("a", 5)]), Some(120));
+    assert_eq!(run(src("factorial", "recursive"), &[("a", 5)]), Some(120));
     assert_eq!(run(src("fibonacci", "iterative"), &[("a", 7)]), Some(13));
+    assert_eq!(run(src("fibonacci", "recursive"), &[("a", 7)]), Some(13));
 }
 
 #[test]
