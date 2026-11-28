@@ -1205,6 +1205,34 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "razor_try" => { out.insert("try"); }
         "razor_while" => { out.insert("while"); }
         "global_sigil" | "metadata_sigil" => { out.insert("var"); }
+        // Pass 72: systemverilog / rego / nickel / sourcepawn curation.
+        "array_or_queue_method_call" | "enum_method_call" | "queue_method_call" | "applicative" => { out.insert("call"); }
+        "bit_select" | "nonrange_select" | "ref_arg_brack" | "array_indexed_access"
+        | "packed_array_indexed_access" => { out.insert("index"); }
+        "checker_item" | "policy" | "enum_struct" | "funcenum" | "functag" | "methodmap"
+        | "typedef" | "typeset" => { out.insert("type_def"); }
+        "data_type_or_implicit" | "enum_tag" | "raw_enum_tag" | "row_tail" | "type_array"
+        | "type_atom" | "multi_tag" => { out.insert("type_expr"); }
+        "list_of_checker_port_connections" | "range_list" | "enum_entries" => { out.insert("list"); }
+        "new_method_call" | "struct_constructor" => { out.insert("new"); }
+        "ordered_checker_port_connection" | "tf_port_item" | "fn_args" | "ref_arg" | "rule_args"
+        | "macro_param" => { out.insert("param"); }
+        "rs_prod" | "rs_production" | "rs_production_item" | "rs_production_list" | "rs_rule"
+        | "pattern_or_branch" => { out.insert("pattern"); }
+        "rs_repeat" | "membership" | "contains" | "curried_op" | "percent" => { out.insert("op"); }
+        t if t.starts_with("infix_") => { out.insert("op"); }
+        "binary_value" | "hex_value" | "octal_value" | "x_digit" | "z_digit" => { out.insert("int_lit"); }
+        "close_curly" | "close_paren" | "open_curly" | "open_paren" | "multstr_end" | "str_end" => { out.insert("token"); }
+        "empty_set" | "non_empty_set" => { out.insert("set"); }
+        "array_compr" | "set_compr" => { out.insert("comprehension"); }
+        "query" | "every" | "some" | "uni_term" => { out.insert("control"); }
+        "rule_head" | "rule_head_comp" | "pattern_fun" | "enum_struct_method"
+        | "methodmap_method" | "methodmap_method_constructor" | "methodmap_method_destructor"
+        | "methodmap_native" | "methodmap_native_constructor" | "methodmap_native_destructor" => { out.insert("fn"); }
+        "annot_atom" | "default_annot" => { out.insert("attribute"); }
+        "array_scope_access" | "scope_access" => { out.insert("member"); }
+        "dimension_packing" | "fixed_dimension" => { out.insert("modifier"); }
+        "funcenum_member" => { out.insert("field"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
