@@ -19,6 +19,40 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn external_corpus_rosetta_lift_and_holdout() {
+    // Verbatim third-party Rosetta Code (fetched 28 Nov 2026), not hand-built to match.
+    // Measured lift frontier: the three iterative pure-integer variants lift; the three
+    // recursive / ternary variants (expression-level calls) remain the frontier.
+    assert_eq!(competence_catalog::rosetta::lift_coverage(), (3, 6));
+    // Admit canonical gcd+factorial; real same-behavior spellings hit by name-free behavior
+    // key, novel real fibonacci misses and falls to the proposer.
+    assert_eq!(competence_catalog::rosetta::external_holdout(), (2, 3));
+}
+
+#[test]
+fn real_rosetta_snippets_replay_known_values() {
+    use competence_catalog::program::{eval_program, Env, FnTable};
+    let src = |task: &str, variant: &str| {
+        competence_catalog::rosetta::CORPUS
+            .iter()
+            .find(|(t, v, _)| *t == task && *v == variant)
+            .map(|(_, _, s)| *s)
+            .unwrap()
+    };
+    let run = |py: &str, seed: &[(&str, i128)]| {
+        let w = competence_catalog::rosetta::request(py).unwrap();
+        let p = competence_catalog::program::lift_program(&w).unwrap();
+        let mut env = Env::new();
+        for (k, v) in seed { env.insert(k.to_string(), *v); }
+        eval_program(&p, &mut env, &mut FnTable::new()).unwrap()
+    };
+    // The Rosetta page's own Knuth check: gcd(40902, 24140) = 34.
+    assert_eq!(run(src("gcd", "iterative-euclid"), &[("a", 40902), ("b", 24140)]), Some(34));
+    assert_eq!(run(src("factorial", "iterative"), &[("a", 5)]), Some(120));
+    assert_eq!(run(src("fibonacci", "iterative"), &[("a", 7)]), Some(13));
+}
+
+#[test]
 fn held_out_requests_generalize_by_behavior() {
     // admitted library; held-out requests = one paraphrase (hit) + one novel (miss)
     let admitted = ["return a+b;"];
