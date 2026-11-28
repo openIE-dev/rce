@@ -1319,6 +1319,22 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         | "highlighted_end" | "insert_end" | "language_marker" | "marker" | "math_marker"
         | "math_marker_end" | "quotation_marks" | "raw_inline_marker_end" | "strong_end"
         | "subscript_end" | "superscript_end" | "verbatim_marker_end" => { out.insert("token"); }
+        // Pass 77: sh / dash curation (shared shell vocabulary).
+        "and_or" | "arithmetic_source" | "arithmetic_source_fragment" | "compound_command"
+        | "parenthesized_arithmetic" | "parenthesized_arithmetic_dynamic_source"
+        | "parenthesized_arithmetic_source" => { out.insert("control"); }
+        "arithmetic_number" | "io_number" => { out.insert("int_lit"); }
+        "clobber" | "dgreat" | "dless" | "greatand" | "lessand" | "lessgreat" => { out.insert("op"); }
+        "cmd_prefix" | "cmd_suffix" => { out.insert("modifier"); }
+        "cmd_word" | "io_file" | "tilde_user" => { out.insert("var"); }
+        "compound_list" | "pipe_sequence" => { out.insert("seq"); }
+        "dsemi" | "esac_keyword" | "fi_keyword" | "for_keyword" | "here_end" | "in_keyword"
+        | "newline_list" | "semi_and" | "separator" | "separator_op" | "sequential_sep"
+        | "while_keyword" => { out.insert("token"); }
+        "here_end_text" | "io_here" => { out.insert("str_lit"); }
+        t if t.starts_with("pattern_bracket_") || t == "pattern_question_source" => { out.insert("pattern"); }
+        "simple_command" => { out.insert("call"); }
+        "wordlist" => { out.insert("list"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
