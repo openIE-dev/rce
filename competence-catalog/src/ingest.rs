@@ -1303,6 +1303,22 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "prolog" | "extSubset" => { out.insert("body"); }
         "Comment" => { out.insert("comment"); }
         "Name" | "Nmtoken" | "PITarget" => { out.insert("var"); }
+        // Pass 76: djot curation.
+        "checked" | "highlighted" | "table_cell_alignment" => { out.insert("modifier"); }
+        "collapsed_reference_image" | "collapsed_reference_link" | "full_reference_image"
+        | "full_reference_link" | "inline_link" => { out.insert("import"); }
+        "inline_image" => { out.insert("call"); }
+        "inline_link_destination" => { out.insert("var"); }
+        "key_value" => { out.insert("field"); }
+        "raw_inline" | "table_caption" => { out.insert("str_lit"); }
+        "span" => { out.insert("control"); }
+        "table_row" => { out.insert("list"); }
+        "fixme" => { out.insert("comment"); }
+        t if t.starts_with("list_marker_") => { out.insert("token"); }
+        "table_separator" | "div_marker_end" | "footnote_marker_end" | "frontmatter_marker"
+        | "highlighted_end" | "insert_end" | "language_marker" | "marker" | "math_marker"
+        | "math_marker_end" | "quotation_marks" | "raw_inline_marker_end" | "strong_end"
+        | "subscript_end" | "superscript_end" | "verbatim_marker_end" => { out.insert("token"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
