@@ -19,6 +19,15 @@ fn c_subset_lift_replays() {
 }
 
 #[test]
+fn flowg_core_kernel_ingests_fully() {
+    // best-case lift: flowg's core compute kernel maps 1:1 onto the universal taxonomy
+    let (m, t) = competence_catalog::flowg_ingest::core_coverage();
+    assert_eq!((m, t), (22, 22), "flowg core kernel lifts 100%");
+    assert!(!competence_catalog::flowg_ingest::near_frontier().is_empty());
+    assert!(!competence_catalog::flowg_ingest::frontier_groups().is_empty());
+}
+
+#[test]
 fn logged_placement_keeps_replay_bit_identical() {
     use competence_catalog::placement::{PlacementLog, builtin_targets};
     let mut log = PlacementLog::default();
