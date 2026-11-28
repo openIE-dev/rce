@@ -1233,6 +1233,45 @@ fn node_constructs(t: &str, out: &mut BTreeSet<&'static str>) {
         "array_scope_access" | "scope_access" => { out.insert("member"); }
         "dimension_packing" | "fixed_dimension" => { out.insert("modifier"); }
         "funcenum_member" => { out.insert("field"); }
+        // Pass 73: picat / usd / ink / p / codeql curation.
+        "action_rule" | "function_fact" | "function_rule" | "nonbacktrackable_predicate_rule"
+        | "predicate_fact" | "predicate_rule" | "knot" | "stitch" | "anon_event_handler"
+        | "no_param_anon_event_handler" | "machine_entry" | "state_entry" | "state_exit" => { out.insert("fn"); }
+        "braced_goal" | "once_goal" | "array_edit" | "orderer" | "_logic" | "choice" | "choice_only"
+        | "ink" | "thread" | "goals_all" | "goals_default" | "on_event_goto_state" | "state_defer"
+        | "state_ignore" | "comp_term" | "orderBy" | "ql" => { out.insert("control"); }
+        "conjunctive_goal" | "conjunction" => { out.insert("and"); }
+        "disjunctive_goal" | "disjunction" => { out.insert("or"); }
+        "term_constructor" => { out.insert("new"); }
+        "eor" | "postfix" | "twise" | "compop" | "implication" | "mulop" | "unop" => { out.insert("op"); }
+        "index_mode" | "table_mode" | "array_edit_maxsize" | "array_edit_minsize" | "layer_offset"
+        | "permission" | "spline_extrapolation" | "spline_extrapolation_loop" | "spline_loop"
+        | "spline_post_shaping" | "spline_sloped" | "spline_tangent_algorithm" | "varying"
+        | "_global_keyword" | "temperature_cold" | "temperature_hot" => { out.insert("modifier"); }
+        "arc_path" | "relocate" | "relocates" => { out.insert("import"); }
+        "array_edit_append" | "array_edit_fill" | "array_edit_insert" | "array_edit_prepend"
+        | "array_edit_resize" | "divert" | "tunnel" | "aritylessPredicateExpr" | "predicateExpr" => { out.insert("call"); }
+        "array_edit_index" => { out.insert("index"); }
+        "array_edit_write" => { out.insert("assign"); }
+        "list_proxy" | "prim_paths" | "list_value_defs" | "list_values" | "enum_elem_list"
+        | "event_list" | "iden_list" | "iden_type_list" | "non_default_event_list"
+        | "numbered_enum_elem_list" | "rvalue_list" | "seq_primitive" | "datatypeBranches"
+        | "orderBys" => { out.insert("list"); }
+        "prim_path" | "_divert_target" | "event_id" | "lvalue" | "map_or_seq_lvalue" | "rvalue"
+        | "tuple_lvalue" | "var_lvalue" | "aggId" | "predicateName" | "simpleId" | "varName" => { out.insert("var"); }
+        "spline" | "primitiveType" | "typeExpr" | "typeUnionBody" | "dbtype" => { out.insert("type_expr"); }
+        "spline_knot" | "spline_pre_tangent" | "spline_tangent" | "list_value_def" | "enum_elem"
+        | "non_default_event" | "numbered_enum_elem" => { out.insert("field"); }
+        "timeSamples" => { out.insert("dict"); }
+        "None" | "empty" => { out.insert("null_lit"); }
+        "choice_marks" | "eol" | "gather_marks" | "choice_mark" | "gather_mark" | "glue" => { out.insert("token"); }
+        "alt_arm" | "cond_arm" => { out.insert("pattern"); }
+        "_param_value" | "fun_param_list" | "annotArg" => { out.insert("param"); }
+        "temp_def" => { out.insert("let"); }
+        "proof_item" => { out.insert("assert"); }
+        "annotName" => { out.insert("attribute"); }
+        "datatype" | "datatypeBranch" => { out.insert("type_def"); }
+        "memberPredicate" | "super_ref" => { out.insert("member"); }
         t if t.ends_with("Expression") => { out.insert("control"); }
         t if t.ends_with("Op") => { out.insert("op"); }
         t if t.ends_with("Cmd") => { out.insert("control"); }
